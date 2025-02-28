@@ -1,17 +1,82 @@
-// index.js
 import AES from "aes-js";
 import { hexToBytes, bytesToHex, bytesToDecimalString, xorArrays, shiftGo, generateSubkeyGo, computeAesCmac, computeKs, computeCm, computeAesCmacForVerification } from "./cryptoutils.js";
 import { TEST_VECTORS, assertEqual, assertArrayEqual } from "./testvectors.js";
-
-
+import { generateBoltCardKeys } from "./keygenerator.js"; // Added key generation module
 
 export default {
   async fetch(request, env) {
     console.log("\n-- bolt card crypto test vectors --\n");
 
     const url = new URL(request.url);
+    const pathname = url.pathname;
     const pHex = url.searchParams.get("p");
     const cHex = url.searchParams.get("c");
+
+    // Handle BoltCard Programming
+    if (pathname === "/program") {
+      const uid = url.searchParams.get("uid");
+      if (!uid) {
+        return new Response(JSON.stringify({ status: "ERROR", reason: "Missing UID" }), { status: 400 });
+      }
+
+      console.log("Programming the BoltCard with UID:", uid);
+
+      try {
+        const keys = await generateBoltCardKeys(); // Generate keys
+
+        const response = {
+          status: "SUCCESS",
+          message: "BoltCard programmed successfully",
+          keys: {
+            K0: keys.k0,
+            K1: keys.k1,
+            K2: keys.k2,
+            K3: keys.k3,
+            K4: keys.k4,
+            ID: keys.id,
+            CardKey: keys.cardKey,
+          },
+        };
+
+        return new Response(JSON.stringify(response), { status: 200, headers: { "Content-Type": "application/json" } });
+      } catch (error) {
+        return new Response(JSON.stringify({ status: "ERROR", reason: error.message }), { status: 500 });
+      }
+    }
+
+    // Handle BoltCard Reset
+    if (pathname === "/reset") {
+      const lnurlw = url.searchParams.get("lnurlw");
+      if (!lnurlw) {
+        return new Response(JSON.stringify({ status: "ERROR", reason: "Missing lnurlw parameter" }), { status: 400 });
+      }
+
+      console.log("Resetting the BoltCard using lnurlw:", lnurlw);
+
+      try {
+        const keys = await generateBoltCardKeys(); // Generate new keys for reset
+
+        const response = {
+          status: "SUCCESS",
+          message: "BoltCard reset successfully",
+          keys: {
+            K0: keys.k0,
+            K1: keys.k1,
+            K2: keys.k2,
+            K3: keys.k3,
+            K4: keys.k4,
+            ID: keys.id,
+            CardKey: keys.cardKey,
+          },
+        };
+
+        return new Response(JSON.stringify(response), { status: 200, headers: { "Content-Type": "application/json" } });
+      } catch (error) {
+        return new Response(JSON.stringify({ status: "ERROR", reason: error.message }), { status: 500 });
+      }
+    }
+
+    // Existing LNURLW Verification Logic (Unchanged)
     if (!pHex || !cHex) {
       return new Response(JSON.stringify({ status: "ERROR", reason: "Missing parameters" }), { status: 400 });
     }
@@ -45,7 +110,6 @@ export default {
     sv2[14] = ctr[1];
     sv2[15] = ctr[0];
     console.log("sv2 = ", bytesToDecimalString(sv2));
-    // Expected sv2 from test vector is provided in TEST_VECTORS
 
     const ks = computeKs(sv2, k2Bytes);
     console.log("ks = ", bytesToDecimalString(ks));
