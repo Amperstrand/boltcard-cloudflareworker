@@ -1,0 +1,11 @@
+{
+  "name": "boltcard-poc",
+  "version": "0.0.0",
+  "devDependencies": {
+    "wrangler": "3.93.0"
+  },
+  "private": true,
+  "dependencies": {
+    "aes-js": "^3.1.2"
+  }
+}

@@ -1,0 +1,18 @@
+name = "boltcard-poc"
+main = "index.js"
+compatibility_date = "2025-02-28"
+
+
+# Use a simple array of route strings
+
+routes = [
+  "https://boltcardpoc.psbt.me/*"
+]
+
+[vars]
+# These variables will be available to your Worker.
+BOLT_CARD_K1 = "0c3b25d92b38ae443229dd59ad34b85d"
+BOLT_CARD_K2 = "b45775776cb224c75bcde7ca3704e933"
+
+[build]
+command = "npm install"
