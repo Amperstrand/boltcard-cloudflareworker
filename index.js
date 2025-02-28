@@ -48,14 +48,13 @@ function xorArrays(a, b) {
 /**
  * Go's shift function.
  * Iterates from the last byte down to the first, shifting left by one bit
- * and propagating the carry. Returns an object with:
- *  { shifted: Uint8Array, carry: number }
+ * and propagating the carry.
  */
 function shiftGo(src) {
   const dst = new Uint8Array(src.length);
   let carry = 0;
   for (let i = src.length - 1; i >= 0; i--) {
-    const bit = src[i] >> 7; // extract MSB of src[i]
+    const bit = src[i] >> 7; // Extract MSB of src[i]
     dst[i] = ((src[i] << 1) & 0xff) | carry;
     carry = bit;
   }
@@ -63,9 +62,8 @@ function shiftGo(src) {
 }
 
 /**
- * Generate subkey using Go's algorithm.
- * Given a 16-byte input, shift it left one bit using shiftGo.
- * If the final carry is 1, XOR the last byte with 0x87.
+ * Generate a subkey using Go's algorithm.
+ * Given a 16-byte input, shift it left one bit and if the final carry is 1, XOR the last byte with 0x87.
  */
 function generateSubkeyGo(input) {
   const { shifted, carry } = shiftGo(input);
@@ -78,8 +76,7 @@ function generateSubkeyGo(input) {
 
 /**
  * Compute AES-CMAC following RFC 4493 exactly as in the Go implementation.
- * This function computes the CMAC for the given message using the provided key.
- * (This is used for computing ks = CMAC(sv2, K2)).
+ * This is used to compute ks = AES-CMAC(sv2, K2).
  */
 function computeAesCmac(message, key) {
   console.log("Computing AES-CMAC for message:", bytesToDecimalString(message));
@@ -95,12 +92,11 @@ function computeAesCmac(message, key) {
   const K1 = generateSubkeyGo(L);
   console.log("Step 2: K1 = ", bytesToDecimalString(K1));
 
-  // For a full block message (length == blockSize), no padding is applied.
   let M_last;
   if (message.length === blockSize) {
     M_last = xorArrays(message, K1);
   } else {
-    // For a non-full block, pad with 0x80 then zeros and XOR with K2.
+    // For non-full block, pad message with 0x80 then zeros and XOR with K2.
     const padded = new Uint8Array(blockSize).fill(0);
     padded.set(message);
     padded[message.length] = 0x80;
@@ -110,7 +106,7 @@ function computeAesCmac(message, key) {
   }
   console.log("Step 3: M_last = ", bytesToDecimalString(M_last));
 
-  // Step 4: Compute T = AES-ECB(key, M_last) -> this is the CMAC
+  // Step 4: Compute T = AES-ECB(key, M_last)
   const T = aesEcb.encrypt(M_last);
   console.log("Step 4: T (CMAC result) = ", bytesToDecimalString(T));
 
@@ -129,15 +125,12 @@ function computeKs(sv2, cmacKeyBytes) {
 
 /**
  * Compute cm from ks following Go's finalization.
- * Mimics the following Go steps:
- *   - Initialize a new CMAC hash with cipher = AES-ECB(ks).
- *   - Let h.k1 be derived as follows:
- *         L' = AES-ECB(ks, 0^16)
- *         K1' = generateSubkeyGo(L')
- *         h.k1 = generateSubkeyGo(K1')   (i.e. shift K1' once more)
- *   - For an empty message, since h.off < blockSize, copy h.k1 into hash,
- *     then do hash[0] ^= 0x80.
- *   - Finally, compute cm = AES-ECB(ks, hash).
+ * Mimics:
+ *  - L' = AES-ECB(ks, 0^16)
+ *  - K1' = generateSubkeyGo(L')
+ *  - h.k1 = generateSubkeyGo(K1')
+ *  - hash = h.k1 with hash[0] ^= 0x80
+ *  - cm = AES-ECB(ks, hash)
  */
 function computeCm(ks) {
   console.log("Computing cm from ks...");
@@ -149,15 +142,15 @@ function computeCm(ks) {
   const Lprime = aesEcbKs.encrypt(zeroBlock);
   console.log("Step X: L' = ", bytesToDecimalString(Lprime));
 
-  // Compute K1' = generateSubkeyGo(Lprime)
+  // Compute K1' = generateSubkeyGo(L')
   const K1prime = generateSubkeyGo(Lprime);
   console.log("Step X: K1' = ", bytesToDecimalString(K1prime));
 
-  // Compute h.k1 = generateSubkeyGo(K1prime)
+  // Compute h.k1 = generateSubkeyGo(K1')
   const hk1 = generateSubkeyGo(K1prime);
   console.log("Step X: h.k1 = ", bytesToDecimalString(hk1));
 
-  // For empty message, set hash = h.k1 and then hash[0] ^= 0x80.
+  // For empty message, copy h.k1 then modify: hash[0] ^= 0x80
   const hashVal = new Uint8Array(hk1);
   hashVal[0] ^= 0x80;
   console.log("Step X: Final MAC input (hash) = ", bytesToDecimalString(hashVal));
@@ -170,8 +163,9 @@ function computeCm(ks) {
 
 /**
  * Compute the final MAC verification value:
- * First, ks = AES-CMAC(sv2, K2) [computed above],
- * then cm = computeCm(ks), and finally extract ct = bytes 1,3,5,7,9,11,13,15 from cm.
+ * - ks = AES-CMAC(sv2, K2)
+ * - cm = computeCm(ks)
+ * - ct = bytes at indices 1,3,5,7,9,11,13,15 of cm
  */
 function computeAesCmacForVerification(sv2, cmacKeyBytes) {
   console.log("Computing AES-CMAC for verification...");
@@ -203,8 +197,8 @@ export default {
     console.log("p = ", pHex);
     console.log("c = ", cHex);
 
-    // Load keys from environment variables:
-    // K1 is the decryption key, K2 is the authentication (CMAC) key.
+    // Load environment keys (available in wrangler.toml)
+    // K1: decryption key; K2: authentication (CMAC) key.
     const k1Hex = env.BOLT_CARD_K1?.trim();
     const k2Hex = env.BOLT_CARD_K2?.trim();
     if (!k1Hex || !k2Hex) {
@@ -227,7 +221,7 @@ export default {
       );
     }
 
-    // Decrypt p (the encrypted PICCData) using AES-ECB with K1.
+    // Decrypt p using AES-ECB with K1 to obtain the PICCData.
     console.log("Decrypting p using AES-ECB (K1)...");
     const aesEcbK1 = new AES.ModeOfOperation.ecb(k1Bytes);
     const decrypted = aesEcbK1.decrypt(pBytes);
@@ -239,13 +233,13 @@ export default {
       );
     }
 
-    // Extract UID (bytes 1-7) and counter (bytes 8-10) from the decrypted block.
+    // Extract UID (bytes 1-7) and counter (bytes 8-10)
     const uidBytes = decrypted.slice(1, 8);
     // In Go: ctr[0]=decrypted[10], ctr[1]=decrypted[9], ctr[2]=decrypted[8]
     const ctr = new Uint8Array([decrypted[10], decrypted[9], decrypted[8]]);
     console.log("decrypted card data : uid", bytesToHex(uidBytes), ", ctr", bytesToHex(ctr));
 
-    // Build sv2 exactly as in Go:
+    // Build sv2 as in Go:
     // sv2[0..5] = [0x3c, 0xc3, 0x00, 0x01, 0x00, 0x80]
     // sv2[6..12] = uid (7 bytes)
     // sv2[13] = ctr[2], sv2[14] = ctr[1], sv2[15] = ctr[0]
@@ -258,8 +252,8 @@ export default {
     console.log("sv2 = ", bytesToDecimalString(sv2));
     // Expected sv2: [60 195 0 1 0 128 4 153 108 106 146 105 128 3 0 0]
 
-    // Compute the final MAC verification value:
-    // 1. ks = AES-CMAC(sv2, K2) (using our computeKs function)
+    // Compute the MAC verification value:
+    // 1. ks = AES-CMAC(sv2, K2)
     // 2. cm = computeCm(ks) following Go's finalization.
     // 3. ct = extract bytes 1,3,5,7,9,11,13,15 from cm.
     const computedCmac = computeAesCmacForVerification(sv2, k2Bytes);
@@ -275,9 +269,24 @@ export default {
     }
 
     console.log("cmac validates ok\n");
-    return new Response(
-      JSON.stringify({ status: "OK" }),
-      { headers: { "Content-Type": "application/json" } }
-    );
+
+    // Now, build the full LNUrl Withdraw response as a real Boltcard server would.
+    // For example:
+    const uidHex = bytesToHex(uidBytes);
+    const ctrHex = bytesToHex(ctr);
+    const lnurlwResponse = {
+      tag: "withdrawRequest",
+      callback: `https://card.yourdomain.com/withdraw?uid=${uidHex}`,
+      k1: uidHex, // For demonstration; in production, use a secure random value.
+      maxWithdrawable: 100000000,  // Maximum amount in millisatoshis.
+      minWithdrawable: 1000,        // Minimum amount in millisatoshis.
+      defaultDescription: `Bolt Card Payment for UID ${uidHex}, counter ${ctrHex}`
+    };
+    console.log("LNUrl Withdraw response:", JSON.stringify(lnurlwResponse, null, 2));
+
+    return new Response(JSON.stringify(lnurlwResponse), {
+      headers: { "Content-Type": "application/json" }
+    });
   }
 };
+
