@@ -6,6 +6,8 @@ const expectedHashes = {
   'https://boltcardpoc.psbt.me/?p=4E2E289D945A66BB13377A728884E867&c=E19CCB1FED8892CE': 'e70b6deb69f31ac11cb64975ed079d01547e8622bff8680321590ce5308dc07f',
   'https://boltcardpoc.psbt.me/?p=00F48C4F8E386DED06BCDC78FA92E2FE&c=66B4826EA4C155B4': '9f9e3e7b6b98f88aeb0312ee6c246e013e0ab8b45cec1132a8dc036dded251c5',
   'https://boltcardpoc.psbt.me/?p=0DBF3C59B59B0638D60B5842A997D4D1&c=CC61660C020B4D96': 'ee80df0a35a09238e795af33ded6176febc641dfb8df14de67e73868421835fb',
+  'https://boltcardpoc.psbt.me/program?uid=04a39493cc8680': 'b3abdc2955b3fab42d8b519fbbd04e5e2f5e72acab92e71878a60d89fc99baa0', // Added test for /program
+  // Skipping /reset for now since we need p and c values
 };
 
 describe('Test API Responses for Correct SHA256 Hash', () => {
