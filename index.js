@@ -62,8 +62,8 @@ export default {
         } catch (err) {
           return new Response(JSON.stringify({ status: "ERROR", reason: err.message }), {
             status: 500,
-            headers: { "Content-Type": "application/json" } }
-          );
+            headers: { "Content-Type": "application/json" }
+          });
         }
       }
     }
@@ -89,12 +89,9 @@ export default {
         const targetPath = `/boltcards/api/v1/scan/${lnbitsExternalId}?p=${encodeURIComponent(pHex)}&c=${encodeURIComponent(cHex)}`;
         const targetUrl = new URL(targetPath, targetBaseUrl);
         console.log(`Proxying request for UID ${uidHex} to ${targetUrl.toString()}`);
-
-        // Log the proxy request details
         console.log("Proxy Request Details:");
         console.log("Method:", request.method);
         console.log("Headers:", JSON.stringify(Object.fromEntries(request.headers.entries()), null, 2));
-
         let requestBody = null;
         if (request.body) {
           requestBody = await request.text();
@@ -102,23 +99,19 @@ export default {
         } else {
           console.log("Body: No body in request");
         }
-
         const proxyRequest = new Request(targetUrl.toString(), {
           method: request.method,
           headers: request.headers,
           body: requestBody ? requestBody : null,
           redirect: "manual"
         });
-
         const proxiedResponse = await fetch(proxyRequest);
         return proxiedResponse;
       }
-
-      // Otherwise, return the usual withdraw response.
       const responsePayload = {
         tag: "withdrawRequest",
         uid: uidHex,
-        counter: parseInt(ctr, 16), // Convert to decimal integer
+        counter: parseInt(ctr, 16),
         callback: `https://card.yourdomain.com/withdraw?uid=${uidHex}`,
         maxWithdrawable: 100000000,
         minWithdrawable: 1000,
@@ -127,47 +120,53 @@ export default {
       return new Response(JSON.stringify(responsePayload), { headers: { "Content-Type": "application/json" } });
     }
 
-    // LNURLp POST request handling using k1 containing p and q
-    if (pathname === "/boltcards/api/v1/lnurlp/fABRzT2jv9Mt82exoStuxQ" && request.method === "POST") {
+    // 4. Generalized LNURLp POST request handling
+    // Supports two ways:
+    //   a) POST to /boltcards/api/v1/lnurlp with JSON body k1 formatted as "p=x&q=y"
+    //   b) POST to /boltcards/api/v1/lnurlp/<p> with JSON body k1 containing just the q value
+    const lnurlpBase = "/boltcards/api/v1/lnurlp";
+    if (pathname.startsWith(lnurlpBase) && request.method === "POST") {
       try {
         const json = await request.json();
         console.log("Received LNURLp POST request:", JSON.stringify(json, null, 2));
-
-        const { k1, invoice, amount } = json;
-
-        if (!k1) {
-          return new Response(JSON.stringify({ status: "ERROR", reason: "Missing k1 parameter" }), { 
-            status: 400, headers: { "Content-Type": "application/json" } 
-          });
+        let p, q;
+        // Check if a p value is provided in the URL path (method b)
+        const extra = pathname.slice(lnurlpBase.length).split("/").filter(Boolean);
+        if (extra.length >= 1) {
+          p = extra[0];
+          if (!json.k1) {
+            return new Response(JSON.stringify({ status: "ERROR", reason: "Missing k1 parameter for q value" }), { 
+              status: 400, headers: { "Content-Type": "application/json" } 
+            });
+          }
+          q = json.k1;
+        } else {
+          // Method a) where k1 is formatted as "p=x&q=y"
+          if (!json.k1) {
+            return new Response(JSON.stringify({ status: "ERROR", reason: "Missing k1 parameter" }), { 
+              status: 400, headers: { "Content-Type": "application/json" } 
+            });
+          }
+          const k1Params = new URLSearchParams(json.k1);
+          p = k1Params.get("p");
+          q = k1Params.get("q");
+          if (!p || !q) {
+            return new Response(JSON.stringify({ status: "ERROR", reason: "Invalid k1 format, missing p or q" }), { 
+              status: 400, headers: { "Content-Type": "application/json" } 
+            });
+          }
         }
-
-        // Extract p and q from k1 formatted as "p=xxx&q=xxx"
-        const k1Params = new URLSearchParams(k1);
-        const p = k1Params.get("p");
-        const q = k1Params.get("q");
-
-        if (!p || !q) {
-          return new Response(JSON.stringify({ status: "ERROR", reason: "Invalid k1 format, missing p or q" }), { 
-            status: 400, headers: { "Content-Type": "application/json" } 
-          });
-        }
-
-        console.log(`Extracted from k1 -> p: ${p}, q: ${q}`);
-
-        // Decode and validate CMAC
+        console.log(`Using p: ${p} and q: ${q}`);
         const { uidHex, ctr, error } = decodeAndValidate(p, q, env);
         if (error) {
           return new Response(JSON.stringify({ status: "ERROR", reason: error }), { 
             status: 400, headers: { "Content-Type": "application/json" } 
           });
         }
-
         console.log(`Decoded LNURLp values: UID=${uidHex}, Counter=${parseInt(ctr, 16)}`);
-
         return new Response(JSON.stringify({ status: "OK", uid: uidHex, counter: parseInt(ctr, 16) }), { 
           status: 200, headers: { "Content-Type": "application/json" } 
         });
-
       } catch (err) {
         console.error("Error processing LNURLp POST request:", err.message);
         return new Response(JSON.stringify({ status: "ERROR", reason: err.message }), { 

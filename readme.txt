@@ -33,13 +33,27 @@ curl -X POST https://boltcardpoc.psbt.me/boltcards/api/v1/lnurlp/fABRzT2jv9Mt82e
           "k1": "fABRzT2jv9Mt82exoStuxQ"
         }'
 
-curl -X POST https://boltcardpoc.psbt.me/boltcards/api/v1/lnurlp/fABRzT2jv9Mt82exoStuxQ \
+# Example 1: POST to /boltcards/api/v1/lnurlp with k1 as "p=x&q=y"
+In this method, you POST to /boltcards/api/v1/lnurlp and supply k1 as a query-string formatted value that contains both the p and q values. This approach allows the client to send both values together in one field.
+curl -X POST https://boltcardpoc.psbt.me/boltcards/api/v1/lnurlp \
      -H "Content-Type: application/json" \
      -d '{
           "invoice": "lnbc1000n1p...your_bolt11_invoice...",
           "amount": 1000,
           "k1": "p=3736A84681238418D4B9B7210C13DC39&q=1549E9D901188F77"
         }'
+
+# Example 2: POST to /boltcards/api/v1/lnurlp/<p> with k1 as the q value
+In this method, you POST to /boltcards/api/v1/lnurlp/<p> where the p value is provided in the URL. The JSON body’s k1 field then carries only the q (HMAC) value. Both approaches ultimately result in the same process of decrypting the p value to obtain a UID and counter while verifying the q value as a valid CMAC.
+
+curl -X POST https://boltcardpoc.psbt.me/boltcards/api/v1/lnurlp/3736A84681238418D4B9B7210C13DC39 \
+     -H "Content-Type: application/json" \
+     -d '{
+          "invoice": "lnbc1000n1p...your_bolt11_invoice...",
+          "amount": 1000,
+          "k1": "1549E9D901188F77"
+        }'
+
 
 ```
 
