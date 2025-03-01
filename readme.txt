@@ -24,6 +24,16 @@ curl -X POST "https://boltcardpoc.psbt.me/api/v1/pull-payments/fUDXsnySxvb5LYZ1b
      -H "Content-Type: application/json" \
      -d '{"UID": "044561fa967380"}'
 
+
+curl -X POST https://boltcardpoc.psbt.me/boltcards/api/v1/lnurlp/fABRzT2jv9Mt82exoStuxQ \
+     -H "Content-Type: application/json" \
+     -d '{
+          "invoice": "lnbc1000n1p...your_bolt11_invoice...",
+          "amount": 1000,
+          "k1": "fABRzT2jv9Mt82exoStuxQ"
+        }'
+
+
 ```
 
 ## Test

@@ -1,4 +1,4 @@
-import { extractUIDAndCounter, decodeAndValidate } from "./boltCardHelper.js";
+import { decodeAndValidate } from "./boltCardHelper.js";
 import { handleStatus } from "./handlers/statusHandler.js";
 import { handleBoltCardsRequest } from "./handlers/boltcardsHandler.js";
 import { handleReset } from "./handlers/resetHandler.js";
@@ -49,7 +49,7 @@ export default {
               { status: 400, headers: { "Content-Type": "application/json" } }
             );
           }
-          // Decode and validate CMAC from the LNURLW (using strict HMAC validation)
+          // Decode and validate CMAC from the LNURLW
           const { uidHex, ctr, error } = decodeAndValidate(pHex, cHex, env);
           if (error) {
             return new Response(JSON.stringify({ status: "ERROR", reason: error }), {
@@ -72,46 +72,45 @@ export default {
     const pHex = params.get("p");
     const cHex = params.get("c");
     if (pHex) {
-      // First extract UID so we can determine if we're proxying.
-      const extraction = extractUIDAndCounter(pHex, env);
-      if (extraction.error) {
-        return new Response(JSON.stringify({ status: "ERROR", reason: extraction.error }), {
+      const { uidHex, ctr, error } = decodeAndValidate(pHex, cHex, env);
+      if (error) {
+        return new Response(JSON.stringify({ status: "ERROR", reason: error }), {
           status: 400,
           headers: { "Content-Type": "application/json" }
         });
       }
-      const { uidHex, ctr } = extraction;
-
-      let decodeResult;
-      // For proxying (UID equals "044561fa967380"), ignore HMAC errors.
-      if (uidHex === "044561fa967380") {
-        decodeResult = decodeAndValidate(pHex, cHex, env, { ignoreHmac: true });
-      } else {
-        decodeResult = decodeAndValidate(pHex, cHex, env);
-      }
-      if (decodeResult.error) {
-        return new Response(JSON.stringify({ status: "ERROR", reason: decodeResult.error }), {
-          status: 400,
-          headers: { "Content-Type": "application/json" }
-        });
-      }
-
-      console.log("Decoded UID:", decodeResult.uidHex, "Counter:", decodeResult.ctr);
+      console.log("Decoded UID:", uidHex, "Counter:", ctr);
 
       // If UID is "044561fa967380", forward the request.
-      if (decodeResult.uidHex === "044561fa967380") {
+      if (uidHex === "044561fa967380") {
         // Construct target URL with hardcoded external_id.
         const targetBaseUrl = "https://demo.lnbits.com";
         const lnbitsExternalId = "tapko6sbthfdgzoejjztjb";
         const targetPath = `/boltcards/api/v1/scan/${lnbitsExternalId}?p=${encodeURIComponent(pHex)}&c=${encodeURIComponent(cHex)}`;
         const targetUrl = new URL(targetPath, targetBaseUrl);
-        console.log(`Proxying request for UID ${decodeResult.uidHex} to ${targetUrl.toString()}`);
+        
+        console.log(`Proxying request for UID ${uidHex} to ${targetUrl.toString()}`);
+
+        // Log the proxy request details
+        console.log("Proxy Request Details:");
+        console.log("Method:", request.method);
+        console.log("Headers:", JSON.stringify(Object.fromEntries(request.headers.entries()), null, 2));
+
+        let requestBody = null;
+        if (request.body) {
+          requestBody = await request.text(); // Read and log the body content
+          console.log("Body:", requestBody);
+        } else {
+          console.log("Body: No body in request");
+        }
+
         const proxyRequest = new Request(targetUrl.toString(), {
           method: request.method,
           headers: request.headers,
-          body: request.body,
+          body: requestBody ? requestBody : null,
           redirect: "manual"
         });
+
         const proxiedResponse = await fetch(proxyRequest);
         return proxiedResponse;
       }
@@ -119,14 +118,30 @@ export default {
       // Otherwise, return the usual withdraw response.
       const responsePayload = {
         tag: "withdrawRequest",
-        uid: decodeResult.uidHex,
-        counter: decodeResult.ctr,
-        callback: `https://card.yourdomain.com/withdraw?uid=${decodeResult.uidHex}`,
+        uid: uidHex,
+        counter: ctr,
+        callback: `https://card.yourdomain.com/withdraw?uid=${uidHex}`,
         maxWithdrawable: 100000000,
         minWithdrawable: 1000,
-        defaultDescription: `${decodeResult.uidHex}, counter ${decodeResult.ctr}, cmac: OK`
+        defaultDescription: `${uidHex}, counter ${ctr}, cmac: OK`
       };
       return new Response(JSON.stringify(responsePayload), { headers: { "Content-Type": "application/json" } });
+    }
+
+    // LNURLp POST request handling (minimal diff added)
+    if (pathname === "/boltcards/api/v1/lnurlp/fABRzT2jv9Mt82exoStuxQ" && request.method === "POST") {
+      try {
+        const body = await request.text();
+        console.log("Received LNURLp POST request at /boltcards/api/v1/lnurlp/fABRzT2jv9Mt82exoStuxQ");
+        console.log("Headers:", JSON.stringify(Object.fromEntries(request.headers.entries()), null, 2));
+        console.log("Body:", body);
+      } catch (err) {
+        console.error("Error logging LNURLp POST request:", err.message);
+      }
+      return new Response(
+        JSON.stringify({ status: "OK", message: "LNURLp POST request received and logged" }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
     }
 
     return new Response("Not Found", { status: 404 });
