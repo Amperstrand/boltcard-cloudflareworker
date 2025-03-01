@@ -1,87 +1,95 @@
-// Helper: Convert Uint8Array to Hex String
-function toHexString(uint8arr) {
-  return Array.from(uint8arr)
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
+import AES from "aes-js";
+import { hexToBytes, bytesToHex } from "./cryptoutils.js";
+
+// Hardcoded Issuer Key (16 bytes)
+const ISSUER_KEY = hexToBytes("00000000000000000000000000000001");
+
+// AES-CMAC Manual Implementation
+async function aesCmac(key, message) {
+  const aesEcb = new AES.ModeOfOperation.ecb(key); // AES-ECB mode (Cloudflare-compatible)
+  const blockSize = 16;
+  const zeroBlock = new Uint8Array(blockSize);
+
+  // Step 1: Compute L = AES-ECB(key, 0^16)
+  const L = aesEcb.encrypt(zeroBlock);
+
+  // Step 2: Generate K1, K2 (subkeys)
+  function shiftAndXor(input) {
+    const output = new Uint8Array(input.length);
+    let carry = 0;
+    for (let i = input.length - 1; i >= 0; i--) {
+      const bit = input[i] >> 7; // Extract MSB
+      output[i] = ((input[i] << 1) & 0xff) | carry;
+      carry = bit;
+    }
+    if (carry) output[input.length - 1] ^= 0x87; // XOR last byte with 0x87 if carry
+    return output;
+  }
+  
+  const K1 = shiftAndXor(L);
+  const K2 = shiftAndXor(K1);
+
+  // Step 3: Padding and XOR
+  let M_last;
+  if (message.length === blockSize) {
+    M_last = xorArrays(message, K1);
+  } else {
+    const padded = new Uint8Array(blockSize).fill(0);
+    padded.set(message);
+    padded[message.length] = 0x80; // Append 0x80
+    M_last = xorArrays(padded, K2);
+  }
+
+  // Step 4: Compute AES-CMAC = AES-ECB(key, M_last)
+  return aesEcb.encrypt(M_last);
 }
 
-// Function to perform the Pseudo-Random Function (PRF) using HMAC and SHA-256
-async function PRF(key, message) {
-  const encoder = new TextEncoder();
-  const keyData = encoder.encode(key);
-  const messageData = encoder.encode(message);
-
-  // Import the key using HMAC and SHA-256 algorithm
-  const cryptoKey = await crypto.subtle.importKey(
-    "raw",
-    keyData,
-    { name: "HMAC", hash: { name: "SHA-256" } },
-    false,
-    ["sign", "verify"]
-  );
-
-  // Compute the HMAC (message authentication code)
-  const signature = await crypto.subtle.sign("HMAC", cryptoKey, messageData);
-  return new Uint8Array(signature);
+// XOR helper function
+function xorArrays(a, b) {
+  return a.map((v, i) => v ^ b[i]);
 }
 
-// Function to generate CardKey using IssuerKey, UID, and Version
-async function generateCardKey(issuerKey, uid, version) {
-  // Prepare the version as a 4-byte little-endian array
-  const versionBuffer = new ArrayBuffer(4);
-  new DataView(versionBuffer).setUint32(0, version, true); // Little-endian encoding
+// Generate deterministic BoltCard keys
+export async function getDeterministicKeys(uidHex) {
+  if (!uidHex || uidHex.length !== 14) {
+    throw new Error("Invalid UID: Must be 7 bytes in hex (14 characters)");
+  }
 
-  // Concatenate IssuerKey, UID, and VersionBuffer into a single message
-  const message = new Uint8Array([...issuerKey, ...uid, ...new Uint8Array(versionBuffer)]);
-  // We decode the message into a string for our PRF function
-  return PRF(issuerKey, new TextDecoder().decode(message));
-}
+  const uid = hexToBytes(uidHex);
+  const version = new Uint8Array([1, 0, 0, 0]); // Version 1 in little-endian format
 
-// Function to generate the full set of keys (K0, K1, K2, K3, K4, and ID)
-async function generateKeys(cardKey, issuerKey, uid) {
-  // Derive keys using the PRF with fixed hex string messages
-  const k0 = await PRF(new TextDecoder().decode(cardKey), "2d003f76");
-  const k1 = await PRF(new TextDecoder().decode(issuerKey), "2d003f77");
-  const k2 = await PRF(new TextDecoder().decode(cardKey), "2d003f78");
-  const k3 = await PRF(new TextDecoder().decode(cardKey), "2d003f79");
-  const k4 = await PRF(new TextDecoder().decode(cardKey), "2d003f7a");
-
-  // Derive ID using IssuerKey and UID
-  const id = await PRF(new TextDecoder().decode(issuerKey), "2d003f7b" + new TextDecoder().decode(uid));
-
-  return { k0, k1, k2, k3, k4, id };
-}
-
-// Main function to generate the keys for a BoltCard and return them as hex strings
-export async function generateBoltCardKeys() {
-  // Hardcoded values
-  const issuerKey = new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]); // IssuerKey: 00000000000000000000000000000001
-  const uid = new Uint8Array([0x04, 0xa3, 0x94, 0x93, 0xcc, 0x86, 0x80]); // UID: 04a39493cc8680
-  const version = 1; // Version: 1
+  console.log("Generating deterministic keys for UID:", uidHex);
 
   // Generate CardKey
-  const cardKey = await generateCardKey(issuerKey, uid, version);
+  const cardKey = await aesCmac(ISSUER_KEY, new Uint8Array([...hexToBytes("2d003f75"), ...uid, ...version]));
 
-  // Generate all keys
-  const keys = await generateKeys(cardKey, issuerKey, uid);
+  // Generate application keys (K0-K4)
+  const k0 = await aesCmac(cardKey, hexToBytes("2d003f76"));
+  const k1 = await aesCmac(ISSUER_KEY, hexToBytes("2d003f77"));
+  const k2 = await aesCmac(cardKey, hexToBytes("2d003f78"));
+  const k3 = await aesCmac(cardKey, hexToBytes("2d003f79"));
+  const k4 = await aesCmac(cardKey, hexToBytes("2d003f7a"));
+
+  // Generate ID
+  const id = await aesCmac(ISSUER_KEY, new Uint8Array([...hexToBytes("2d003f7b"), ...uid]));
 
   console.log("Generated Keys:");
-  console.log("K0:", toHexString(keys.k0));
-  console.log("K1:", toHexString(keys.k1));
-  console.log("K2:", toHexString(keys.k2));
-  console.log("K3:", toHexString(keys.k3));
-  console.log("K4:", toHexString(keys.k4));
-  console.log("ID:", toHexString(keys.id));
-  console.log("CardKey:", toHexString(cardKey));
+  console.log("K0:", bytesToHex(k0));
+  console.log("K1:", bytesToHex(k1));
+  console.log("K2:", bytesToHex(k2));
+  console.log("K3:", bytesToHex(k3));
+  console.log("K4:", bytesToHex(k4));
+  console.log("ID:", bytesToHex(id));
+  console.log("CardKey:", bytesToHex(cardKey));
 
-  // Return all keys as hex strings
+  // Return keys as hex
   return {
-    k0: toHexString(keys.k0),
-    k1: toHexString(keys.k1),
-    k2: toHexString(keys.k2),
-    k3: toHexString(keys.k3),
-    k4: toHexString(keys.k4),
-    id: toHexString(keys.id),
-    cardKey: toHexString(cardKey)
+    k0: bytesToHex(k0),
+    k1: bytesToHex(k1),
+    k2: bytesToHex(k2),
+    k3: bytesToHex(k3),
+    k4: bytesToHex(k4),
+    id: bytesToHex(id),
+    cardKey: bytesToHex(cardKey),
   };
 }

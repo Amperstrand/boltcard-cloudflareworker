@@ -1,7 +1,7 @@
 import AES from "aes-js";
 import { hexToBytes, bytesToHex, bytesToDecimalString, xorArrays, shiftGo, generateSubkeyGo, computeAesCmac, computeKs, computeCm, computeAesCmacForVerification } from "./cryptoutils.js";
 import { TEST_VECTORS, assertEqual, assertArrayEqual } from "./testvectors.js";
-import { generateBoltCardKeys } from "./keygenerator.js"; // Added key generation module
+import { getDeterministicKeys } from "./keygenerator.js"; // Corrected import
 
 export default {
   async fetch(request, env) {
@@ -22,7 +22,7 @@ export default {
       console.log("Programming the BoltCard with UID:", uid);
 
       try {
-        const keys = await generateBoltCardKeys(); // Generate keys
+        const keys = await getDeterministicKeys(uid); // Corrected function call
 
         const response = {
           status: "SUCCESS",
@@ -54,7 +54,7 @@ export default {
       console.log("Resetting the BoltCard using lnurlw:", lnurlw);
 
       try {
-        const keys = await generateBoltCardKeys(); // Generate new keys for reset
+        const keys = await getDeterministicKeys(); // Corrected function call
 
         const response = {
           status: "SUCCESS",
