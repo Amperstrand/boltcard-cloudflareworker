@@ -1,71 +1,53 @@
-import AES from "aes-js";
-import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
+import { hexToBytes, bytesToHex, buildVerificationData, decryptP, computeAesCmacForVerification, getK2KeyForUID } from "../cryptoutils.js";
 
 export async function handleVerification(url, env) {
   const pHex = url.searchParams.get("p");
   const cHex = url.searchParams.get("c");
 
   if (!pHex || !cHex) {
-    return new Response(
-      JSON.stringify({ status: "ERROR", reason: "Missing parameters" }),
-      { status: 400 }
-    );
+    return new Response(JSON.stringify({ status: "ERROR", reason: "Missing parameters" }), { status: 400 });
   }
 
-  const k1Keys = env.BOLT_CARD_K1.split(",").map(hexToBytes); // Convert K1 keys to byte arrays
-  const k2Bytes = hexToBytes(env.BOLT_CARD_K2);
-  const pBytes = hexToBytes(pHex);
+  const k1Keys = env.BOLT_CARD_K1.split(",").map(hexToBytes);
   const cBytes = hexToBytes(cHex);
 
-  if (pBytes.length !== 16 || cBytes.length !== 8) {
-    return new Response(
-      JSON.stringify({ status: "ERROR", reason: "Invalid p or c length" }),
-      { status: 400 }
-    );
+  if (cBytes.length !== 8) {
+    return new Response(JSON.stringify({ status: "ERROR", reason: "Invalid c length" }), { status: 400 });
   }
 
-  let decrypted, uidBytes, ctr;
-  let matched = false;
-  let usedK1 = null;
-
-  // Try each K1 key until we find one that produces a valid decryption (first byte === 0xC7)
-  for (const k1Bytes of k1Keys) {
-    const aesEcbK1 = new AES.ModeOfOperation.ecb(k1Bytes);
-    decrypted = aesEcbK1.decrypt(pBytes);
-
-    if (decrypted[0] === 0xC7) {
-      matched = true;
-      usedK1 = bytesToHex(k1Bytes);
-      uidBytes = decrypted.slice(1, 8);
-      ctr = new Uint8Array([decrypted[10], decrypted[9], decrypted[8]]);
-      break;
-    }
+  // Decrypt pHex
+  const { success, uidBytes, ctr, usedK1 } = decryptP(pHex, k1Keys);
+  if (!success) {
+    return new Response(JSON.stringify({ status: "ERROR", reason: "Unable to decode UID" }), { status: 400 });
   }
 
-  if (!matched) {
-    console.error("Failed to decrypt UID with any provided K1 keys.");
-    return new Response(
-      JSON.stringify({ status: "ERROR", reason: "Unable to decode UID" }),
-      { status: 400 }
-    );
+  const uidHex = bytesToHex(uidBytes);
+  console.log(`[DEBUG] Decrypted UID: ${uidHex}, Counter: ${bytesToHex(ctr)}`);
+
+  // Retrieve the correct K2 key for this UID
+  const k2Bytes = getK2KeyForUID(env, uidHex);
+  if (!k2Bytes) {
+    return new Response(JSON.stringify({ status: "ERROR", reason: `K2 key not found for UID ${uidHex}` }), { status: 400 });
   }
 
-  console.log(`Decryption successful with K1: ${usedK1}`);
-
-  // Build sv2, ks, cm, and ct from cryptoutils.js
+  // Compute verification data (sv2, ks, cm, ct)
   const { sv2, ks, cm, ct } = buildVerificationData(uidBytes, ctr, k2Bytes);
 
-  // Always return the same response regardless of test vectors
+  // Verify CMAC
+  const computedCt = computeAesCmacForVerification(sv2, k2Bytes);
+  const cmacValid = bytesToHex(computedCt) === bytesToHex(ct);
+
+  console.log(`[DEBUG] CMAC validation: ${cmacValid ? "OK" : "FAIL"}`);
+
+  // Construct response
   const response = {
     tag: "withdrawRequest",
-    callback: `https://card.yourdomain.com/withdraw?uid=${bytesToHex(uidBytes)}`,
-    k1: bytesToHex(uidBytes),
-    maxWithdrawable: 100000000,
-    minWithdrawable: 1000,
-    defaultDescription: `Bolt Card Payment for UID ${bytesToHex(uidBytes)}, counter ${bytesToHex(ctr)}`
+    callback: `https://card.yourdomain.com/withdraw?uid=${uidHex}`,
+    k1: uidHex,
+    maxWithdrawable: cmacValid ? 100000000 : 1,
+    minWithdrawable: cmacValid ? 1000 : 1,
+    defaultDescription: `${uidHex}, counter ${bytesToHex(ctr)}, cmac: ${cmacValid ? "OK" : "FAIL"}`
   };
 
-  return new Response(JSON.stringify(response), {
-    headers: { "Content-Type": "application/json" },
-  });
+  return new Response(JSON.stringify(response), { headers: { "Content-Type": "application/json" } });
 }
