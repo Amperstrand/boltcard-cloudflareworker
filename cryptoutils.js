@@ -1,6 +1,6 @@
 import AES from "aes-js";
 
-const DEBUG = process.env.DEBUG === "true"; // Toggle verbose logging
+const DEBUG = true
 
 export function hexToBytes(hex) {
   if (!hex || hex.length % 2 !== 0) {

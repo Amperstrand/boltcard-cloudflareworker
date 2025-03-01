@@ -1,7 +1,8 @@
 import AES from "aes-js";
 import { hexToBytes, bytesToHex, xorArrays } from "./cryptoutils.js";
 
-const DEBUG = process.env.DEBUG === "true"; // Set DEBUG=true for verbose logging
+const DEBUG = true
+
 
 // Hardcoded Issuer Key (16 bytes)
 const ISSUER_KEY = hexToBytes("00000000000000000000000000000001");
