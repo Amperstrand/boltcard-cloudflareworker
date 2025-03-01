@@ -26,14 +26,12 @@ export default {
     // 2. Deep-link endpoint for boltcards
     if (pathname === "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards") {
       const onExisting = params.get("onExisting");
-
       if (onExisting === "UpdateVersion") {
         return handleBoltCardsRequest(request, env);
       }
-
       if (onExisting === "KeepVersion") {
-        // For a reset request, the POST body contains LNURLW (with p and c values)
         try {
+          // Reset requests: extract p and c from LNURLW in POST body.
           const body = await request.json();
           const lnurlw = body.LNURLW;
           if (!lnurlw) {
@@ -59,8 +57,7 @@ export default {
               { status: 400, headers: { "Content-Type": "application/json" } }
             );
           }
-
-          // Decode p to determine UID and counter.
+          // Decode and validate CMAC from the LNURLW
           const { uidHex, ctr, error } = this.decodeAndValidate(pHex, cHex, env);
           if (error) {
             return new Response(JSON.stringify({ status: "ERROR", reason: error }), {
@@ -69,7 +66,6 @@ export default {
             });
           }
           console.log("Reset Flow: Decoded UID:", uidHex, "Counter:", ctr);
-          // Now call reset handler with the UID.
           return handleReset(uidHex, env);
         } catch (err) {
           return new Response(JSON.stringify({ status: "ERROR", reason: err.message }), {
@@ -80,7 +76,7 @@ export default {
       }
     }
 
-    // 3. LNURLW verification for GET requests (if p and c are provided in the URL)
+    // 3. GET requests with p (and c) for LNURLW verification
     const pHex = params.get("p");
     const cHex = params.get("c");
     if (pHex) {
@@ -92,7 +88,25 @@ export default {
         });
       }
       console.log("Decoded UID:", uidHex, "Counter:", ctr);
-      // For non-reset GET requests, we assume CMAC validation is for a withdraw request.
+
+      // If UID is "044561fa967380", forward the request.
+      if (uidHex === "044561fa967380") {
+        // Construct target URL with hardcoded external_id.
+        const targetBaseUrl = "https://demo.lnbits.com";
+        const targetPath = `/boltcards/api/v1/scan/insert_external_id_here?p=${encodeURIComponent(pHex)}&c=${encodeURIComponent(cHex)}`;
+        const targetUrl = new URL(targetPath, targetBaseUrl);
+        console.log(`Proxying request for UID ${uidHex} to ${targetUrl.toString()}`);
+        const proxyRequest = new Request(targetUrl.toString(), {
+          method: request.method,
+          headers: request.headers,
+          body: request.body,
+          redirect: "manual"
+        });
+        const proxiedResponse = await fetch(proxyRequest);
+        return proxiedResponse;
+      }
+
+      // Otherwise, return the usual withdraw response.
       const responsePayload = {
         tag: "withdrawRequest",
         uid: uidHex,
@@ -110,8 +124,8 @@ export default {
 
   /**
    * decodeAndValidate:
-   *   Decrypts pHex using BOLT_CARD_K1, extracts UID and counter,
-   *   then validates the provided cHex using the k2 key.
+   * Decrypts pHex using BOLT_CARD_K1, extracts UID and counter,
+   * then validates the provided cHex using the corresponding K2 key.
    * Returns an object with { uidHex, ctr, error }.
    */
   decodeAndValidate(pHex, cHex, env) {

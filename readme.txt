@@ -20,6 +20,9 @@ curl -X POST "https://boltcardpoc.psbt.me/api/v1/pull-payments/fUDXsnySxvb5LYZ1b
      -H "Content-Type: application/json" \
      -d '{"UID": "04a39493cc8680"}'
 
+curl -X POST "https://boltcardpoc.psbt.me/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion" \
+     -H "Content-Type: application/json" \
+     -d '{"UID": "044561fa967380"}'
 
 ```
 
