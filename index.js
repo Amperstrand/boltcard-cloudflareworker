@@ -2,6 +2,7 @@ import { decodeAndValidate } from "./boltCardHelper.js";
 import { handleStatus } from "./handlers/statusHandler.js";
 import { handleBoltCardsRequest } from "./handlers/boltcardsHandler.js";
 import { handleReset } from "./handlers/resetHandler.js";
+import { handleLnurlpPayment } from "./handlers/lnurlpHandler.js";
 
 export default {
   async fetch(request, env) {
@@ -121,58 +122,12 @@ export default {
     }
 
     // 4. Generalized LNURLp POST request handling
-    // Supports two ways:
-    //   a) POST to /boltcards/api/v1/lnurlp with JSON body k1 formatted as "p=x&q=y"
-    //   b) POST to /boltcards/api/v1/lnurlp/<p> with JSON body k1 containing just the q value
+    // Supports two methods:
+    //   a) POST to /boltcards/api/v1/lnurlp with k1 formatted as "p=x&q=y"
+    //   b) POST to /boltcards/api/v1/lnurlp/<p> with k1 as the q value
     const lnurlpBase = "/boltcards/api/v1/lnurlp";
     if (pathname.startsWith(lnurlpBase) && request.method === "POST") {
-      try {
-        const json = await request.json();
-        console.log("Received LNURLp POST request:", JSON.stringify(json, null, 2));
-        let p, q;
-        // Check if a p value is provided in the URL path (method b)
-        const extra = pathname.slice(lnurlpBase.length).split("/").filter(Boolean);
-        if (extra.length >= 1) {
-          p = extra[0];
-          if (!json.k1) {
-            return new Response(JSON.stringify({ status: "ERROR", reason: "Missing k1 parameter for q value" }), { 
-              status: 400, headers: { "Content-Type": "application/json" } 
-            });
-          }
-          q = json.k1;
-        } else {
-          // Method a) where k1 is formatted as "p=x&q=y"
-          if (!json.k1) {
-            return new Response(JSON.stringify({ status: "ERROR", reason: "Missing k1 parameter" }), { 
-              status: 400, headers: { "Content-Type": "application/json" } 
-            });
-          }
-          const k1Params = new URLSearchParams(json.k1);
-          p = k1Params.get("p");
-          q = k1Params.get("q");
-          if (!p || !q) {
-            return new Response(JSON.stringify({ status: "ERROR", reason: "Invalid k1 format, missing p or q" }), { 
-              status: 400, headers: { "Content-Type": "application/json" } 
-            });
-          }
-        }
-        console.log(`Using p: ${p} and q: ${q}`);
-        const { uidHex, ctr, error } = decodeAndValidate(p, q, env);
-        if (error) {
-          return new Response(JSON.stringify({ status: "ERROR", reason: error }), { 
-            status: 400, headers: { "Content-Type": "application/json" } 
-          });
-        }
-        console.log(`Decoded LNURLp values: UID=${uidHex}, Counter=${parseInt(ctr, 16)}`);
-        return new Response(JSON.stringify({ status: "OK", uid: uidHex, counter: parseInt(ctr, 16) }), { 
-          status: 200, headers: { "Content-Type": "application/json" } 
-        });
-      } catch (err) {
-        console.error("Error processing LNURLp POST request:", err.message);
-        return new Response(JSON.stringify({ status: "ERROR", reason: err.message }), { 
-          status: 500, headers: { "Content-Type": "application/json" } 
-        });
-      }
+      return handleLnurlpPayment(request, env);
     }
 
     return new Response("Not Found", { status: 404 });
