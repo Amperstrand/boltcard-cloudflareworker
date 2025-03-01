@@ -20,5 +20,14 @@ curl -X POST "https://boltcardpoc.psbt.me/program?uid=04a39493cc8680" -H "Conten
 
 ```
 
+## Test
+export DEBUG=true
+npm test
+
+
+## Deploy
+
+export DEBUG=false
 wrangler deploy
+
 
