@@ -1,6 +1,7 @@
 import { handleStatus } from "./handlers/statusHandler.js";
 import { handleBoltCardsRequest } from "./handlers/boltcardsHandler.js";
 import { handleVerification } from "./handlers/verificationHandler.js";
+import { handleReset } from "./handlers/resetHandler.js"; // New Reset Handler
 
 export default {
   async fetch(request, env) {
@@ -14,24 +15,27 @@ export default {
     }
 
     // 2. The new deep-link endpoint
-    //    /api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards
-    //    ?onExisting=UpdateVersion|KeepVersion
     if (
       pathname === "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards"
     ) {
-      return handleBoltCardsRequest(request, env);
+      // Extract "onExisting" param to determine if it's a program or reset request
+      const onExisting = params.get("onExisting");
+      
+      if (onExisting === "UpdateVersion") {
+        return handleBoltCardsRequest(request, env); // Program new card
+      }
+      if (onExisting === "KeepVersion") {
+        return handleReset(request, env); // Reset existing card
+      }
     }
 
-    // 3. The old LNURLW verification check:
-    //    If the request has ?p=... & c=..., use handleVerification
+    // 3. Existing LNURLW verification (test vector support)
     const pHex = params.get("p");
     const cHex = params.get("c");
     if (pHex && cHex) {
-      // Forward to your existing verification logic (test vectors, etc.)
       return handleVerification(url, env);
     }
 
-    // 4. Otherwise, "Not Found"
     return new Response("Not Found", { status: 404 });
   }
 };
