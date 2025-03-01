@@ -1,6 +1,6 @@
 import AES from "aes-js";
 
-const DEBUG = true
+const DEBUG = true;
 
 export function hexToBytes(hex) {
   if (!hex || hex.length % 2 !== 0) {
@@ -123,4 +123,26 @@ export function computeAesCmacForVerification(sv2, cmacKeyBytes) {
   const ct = new Uint8Array([cm[1], cm[3], cm[5], cm[7], cm[9], cm[11], cm[13], cm[15]]);
   if (DEBUG) console.log("[VERIFY] ct (extracted from cm) =", bytesToDecimalString(ct));
   return ct;
+}
+
+// Function to build the SV2 block, compute ks, cm, and ct
+export function buildVerificationData(uidBytes, ctr, k2Bytes) {
+  // Construct sv2 block
+  const sv2 = new Uint8Array(16);
+  sv2.set([0x3C, 0xC3, 0x00, 0x01, 0x00, 0x80]);
+  sv2.set(uidBytes, 6);
+  sv2[13] = ctr[2];
+  sv2[14] = ctr[1];
+  sv2[15] = ctr[0];
+
+  // Use computeKs and computeCm from cryptoutils.js
+  const ks = computeKs(sv2, k2Bytes);
+  const cm = computeCm(ks);
+
+  // Extract ct (every second byte from cm)
+  const ct = new Uint8Array([
+    cm[1], cm[3], cm[5], cm[7], cm[9], cm[11], cm[13], cm[15]
+  ]);
+
+  return { sv2, ks, cm, ct };
 }
