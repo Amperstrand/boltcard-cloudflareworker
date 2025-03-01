@@ -2,7 +2,6 @@ import AES from "aes-js";
 import {
   hexToBytes,
   bytesToHex,
-  bytesToDecimalString,
   computeKs,
   computeCm
 } from "../cryptoutils.js";
@@ -19,7 +18,7 @@ export async function handleVerification(url, env) {
     );
   }
 
-  const k1Bytes = hexToBytes(env.BOLT_CARD_K1);
+  const k1Keys = env.BOLT_CARD_K1.split(",").map(hexToBytes); // Convert K1 keys to byte arrays
   const k2Bytes = hexToBytes(env.BOLT_CARD_K2);
   const pBytes = hexToBytes(pHex);
   const cBytes = hexToBytes(cHex);
@@ -31,21 +30,32 @@ export async function handleVerification(url, env) {
     );
   }
 
-  // Decrypt the card data using AES-ECB with key K1
-  const aesEcbK1 = new AES.ModeOfOperation.ecb(k1Bytes);
-  const decrypted = aesEcbK1.decrypt(pBytes);
+  let decrypted, uidBytes, ctr;
+  let matched = false;
+  let usedK1 = null; // Store which K1 was used
 
-  // Verify the card marker (0xC7)
-  if (decrypted[0] !== 0xC7) {
+  for (const k1Bytes of k1Keys) {
+    const aesEcbK1 = new AES.ModeOfOperation.ecb(k1Bytes);
+    decrypted = aesEcbK1.decrypt(pBytes);
+
+    if (decrypted[0] === 0xC7) {
+      matched = true;
+      usedK1 = bytesToHex(k1Bytes); // Save the K1 key that worked
+      uidBytes = decrypted.slice(1, 8);
+      ctr = new Uint8Array([decrypted[10], decrypted[9], decrypted[8]]);
+      break; // Stop after the first successful decryption
+    }
+  }
+
+  if (!matched) {
+    console.error("Failed to decrypt UID with any provided K1 keys.");
     return new Response(
-      JSON.stringify({ status: "ERROR", reason: "Invalid card data" }),
+      JSON.stringify({ status: "ERROR", reason: "Unable to decode UID" }),
       { status: 400 }
     );
   }
 
-  // Extract UID and counter from decrypted block
-  const uidBytes = decrypted.slice(1, 8);
-  const ctr = new Uint8Array([decrypted[10], decrypted[9], decrypted[8]]);
+  console.log(`Decryption successful with K1: ${usedK1}`);
 
   // Construct sv2 block
   const sv2 = new Uint8Array(16);
@@ -58,20 +68,12 @@ export async function handleVerification(url, env) {
   const ks = computeKs(sv2, k2Bytes);
   const cm = computeCm(ks);
   const ct = new Uint8Array([
-    cm[1],
-    cm[3],
-    cm[5],
-    cm[7],
-    cm[9],
-    cm[11],
-    cm[13],
-    cm[15],
+    cm[1], cm[3], cm[5], cm[7], cm[9], cm[11], cm[13], cm[15]
   ]);
 
   // Check against test vectors if applicable
   const testVector = TEST_VECTORS.find(tv => tv.p === pHex && tv.c === cHex);
   if (testVector) {
-    // Run assertions for debugging / testing purposes
     assertEqual("UID", bytesToHex(uidBytes), testVector.expectedUID);
     assertEqual("Counter", bytesToHex(ctr), testVector.expectedCounter);
     assertArrayEqual("sv2", sv2, testVector.expectedSv2);

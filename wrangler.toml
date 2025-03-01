@@ -11,8 +11,8 @@ routes = [
 
 [vars]
 # These variables will be available to your Worker.
-BOLT_CARD_K1 = "0c3b25d92b38ae443229dd59ad34b85d"
-BOLT_CARD_K2 = "b45775776cb224c75bcde7ca3704e933"
+BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d"
+BOLT_CARD_K2 = "11223344556677889900aabbccddeeff"
 
 [build]
 command = "npm install"
