@@ -15,31 +15,19 @@ jobs:
     steps:
       # Step 1: Checkout code
       - name: Checkout code
-        uses: actions/checkout@v4  # Updated to latest version
+        uses: actions/checkout@v4
 
-      # Step 2: Set up Node.js (version 18)
+      # Step 2: Set up Node.js
       - name: Set up Node.js
-        uses: actions/setup-node@v4  # Updated to latest version
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'  # Caches dependencies for faster installs
+          cache: 'npm'  # Enable caching for npm dependencies
 
       # Step 3: Install dependencies
       - name: Install dependencies
         run: npm install
 
-      # Step 4: Clear Jest cache
-      - name: Clear Jest cache
-        run: npx jest --clearCache
-
-      # Step 5: Run Jest tests
+      # Step 4: Run Jest tests
       - name: Run Jest tests
         run: npm test
-
-      # Step 6: Upload Jest Test Results (fixed)
-      - name: Upload Jest Test Results
-        uses: actions/upload-artifact@v4  # Updated from v3 to v4
-        with:
-          name: jest-results
-          path: test-results.json
-          retention-days: 5
