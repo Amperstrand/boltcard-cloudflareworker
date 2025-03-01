@@ -5,6 +5,10 @@ import { handleReset } from "./handlers/resetHandler.js"; // New Reset Handler
 
 export default {
   async fetch(request, env) {
+    // Log the request details and headers
+    console.log("Request received:", request.method, request.url);
+    console.log("Headers:", [...request.headers.entries()]);
+
     const url = new URL(request.url);
     const pathname = url.pathname;
     const params = url.searchParams;
@@ -20,7 +24,7 @@ export default {
     ) {
       // Extract "onExisting" param to determine if it's a program or reset request
       const onExisting = params.get("onExisting");
-      
+
       if (onExisting === "UpdateVersion") {
         return handleBoltCardsRequest(request, env); // Program new card
       }
