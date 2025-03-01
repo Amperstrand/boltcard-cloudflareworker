@@ -57,13 +57,13 @@ export default {
               headers: { "Content-Type": "application/json" }
             });
           }
-          console.log("Reset Flow: Decoded UID:", uidHex, "Counter:", ctr);
+          console.log("Reset Flow: Decoded UID:", uidHex, "Counter:", parseInt(ctr, 16));
           return handleReset(uidHex, env);
         } catch (err) {
           return new Response(JSON.stringify({ status: "ERROR", reason: err.message }), {
             status: 500,
-            headers: { "Content-Type": "application/json" }
-          });
+            headers: { "Content-Type": "application/json" } }
+          );
         }
       }
     }
@@ -79,7 +79,7 @@ export default {
           headers: { "Content-Type": "application/json" }
         });
       }
-      console.log("Decoded UID:", uidHex, "Counter:", ctr);
+      console.log("Decoded UID:", uidHex, "Counter:", parseInt(ctr, 16));
 
       // If UID is "044561fa967380", forward the request.
       if (uidHex === "044561fa967380") {
@@ -88,7 +88,6 @@ export default {
         const lnbitsExternalId = "tapko6sbthfdgzoejjztjb";
         const targetPath = `/boltcards/api/v1/scan/${lnbitsExternalId}?p=${encodeURIComponent(pHex)}&c=${encodeURIComponent(cHex)}`;
         const targetUrl = new URL(targetPath, targetBaseUrl);
-        
         console.log(`Proxying request for UID ${uidHex} to ${targetUrl.toString()}`);
 
         // Log the proxy request details
@@ -98,7 +97,7 @@ export default {
 
         let requestBody = null;
         if (request.body) {
-          requestBody = await request.text(); // Read and log the body content
+          requestBody = await request.text();
           console.log("Body:", requestBody);
         } else {
           console.log("Body: No body in request");
@@ -119,29 +118,62 @@ export default {
       const responsePayload = {
         tag: "withdrawRequest",
         uid: uidHex,
-        counter: ctr,
+        counter: parseInt(ctr, 16), // Convert to decimal integer
         callback: `https://card.yourdomain.com/withdraw?uid=${uidHex}`,
         maxWithdrawable: 100000000,
         minWithdrawable: 1000,
-        defaultDescription: `${uidHex}, counter ${ctr}, cmac: OK`
+        defaultDescription: `${uidHex}, counter ${parseInt(ctr, 16)}, cmac: OK`
       };
       return new Response(JSON.stringify(responsePayload), { headers: { "Content-Type": "application/json" } });
     }
 
-    // LNURLp POST request handling (minimal diff added)
+    // LNURLp POST request handling using k1 containing p and q
     if (pathname === "/boltcards/api/v1/lnurlp/fABRzT2jv9Mt82exoStuxQ" && request.method === "POST") {
       try {
-        const body = await request.text();
-        console.log("Received LNURLp POST request at /boltcards/api/v1/lnurlp/fABRzT2jv9Mt82exoStuxQ");
-        console.log("Headers:", JSON.stringify(Object.fromEntries(request.headers.entries()), null, 2));
-        console.log("Body:", body);
+        const json = await request.json();
+        console.log("Received LNURLp POST request:", JSON.stringify(json, null, 2));
+
+        const { k1, invoice, amount } = json;
+
+        if (!k1) {
+          return new Response(JSON.stringify({ status: "ERROR", reason: "Missing k1 parameter" }), { 
+            status: 400, headers: { "Content-Type": "application/json" } 
+          });
+        }
+
+        // Extract p and q from k1 formatted as "p=xxx&q=xxx"
+        const k1Params = new URLSearchParams(k1);
+        const p = k1Params.get("p");
+        const q = k1Params.get("q");
+
+        if (!p || !q) {
+          return new Response(JSON.stringify({ status: "ERROR", reason: "Invalid k1 format, missing p or q" }), { 
+            status: 400, headers: { "Content-Type": "application/json" } 
+          });
+        }
+
+        console.log(`Extracted from k1 -> p: ${p}, q: ${q}`);
+
+        // Decode and validate CMAC
+        const { uidHex, ctr, error } = decodeAndValidate(p, q, env);
+        if (error) {
+          return new Response(JSON.stringify({ status: "ERROR", reason: error }), { 
+            status: 400, headers: { "Content-Type": "application/json" } 
+          });
+        }
+
+        console.log(`Decoded LNURLp values: UID=${uidHex}, Counter=${parseInt(ctr, 16)}`);
+
+        return new Response(JSON.stringify({ status: "OK", uid: uidHex, counter: parseInt(ctr, 16) }), { 
+          status: 200, headers: { "Content-Type": "application/json" } 
+        });
+
       } catch (err) {
-        console.error("Error logging LNURLp POST request:", err.message);
+        console.error("Error processing LNURLp POST request:", err.message);
+        return new Response(JSON.stringify({ status: "ERROR", reason: err.message }), { 
+          status: 500, headers: { "Content-Type": "application/json" } 
+        });
       }
-      return new Response(
-        JSON.stringify({ status: "OK", message: "LNURLp POST request received and logged" }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
     }
 
     return new Response("Not Found", { status: 404 });

@@ -33,6 +33,13 @@ curl -X POST https://boltcardpoc.psbt.me/boltcards/api/v1/lnurlp/fABRzT2jv9Mt82e
           "k1": "fABRzT2jv9Mt82exoStuxQ"
         }'
 
+curl -X POST https://boltcardpoc.psbt.me/boltcards/api/v1/lnurlp/fABRzT2jv9Mt82exoStuxQ \
+     -H "Content-Type: application/json" \
+     -d '{
+          "invoice": "lnbc1000n1p...your_bolt11_invoice...",
+          "amount": 1000,
+          "k1": "p=3736A84681238418D4B9B7210C13DC39&q=1549E9D901188F77"
+        }'
 
 ```
 
