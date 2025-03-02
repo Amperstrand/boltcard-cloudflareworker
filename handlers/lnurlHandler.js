@@ -100,14 +100,26 @@ export async function handleLnurlpPayment(request, env) {
     }
 
     // Decode and validate the p and c values
-    const { uidHex, ctr, error } = decodeAndValidate(p, c, env);
+    const { uidHex, ctr, cmac_validated, cmac_error, error } = decodeAndValidate(p, c, env);
     if (error) {
       return new Response(
         JSON.stringify({ status: "ERROR", reason: error }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
+
+    // Debug print the counter and UID
     console.log(`Decoded LNURLp values: UID=${uidHex}, Counter=${parseInt(ctr, 16)}`);
+
+    // Assert that cmac_validated is true
+    if (!cmac_validated) {
+      return new Response(
+        JSON.stringify({ status: "ERROR", reason: `CMAC validation failed: ${cmac_error}` }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`CMAC validation passed`);
 
     // Process the invoice if present
     if (json && json.invoice) {
