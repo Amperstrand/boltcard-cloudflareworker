@@ -102,4 +102,56 @@ describe("Cloudflare Worker Tests", () => {
       status: "OK"
     });
   });
+
+  // New test case for Pull Payment with UpdateVersion
+  test("should handle pull payment with UpdateVersion", async () => {
+    const response = await makeRequest(
+      "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion",
+      "POST",
+      {
+        UID: "044561FA967380"
+      }
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+
+    expect(json).toMatchObject({
+      protocol_name: "new_bolt_card_response",
+      protocol_version: 1,
+      card_name: "UID 044561FA967380",
+      LNURLW: expect.stringContaining("lnurlw://boltcardpoc.psbt.me/ln"),
+      K0: "157163032ef8a8f89c5fc3c271675a3c",
+      K1: "55da174c9608993dc27bb3f30a4a7314",
+      K2: "33268dea5b5511a1b3df961198fa46d5",
+      K3: "f78200e8918fceea9db3574ae35b67e7",
+      K4: "62f41e0dcff67e74db596ae0fe1c0a3f"
+    });
+  });
+
+  // New test case for Pull Payment with KeepVersion
+  test("should handle pull payment with KeepVersion", async () => {
+    const response = await makeRequest(
+      "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=KeepVersion",
+      "POST",
+      {
+        LNURLW: "lnurlw://boltcardpoc.psbt.me/ln?p=C115F9FA83DCD2FEC0864A3B2DDD0AEF&c=BAA4A9496DEC311D"
+      }
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+
+    expect(json).toMatchObject({
+      protocol_name: "new_bolt_card_response",
+      protocol_version: 1,
+      card_name: "UID 044561FA967380",
+      LNURLW: expect.stringContaining("lnurlw://boltcardpoc.psbt.me/ln"),
+      K0: "157163032ef8a8f89c5fc3c271675a3c",
+      K1: "55da174c9608993dc27bb3f30a4a7314",
+      K2: "33268dea5b5511a1b3df961198fa46d5",
+      K3: "f78200e8918fceea9db3574ae35b67e7",
+      K4: "62f41e0dcff67e74db596ae0fe1c0a3f"
+    });
+  });
 });
