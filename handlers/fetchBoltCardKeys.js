@@ -1,12 +1,16 @@
 import { getDeterministicKeys } from "../keygenerator.js";
 import { decodeAndValidate } from "../boltCardHelper.js";
 
-// Helper function to return JSON responses
-const jsonResponse = (data, status = 200) => 
-  new Response(JSON.stringify(data), {
+// Helper function to return JSON responses with logging
+const jsonResponse = (data, status = 200) => {
+  const jsonStr = JSON.stringify(data);
+  console.log("Returning JSON response:", jsonStr); // Log the JSON data
+
+  return new Response(jsonStr, {
     status,
     headers: { "Content-Type": "application/json" },
   });
+};
 
 // Helper function for error responses
 const errorResponse = (error, status = 400) => jsonResponse({ error }, status);
