@@ -8,12 +8,6 @@ import {
   getK2KeyForUID
 } from "./cryptoutils.js";
 
-/**
- * Extracts UID and counter from the provided pHex parameter.
- * @param {string} pHex - Encrypted UID and counter in hexadecimal.
- * @param {object} env - Environment variables.
- * @returns {object} Object with uidHex, ctr, or an error property.
- */
 export function extractUIDAndCounter(pHex, env) {
   if (!env.BOLT_CARD_K1) {
     return { error: "BOLT_CARD_K1 environment variable is missing." };
@@ -32,53 +26,59 @@ export function extractUIDAndCounter(pHex, env) {
   };
 }
 
-/**
- * Verifies the CMAC (HMAC) for the provided UID and counter.
- * @param {string} uidHex - UID in hexadecimal.
- * @param {string} ctr - Counter in hexadecimal.
- * @param {string} cHex - Provided CMAC in hexadecimal.
- * @param {object} env - Environment variables.
- * @returns {object} Object with a success flag or an error property.
- */
 export function verifyCmac(uidHex, ctr, cHex, env) {
   if (!cHex) {
-    return { error: "Missing c parameter for CMAC verification." };
+    return { cmac_validated: false, cmac_validated_comment: null };
   }
+
   const k2Bytes = getK2KeyForUID(env, uidHex);
   if (!k2Bytes) {
-    return { error: `No K2 key found for UID ${uidHex}. Unable to verify CMAC.` };
-  }
-  const { sv2 } = buildVerificationData(hexToBytes(uidHex), hexToBytes(ctr), k2Bytes);
-  const computedCtHex = bytesToHex(computeAesCmacForVerification(sv2, k2Bytes));
-  if (computedCtHex !== cHex.toLowerCase()) {
     return {
-      error: `CMAC verification failed. Expected CMAC: ${cHex.toLowerCase()}, Calculated CMAC: ${computedCtHex}. This is likely because the K2 key is incorrect.`
+      cmac_validated: false,
+      cmac_validated_comment: `No K2 key found for UID ${uidHex}. Unable to verify CMAC.`
     };
   }
-  return { success: true };
+
+  const { sv2 } = buildVerificationData(hexToBytes(uidHex), hexToBytes(ctr), k2Bytes);
+  const computedCtHex = bytesToHex(computeAesCmacForVerification(sv2, k2Bytes));
+
+  if (computedCtHex === cHex.toLowerCase()) {
+    return { cmac_validated: true, cmac_validated_comment: null };
+  }
+
+  return {
+    cmac_validated: false,
+    cmac_validated_comment: `CMAC verification failed. Provided CMAC: ${cHex.toLowerCase()}, Calculated CMAC: ${computedCtHex}.`
+  };
 }
 
-/**
- * Combines extraction and CMAC verification.
- * @param {string} pHex - Encrypted UID and counter in hexadecimal.
- * @param {string} cHex - Provided CMAC in hexadecimal.
- * @param {object} env - Environment variables.
- * @param {object} [options={}] - Options object; { ignoreHmac: boolean }.
- * @returns {object} Object with uidHex, ctr, or an error property.
- */
-export function decodeAndValidate(pHex, cHex, env, options = {}) {
+export function decodeAndValidate(pHex, cHex, env) {
   const extraction = extractUIDAndCounter(pHex, env);
   if (extraction.error) {
-    return extraction;
+    return { error: extraction.error };
   }
+
   const { uidHex, ctr } = extraction;
-  const verification = verifyCmac(uidHex, ctr, cHex, env);
-  if (verification.error) {
-    if (options.ignoreHmac) {
-      console.warn(`Warning: ${verification.error} - proceeding due to ignoreHmac option.`);
-    } else {
-      return verification;
-    }
+  
+  if (!cHex) {
+    return {
+      uidHex,
+      ctr,
+      cmac_validated: false,
+      cmac_validated_comment: null
+    };
   }
-  return { uidHex, ctr };
+
+  const verification = verifyCmac(uidHex, ctr, cHex, env);
+
+  if (!verification.cmac_validated) {
+    console.warn(`Warning: ${verification.cmac_validated_comment}`);
+  }
+
+  return {
+    uidHex,
+    ctr,
+    cmac_validated: verification.cmac_validated,
+    cmac_validated_comment: verification.cmac_validated_comment
+  };
 }
