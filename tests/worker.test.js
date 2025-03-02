@@ -79,4 +79,27 @@ describe("Cloudflare Worker Tests", () => {
       status: "OK"
     });
   });
+
+  // New test case for curl command simulation
+  test("should handle LNURL callback via curl command", async () => {
+    const curlOptions = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        invoice: "lnbc1000n1p...your_bolt11_invoice...",
+        amount: 1000,
+        k1: "1549E9D901188F77"
+      })
+    };
+
+    const curlResponse = await fetch('https://boltcardpoc.psbt.me/boltcards/api/v1/lnurl/cb/3736A84681238418D4B9B7210C13DC39', curlOptions);
+    const curlJson = await curlResponse.json();
+
+    expect(curlResponse.status).toBe(200);
+    expect(curlJson).toMatchObject({
+      status: "OK"
+    });
+  });
 });
