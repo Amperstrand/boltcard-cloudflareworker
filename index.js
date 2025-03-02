@@ -4,6 +4,7 @@ import { fetchBoltCardKeys } from "./handlers/fetchBoltCardKeys.js";
 import { handleLnurlpPayment } from "./handlers/lnurlHandler.js";
 import { handleProxy } from "./handlers/proxyHandler.js";
 import { uidConfig } from "./uidConfig.js";
+import { constructWithdrawResponse } from "./handlers/withdrawHandler.js";
 
 // Helper function to return JSON responses
 const jsonResponse = (data, status = 200) => 
@@ -62,18 +63,14 @@ export default {
         return errorResponse(cmac_error || "CMAC validation failed");
       }
 
-      // Construct standard LNURL withdraw response
-      const responsePayload = {
-        tag: "withdrawRequest",
-        callback: `https://boltcardpoc.psbt.me/boltcards/api/v1/lnurl/cb/${pHex}`,
-        k1: cHex,
-        minWithdrawable: 1000,
-        maxWithdrawable: 1000,
-        defaultDescription: `Boltcard payment from UID ${uidHex}, counter ${parseInt(ctr, 16)}`,
-        payLink: `lnurlp://boltcardpoc.psbt.me/boltcards/api/v1/lnurlp_not_implemented_yet/${uidHex}/${pHex}/${cHex}`,
-      };
-
+      // Construct standard LNURL withdraw response using the new handler, ensuring CMAC validation
+      const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated);
       console.log("Response Payload:", responsePayload);
+      
+      if (responsePayload.status === "ERROR") {
+        return errorResponse(responsePayload.reason);
+      }
+
       return jsonResponse(responsePayload);
     }
 
