@@ -4,7 +4,7 @@ export async function handleLnurlpPayment(request, env) {
   try {
     const url = new URL(request.url);
     const pathname = url.pathname;
-    const lnurlpBase = "/boltcards/api/v1/lnurlp";
+    const lnurlpBase = "/boltcards/api/v1/lnurl/cb";
     
     if (request.method === "POST") {
       const json = await request.json();
