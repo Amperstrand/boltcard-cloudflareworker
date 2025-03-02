@@ -1,7 +1,7 @@
 import AES from "aes-js";
 import { hexToBytes, bytesToHex, xorArrays } from "./cryptoutils.js";
 
-const DEBUG = true
+const DEBUG = false
 
 
 // Hardcoded Issuer Key (16 bytes)
@@ -166,7 +166,7 @@ export async function getDeterministicKeys(uidHex, version = 1) {
   const versionBytes = new Uint8Array(4);
   new DataView(versionBytes.buffer).setUint32(0, version, true); // Little-endian
 
-  console.log("Generating deterministic keys for UID:", uidHex);
+  if (DEBUG) console.log("Generating deterministic keys for UID:", uidHex);
 
   // Generate CardKey
   const cardKeyMessage = new Uint8Array([...hexToBytes("2d003f75"), ...uid, ...versionBytes]);

@@ -1,6 +1,6 @@
 import AES from "aes-js";
 
-const DEBUG = true;
+const DEBUG = false;
 const BLOCK_SIZE = 16; // AES block size in bytes
 
 /**
