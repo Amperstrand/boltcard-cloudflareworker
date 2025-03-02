@@ -68,7 +68,7 @@ describe("Cloudflare Worker Tests", () => {
       {
         invoice: "lnbc1000n1p...your_bolt11_invoice...",
         amount: 1000,
-        k1: "p=3736A84681238418D4B9B7210C13DC39&q=1549E9D901188F77"
+        k1: "p=3736A84681238418D4B9B7210C13DC39&c=1549E9D901188F77"
       }
     );
 

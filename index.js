@@ -38,6 +38,11 @@ export default {
       return fetchBoltCardKeys(request, env);
     }
 
+    // Handle LNURLp Payment Processing
+    if (pathname.startsWith("/boltcards/api/v1/lnurl/cb")) {
+      return handleLnurlpPayment(request, env);
+    }
+
     // Handle LNURLW Verification
     const pHex = searchParams.get("p");
     const cHex = searchParams.get("c");
@@ -74,12 +79,8 @@ export default {
       return jsonResponse(responsePayload);
     }
 
-    // Handle LNURLp Payment Processing
-    if (pathname.startsWith("/boltcards/api/v1/lnurl/cb") && request.method === "POST") {
-      return handleLnurlpPayment(request, env);
-    }
 
     console.error("Error: Route not found.");
-    return new Response("Not Found", { status: 404 });
+    return new Response("Not found", { status: 404 });
   },
 };

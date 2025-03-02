@@ -73,7 +73,7 @@ async function handleResetFlow(lnurlw, env) {
     // Regenerate the keys and return them
     return generateKeyResponse(uidHex);
   } catch (err) {
-    return errorResponse("Error processing LNURLW: " + err.message, 500);
+    return errorResponse("Error in generating keys : " + err.message, 500);
   }
 }
 

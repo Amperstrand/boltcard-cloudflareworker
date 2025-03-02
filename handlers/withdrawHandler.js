@@ -9,7 +9,7 @@ export const constructWithdrawResponse = (uidHex, pHex, cHex, ctr, cmac_validate
   const counterValue = parseInt(ctr, 16);
   
   // Introduce a random error only if counter is >= 100
-  if (counterValue >= 100 && Math.random() < 0.5) {
+  if (counterValue >= 200 && Math.random() < 0.5) {
     return {
       status: "ERROR",
       reason: `random error - UID: ${uidHex}, Counter: ${counterValue}, pHex: ${pHex}, cHex: ${cHex}`,

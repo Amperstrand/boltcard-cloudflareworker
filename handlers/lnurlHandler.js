@@ -6,25 +6,27 @@ export async function handleLnurlpPayment(request, env) {
     const pathname = url.pathname;
     const lnurlpBase = "/boltcards/api/v1/lnurl/cb";
     
-    if (request.method === "POST") {
-      const json = await request.json();
-      console.log("Received LNURLp Payment request:", JSON.stringify(json, null, 2));
+    let p, c, json;
 
-      let p, q;
-      // Check for extra path segments after lnurlp
+    // Handle POST request
+    if (request.method === "POST") {
+      json = await request.json();
+      console.log("Received LNURLp Payment request (POST):", JSON.stringify(json, null, 2));
+
+      // Extract p from the URL path if there is anything after lnurlpBase
       const extra = pathname.slice(lnurlpBase.length).split("/").filter(Boolean);
       if (extra.length >= 1) {
-        // Method (b): p provided as a URL path parameter, k1 contains only the q value.
+        // p is the first part of the path after lnurlpBase, and k1 is c
         p = extra[0];
         if (!json.k1) {
           return new Response(
-            JSON.stringify({ status: "ERROR", reason: "Missing k1 parameter for q value" }),
+            JSON.stringify({ status: "ERROR", reason: "Missing k1 parameter for c value" }),
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
-        q = json.k1;
+        c = json.k1;  // k1 is just c in this case
       } else {
-        // Method (a): k1 is formatted as "p=x&q=y".
+        // If no extra path after lnurlpBase, extract p and c from k1 (Method a)
         if (!json.k1) {
           return new Response(
             JSON.stringify({ status: "ERROR", reason: "Missing k1 parameter" }),
@@ -33,36 +35,95 @@ export async function handleLnurlpPayment(request, env) {
         }
         const k1Params = new URLSearchParams(json.k1);
         p = k1Params.get("p");
-        q = k1Params.get("q");
-        if (!p || !q) {
+        c = k1Params.get("c");
+        if (!p || !c) {
           return new Response(
-            JSON.stringify({ status: "ERROR", reason: "Invalid k1 format, missing p or q" }),
+            JSON.stringify({ status: "ERROR", reason: "Invalid k1 format, missing p or c" }),
             { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
       }
-      
-      console.log(`Using p: ${p} and q: ${q}`);
-      const { uidHex, ctr, error } = decodeAndValidate(p, q, env);
-      if (error) {
+
+      console.log(`Using p: ${p} and c: ${c}`);
+    } else if (request.method === "GET") {
+      // Handle GET request
+
+      // Extract p from the URL path if there is anything after lnurlpBase
+      const extra = pathname.slice(lnurlpBase.length).split("/").filter(Boolean);
+      if (extra.length >= 1) {
+        // p is the first part of the path after lnurlpBase, and k1 is just c
+        p = extra[0];
+      }
+
+      // k1 should contain c
+      const params = url.searchParams;
+      const k1 = params.get("k1");
+      if (!k1) {
         return new Response(
-          JSON.stringify({ status: "ERROR", reason: error }),
+          JSON.stringify({ status: "ERROR", reason: "Missing k1 parameter in query string" }),
           { status: 400, headers: { "Content-Type": "application/json" } }
         );
       }
-      console.log(`Decoded LNURLp values: UID=${uidHex}, Counter=${parseInt(ctr, 16)}`);
 
-      // Process the invoice if present
-      if (json.invoice) {
-        console.log(`Processing withdrawal for UID=${uidHex} with invoice: ${json.invoice}`);
-        processWithdrawalPayment(uidHex, json.invoice, env);
+      // If p is not extracted from the URL path, extract p and c from k1 (Method a)
+      if (!p) {
+        const k1Params = new URLSearchParams(k1);
+        p = k1Params.get("p");
+        c = k1Params.get("c");
+        if (!p || !c) {
+          return new Response(
+            JSON.stringify({ status: "ERROR", reason: "Invalid k1 format, missing p or c" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+      } else {
+        // If p is already extracted from the path, k1 is just c
+        c = k1;  // k1 is just c here
+      }
 
+      console.log(`Using p: ${p} and c: ${c} (from GET request)`);
+
+      // Also, make sure invoice exists for GET requests
+      const invoice = params.get("pr");
+      if (!invoice) {
         return new Response(
-          JSON.stringify({ status: "OK" }),
-          { status: 200, headers: { "Content-Type": "application/json" } }
+          JSON.stringify({ status: "ERROR", reason: "Missing invoice parameter in query string" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
         );
       }
+      console.log(`Invoice from GET: ${invoice}`);
+    } else {
+      return new Response(
+        JSON.stringify({ status: "ERROR", reason: "Unsupported method" }),
+        { status: 405, headers: { "Content-Type": "application/json" } }
+      );
     }
+
+    // Decode and validate the p and c values
+    const { uidHex, ctr, error } = decodeAndValidate(p, c, env);
+    if (error) {
+      return new Response(
+        JSON.stringify({ status: "ERROR", reason: error }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    console.log(`Decoded LNURLp values: UID=${uidHex}, Counter=${parseInt(ctr, 16)}`);
+
+    // Process the invoice if present
+    if (json && json.invoice) {
+      console.log(`Processing withdrawal for UID=${uidHex} with invoice: ${json.invoice}`);
+      processWithdrawalPayment(uidHex, json.invoice, env);
+
+      return new Response(
+        JSON.stringify({ status: "OK" }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({ status: "OK" }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
   } catch (err) {
     console.error("Error processing LNURL withdraw request:", err.message);
     return new Response(
