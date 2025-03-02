@@ -1,7 +1,6 @@
 import { decodeAndValidate } from "./boltCardHelper.js";
 import { handleStatus } from "./handlers/statusHandler.js";
-import { handleBoltCardsRequest } from "./handlers/boltcardsHandler.js";
-import { handleReset } from "./handlers/resetHandler.js";
+import { fetchBoltCardKeys } from "./handlers/fetchBoltCardKeys.js";
 import { handleLnurlpPayment } from "./handlers/lnurlHandler.js";
 import { handleProxy } from "./handlers/proxyHandler.js";
 import { uidConfig } from "./uidConfig.js";
@@ -33,45 +32,9 @@ export default {
     // Handle Status Page
     if (pathname === "/status") return handleStatus();
 
-    // Handle BoltCard Requests
+    // Handle BoltCard Requests (moved logic to fetchBoltCardKeys.js)
     if (pathname === "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards") {
-      const onExisting = searchParams.get("onExisting");
-      console.log("BoltCards Request - onExisting:", onExisting);
-
-      if (onExisting === "UpdateVersion") {
-        return handleBoltCardsRequest(request, env);
-      }
-
-      if (onExisting === "KeepVersion") {
-        try {
-          const body = await request.json();
-          console.log("Request Body:", body);
-
-          const lnurlw = body.LNURLW;
-          if (!lnurlw) return errorResponse("Missing LNURLW parameter.");
-
-          let lnurl;
-          try {
-            lnurl = new URL(lnurlw);
-          } catch {
-            return errorResponse("Invalid LNURLW format.");
-          }
-
-          const pHex = lnurl.searchParams.get("p");
-          const cHex = lnurl.searchParams.get("c");
-          if (!pHex || !cHex) return errorResponse("Invalid LNURLW format: missing p or c.");
-
-          console.log("Decoding LNURLW: pHex:", pHex, "cHex:", cHex);
-          const { uidHex, ctr, error } = decodeAndValidate(pHex, cHex, env);
-          if (error) return errorResponse(error);
-
-          console.log("Reset Flow: Decoded UID:", uidHex, "Counter:", parseInt(ctr, 16));
-          return handleReset(uidHex, env);
-        } catch (err) {
-          console.error("Error in KeepVersion Flow:", err);
-          return errorResponse(err.message, 500);
-        }
-      }
+      return fetchBoltCardKeys(request, env);
     }
 
     // Handle LNURLW Verification
