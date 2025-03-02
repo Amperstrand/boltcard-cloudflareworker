@@ -28,14 +28,14 @@ export function extractUIDAndCounter(pHex, env) {
 
 export function verifyCmac(uidHex, ctr, cHex, env) {
   if (!cHex) {
-    return { cmac_validated: false, cmac_validated_comment: null };
+    return { cmac_validated: false, cmac_error: null };
   }
 
   const k2Bytes = getK2KeyForUID(env, uidHex);
   if (!k2Bytes) {
     return {
       cmac_validated: false,
-      cmac_validated_comment: `No K2 key found for UID ${uidHex}. Unable to verify CMAC.`
+      cmac_error: `No K2 key found for UID ${uidHex}. Unable to verify CMAC.`
     };
   }
 
@@ -43,12 +43,12 @@ export function verifyCmac(uidHex, ctr, cHex, env) {
   const computedCtHex = bytesToHex(computeAesCmacForVerification(sv2, k2Bytes));
 
   if (computedCtHex === cHex.toLowerCase()) {
-    return { cmac_validated: true, cmac_validated_comment: null };
+    return { cmac_validated: true, cmac_error: null };
   }
 
   return {
     cmac_validated: false,
-    cmac_validated_comment: `CMAC verification failed. Provided CMAC: ${cHex.toLowerCase()}, Calculated CMAC: ${computedCtHex}.`
+    cmac_error: `CMAC verification failed. Provided CMAC: ${cHex.toLowerCase()}, Calculated CMAC: ${computedCtHex}.`
   };
 }
 
@@ -65,20 +65,20 @@ export function decodeAndValidate(pHex, cHex, env) {
       uidHex,
       ctr,
       cmac_validated: false,
-      cmac_validated_comment: null
+      cmac_error: null
     };
   }
 
   const verification = verifyCmac(uidHex, ctr, cHex, env);
 
   if (!verification.cmac_validated) {
-    console.warn(`Warning: ${verification.cmac_validated_comment}`);
+    console.warn(`Warning: ${verification.cmac_error}`);
   }
 
   return {
     uidHex,
     ctr,
     cmac_validated: verification.cmac_validated,
-    cmac_validated_comment: verification.cmac_validated_comment
+    cmac_error: verification.cmac_error
   };
 }

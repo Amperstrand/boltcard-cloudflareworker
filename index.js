@@ -32,7 +32,7 @@ export default {
     // Handle Status Page
     if (pathname === "/status") return handleStatus();
 
-    // Handle BoltCard Requests (moved logic to fetchBoltCardKeys.js)
+    // Handle BoltCard Requests
     if (pathname === "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards") {
       return fetchBoltCardKeys(request, env);
     }
@@ -44,16 +44,22 @@ export default {
     if (pHex && cHex) {
       console.log("LNURLW Verification: pHex:", pHex, "cHex:", cHex);
       
-      const { uidHex, ctr, error } = decodeAndValidate(pHex, cHex, env);
+      const { uidHex, ctr, cmac_validated, cmac_error, error } = decodeAndValidate(pHex, cHex, env);
       if (error) return errorResponse(error);
 
       console.log("Decoded UID:", uidHex, "Counter:", parseInt(ctr, 16));
-
+      
       // Check if UID should be proxied
       if (uidConfig[uidHex]) {
         const config = uidConfig[uidHex];
         console.log("Proxying request for UID:", uidHex, "to domain:", config.proxyDomain);
         return handleProxy(request, uidHex, pHex, cHex, config.externalId);
+      }
+
+      // Perform CMAC validation only if not proxying
+      if (!cmac_validated) {
+        console.warn(`CMAC Validation Warning: ${cmac_error || "CMAC validation skipped."}`);
+        return errorResponse(cmac_error || "CMAC validation failed");
       }
 
       // Construct standard LNURL withdraw response
