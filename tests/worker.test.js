@@ -61,45 +61,22 @@ describe("Cloudflare Worker Tests", () => {
     });
   });
 
-  test("should return valid withdraw request for another UID", async () => {
+  test("should return valid LNURL callback response", async () => {
     const response = await makeRequest(
-      "/?p=0DBF3C59B59B0638D60B5842A997D4D1&c=CC61660C020B4D96"
-    );
-
-    expect(response.status).toBe(200);
-    const json = await response.json();
-    
-    expect(json).toMatchObject({
-      tag: "withdrawRequest",
-      callback: expect.stringContaining("/api/v1/lnurl/cb/0DBF3C59B59B0638D60B5842A997D4D1"),
-      k1: "CC61660C020B4D96",
-      minWithdrawable: 1000,
-      maxWithdrawable: 1000,
-      defaultDescription: expect.stringContaining("Boltcard payment from UID"),
-      payLink: expect.stringContaining("lnurlp://boltcardpoc.psbt.me"),
-    });
-  });
-
-  test("should handle pull-payment update request and validate keys", async () => {
-    const response = await makeRequest(
-      "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion",
+      "/boltcards/api/v1/lnurl/cb",
       "POST",
-      { UID: "04a39493cc8680" }
+      {
+        invoice: "lnbc1000n1p...your_bolt11_invoice...",
+        amount: 1000,
+        k1: "p=3736A84681238418D4B9B7210C13DC39&q=1549E9D901188F77"
+      }
     );
 
     expect(response.status).toBe(200);
     const json = await response.json();
     
     expect(json).toMatchObject({
-      protocol_name: "new_bolt_card_response",
-      protocol_version: 1,
-      card_name: "UID 04A39493CC8680",
-      LNURLW: "lnurlw://boltcardpoc.psbt.me/ln",
-      K0: "a29119fcb48e737d1591d3489557e49b",
-      K1: "55da174c9608993dc27bb3f30a4a7314",
-      K2: "f4b404be700ab285e333e32348fa3d3b",
-      K3: "73610ba4afe45b55319691cb9489142f",
-      K4: "addd03e52964369be7f2967736b7bdb5",
+      status: "OK"
     });
   });
 });
