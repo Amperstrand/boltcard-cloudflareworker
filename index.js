@@ -4,6 +4,7 @@ import { handleBoltCardsRequest } from "./handlers/boltcardsHandler.js";
 import { handleReset } from "./handlers/resetHandler.js";
 import { handleLnurlpPayment } from "./handlers/lnurlHandler.js";
 import { handleProxy } from "./handlers/proxyHandler.js";
+import { uidConfig } from "./uidConfig.js";  // Import the UID configuration
 
 export default {
   async fetch(request, env) {
@@ -63,6 +64,14 @@ export default {
       }
       console.log("Decoded UID:", uidHex, "Counter:", parseInt(ctr, 16));
 
+      // Check if UID should be proxied
+      if (uidConfig[uidHex]) {
+        const config = uidConfig[uidHex];
+        console.log("Proxying request for UID:", uidHex, "to domain:", config.proxyDomain);
+        return handleProxy(request, uidHex, pHex, cHex, config.externalId);
+      }
+
+      // If no proxy match, return the default JSON response
       const responsePayload = {
         tag: "withdrawRequest",
         callback: `https://boltcardpoc.psbt.me/boltcards/api/v1/lnurl/cb/${pHex}`,
