@@ -1,6 +1,4 @@
-// proxyHandler.js
 export async function handleProxy(request, uidHex, pHex, cHex) {
-  // Construct target URL with hardcoded external_id.
   const targetBaseUrl = "https://demo.lnbits.com";
   const lnbitsExternalId = "tapko6sbthfdgzoejjztjb";
   const targetPath = `/boltcards/api/v1/scan/${lnbitsExternalId}?p=${encodeURIComponent(pHex)}&c=${encodeURIComponent(cHex)}`;
@@ -12,13 +10,20 @@ export async function handleProxy(request, uidHex, pHex, cHex) {
   console.log("Headers:", JSON.stringify(Object.fromEntries(request.headers.entries()), null, 2));
 
   let requestBody = null;
-  if (request.body) {
-    requestBody = await request.text();
-    console.log("Body:", requestBody);
-  } else {
-    console.log("Body: No body in request");
+
+  try {
+    if (request.method !== "GET") {
+      const requestClone = request.clone();
+      requestBody = await requestClone.text();
+      console.log("Request Body:", requestBody.length > 0 ? requestBody : "Empty Body");
+    } else {
+      console.log("GET request - No body expected.");
+    }
+  } catch (error) {
+    console.error("Error reading request body:", error);
   }
 
+  // Send the proxied request
   const proxyRequest = new Request(targetUrl.toString(), {
     method: request.method,
     headers: request.headers,
@@ -26,6 +31,25 @@ export async function handleProxy(request, uidHex, pHex, cHex) {
     redirect: "manual"
   });
 
-  const proxiedResponse = await fetch(proxyRequest);
-  return proxiedResponse;
+  try {
+    const proxiedResponse = await fetch(proxyRequest);
+
+    // Log response details
+    console.log("Proxy Response Details:");
+    console.log("Status:", proxiedResponse.status);
+    console.log("Headers:", JSON.stringify(Object.fromEntries(proxiedResponse.headers.entries()), null, 2));
+
+    const responseBody = await proxiedResponse.text();
+    console.log("Response Body:", responseBody.length > 0 ? responseBody : "Empty Response");
+
+    // Return the proxied response
+    return new Response(responseBody, {
+      status: proxiedResponse.status,
+      headers: proxiedResponse.headers,
+    });
+
+  } catch (error) {
+    console.error("Error fetching from proxy:", error);
+    return new Response("Proxy error", { status: 500 });
+  }
 }
