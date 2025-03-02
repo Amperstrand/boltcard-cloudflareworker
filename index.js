@@ -4,7 +4,18 @@ import { handleBoltCardsRequest } from "./handlers/boltcardsHandler.js";
 import { handleReset } from "./handlers/resetHandler.js";
 import { handleLnurlpPayment } from "./handlers/lnurlHandler.js";
 import { handleProxy } from "./handlers/proxyHandler.js";
-import { uidConfig } from "./uidConfig.js";  // Import the UID configuration
+import { uidConfig } from "./uidConfig.js";
+
+// Helper function to return JSON responses
+const jsonResponse = (data, status = 200) => 
+  new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+
+// Helper function for error responses
+const errorResponse = (reason, status = 400) => 
+  jsonResponse({ status: "ERROR", reason }, status);
 
 export default {
   async fetch(request, env) {
@@ -13,99 +24,65 @@ export default {
     console.log("URL:", request.url);
 
     const url = new URL(request.url);
-    const pathname = url.pathname;
-    const params = url.searchParams;
+    const { pathname, searchParams } = url;
 
     console.log("Path:", pathname);
-    console.log("Query Params:", Object.fromEntries(params));
-
-    // Ensure `env` is loaded properly
+    console.log("Query Params:", Object.fromEntries(searchParams));
     console.log("Environment Variables Loaded:", Object.keys(env));
 
-    // Status page
-    if (pathname === "/status") {
-      return handleStatus();
-    }
+    // Handle Status Page
+    if (pathname === "/status") return handleStatus();
 
-    // Boltcard deep-link endpoint
+    // Handle BoltCard Requests
     if (pathname === "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards") {
-      const onExisting = params.get("onExisting");
+      const onExisting = searchParams.get("onExisting");
       console.log("BoltCards Request - onExisting:", onExisting);
 
       if (onExisting === "UpdateVersion") {
         return handleBoltCardsRequest(request, env);
       }
+
       if (onExisting === "KeepVersion") {
         try {
           const body = await request.json();
           console.log("Request Body:", body);
 
           const lnurlw = body.LNURLW;
-          if (!lnurlw) {
-            console.error("Error: Missing LNURLW parameter.");
-            return new Response(
-              JSON.stringify({ status: "ERROR", reason: "Missing LNURLW parameter." }),
-              { status: 400, headers: { "Content-Type": "application/json" } }
-            );
-          }
+          if (!lnurlw) return errorResponse("Missing LNURLW parameter.");
 
           let lnurl;
           try {
             lnurl = new URL(lnurlw);
-          } catch (e) {
-            console.error("Error: Invalid LNURLW format.");
-            return new Response(
-              JSON.stringify({ status: "ERROR", reason: "Invalid LNURLW format." }),
-              { status: 400, headers: { "Content-Type": "application/json" } }
-            );
+          } catch {
+            return errorResponse("Invalid LNURLW format.");
           }
 
           const pHex = lnurl.searchParams.get("p");
           const cHex = lnurl.searchParams.get("c");
-          if (!pHex || !cHex) {
-            console.error("Error: Invalid LNURLW format - missing `p` or `c`.");
-            return new Response(
-              JSON.stringify({ status: "ERROR", reason: "Invalid LNURLW format: missing p or c." }),
-              { status: 400, headers: { "Content-Type": "application/json" } }
-            );
-          }
+          if (!pHex || !cHex) return errorResponse("Invalid LNURLW format: missing p or c.");
 
           console.log("Decoding LNURLW: pHex:", pHex, "cHex:", cHex);
           const { uidHex, ctr, error } = decodeAndValidate(pHex, cHex, env);
-          if (error) {
-            console.error("decodeAndValidate failed:", error);
-            return new Response(
-              JSON.stringify({ status: "ERROR", reason: error }),
-              { status: 400, headers: { "Content-Type": "application/json" } }
-            );
-          }
+          if (error) return errorResponse(error);
 
           console.log("Reset Flow: Decoded UID:", uidHex, "Counter:", parseInt(ctr, 16));
           return handleReset(uidHex, env);
         } catch (err) {
           console.error("Error in KeepVersion Flow:", err);
-          return new Response(
-            JSON.stringify({ status: "ERROR", reason: err.message }),
-            { status: 500, headers: { "Content-Type": "application/json" } }
-          );
+          return errorResponse(err.message, 500);
         }
       }
     }
 
-    // LNURLW verification
-    const pHex = params.get("p");
-    const cHex = params.get("c");
+    // Handle LNURLW Verification
+    const pHex = searchParams.get("p");
+    const cHex = searchParams.get("c");
+
     if (pHex && cHex) {
       console.log("LNURLW Verification: pHex:", pHex, "cHex:", cHex);
-
+      
       const { uidHex, ctr, error } = decodeAndValidate(pHex, cHex, env);
-      if (error) {
-        console.error("decodeAndValidate failed:", error);
-        return new Response(
-          JSON.stringify({ status: "ERROR", reason: error }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
-        );
-      }
+      if (error) return errorResponse(error);
 
       console.log("Decoded UID:", uidHex, "Counter:", parseInt(ctr, 16));
 
@@ -116,7 +93,7 @@ export default {
         return handleProxy(request, uidHex, pHex, cHex, config.externalId);
       }
 
-      // If no proxy match, return the default JSON response
+      // Construct standard LNURL withdraw response
       const responsePayload = {
         tag: "withdrawRequest",
         callback: `https://boltcardpoc.psbt.me/boltcards/api/v1/lnurl/cb/${pHex}`,
@@ -128,10 +105,10 @@ export default {
       };
 
       console.log("Response Payload:", responsePayload);
-      return new Response(JSON.stringify(responsePayload), { headers: { "Content-Type": "application/json" } });
+      return jsonResponse(responsePayload);
     }
 
-    // Generalized LNURLp POST request handling
+    // Handle LNURLp Payment Processing
     if (pathname.startsWith("/boltcards/api/v1/lnurl/cb") && request.method === "POST") {
       return handleLnurlpPayment(request, env);
     }
