@@ -2,8 +2,7 @@ export const uidConfig = {
   "044561fa967380": {
     payment_method: "clnrest",
     proxy: {
-      externalId: "tapko6sbthfdgzoejjztjb",  // The external ID used for proxying
-      proxyDomain: "https://demo.lnbits.com"  // The LNBits instance to proxy to
+      baseurl: "https://demo.lnbits.com/boltcards/api/v1/scan/tapko6sbthfdgzoejjztjb"  // The full base URL for proxying
     },
     clnrest: {
       protocol: "http",
@@ -17,8 +16,7 @@ export const uidConfig = {
   "A1B2C3D4E5": {
     payment_method: "proxy",
     proxy: {
-      externalId: "anotherExternalId123",
-      proxyDomain: "https://other.lnbits.instance"
+      baseurl: "https://other.lnbits.instance/boltcards/api/v1/scan/anotherExternalId123"
     }
   },
 

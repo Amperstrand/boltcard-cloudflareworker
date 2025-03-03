@@ -1,17 +1,18 @@
 /**
- * Proxy handler that forwards requests to a specified externalId on the LNBits instance.
+ * Proxy handler that forwards requests to a specified external URL on the LNBits instance.
  * 
  * @param {Request} request - The incoming request object.
  * @param {string} uidHex - The UID of the Boltcard.
  * @param {string} pHex - The 'p' parameter from LNURLW.
  * @param {string} cHex - The 'c' parameter from LNURLW.
- * @param {string} externalId - The LNBits external ID to be used dynamically.
+ * @param {string} baseurl - The base URL for the LNBits endpoint.
  * @returns {Response} - The proxied response from the target server.
  */
-export async function handleProxy(request, uidHex, pHex, cHex, externalId) {
-  const targetBaseUrl = "https://demo.lnbits.com";
-  const targetPath = `/boltcards/api/v1/scan/${externalId}?p=${encodeURIComponent(pHex)}&c=${encodeURIComponent(cHex)}`;
-  const targetUrl = new URL(targetPath, targetBaseUrl);
+export async function handleProxy(request, uidHex, pHex, cHex, baseurl) {
+  // Create the target URL by appending the query parameters for pHex and cHex
+  const targetUrl = new URL(baseurl);
+  targetUrl.searchParams.append('p', encodeURIComponent(pHex));
+  targetUrl.searchParams.append('c', encodeURIComponent(cHex));
 
   console.log(`Proxying request for UID ${uidHex} to ${targetUrl.toString()}`);
   console.log("Proxy Request Details:");
