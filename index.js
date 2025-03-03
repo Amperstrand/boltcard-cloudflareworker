@@ -60,29 +60,33 @@ export default {
         const config = uidConfig[uidHex];
         console.log(`Payment method for UID ${uidHex}: ${config.payment_method}`);
 
-        // Handle proxy-based payments
         if (config.payment_method === "proxy" && config.proxy && config.proxy.proxyDomain) {
           console.log(`Proxying request for UID=${uidHex} to domain: ${config.proxy.proxyDomain}`);
           return handleProxy(request, uidHex, pHex, cHex, config.proxy.externalId);
         }
+
+        if (config.payment_method === "clnrest" && config.clnrest && config.clnrest.host) {
+
+          // Perform CMAC validation only if not using a proxy
+          if (!cmac_validated) {
+            console.warn(`CMAC Validation Warning: ${cmac_error || "CMAC validation skipped."}`);
+            return errorResponse(cmac_error || "CMAC validation failed");
+          }
+
+          // Construct standard LNURL withdraw response using the new handler, ensuring CMAC validation
+          const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated);
+          console.log("Response Payload:", responsePayload);
+          
+          if (responsePayload.status === "ERROR") {
+              return errorResponse(responsePayload.reason);
+          }
+
+          return jsonResponse(responsePayload);
+
+        }
       }
 
-      // Perform CMAC validation only if not using a proxy
-      if (!cmac_validated) {
-        console.warn(`CMAC Validation Warning: ${cmac_error || "CMAC validation skipped."}`);
-        return errorResponse(cmac_error || "CMAC validation failed");
-      }
-
-      // Construct standard LNURL withdraw response using the new handler, ensuring CMAC validation
-      const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated);
-      console.log("Response Payload:", responsePayload);
-      
-      if (responsePayload.status === "ERROR") {
-        return errorResponse(responsePayload.reason);
-      }
-
-      return jsonResponse(responsePayload);
-    }
+        }
 
     console.error("Error: Route not found.");
     return new Response("Not found", { status: 404 });

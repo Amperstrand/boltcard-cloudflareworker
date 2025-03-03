@@ -23,7 +23,7 @@ export const uidConfig = {
   },
 
   // Sample entry for a card using CLN REST
-  "SAMPLECARD123": {
+  "04996c6a926980": {
     payment_method: "clnrest",
     clnrest: {
       protocol: "https",
