@@ -54,15 +54,20 @@ export default {
       if (error) return errorResponse(error);
 
       console.log("Decoded UID:", uidHex, "Counter:", parseInt(ctr, 16));
-      
-      // Check if UID should be proxied
+
+      // Check if UID exists in config
       if (uidConfig[uidHex]) {
         const config = uidConfig[uidHex];
-        console.log("Proxying request for UID:", uidHex, "to domain:", config.proxyDomain);
-        return handleProxy(request, uidHex, pHex, cHex, config.externalId);
+        console.log(`Payment method for UID ${uidHex}: ${config.payment_method}`);
+
+        // Handle proxy-based payments
+        if (config.payment_method === "proxy" && config.proxy && config.proxy.proxyDomain) {
+          console.log(`Proxying request for UID=${uidHex} to domain: ${config.proxy.proxyDomain}`);
+          return handleProxy(request, uidHex, pHex, cHex, config.proxy.externalId);
+        }
       }
 
-      // Perform CMAC validation only if not proxying
+      // Perform CMAC validation only if not using a proxy
       if (!cmac_validated) {
         console.warn(`CMAC Validation Warning: ${cmac_error || "CMAC validation skipped."}`);
         return errorResponse(cmac_error || "CMAC validation failed");
@@ -78,7 +83,6 @@ export default {
 
       return jsonResponse(responsePayload);
     }
-
 
     console.error("Error: Route not found.");
     return new Response("Not found", { status: 404 });

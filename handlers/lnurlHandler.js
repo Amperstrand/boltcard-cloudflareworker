@@ -1,4 +1,5 @@
 import { decodeAndValidate } from "../boltCardHelper.js";
+import { uidConfig } from "../uidConfig.js";
 
 // Helper: Standard JSON response
 function jsonResponse(obj, status = 200) {
@@ -35,13 +36,11 @@ export async function handleLnurlpPayment(request, env) {
 
       p = extractParamFromPath(pathname, lnurlpBase);
       if (p) {
-        // p provided via URL; k1 in JSON holds the c value.
         if (!json.k1) {
           return jsonResponse({ status: "ERROR", reason: "Missing k1 parameter for c value" }, 400);
         }
         c = json.k1;
       } else {
-        // No extra path: extract both p and c from the JSON k1 query string.
         if (!json.k1) {
           return jsonResponse({ status: "ERROR", reason: "Missing k1 parameter" }, 400);
         }
@@ -65,24 +64,20 @@ export async function handleLnurlpPayment(request, env) {
           return jsonResponse({ status: "ERROR", reason: "Invalid k1 format, missing p or c" }, 400);
         }
       } else {
-        // When p is provided via the URL, treat k1 as the c value.
         c = k1;
       }
       console.log(`Using p: ${p} and c: ${c} (from GET request)`);
 
-      // Ensure invoice is provided in GET requests.
       const invoice = params.get("pr");
       if (!invoice) {
         return jsonResponse({ status: "ERROR", reason: "Missing invoice parameter in query string" }, 400);
       }
       console.log(`Invoice from GET: ${invoice}`);
-      // For GET, add the invoice to json for later processing.
       json = { invoice };
     } else {
       return jsonResponse({ status: "ERROR", reason: "Unsupported method" }, 405);
     }
 
-    // Decode and validate the p and c values.
     const { uidHex, ctr, cmac_validated, cmac_error, error } = decodeAndValidate(p, c, env);
     if (error) {
       return jsonResponse({ status: "ERROR", reason: error }, 400);
@@ -94,7 +89,22 @@ export async function handleLnurlpPayment(request, env) {
     }
     console.log("CMAC validation passed");
 
-    // Process the invoice if present; otherwise, return an error.
+    if (uidHex in uidConfig) {
+      const config = uidConfig[uidHex];
+      
+      if (config.payment_method === "proxy" && config.proxy && config.proxy.proxyDomain && config.proxy.proxyDomain !== "") {
+        console.log(`Using Proxy for UID=${uidHex}`);
+        console.log(`Proxy Domain: ${config.proxy.proxyDomain}, External ID: ${config.proxy.externalId}`);
+      } else if (config.payment_method === "clnrest" && config.clnrest) {
+        console.log(`Using CLN REST for UID=${uidHex}`);
+        console.log(`CLN REST Config: Protocol=${config.clnrest.protocol}, Host=${config.clnrest.host}, Port=${config.clnrest.port}, Rune=${config.clnrest.rune}`);
+      } else {
+        console.log(`No valid payment configuration found for UID=${uidHex}`);
+      }
+    } else {
+      console.log(`No payment configuration found for UID=${uidHex}`);
+    }
+
     if (json && json.invoice) {
       console.log(`Processing withdrawal for UID=${uidHex} with invoice: ${json.invoice}`);
       processWithdrawalPayment(uidHex, json.invoice, env);
@@ -111,5 +121,4 @@ export async function handleLnurlpPayment(request, env) {
 // Simulated withdrawal payment processing function.
 function processWithdrawalPayment(uid, pr, env) {
   console.log(`Simulating payment for invoice ${pr} with UID=${uid}`);
-  // Implement actual Lightning Network payment logic here.
 }
