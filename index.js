@@ -5,6 +5,7 @@ import { handleLnurlpPayment } from "./handlers/lnurlHandler.js";
 import { handleProxy } from "./handlers/proxyHandler.js";
 import { uidConfig } from "./uidConfig.js";
 import { constructWithdrawResponse } from "./handlers/withdrawHandler.js";
+import handleNfc from "./handlers/handleNfc.js"; // ✅ Import NFC Page Handler
 
 // Helper function to return JSON responses
 const jsonResponse = (data, status = 200) => 
@@ -30,20 +31,23 @@ export default {
     console.log("Query Params:", Object.fromEntries(searchParams));
     console.log("Environment Variables Loaded:", Object.keys(env));
 
-    // Handle Status Page
+    // ✅ Serve NFC Scanner Page (Tailwind optimized)
+    if (pathname === "/nfc") return handleNfc();
+
+    // ✅ Handle Status Page
     if (pathname === "/status") return handleStatus();
 
-    // Handle BoltCard Requests
+    // ✅ Handle BoltCard Requests
     if (pathname === "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards") {
       return fetchBoltCardKeys(request, env);
     }
 
-    // Handle LNURLp Payment Processing
+    // ✅ Handle LNURLp Payment Processing
     if (pathname.startsWith("/boltcards/api/v1/lnurl/cb")) {
       return handleLnurlpPayment(request, env);
     }
 
-    // Handle LNURLW Verification
+    // ✅ Handle LNURLW Verification
     const pHex = searchParams.get("p");
     const cHex = searchParams.get("c");
 
@@ -82,11 +86,9 @@ export default {
           }
 
           return jsonResponse(responsePayload);
-
         }
       }
-
-        }
+    }
 
     console.error("Error: Route not found.");
     return new Response("Not found", { status: 404 });
