@@ -53,11 +53,17 @@ You need to create a KV namespace for storing UID entries.
 
 #### **Via Wrangler CLI:**
 
-Alternatively, you can create a namespace using Wrangler:
-```sh
-wrangler kv:namespace create "boltcard-poc-kv"
-```
-Take note of the generated namespace ID.
+1. **List existing KV namespaces:**
+   ```sh
+   wrangler kv:namespace list
+   ```
+
+2. **Create a new KV namespace:**
+   ```sh
+   wrangler kv:namespace create "boltcard-poc-kv"
+   ```
+   Take note of the generated namespace ID.
+
 
 ### 3. Configure `wrangler.toml`
 
@@ -74,12 +80,16 @@ Replace `boltcard-poc-kv` with your actual KV namespace ID if it differs.
 
 ### 4. Deploy the Worker
 
-Before deploying, ensure your environment variables are set appropriately:
+Not really used any more
+
 ```sh
 export DEBUG=false
 ```
 Then deploy your worker:
 ```sh
+
+npm test
+
 wrangler deploy
 ```
 
@@ -108,15 +118,28 @@ Now, requests to `https://boltcardpoc.psbt.me` will be routed to your worker.
 
 ---
 
-## Test Vectors
 
-You can test your deployment using the following curl commands:
+## Test Vectors ([Source](https://github.com/boltcard/boltcard/blob/main/docs/TEST_VECTORS.md))
 
 ```sh
 curl 'https://boltcardpoc.psbt.me/?p=4E2E289D945A66BB13377A728884E867&c=E19CCB1FED8892CE'
 curl 'https://boltcardpoc.psbt.me/?p=00F48C4F8E386DED06BCDC78FA92E2FE&c=66B4826EA4C155B4'
 curl 'https://boltcardpoc.psbt.me/?p=0DBF3C59B59B0638D60B5842A997D4D1&c=CC61660C020B4D96'
 curl 'https://boltcardpoc.psbt.me/?p=3736A84681238418D4B9B7210C13DC39&c=1549E9D901188F77'
+```
+
+```sh
+curl -X POST "https://boltcardpoc.psbt.me/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion"      -H "Content-Type: application/json"      -d '{"UID": "04a39493cc8680"}'
+
+curl -X POST "https://boltcardpoc.psbt.me/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion"      -H "Content-Type: application/json"      -d '{"UID": "044561fa967380"}'
+```
+
+```sh
+curl -X POST https://boltcardpoc.psbt.me/boltcards/api/v1/lnurl/cb/fABRzT2jv9Mt82exoStuxQ      -H "Content-Type: application/json"      -d '{
+          "invoice": "lnbc1000n1p...your_bolt11_invoice...",
+          "amount": 1000,
+          "k1": "fABRzT2jv9Mt82exoStuxQ"
+        }'
 ```
 
 ---
