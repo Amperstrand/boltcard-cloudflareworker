@@ -1,6 +1,9 @@
 import { decodeAndValidate } from "../boltCardHelper.js";
 import { uidConfig } from "../uidConfig.js";
 
+// Global counter for fakewallet payments
+let fakewalletCounter = 0;
+
 export async function handleLnurlpPayment(request) {
   try {
     const url = new URL(request.url);
@@ -137,14 +140,22 @@ export async function processWithdrawalPayment(uid, pr) {
     );
   }
 
-  // Handle fakewallet payment method
+  // Handle fakewallet payment method with alternating failure/success
   if (config.payment_method === "fakewallet") {
-    console.log(`Processing payment using fakewallet for UID=${uid}`);
-    // Since fakewallet requires no extra parameters, simply return success.
-    return new Response(
-      JSON.stringify({ status: "201", message: "Payment processed successfully by fakewallet" }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    );
+    fakewalletCounter++;
+    if (fakewalletCounter % 2 === 0) {
+      console.log(`Fakewallet: simulated failure for UID=${uid}`);
+      return new Response(
+        JSON.stringify({ status: "ERROR", reason: "Simulated fakewallet failure" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    } else {
+      console.log(`Fakewallet: simulated success for UID=${uid}`);
+      return new Response(
+        JSON.stringify({ status: "OK", message: "Payment processed successfully by fakewallet" }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
   }
 
   // Handle CLN REST payment method
@@ -191,22 +202,17 @@ export async function processWithdrawalPayment(uid, pr) {
         const responseBody = await response.json();
         console.log(`Payment processed successfully. Response Body:`, JSON.stringify(responseBody, null, 2));
         return new Response(
-          JSON.stringify({ status: "201", message: "Payment processed successfully" }),
+          JSON.stringify({ status: "OK", message: "Payment processed successfully" }),
           { status: 200, headers: { "Content-Type": "application/json" } }
         );
-      } else if (response.status === 401) {
-        const text = await response.text();
-        console.error(`Authentication issue: Status ${response.status}. Body: ${text}`);
-        return new Response(
-          JSON.stringify({ status: "ERROR", reason: `Authentication issue: ${text}` }),
-          { status: 401, headers: { "Content-Type": "application/json" } }
-        );
       } else {
-        const text = await response.text();
-        console.error(`Error in response: Status ${response.status}. Body: ${text}`);
+        const errorText = await response.text();
+        // Construct the error message using the error code and message from core lightning.
+        const errorReason = `${response.status} ${errorText}`;
+        console.error(`Core Lightning failure: ${errorReason}`);
         return new Response(
-          JSON.stringify({ status: "ERROR", reason: `Error response: ${text}` }),
-          { status: 500, headers: { "Content-Type": "application/json" } }
+          JSON.stringify({ status: "ERROR", reason: errorReason }),
+          { status: response.status, headers: { "Content-Type": "application/json" } }
         );
       }
     } catch (error) {
