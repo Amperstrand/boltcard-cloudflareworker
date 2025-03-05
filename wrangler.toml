@@ -1,7 +1,11 @@
 name = "boltcard-poc"
+type = "javascript"
 main = "index.js"
 compatibility_date = "2025-02-28"
 
+kv_namespaces = [
+  { binding = "UID_CONFIG", id = "boltcard-poc-boltcard-poc-kv" }
+]
 
 # Use a simple array of route strings
 

@@ -56,6 +56,8 @@ You need to create a KV namespace for storing UID entries.
 1. **List existing KV namespaces:**
    ```sh
    wrangler kv:namespace list
+   wrangler kv:namespace list | jq -r '.[] | select(.title == "boltcard-poc-boltcard-poc-kv") | .id'
+
    ```
 
 2. **Create a new KV namespace:**
