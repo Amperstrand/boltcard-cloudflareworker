@@ -66,11 +66,18 @@ export default async function handleNfc() {
           <div id="uid-box" class="p-3 bg-gray-200 rounded-md text-gray-700 mt-2">
             Waiting for UID...
           </div>
+
+          <!-- New NFC Indicator Button -->
+          <button id="nfc-indicator" 
+                  class="w-full text-white font-medium py-2 rounded-md mt-3"
+                  style="background-color: red;">
+            NFC Inactive (click to restart)
+          </button>
         </div>
 
         <!-- Module script including NFC and QR scanning logic -->
         <script type="module">
-          // Import qr-scanner from jsDelivr CDN (no need to set WORKER_PATH now)
+          // Import QrScanner from jsDelivr CDN
           import QrScanner from "https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner.min.js";
 
           let lastScannedUrl = "";
@@ -80,27 +87,37 @@ export default async function handleNfc() {
           let paymentUsed = false;
           let qrScanner = null;
           let qrActive = false;
+          let nfcActive = false;
+          let lastNfcReadTime = 0;
+          let nfcScanner = null;
+          let nfcAbortController = null;
 
-          // NFC scanning logic (unchanged except adding UID display)
-          async function startScanning() {
+          // NFC scanning: create a new instance of NDEFReader each time using an AbortController.
+          async function startNfc() {
             const errorBox = document.getElementById("error-message");
             const retryButton = document.getElementById("retry-button");
-
             try {
               const ndef = new NDEFReader();
-              await ndef.scan();
+              nfcScanner = ndef;
+              nfcAbortController = new AbortController();
+              await ndef.scan({ signal: nfcAbortController.signal });
+              nfcActive = true;
+              updateNfcIndicator();
 
               ndef.onreading = async (event) => {
+                const now = Date.now();
+                // Enforce a 3-second delay between NFC readings.
+                if (now - lastNfcReadTime < 3000) return;
+                lastNfcReadTime = now;
+
                 const decoder = new TextDecoder();
                 let nfcData = decoder.decode(event.message.records[0].data);
-
                 if (nfcData.startsWith("lnurlw://")) {
                   nfcData = "https://" + nfcData.substring(9);
                 }
-
                 document.getElementById("ndef-box").textContent = nfcData;
 
-                // Display NFC UID if available
+                // Display NFC UID if available.
                 if (event.serialNumber) {
                   document.getElementById("uid-box").textContent = event.serialNumber;
                 } else {
@@ -112,16 +129,36 @@ export default async function handleNfc() {
                   fetchJsonAndHandlePayment(nfcData);
                 }
               };
+
+              ndef.onreadingerror = (event) => {
+                document.getElementById("ndef-box").textContent = "Error reading NFC data.";
+              };
+
             } catch (error) {
+              nfcActive = false;
+              updateNfcIndicator();
               if (error.name === "NotAllowedError") {
                 errorBox.classList.remove("hidden");
-                errorBox.textContent = "NFC permission denied. Click 'Start NFC Scan' to try again.";
+                errorBox.textContent = "NFC permission denied. Click the NFC indicator to try again.";
                 retryButton.classList.remove("hidden");
-                retryButton.addEventListener("click", startScanning);
+                retryButton.addEventListener("click", startNfc);
               } else {
                 document.getElementById("ndef-box").textContent = "Error: " + error.message;
               }
             }
+          }
+
+          // Abort the current NFC scan via AbortController and create a new NDEFReader after a 2000ms delay.
+          function restartNfc() {
+            if (nfcAbortController) {
+              nfcAbortController.abort();
+            }
+            nfcScanner = null;
+            nfcActive = false;
+            updateNfcIndicator();
+            setTimeout(() => {
+              startNfc();
+            }, 2000);
           }
 
           async function fetchJsonAndHandlePayment(url) {
@@ -151,9 +188,6 @@ export default async function handleNfc() {
                    <b>K1:</b> \${k1}<br>
                    <b>Min Withdraw:</b> \${jsonData.minWithdrawable / 1000} sats<br>
                    <b>Max Withdraw:</b> \${jsonData.maxWithdrawable / 1000} sats\`;
-
-                if (!callbackUrl || !k1) return;
-                // Note: Pay Invoice button is now auto-controlled by invoice field content.
               }
             } catch (error) {
               document.getElementById("lnurlw-details").textContent = "Error fetching JSON: " + error.message;
@@ -170,7 +204,7 @@ export default async function handleNfc() {
             profilePicture.style.display = "block";
           }
 
-          // Update Pay Invoice button visibility based on invoice field value
+          // Update Pay Invoice button visibility based on the invoice field value.
           function updatePayButtonState() {
             const invoiceInput = document.getElementById("invoice-input").value.trim();
             const payButton = document.getElementById("pay-button");
@@ -200,14 +234,13 @@ export default async function handleNfc() {
 
               if (withdrawResult.status === "OK") {
                 paymentUsed = true;
-                // Optionally, clear the invoice field or hide the button here.
               }
             } catch {
               document.getElementById("payment-status").textContent = "Error processing payment.";
             }
           }
 
-          // QR Code scanning logic
+          // QR Code scanning logic.
           function startQrScanner() {
             const videoElem = document.getElementById("qr-video");
             videoElem.classList.remove("hidden");
@@ -236,9 +269,11 @@ export default async function handleNfc() {
             document.getElementById("qr-video").classList.add("hidden");
             qrActive = false;
             updateToggleQrButton();
+            // When stopping the QR scanner, force a hard restart of the NFC reader.
+            restartNfc();
           }
 
-          // Toggle QR scanning on or off
+          // Toggle QR scanning on or off.
           function toggleQrScanner() {
             if (qrActive) {
               stopQrScanner();
@@ -252,17 +287,34 @@ export default async function handleNfc() {
             btn.textContent = qrActive ? "Stop QR" : "Toggle QR";
           }
 
-          // Bind the toggle QR button to start/stop scanning
+          // Update the NFC indicator button's text and background color.
+          function updateNfcIndicator() {
+            const indicator = document.getElementById("nfc-indicator");
+            if (nfcActive) {
+              indicator.style.backgroundColor = "green";
+              indicator.textContent = "NFC Active (click to restart)";
+            } else {
+              indicator.style.backgroundColor = "red";
+              indicator.textContent = "NFC Inactive (click to start)";
+            }
+          }
+
+          // Bind the NFC indicator button to force a full restart (creates a new NDEFReader instance).
+          document.getElementById("nfc-indicator").addEventListener("click", () => {
+            restartNfc();
+          });
+
+          // Bind the toggle QR button to start/stop QR scanning.
           document.getElementById("toggle-qr-button").addEventListener("click", toggleQrScanner);
 
-          // Bind the Pay Invoice button click
+          // Bind the Pay Invoice button click.
           document.getElementById("pay-button").addEventListener("click", processPayment);
 
-          // Update Pay Invoice button state on invoice field changes
+          // Update the Pay Invoice button state on invoice field changes.
           document.getElementById("invoice-input").addEventListener("input", updatePayButtonState);
 
-          // Start NFC scanning on page load
-          window.addEventListener("load", startScanning);
+          // Start NFC scanning when the page loads (using a fresh NDEFReader instance).
+          window.addEventListener("load", startNfc);
         </script>
       </body>
     </html>
