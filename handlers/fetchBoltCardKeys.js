@@ -1,11 +1,13 @@
 import { getDeterministicKeys } from "../keygenerator.js";
 import { decodeAndValidate } from "../boltCardHelper.js";
+import { uidConfig } from "../uidConfig.js";
+
 
 // Helper function to return JSON responses with logging
 const jsonResponse = (data, status = 200) => {
   const jsonStr = JSON.stringify(data);
   console.log("Returning JSON response:", jsonStr); // Log the JSON data
-
+  console.log("Returning status:", status); // Log the JSON data
   return new Response(jsonStr, {
     status,
     headers: { "Content-Type": "application/json" },
@@ -16,7 +18,7 @@ const jsonResponse = (data, status = 200) => {
 const errorResponse = (error, status = 400) => jsonResponse({ error }, status);
 
 // Main handler function
-export async function fetchBoltCardKeys(request, env) {
+export async function fetchBoltCardKeys(request) {
   if (request.method !== "POST") {
     return errorResponse("Only POST allowed", 405);
   }
@@ -35,7 +37,7 @@ export async function fetchBoltCardKeys(request, env) {
     }
 
     if (onExisting === "KeepVersion" && lnurlw) {
-      return handleResetFlow(lnurlw, env);
+      return handleResetFlow(lnurlw);
     }
 
     return errorResponse("Invalid combination of 'onExisting' and request body");
@@ -50,7 +52,7 @@ async function handleProgrammingFlow(uid) {
 }
 
 // Handles the "Reset" flow (KeepVersion)
-async function handleResetFlow(lnurlw, env) {
+async function handleResetFlow(lnurlw) {
   try {
     // Parse the LNURLW
     const lnurl = new URL(lnurlw);
@@ -63,7 +65,7 @@ async function handleResetFlow(lnurlw, env) {
 
     // Decode and validate
     console.log("Decoding LNURLW: pHex:", pHex, "cHex:", cHex);
-    const { uidHex, ctr, error } = decodeAndValidate(pHex, cHex, env);
+    const { uidHex, ctr, error } = decodeAndValidate(pHex, cHex);
     if (error) {
       return errorResponse(error);
     }

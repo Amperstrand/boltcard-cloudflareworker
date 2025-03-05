@@ -1,6 +1,8 @@
 import { getDeterministicKeys } from "../keygenerator.js";
+import { uidConfig } from "../uidConfig.js";
 
-export async function handleProgram(url, env) {
+
+export async function handleProgram(url) {
   const uid = url.searchParams.get("uid");
   if (!uid) {
     return new Response(
@@ -12,8 +14,7 @@ export async function handleProgram(url, env) {
   console.log("Programming the BoltCard with UID:", uid);
 
   // Get privacy mode flag from environment; default is NOT enabled
-  const privacyMode =
-    env.PRIVACY_MODE && env.PRIVACY_MODE.toLowerCase() === "true";
+  UID_PRIVACY && UID_PRIVACY.toLowerCase() === "true";
 
   try {
     // Assume getDeterministicKeys returns an object with k0, k1, k2, k3, k4, cardKey, etc.
@@ -29,8 +30,7 @@ export async function handleProgram(url, env) {
         protocol_name: "new_bolt_card_response",
         protocol_version: 1,
         card_name: cardName,
-        uid_privacy: "Y",
-        // Only return the public keys
+        uid_privacy: "N",
         K0: keys.k0,
         K1: keys.k1,
         K2: keys.k2,

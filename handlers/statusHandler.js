@@ -1,3 +1,5 @@
+import { uidConfig } from "../uidConfig.js";
+
 export async function handleStatus() {
   const BASE_URL =
     "https://boltcardpoc.psbt.me/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards";

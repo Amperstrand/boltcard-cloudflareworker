@@ -1,14 +1,17 @@
+export const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d"
+export const UID_PRIVACY = false
 export const uidConfig = {
   "044561fa967380": {
+    K2 : "33268DEA5B5511A1B3DF961198FA46D5",
     payment_method: "clnrest",
     proxy: {
       baseurl: "https://demo.lnbits.com/boltcards/api/v1/scan/tapko6sbthfdgzoejjztjb"  // The full base URL for proxying
     },
     clnrest: {
-      protocol: "http",
-      host: "another-cln.instance",
-      port: 3002,
-      rune: "mnop5678qrst1234uvwx"
+      protocol: "httpsnotusing",
+      host: "https://restk.psbt.me:3010",
+      port: 3010,
+      rune: "dummy"
     }
   },
 
@@ -22,6 +25,7 @@ export const uidConfig = {
 
   // Sample entry for a card using CLN REST
   "04996c6a926980": {
+    K2 : "B45775776CB224C75BCDE7CA3704E933",
     payment_method: "clnrest",
     clnrest: {
       protocol: "https",
@@ -31,14 +35,9 @@ export const uidConfig = {
     }
   },
 
-  // Another sample UID using CLN REST
-  "987654321ABC": {
-    payment_method: "clnrest",
-    clnrest: {
-      protocol: "http",
-      host: "another-cln.instance",
-      port: 3002,
-      rune: "mnop5678qrst1234uvwx"
-    }
+  // Another sample UID using a dummy fake wallet
+  "04a071fa967380": {
+    K2 : "EFCF2DD0528E57FF2E674E76DFC6B3B1",
+    payment_method: "fakewallet",
   }
 };

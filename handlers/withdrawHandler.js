@@ -1,3 +1,7 @@
+//import { generateTOTP } from '../totp.js';
+import { uidConfig } from "../uidConfig.js";
+
+
 export const constructWithdrawResponse = (uidHex, pHex, cHex, ctr, cmac_validated) => {
   if (!cmac_validated) {
     return {
@@ -8,13 +12,18 @@ export const constructWithdrawResponse = (uidHex, pHex, cHex, ctr, cmac_validate
 
   const counterValue = parseInt(ctr, 16);
   
-  // Introduce a random error only if counter is >= 100
-  if (counterValue >= 300 && Math.random() < 0.5) {
+  // Introduce a random error only if counter is >= 200
+  if (counterValue >= 200 && Math.random() < 0.5) {
     return {
       status: "ERROR",
       reason: `random error - UID: ${uidHex}, Counter: ${counterValue}, pHex: ${pHex}, cHex: ${cHex}`,
     };
   }
+
+  // Generate TOTP using fixed secret and epoch (from test vectors)
+  //const totpSecret = "12345678901234567890"; // TOTP test vector secret
+  //const fixedEpoch = 59000; // TOTP test vector epoch (fixed timestamp)
+  //const totpCode = await generateTOTP(totpSecret, fixedEpoch);
 
   // Verifiable Credentials List (W3C standard format)
   const verifiableCredentials = [
@@ -72,6 +81,7 @@ export const constructWithdrawResponse = (uidHex, pHex, cHex, ctr, cmac_validate
     maxWithdrawable: 1000,
     defaultDescription: `Boltcard payment from UID ${uidHex}, counter ${counterValue}`,
     payLink: `lnurlp://boltcardpoc.psbt.me/boltcards/api/v1/lnurlp_not_implemented_yet/${uidHex}/${pHex}/${cHex}`,
-    verifiableCredentials,
+    verifiableCredentials//,
+    //totp: totpCode
   };
 };

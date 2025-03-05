@@ -88,14 +88,12 @@ test("shiftGo should correctly shift bytes left", () => {
 });
 
 test("getK2KeyForUID should return correct K2 key", () => {
-  const env = { K2_04996C6A926980: "b45775776cb224c75bcde7ca3704e933" };
-  const k2Bytes = getK2KeyForUID(env, "04996C6A926980");
+  const k2Bytes = getK2KeyForUID("04996C6A926980");
   expect(bytesToHex(k2Bytes)).toBe("b45775776cb224c75bcde7ca3704e933");
 });
 
 test("getK2KeyForUID should return null if no key found", () => {
-  const env = {};
-  expect(getK2KeyForUID(env, "04996C6A926980")).toBeNull();
+  expect(getK2KeyForUID("nonexistinguid")).toBeNull();
 });
 
 test("computeAesCmac should generate expected CMAC", () => {

@@ -8,11 +8,14 @@ import {
   getK2KeyForUID
 } from "./cryptoutils.js";
 
-export function extractUIDAndCounter(pHex, env) {
-  if (!env.BOLT_CARD_K1) {
-    return { error: "BOLT_CARD_K1 environment variable is missing." };
+//import { uidConfig } from "./uidConfig.js"
+import { BOLT_CARD_K1 } from "./uidConfig.js"
+
+export function extractUIDAndCounter(pHex) {
+  if (!BOLT_CARD_K1) {
+    return { error: "BOLT_CARD_K1 variable is missing." };
   }
-  const k1Keys = env.BOLT_CARD_K1.split(",").map(hexToBytes);
+  const k1Keys = BOLT_CARD_K1.split(",").map(hexToBytes);
   if (!k1Keys || k1Keys.length === 0) {
     return { error: "Failed to parse BOLT_CARD_K1." };
   }
@@ -26,12 +29,12 @@ export function extractUIDAndCounter(pHex, env) {
   };
 }
 
-export function verifyCmac(uidHex, ctr, cHex, env) {
+export function verifyCmac(uidHex, ctr, cHex) {
   if (!cHex) {
     return { cmac_validated: false, cmac_error: null };
   }
 
-  const k2Bytes = getK2KeyForUID(env, uidHex);
+  const k2Bytes = getK2KeyForUID(uidHex);
   if (!k2Bytes) {
     return {
       cmac_validated: false,
@@ -52,8 +55,8 @@ export function verifyCmac(uidHex, ctr, cHex, env) {
   };
 }
 
-export function decodeAndValidate(pHex, cHex, env) {
-  const extraction = extractUIDAndCounter(pHex, env);
+export function decodeAndValidate(pHex, cHex) {
+  const extraction = extractUIDAndCounter(pHex);
   if (extraction.error) {
     return { error: extraction.error };
   }
@@ -69,7 +72,7 @@ export function decodeAndValidate(pHex, cHex, env) {
     };
   }
 
-  const verification = verifyCmac(uidHex, ctr, cHex, env);
+  const verification = verifyCmac(uidHex, ctr, cHex);
 
   if (!verification.cmac_validated) {
     console.warn(`Warning: ${verification.cmac_error}`);

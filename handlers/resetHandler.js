@@ -1,6 +1,8 @@
 import { getDeterministicKeys } from "../keygenerator.js";
+import { uidConfig } from "../uidConfig.js";
 
-export async function handleReset(uid, env) {
+
+export async function handleReset(uid) {
   try {
     if (!uid) {
       return new Response(JSON.stringify({ error: "Missing UID parameter for reset." }), {

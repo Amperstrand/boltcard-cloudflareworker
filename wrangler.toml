@@ -11,16 +11,7 @@ routes = [
 
 [vars]
 # These variables will be available to your Worker.
-BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d"
-
-K2_04996C6A926980 = "B45775776CB224C75BCDE7CA3704E933"
-K2_044561FA967380 = "33268DEA5B5511A1B3DF961198FA46D5"
-
-CLN_PROTOCOL = "https"
-CLN_IP = "192.0.2.10"
-CLN_PORT = "8080"
-CLN_RUNE = "your-rune-string"
-
+#BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d"
 
 [build]
 command = "npm install"

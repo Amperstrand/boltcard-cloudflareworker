@@ -29,22 +29,18 @@ export default {
 
     console.log("Path:", pathname);
     console.log("Query Params:", Object.fromEntries(searchParams));
-    console.log("Environment Variables Loaded:", Object.keys(env));
+//    console.log("Environment Variables Loaded:", Object.keys(env));
 
-    // ✅ Serve NFC Scanner Page (Tailwind optimized)
     if (pathname === "/nfc") return handleNfc();
 
-    // ✅ Handle Status Page
     if (pathname === "/status") return handleStatus();
 
-    // ✅ Handle BoltCard Requests
     if (pathname === "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards") {
-      return fetchBoltCardKeys(request, env);
+      return fetchBoltCardKeys(request);
     }
 
-    // ✅ Handle LNURLp Payment Processing
     if (pathname.startsWith("/boltcards/api/v1/lnurl/cb")) {
-      return handleLnurlpPayment(request, env);
+      return handleLnurlpPayment(request);
     }
 
     // ✅ Handle LNURLW Verification
@@ -54,7 +50,7 @@ export default {
     if (pHex && cHex) {
       console.log("LNURLW Verification: pHex:", pHex, "cHex:", cHex);
       
-      const { uidHex, ctr, cmac_validated, cmac_error, error } = decodeAndValidate(pHex, cHex, env);
+      const { uidHex, ctr, cmac_validated, cmac_error, error } = decodeAndValidate(pHex, cHex);
       if (error) return errorResponse(error);
 
       console.log("Decoded UID:", uidHex, "Counter:", parseInt(ctr, 16));
@@ -70,7 +66,6 @@ export default {
         }
 
         if (config.payment_method === "clnrest" && config.clnrest && config.clnrest.host) {
-
           // Perform CMAC validation only if not using a proxy
           if (!cmac_validated) {
             console.warn(`CMAC Validation Warning: ${cmac_error || "CMAC validation skipped."}`);
@@ -80,14 +75,41 @@ export default {
           // Construct standard LNURL withdraw response using the new handler, ensuring CMAC validation
           const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated);
           console.log("Response Payload:", responsePayload);
-          
+
           if (responsePayload.status === "ERROR") {
-              return errorResponse(responsePayload.reason);
+            return errorResponse(responsePayload.reason);
           }
 
           return jsonResponse(responsePayload);
         }
+
+        if (config.payment_method === "fakewallet") {
+          // Perform CMAC validation only if not using a proxy
+          if (!cmac_validated) {
+            console.warn(`CMAC Validation Warning: ${cmac_error || "CMAC validation skipped."}`);
+            return errorResponse(cmac_error || "CMAC validation failed");
+          }
+
+          // Construct standard LNURL withdraw response using the new handler, ensuring CMAC validation
+          const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated);
+          console.log("Response Payload:", responsePayload);
+
+          if (responsePayload.status === "ERROR") {
+            return errorResponse(responsePayload.reason);
+          }
+
+          return jsonResponse(responsePayload);
+        }
+
+        // Handle unsupported payment methods or configurations
+        console.error(`Unsupported payment method for UID=${uidHex}: ${config.payment_method}`);
+        return errorResponse(`Unsupported payment method: ${config.payment_method}`);
       }
+
+      // Handle case where UID does not exist in config
+      console.error(`UID ${uidHex} not found in config`);
+      return errorResponse("UID not found in config");
+
     }
 
     console.error("Error: Route not found.");
