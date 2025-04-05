@@ -1,11 +1,12 @@
+// index.js
 import { decodeAndValidate } from "./boltCardHelper.js";
 import { handleStatus } from "./handlers/statusHandler.js";
 import { fetchBoltCardKeys } from "./handlers/fetchBoltCardKeys.js";
 import { handleLnurlpPayment } from "./handlers/lnurlHandler.js";
 import { handleProxy } from "./handlers/proxyHandler.js";
-import { uidConfig as staticUidConfig } from "./uidConfig.js";
 import { constructWithdrawResponse } from "./handlers/withdrawHandler.js";
 import handleNfc from "./handlers/handleNfc.js"; // Import NFC Page Handler
+import { getUidConfig } from "./getUidConfig.js"; // <-- Import the new helper
 
 // Helper function to return JSON responses
 const jsonResponse = (data, status = 200) =>
@@ -52,29 +53,8 @@ export default {
 
       console.log("Decoded UID:", uidHex, "Counter:", parseInt(ctr, 16));
 
-      let config;
-
-      // Attempt to fetch the UID configuration from KV if available.
-      // The KV keys are expected to be stored under keys like "uid:044561fa967380"
-      if (env.UID_CONFIG) {
-        try {
-          const kvConfigJSON = await env.UID_CONFIG.get(`uid:${uidHex}`);
-          if (kvConfigJSON) {
-            config = JSON.parse(kvConfigJSON);
-            console.log(`Found UID ${uidHex} in KV`);
-          }
-        } catch (e) {
-          console.error("Error fetching/parsing KV config for UID:", uidHex, e);
-        }
-      }
-
-      // Fallback to the static configuration if KV lookup fails or is not available
-      if (!config) {
-        config = staticUidConfig[uidHex];
-        if (config) {
-          console.log(`Using static config for UID ${uidHex}`);
-        }
-      }
+      // Fetch the UID configuration from KV or static file
+      const config = await getUidConfig(uidHex, env);
 
       // If we still don't have a configuration, return an error
       if (!config) {

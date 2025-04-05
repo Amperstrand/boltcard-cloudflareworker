@@ -56,7 +56,6 @@ You need to create a KV namespace for storing UID entries.
 1. **List existing KV namespaces:**
    ```sh
    wrangler kv:namespace list
-   wrangler kv:namespace list | jq -r '.[] | select(.title == "boltcard-poc-boltcard-poc-kv") | .id'
 
    ```
 
@@ -174,5 +173,24 @@ curl -X POST https://boltcardpoc.psbt.me/boltcards/api/v1/lnurl/cb/fABRzT2jv9Mt8
    curl -X DELETE "https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/storage/kv/namespaces/boltcard-poc-kv/values/uid:044561fa967380"    -H "Authorization: Bearer YOUR_API_TOKEN"
    ```
 
----
+### **Using Wrangler CLI**
 
+namespaceid=$(wrangler kv:namespace list | jq -r '.[] | select(.title == "boltcard-poc-boltcard-poc-kv") | .id')
+
+
+1. **Add or Update a UID Entry:**
+   ```sh
+   wrangler kv:key put uid:04a071fa967380 '{"K2": "EFCF2DD0528E57FF2E674E76DFC6B3B1", "payment_method": "fakewallet"}' --namespace-id=${namespaceid}
+   ```
+
+2. **Retrieve a UID Entry:**
+   ```sh
+   wrangler kv:key get uid:04a071fa967380 --namespace-id=${namespaceid}
+   ```
+
+3. **Delete a UID Entry:**
+   ```sh
+   wrangler kv:key delete uid:04a071fa967380 --namespace-id=${namespaceid}
+   ```
+
+---
