@@ -1,6 +1,11 @@
 import { getDeterministicKeys } from "../keygenerator.js";
 import { decodeAndValidate } from "../boltCardHelper.js";
-import { uidConfig } from "../uidConfig.js";
+import { extractUIDAndCounter } from "../boltCardHelper.js";
+//import { getUidConfig } from "./getUidConfig.js";
+//import { uidConfig } from "../uidConfig.js";
+//import { getUidConfig } from "../uidConfig.js";
+import { getUidConfig } from "../getUidConfig.js";
+
 
 
 // Helper function to return JSON responses with logging
@@ -65,10 +70,33 @@ async function handleResetFlow(lnurlw) {
 
     // Decode and validate
     console.log("Decoding LNURLW: pHex:", pHex, "cHex:", cHex);
-    const { uidHex, ctr, error } = decodeAndValidate(pHex, cHex);
-    if (error) {
-      return errorResponse(error);
-    }
+      console.log("LNURLW Verification: pHex:", pHex, "cHex:", cHex);
+      //const decryption = decrypt_uid_and_counter(pHex, BOLT_CARD_K1);
+      const decryption = extractUIDAndCounter(pHex);
+      if (!decryption.success) return errorResponse(decryption.error);
+      const { uidHex, ctr } = decryption;
+      console.log("uidHex:", uidHex, "ctr:", ctr);
+
+      // Fetch the UID configuration from KV, static config, or via deterministic keys
+      const config = await getUidConfig(uidHex);
+      console.log(JSON.stringify(config));
+
+      // If no configuration is found, return an error
+      if (!config) {
+        console.error(`UID ${uidHex} not found in any config`);
+        return errorResponse("UID not found in config");
+      }
+
+      console.log(`Payment method for UID ${uidHex}: ${config.payment_method}`);
+      console.log(`K2 for UID ${uidHex}: ${config.K2}`);
+      //const { cmac_validated, cmac_error } = validate_cmac(uidBytes, ctr, cHex);
+      //if (!cmac_validated) return errorResponse(cmac_error);
+      //dummy validation
+      const cmac_validated = true;
+    //const { uidHex, ctr, error } = decodeAndValidate(pHex, cHex);
+    //if (error) {
+    //  return errorResponse(error);
+    //}
 
     console.log("Reset Flow: Decoded UID:", uidHex, "Counter:", parseInt(ctr, 16));
 

@@ -1,5 +1,4 @@
 import AES from "aes-js";
-import { uidConfig } from './uidConfig';
 
 const DEBUG = false;
 const BLOCK_SIZE = 16; // AES block size in bytes
@@ -287,36 +286,23 @@ export function decryptP(pHex, k1Keys) {
 }
 
 /**
- * Retrieves the K2 key for a specific UID from the provided environment.
- * @returns {Uint8Array|null}
+ * Verifies the CMAC by building the expected verification tag and comparing it to the provided value.
+ * @param {Uint8Array} uidBytes - The UID bytes.
+ * @param {Uint8Array} ctr - The counter bytes.
+ * @param {string} cHex - The provided CMAC as a hex string.
+ * @param {Uint8Array} k2Bytes - The K2 key.
+ * @returns {{ cmac_validated: boolean, cmac_error: string|null }}
  */
-
-
-export function getK2KeyForUID(uidHex) {
-  // Log the input value for debugging
-  console.log(`[DEBUG] Received UID (uidHex):`, uidHex);
-
-  // Ensure the UID is a string
-  if (typeof uidHex !== 'string') {
-    console.error(`[ERROR] Invalid UID type: expected string, got ${typeof uidHex}`);
-    return null;
-  }
-
-  // Convert to lowercase for matching the config keys
-  const uidStr = uidHex.toLowerCase();
-  console.log(`[DEBUG] Looking for UID: ${uidStr}`);  // Log the lowercase UID
-
-  // Retrieve the config entry for the UID
-  const configEntry = uidConfig[uidStr];
-
-  // If no config entry or K2 key is found, return null
-  if (!configEntry || !configEntry.K2) {
-    console.log(`[WARNING] No K2 key found for UID: ${uidStr}`);
-    return null;  // Explicitly return null if no K2 key is found
-  }
-
-  // Convert the hex string to bytes and return
-  const k2Hex = configEntry.K2;
-  console.log(`[DEBUG] Found K2 key for UID ${uidStr}: ${k2Hex}`);
-  return hexToBytes(k2Hex);
+export function verifyCmac(uidBytes, ctr, cHex, k2Bytes) {
+  const { ct } = buildVerificationData(uidBytes, ctr, k2Bytes);
+  if (!ct) { throw new Error('ct is undefined!'); }
+  const computedCmacHex = bytesToHex(ct).toLowerCase();
+  const providedCmac = cHex.toLowerCase();
+  const cmac_validated = computedCmacHex === providedCmac;
+  return {
+    cmac_validated,
+    cmac_error: cmac_validated
+      ? null
+      : `CMAC validation failed: expected ${computedCmacHex}, received ${providedCmac}`
+  };
 }

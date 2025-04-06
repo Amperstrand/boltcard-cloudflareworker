@@ -98,7 +98,7 @@ export async function handleLnurlpPayment(request) {
           JSON.stringify({ status: "ERROR", reason: error }),
           { status: 400, headers: { "Content-Type": "application/json" } }
         );
-      }
+      lonsole.log(uidHex)}
       const normalizedUidHex = uidHex.toLowerCase(); // Ensure UID is in lowercase for lookup
       console.log(`Processing withdrawal for UID=${normalizedUidHex} with invoice: ${invoice}`);
 

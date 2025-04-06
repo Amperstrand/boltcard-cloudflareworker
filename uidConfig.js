@@ -1,4 +1,9 @@
-export const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d"
+//export const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d"
+import { hexToBytes } from './cryptoutils';
+export const BOLT_CARD_K1 = [
+  hexToBytes("55da174c9608993dc27bb3f30a4a7314"),
+  hexToBytes("0c3b25d92b38ae443229dd59ad34b85d"),
+];
 export const UID_PRIVACY = false
 export const uidConfig = {
   "044561fa967380": {

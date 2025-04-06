@@ -1,5 +1,5 @@
 import { getDeterministicKeys } from "../keygenerator.js";
-import { uidConfig } from "../uidConfig.js";
+//import { uidConfig } from "../uidConfig.js";
 
 
 export async function handleReset(uid) {

@@ -1,8 +1,9 @@
 import AES from "aes-js";
-import { hexToBytes, bytesToHex, xorArrays } from "./cryptoutils.js";
+import { computeAesCmac, hexToBytes, bytesToHex, xorArrays } from "./cryptoutils.js";
+const BLOCK_SIZE = 16; // AES block size in bytes
 
-const DEBUG = false
 
+const DEBUG = false;
 
 // Hardcoded Issuer Key (16 bytes)
 const ISSUER_KEY = hexToBytes("00000000000000000000000000000001");
@@ -57,20 +58,25 @@ function aesCmac(key, message) {
  * @param {Uint8Array} input - A 16-byte block.
  * @returns {Uint8Array} The generated subkey.
  */
+
+
 function generateSubkey(input) {
-  const blockSize = 16;
-  const shifted = new Uint8Array(blockSize);
+  const output = new Uint8Array(BLOCK_SIZE);
   let carry = 0;
-  for (let i = blockSize - 1; i >= 0; i--) {
-    const byte = input[i];
-    shifted[i] = ((byte << 1) & 0xff) | carry;
-    carry = (byte & 0x80) ? 1 : 0;
+
+  for (let i = BLOCK_SIZE - 1; i >= 0; i--) {
+    const current = input[i];
+    output[i] = ((current << 1) & 0xFF) | carry;
+    carry = (current & 0x80) ? 1 : 0;
   }
+
   if (carry) {
-    shifted[blockSize - 1] ^= 0x87;
+    output[BLOCK_SIZE - 1] ^= 0x87; // XOR with Rb constant if needed
   }
-  return shifted;
+
+  return output;
 }
+
 
 /**
  * PRF (Pseudo-Random Function) using AES-CMAC.
@@ -128,17 +134,20 @@ function computeCm(ks) {
  * @param {Uint8Array} sv2 - The sv2 array.
  * @param {Uint8Array} cmacKeyBytes - The key (K2) used for CMAC verification.
  * @returns {Uint8Array} The extracted 8-byte CMAC verification value.
- */
-export function computeAesCmacForVerification(sv2, cmacKeyBytes) {
+export function computeAesCmacForVerificationREMOVE(sv2, cmacKeyBytes) {
   if (DEBUG) console.log("[VERIFY] Computing AES-CMAC for verification...");
-  const ks = computeAesCmac(sv2, cmacKeyBytes);
+  const ks = aesCmac(sv2, cmacKeyBytes);
   if (DEBUG) console.log("[VERIFY] ks =", bytesToHex(ks));
   const cm = computeCm(ks);
   if (DEBUG) console.log("[VERIFY] cm =", bytesToHex(cm));
-  const ct = new Uint8Array([cm[1], cm[3], cm[5], cm[7], cm[9], cm[11], cm[13], cm[15]]);
+  const ct = new Uint8Array([
+    cm[1], cm[3], cm[5], cm[7],
+    cm[9], cm[11], cm[13], cm[15]
+  ]);
   if (DEBUG) console.log("[VERIFY] ct =", bytesToHex(ct));
   return ct;
 }
+ */
 
 /**
  * Deterministic Key Generation:
@@ -159,7 +168,8 @@ export function computeAesCmacForVerification(sv2, cmacKeyBytes) {
  */
 export async function getDeterministicKeys(uidHex, version = 1) {
   if (!uidHex || uidHex.length !== 14) {
-    throw new Error("Invalid UID: Must be exactly 7 bytes (14 hex characters)");
+    throw new Error(`Invalid UID: "${uidHex}" is not exactly 7 bytes (14 hex characters). Received ${uidHex ? uidHex.length : 'no'} characters.`);
+
   }
 
   const uid = hexToBytes(uidHex);
@@ -169,19 +179,26 @@ export async function getDeterministicKeys(uidHex, version = 1) {
   if (DEBUG) console.log("Generating deterministic keys for UID:", uidHex);
 
   // Generate CardKey
-  const cardKeyMessage = new Uint8Array([...hexToBytes("2d003f75"), ...uid, ...versionBytes]);
-  const cardKey = await aesCmac(ISSUER_KEY, cardKeyMessage);
+  const cardKeyMessage = new Uint8Array([
+    ...hexToBytes("2d003f75"),
+    ...uid,
+    ...versionBytes
+  ]);
+  const cardKey = aesCmac(ISSUER_KEY, cardKeyMessage);
 
   // Generate application keys
-  const k0 = await aesCmac(cardKey, hexToBytes("2d003f76"));
-  const k1 = await aesCmac(ISSUER_KEY, hexToBytes("2d003f77"));
-  const k2 = await aesCmac(cardKey, hexToBytes("2d003f78"));
-  const k3 = await aesCmac(cardKey, hexToBytes("2d003f79"));
-  const k4 = await aesCmac(cardKey, hexToBytes("2d003f7a"));
+  const k0 = aesCmac(cardKey, hexToBytes("2d003f76"));
+  const k1 = aesCmac(ISSUER_KEY, hexToBytes("2d003f77"));
+  const k2 = aesCmac(cardKey, hexToBytes("2d003f78"));
+  const k3 = aesCmac(cardKey, hexToBytes("2d003f79"));
+  const k4 = aesCmac(cardKey, hexToBytes("2d003f7a"));
 
   // Generate ID using IssuerKey and UID
-  const idMessage = new Uint8Array([...hexToBytes("2d003f7b"), ...uid]);
-  const id = await aesCmac(ISSUER_KEY, idMessage);
+  const idMessage = new Uint8Array([
+    ...hexToBytes("2d003f7b"),
+    ...uid
+  ]);
+  const id = aesCmac(ISSUER_KEY, idMessage);
 
   if (DEBUG) {
     console.log("Generated Keys:");
