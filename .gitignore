@@ -1,0 +1,12 @@
+node_modules
+wrangler
+.wrangler/
+coverage/
+# Archive of subagent-generated noise (kept for reference, not tracked)
+.archive/
+
+# Audit artifacts (generated during analysis)
+audit-report.md
+config-audit-*.json
+hardcoded-value-inventory.md
+guide.md
