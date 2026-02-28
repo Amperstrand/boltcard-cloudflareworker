@@ -1,0 +1,1242 @@
+
+> boltcard-poc@0.0.0 test
+> NODE_OPTIONS=--experimental-vm-modules jest --config=jest.config.js
+
+(node:17348) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS tests/keygenerator.test.js
+  ● Console
+
+    console.log
+      ✅ Keys generated for UID: 04a39493cc8680
+
+      at getDeterministicKeys (keygenerator.js:210:13)
+
+(node:17347) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS tests/cryptoutils.test.js
+(node:17346) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS tests/worker.test.js
+  ● Console
+
+    console.warn
+      ⚠️  Using fallback BOLT_CARD_K1 development keys - NOT FOR PRODUCTION
+
+      23 |   
+      24 |   // Fallback to development keys (for local testing only)
+    > 25 |   console.warn("⚠️  Using fallback BOLT_CARD_K1 development keys - NOT FOR PRODUCTION");
+         |           ^
+      26 |   return [
+      27 |     hexToBytes("55da174c9608993dc27bb3f30a4a7314"),
+      28 |     hexToBytes("0c3b25d92b38ae443229dd59ad34b85d"),
+
+      at getBoltCardK1 (getUidConfig.js:25:11)
+      at getUidConfig.js:33:29
+
+    console.log
+      [2026-02-27T22:35:47.423Z] [DEBUG] Incoming request | {"method":"GET","url":"https://test.local/?p=4E2E289D945A66BB13377A728884E867&c=E19CCB1FED8892CE","pathname":"/","searchParams":{"p":"4E2E289D945A66BB13377A728884E867","c":"E19CCB1FED8892CE"}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      [2026-02-27T22:35:47.431Z] [DEBUG] LNURLW Verification | {"pHex":"4E2E289D945A66BB13377A728884E867","cHex":"E19CCB1FED8892CE"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      extractUIDAndCounter input pHex: 4E2E289D945A66BB13377A728884E867
+
+      at extractUIDAndCounter (boltCardHelper.js:19:11)
+
+    console.log
+      BOLT_CARD_K1 type: object
+
+      at extractUIDAndCounter (boltCardHelper.js:23:11)
+
+    console.log
+      decryptP result: {
+        success: true,
+        uidBytes: Uint8Array(7) [
+            4, 153, 108,
+          106, 146, 105,
+          128
+        ],
+        ctr: Uint8Array(3) [ 0, 0, 3 ],
+        usedK1: Uint8Array(16) [
+           12, 59,  37, 217,  43, 56,
+          174, 68,  50,  41, 221, 89,
+          173, 52, 184,  93
+        ]
+      }
+
+      at extractUIDAndCounter (boltCardHelper.js:44:11)
+
+    console.log
+      [2026-02-27T22:35:47.435Z] [DEBUG] Decryption result | {"success":true,"uidHex":"04996c6a926980","ctr":"000003"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      [2026-02-27T22:35:47.435Z] [DEBUG] Extracted UID and counter | {"uidHex":"04996c6a926980","ctr":"000003"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      Looking up config for UID: 04996c6a926980
+
+      at getUidConfig (getUidConfig.js:84:11)
+
+    console.warn
+      KV storage not available for config lookup
+
+      107 |     }
+      108 |   } else {
+    > 109 |     console.warn("KV storage not available for config lookup");
+          |             ^
+      110 |   }
+      111 |
+      112 |   // Step 2: Check static configuration
+
+      at getUidConfig (getUidConfig.js:109:13)
+      at handleRequest (index.js:109:26)
+      at makeRequest (tests/worker.test.js:20:10)
+      at Object.<anonymous> (tests/worker.test.js:25:28)
+
+    console.log
+      Using static config for UID 04996c6a926980.
+
+      at getUidConfig (getUidConfig.js:114:13)
+
+    console.log
+      [2026-02-27T22:35:47.437Z] [DEBUG] Configuration loaded | {"uidHex":"04996c6a926980","config":{"K2":"B45775776CB224C75BCDE7CA3704E933","payment_method":"clnrest","clnrest":{"protocol":"https","host":"cln.example.com","port":3001,"rune":"abcd1234efgh5678ijkl"}}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      Payment method for UID 04996c6a926980: clnrest
+
+      at handleRequest (index.js:118:13)
+
+    console.log
+      K2 for UID 04996c6a926980: B45775776CB224C75BCDE7CA3704E933
+
+      at handleRequest (index.js:119:13)
+
+    console.log
+      Decoded UID: 04996c6a926980 Counter: 3
+
+      at handleRequest (index.js:142:13)
+
+    console.log
+      Response Payload: {
+        tag: 'withdrawRequest',
+        callback: 'https://boltcardpoc.psbt.me/boltcards/api/v1/lnurl/cb/4E2E289D945A66BB13377A728884E867',
+        k1: 'E19CCB1FED8892CE',
+        minWithdrawable: 1000,
+        maxWithdrawable: 1000,
+        defaultDescription: 'Boltcard payment from UID 04996c6a926980, counter 3',
+        payLink: 'lnurlp://boltcardpoc.psbt.me/boltcards/api/v1/lnurlp_not_implemented_yet/04996c6a926980/4E2E289D945A66BB13377A728884E867/E19CCB1FED8892CE',
+        verifiableCredentials: [
+          {
+            '@context': [Array],
+            type: [Array],
+            issuer: 'https://boltcardpoc.psbt.me',
+            issuanceDate: '2026-02-27T22:35:47.438Z',
+            credentialSubject: [Object],
+            proof: [Object]
+          },
+          {
+            '@context': [Array],
+            type: [Array],
+            issuer: 'https://boltcardpoc.psbt.me',
+            issuanceDate: '2026-02-27T22:35:47.438Z',
+            credentialSubject: [Object],
+            proof: [Object]
+          }
+        ]
+      }
+
+      at handleRequest (index.js:158:15)
+
+    console.log
+      [2026-02-27T22:35:47.588Z] [DEBUG] Incoming request | {"method":"GET","url":"https://test.local/?p=00F48C4F8E386DED06BCDC78FA92E2FE&c=66B4826EA4C155B4","pathname":"/","searchParams":{"p":"00F48C4F8E386DED06BCDC78FA92E2FE","c":"66B4826EA4C155B4"}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      [2026-02-27T22:35:47.588Z] [DEBUG] LNURLW Verification | {"pHex":"00F48C4F8E386DED06BCDC78FA92E2FE","cHex":"66B4826EA4C155B4"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      extractUIDAndCounter input pHex: 00F48C4F8E386DED06BCDC78FA92E2FE
+
+      at extractUIDAndCounter (boltCardHelper.js:19:11)
+
+    console.log
+      BOLT_CARD_K1 type: object
+
+      at extractUIDAndCounter (boltCardHelper.js:23:11)
+
+    console.log
+      decryptP result: {
+        success: true,
+        uidBytes: Uint8Array(7) [
+            4, 153, 108,
+          106, 146, 105,
+          128
+        ],
+        ctr: Uint8Array(3) [ 0, 0, 5 ],
+        usedK1: Uint8Array(16) [
+           12, 59,  37, 217,  43, 56,
+          174, 68,  50,  41, 221, 89,
+          173, 52, 184,  93
+        ]
+      }
+
+      at extractUIDAndCounter (boltCardHelper.js:44:11)
+
+    console.log
+      [2026-02-27T22:35:47.591Z] [DEBUG] Decryption result | {"success":true,"uidHex":"04996c6a926980","ctr":"000005"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      [2026-02-27T22:35:47.592Z] [DEBUG] Extracted UID and counter | {"uidHex":"04996c6a926980","ctr":"000005"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      Looking up config for UID: 04996c6a926980
+
+      at getUidConfig (getUidConfig.js:84:11)
+
+    console.warn
+      KV storage not available for config lookup
+
+      107 |     }
+      108 |   } else {
+    > 109 |     console.warn("KV storage not available for config lookup");
+          |             ^
+      110 |   }
+      111 |
+      112 |   // Step 2: Check static configuration
+
+      at getUidConfig (getUidConfig.js:109:13)
+      at handleRequest (index.js:109:26)
+      at makeRequest (tests/worker.test.js:20:10)
+      at Object.<anonymous> (tests/worker.test.js:44:28)
+
+    console.log
+      Using static config for UID 04996c6a926980.
+
+      at getUidConfig (getUidConfig.js:114:13)
+
+    console.log
+      [2026-02-27T22:35:47.593Z] [DEBUG] Configuration loaded | {"uidHex":"04996c6a926980","config":{"K2":"B45775776CB224C75BCDE7CA3704E933","payment_method":"clnrest","clnrest":{"protocol":"https","host":"cln.example.com","port":3001,"rune":"abcd1234efgh5678ijkl"}}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      Payment method for UID 04996c6a926980: clnrest
+
+      at handleRequest (index.js:118:13)
+
+    console.log
+      K2 for UID 04996c6a926980: B45775776CB224C75BCDE7CA3704E933
+
+      at handleRequest (index.js:119:13)
+
+    console.log
+      Decoded UID: 04996c6a926980 Counter: 5
+
+      at handleRequest (index.js:142:13)
+
+    console.log
+      Response Payload: {
+        tag: 'withdrawRequest',
+        callback: 'https://boltcardpoc.psbt.me/boltcards/api/v1/lnurl/cb/00F48C4F8E386DED06BCDC78FA92E2FE',
+        k1: '66B4826EA4C155B4',
+        minWithdrawable: 1000,
+        maxWithdrawable: 1000,
+        defaultDescription: 'Boltcard payment from UID 04996c6a926980, counter 5',
+        payLink: 'lnurlp://boltcardpoc.psbt.me/boltcards/api/v1/lnurlp_not_implemented_yet/04996c6a926980/00F48C4F8E386DED06BCDC78FA92E2FE/66B4826EA4C155B4',
+        verifiableCredentials: [
+          {
+            '@context': [Array],
+            type: [Array],
+            issuer: 'https://boltcardpoc.psbt.me',
+            issuanceDate: '2026-02-27T22:35:47.593Z',
+            credentialSubject: [Object],
+            proof: [Object]
+          },
+          {
+            '@context': [Array],
+            type: [Array],
+            issuer: 'https://boltcardpoc.psbt.me',
+            issuanceDate: '2026-02-27T22:35:47.594Z',
+            credentialSubject: [Object],
+            proof: [Object]
+          }
+        ]
+      }
+
+      at handleRequest (index.js:158:15)
+
+    console.log
+      [2026-02-27T22:35:47.596Z] [DEBUG] Incoming request | {"method":"POST","url":"https://test.local/boltcards/api/v1/lnurl/cb","pathname":"/boltcards/api/v1/lnurl/cb","searchParams":{}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      Received LNURLp Payment request (POST): {
+        "invoice": "lnbc1000n1p...your_bolt11_invoice...",
+        "amount": 1000,
+        "k1": "p=3736A84681238418D4B9B7210C13DC39&c=1549E9D901188F77"
+      }
+
+      at handleLnurlpPayment (handlers/lnurlHandler.js:17:15)
+
+    console.log
+      Using p: 3736A84681238418D4B9B7210C13DC39 and c: 1549E9D901188F77
+
+      at handleLnurlpPayment (handlers/lnurlHandler.js:47:15)
+
+    console.log
+      [2026-02-27T22:35:47.601Z] [DEBUG] Incoming request | {"method":"POST","url":"https://test.local/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=KeepVersion","pathname":"/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards","searchParams":{"onExisting":"KeepVersion"}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      Decoding LNURLW: pHex: C115F9FA83DCD2FEC0864A3B2DDD0AEF cHex: BAA4A9496DEC311D
+
+      at handleResetFlow (handlers/fetchBoltCardKeys.js:72:13)
+
+    console.log
+      LNURLW Verification: pHex: C115F9FA83DCD2FEC0864A3B2DDD0AEF cHex: BAA4A9496DEC311D
+
+      at handleResetFlow (handlers/fetchBoltCardKeys.js:73:15)
+
+    console.log
+      extractUIDAndCounter input pHex: C115F9FA83DCD2FEC0864A3B2DDD0AEF
+
+      at extractUIDAndCounter (boltCardHelper.js:19:11)
+
+    console.log
+      BOLT_CARD_K1 type: object
+
+      at extractUIDAndCounter (boltCardHelper.js:23:11)
+
+    console.log
+      decryptP result: {
+        success: true,
+        uidBytes: Uint8Array(7) [
+            4,  69,  97, 250,
+          150, 115, 128
+        ],
+        ctr: Uint8Array(3) [ 0, 0, 93 ],
+        usedK1: Uint8Array(16) [
+           85, 218,  23,  76, 150,   8,
+          153,  61, 194, 123, 179, 243,
+           10,  74, 115,  20
+        ]
+      }
+
+      at extractUIDAndCounter (boltCardHelper.js:44:11)
+
+    console.log
+      uidHex: 044561fa967380 ctr: 00005d
+
+      at handleResetFlow (handlers/fetchBoltCardKeys.js:78:15)
+
+    console.log
+      Looking up config for UID: 044561fa967380
+
+      at getUidConfig (getUidConfig.js:84:11)
+
+    console.warn
+      KV storage not available for config lookup
+
+      107 |     }
+      108 |   } else {
+    > 109 |     console.warn("KV storage not available for config lookup");
+          |             ^
+      110 |   }
+      111 |
+      112 |   // Step 2: Check static configuration
+
+      at getUidConfig (getUidConfig.js:109:13)
+      at handleResetFlow (handlers/fetchBoltCardKeys.js:81:28)
+      at fetchBoltCardKeys (handlers/fetchBoltCardKeys.js:45:14)
+      at Object.<anonymous> (tests/worker.test.js:83:22)
+
+    console.log
+      Using static config for UID 044561fa967380.
+
+      at getUidConfig (getUidConfig.js:114:13)
+
+    console.log
+      {"K2":"33268DEA5B5511A1B3DF961198FA46D5","payment_method":"clnrest","proxy":{"baseurl":"https://demo.lnbits.com/boltcards/api/v1/scan/tapko6sbthfdgzoejjztjb"},"clnrest":{"protocol":"httpsnotusing","host":"https://restk.psbt.me:3010","port":3010,"rune":"dummy"}}
+
+      at handleResetFlow (handlers/fetchBoltCardKeys.js:82:15)
+
+    console.log
+      Payment method for UID 044561fa967380: clnrest
+
+      at handleResetFlow (handlers/fetchBoltCardKeys.js:90:15)
+
+    console.log
+      K2 for UID 044561fa967380: 33268DEA5B5511A1B3DF961198FA46D5
+
+      at handleResetFlow (handlers/fetchBoltCardKeys.js:91:15)
+
+    console.log
+      Reset Flow: Decoded UID: 044561fa967380 Counter: 93
+
+      at handleResetFlow (handlers/fetchBoltCardKeys.js:101:13)
+
+    console.log
+      ✅ Keys generated for UID: 044561fa967380
+
+      at getDeterministicKeys (keygenerator.js:210:13)
+
+    console.log
+      Returning JSON response: {"protocol_name":"new_bolt_card_response","protocol_version":1,"card_name":"UID 044561FA967380","LNURLW":"lnurlw://boltcardpoc.psbt.me/ln","K0":"157163032ef8a8f89c5fc3c271675a3c","K1":"55da174c9608993dc27bb3f30a4a7314","K2":"33268dea5b5511a1b3df961198fa46d5","K3":"f78200e8918fceea9db3574ae35b67e7","K4":"62f41e0dcff67e74db596ae0fe1c0a3f"}
+
+      at jsonResponse (handlers/fetchBoltCardKeys.js:14:11)
+
+    console.log
+      Returning status: 200
+
+      at jsonResponse (handlers/fetchBoltCardKeys.js:15:11)
+
+(node:17345) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS tests/integration.test.js
+  ● Console
+
+    console.warn
+      ⚠️  Using fallback BOLT_CARD_K1 development keys - NOT FOR PRODUCTION
+
+      23 |   
+      24 |   // Fallback to development keys (for local testing only)
+    > 25 |   console.warn("⚠️  Using fallback BOLT_CARD_K1 development keys - NOT FOR PRODUCTION");
+         |           ^
+      26 |   return [
+      27 |     hexToBytes("55da174c9608993dc27bb3f30a4a7314"),
+      28 |     hexToBytes("0c3b25d92b38ae443229dd59ad34b85d"),
+
+      at getBoltCardK1 (getUidConfig.js:25:11)
+      at getUidConfig.js:33:29
+
+    console.log
+      [2026-02-27T22:35:47.431Z] [DEBUG] Incoming request | {"method":"GET","url":"https://test.local/?p=4E2E289D945A66BB13377A728884E867&c=E19CCB1FED8892CE","pathname":"/","searchParams":{"p":"4E2E289D945A66BB13377A728884E867","c":"E19CCB1FED8892CE"}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      [2026-02-27T22:35:47.434Z] [DEBUG] LNURLW Verification | {"pHex":"4E2E289D945A66BB13377A728884E867","cHex":"E19CCB1FED8892CE"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      extractUIDAndCounter input pHex: 4E2E289D945A66BB13377A728884E867
+
+      at extractUIDAndCounter (boltCardHelper.js:19:11)
+
+    console.log
+      BOLT_CARD_K1 type: object
+
+      at extractUIDAndCounter (boltCardHelper.js:23:11)
+
+    console.log
+      decryptP result: {
+        success: true,
+        uidBytes: Uint8Array(7) [
+            4, 153, 108,
+          106, 146, 105,
+          128
+        ],
+        ctr: Uint8Array(3) [ 0, 0, 3 ],
+        usedK1: Uint8Array(16) [
+           12, 59,  37, 217,  43, 56,
+          174, 68,  50,  41, 221, 89,
+          173, 52, 184,  93
+        ]
+      }
+
+      at extractUIDAndCounter (boltCardHelper.js:44:11)
+
+    console.log
+      [2026-02-27T22:35:47.438Z] [DEBUG] Decryption result | {"success":true,"uidHex":"04996c6a926980","ctr":"000003"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      [2026-02-27T22:35:47.438Z] [DEBUG] Extracted UID and counter | {"uidHex":"04996c6a926980","ctr":"000003"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      Looking up config for UID: 04996c6a926980
+
+      at getUidConfig (getUidConfig.js:84:11)
+
+    console.error
+      Error retrieving config for UID=04996c6a926980 from KV: SyntaxError: Unexpected token 'e', "test" is not valid JSON
+          at JSON.parse (<anonymous>)
+          at getUidConfig (/Users/macbook/src/boltcard-cloudflareworker/getUidConfig.js:91:29)
+          at processTicksAndRejections (node:internal/process/task_queues:105:5)
+          at handleRequest (/Users/macbook/src/boltcard-cloudflareworker/index.js:109:20)
+          at Object.<anonymous> (/Users/macbook/src/boltcard-cloudflareworker/tests/integration.test.js:57:26)
+
+      104 |       console.log(`No config found in KV for UID=${normalizedUid}`);
+      105 |     } catch (error) {
+    > 106 |       console.error(`Error retrieving config for UID=${normalizedUid} from KV:`, error);
+          |               ^
+      107 |     }
+      108 |   } else {
+      109 |     console.warn("KV storage not available for config lookup");
+
+      at getUidConfig (getUidConfig.js:106:15)
+      at handleRequest (index.js:109:20)
+      at Object.<anonymous> (tests/integration.test.js:57:26)
+
+    console.log
+      Using static config for UID 04996c6a926980.
+
+      at getUidConfig (getUidConfig.js:114:13)
+
+    console.log
+      [2026-02-27T22:35:47.441Z] [DEBUG] Configuration loaded | {"uidHex":"04996c6a926980","config":{"K2":"B45775776CB224C75BCDE7CA3704E933","payment_method":"clnrest","clnrest":{"protocol":"https","host":"cln.example.com","port":3001,"rune":"abcd1234efgh5678ijkl"}}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      Payment method for UID 04996c6a926980: clnrest
+
+      at handleRequest (index.js:118:13)
+
+    console.log
+      K2 for UID 04996c6a926980: B45775776CB224C75BCDE7CA3704E933
+
+      at handleRequest (index.js:119:13)
+
+    console.log
+      Decoded UID: 04996c6a926980 Counter: 3
+
+      at handleRequest (index.js:142:13)
+
+    console.log
+      Response Payload: {
+        tag: 'withdrawRequest',
+        callback: 'https://boltcardpoc.psbt.me/boltcards/api/v1/lnurl/cb/4E2E289D945A66BB13377A728884E867',
+        k1: 'E19CCB1FED8892CE',
+        minWithdrawable: 1000,
+        maxWithdrawable: 1000,
+        defaultDescription: 'Boltcard payment from UID 04996c6a926980, counter 3',
+        payLink: 'lnurlp://boltcardpoc.psbt.me/boltcards/api/v1/lnurlp_not_implemented_yet/04996c6a926980/4E2E289D945A66BB13377A728884E867/E19CCB1FED8892CE',
+        verifiableCredentials: [
+          {
+            '@context': [Array],
+            type: [Array],
+            issuer: 'https://boltcardpoc.psbt.me',
+            issuanceDate: '2026-02-27T22:35:47.570Z',
+            credentialSubject: [Object],
+            proof: [Object]
+          },
+          {
+            '@context': [Array],
+            type: [Array],
+            issuer: 'https://boltcardpoc.psbt.me',
+            issuanceDate: '2026-02-27T22:35:47.570Z',
+            credentialSubject: [Object],
+            proof: [Object]
+          }
+        ]
+      }
+
+      at handleRequest (index.js:158:15)
+
+    console.log
+      [2026-02-27T22:35:47.599Z] [DEBUG] Incoming request | {"method":"GET","url":"https://test.local/?p=00F48C4F8E386DED06BCDC78FA92E2FE&c=66B4826EA4C155B4","pathname":"/","searchParams":{"p":"00F48C4F8E386DED06BCDC78FA92E2FE","c":"66B4826EA4C155B4"}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      [2026-02-27T22:35:47.600Z] [DEBUG] LNURLW Verification | {"pHex":"00F48C4F8E386DED06BCDC78FA92E2FE","cHex":"66B4826EA4C155B4"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      extractUIDAndCounter input pHex: 00F48C4F8E386DED06BCDC78FA92E2FE
+
+      at extractUIDAndCounter (boltCardHelper.js:19:11)
+
+    console.log
+      BOLT_CARD_K1 type: object
+
+      at extractUIDAndCounter (boltCardHelper.js:23:11)
+
+    console.log
+      decryptP result: {
+        success: true,
+        uidBytes: Uint8Array(7) [
+            4, 153, 108,
+          106, 146, 105,
+          128
+        ],
+        ctr: Uint8Array(3) [ 0, 0, 5 ],
+        usedK1: Uint8Array(16) [
+           12, 59,  37, 217,  43, 56,
+          174, 68,  50,  41, 221, 89,
+          173, 52, 184,  93
+        ]
+      }
+
+      at extractUIDAndCounter (boltCardHelper.js:44:11)
+
+    console.log
+      [2026-02-27T22:35:47.605Z] [DEBUG] Decryption result | {"success":true,"uidHex":"04996c6a926980","ctr":"000005"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      [2026-02-27T22:35:47.606Z] [DEBUG] Extracted UID and counter | {"uidHex":"04996c6a926980","ctr":"000005"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      Looking up config for UID: 04996c6a926980
+
+      at getUidConfig (getUidConfig.js:84:11)
+
+    console.error
+      Error retrieving config for UID=04996c6a926980 from KV: SyntaxError: Unexpected token 'e', "test" is not valid JSON
+          at JSON.parse (<anonymous>)
+          at getUidConfig (/Users/macbook/src/boltcard-cloudflareworker/getUidConfig.js:91:29)
+          at processTicksAndRejections (node:internal/process/task_queues:105:5)
+          at handleRequest (/Users/macbook/src/boltcard-cloudflareworker/index.js:109:20)
+          at Object.<anonymous> (/Users/macbook/src/boltcard-cloudflareworker/tests/integration.test.js:57:26)
+
+      104 |       console.log(`No config found in KV for UID=${normalizedUid}`);
+      105 |     } catch (error) {
+    > 106 |       console.error(`Error retrieving config for UID=${normalizedUid} from KV:`, error);
+          |               ^
+      107 |     }
+      108 |   } else {
+      109 |     console.warn("KV storage not available for config lookup");
+
+      at getUidConfig (getUidConfig.js:106:15)
+      at handleRequest (index.js:109:20)
+      at Object.<anonymous> (tests/integration.test.js:57:26)
+
+    console.log
+      Using static config for UID 04996c6a926980.
+
+      at getUidConfig (getUidConfig.js:114:13)
+
+    console.log
+      [2026-02-27T22:35:47.610Z] [DEBUG] Configuration loaded | {"uidHex":"04996c6a926980","config":{"K2":"B45775776CB224C75BCDE7CA3704E933","payment_method":"clnrest","clnrest":{"protocol":"https","host":"cln.example.com","port":3001,"rune":"abcd1234efgh5678ijkl"}}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      Payment method for UID 04996c6a926980: clnrest
+
+      at handleRequest (index.js:118:13)
+
+    console.log
+      K2 for UID 04996c6a926980: B45775776CB224C75BCDE7CA3704E933
+
+      at handleRequest (index.js:119:13)
+
+    console.log
+      Decoded UID: 04996c6a926980 Counter: 5
+
+      at handleRequest (index.js:142:13)
+
+    console.log
+      Response Payload: {
+        tag: 'withdrawRequest',
+        callback: 'https://boltcardpoc.psbt.me/boltcards/api/v1/lnurl/cb/00F48C4F8E386DED06BCDC78FA92E2FE',
+        k1: '66B4826EA4C155B4',
+        minWithdrawable: 1000,
+        maxWithdrawable: 1000,
+        defaultDescription: 'Boltcard payment from UID 04996c6a926980, counter 5',
+        payLink: 'lnurlp://boltcardpoc.psbt.me/boltcards/api/v1/lnurlp_not_implemented_yet/04996c6a926980/00F48C4F8E386DED06BCDC78FA92E2FE/66B4826EA4C155B4',
+        verifiableCredentials: [
+          {
+            '@context': [Array],
+            type: [Array],
+            issuer: 'https://boltcardpoc.psbt.me',
+            issuanceDate: '2026-02-27T22:35:47.613Z',
+            credentialSubject: [Object],
+            proof: [Object]
+          },
+          {
+            '@context': [Array],
+            type: [Array],
+            issuer: 'https://boltcardpoc.psbt.me',
+            issuanceDate: '2026-02-27T22:35:47.613Z',
+            credentialSubject: [Object],
+            proof: [Object]
+          }
+        ]
+      }
+
+      at handleRequest (index.js:158:15)
+
+    console.log
+      [2026-02-27T22:35:47.627Z] [DEBUG] Incoming request | {"method":"POST","url":"https://test.local/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion","pathname":"/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards","searchParams":{"onExisting":"UpdateVersion"}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      ✅ Keys generated for UID: 044561fa967380
+
+      at getDeterministicKeys (keygenerator.js:210:13)
+
+    console.log
+      Returning JSON response: {"protocol_name":"new_bolt_card_response","protocol_version":1,"card_name":"UID 044561FA967380","LNURLW":"lnurlw://boltcardpoc.psbt.me/ln","K0":"157163032ef8a8f89c5fc3c271675a3c","K1":"55da174c9608993dc27bb3f30a4a7314","K2":"33268dea5b5511a1b3df961198fa46d5","K3":"f78200e8918fceea9db3574ae35b67e7","K4":"62f41e0dcff67e74db596ae0fe1c0a3f"}
+
+      at jsonResponse (handlers/fetchBoltCardKeys.js:14:11)
+
+    console.log
+      Returning status: 200
+
+      at jsonResponse (handlers/fetchBoltCardKeys.js:15:11)
+
+    console.log
+      [2026-02-27T22:35:47.703Z] [DEBUG] Incoming request | {"method":"GET","url":"https://test.local/?p=invalid&c=invalid","pathname":"/","searchParams":{"p":"invalid","c":"invalid"}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      [2026-02-27T22:35:47.704Z] [DEBUG] LNURLW Verification | {"pHex":"invalid","cHex":"invalid"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      extractUIDAndCounter input pHex: invalid
+
+      at extractUIDAndCounter (boltCardHelper.js:19:11)
+
+    console.log
+      BOLT_CARD_K1 type: object
+
+      at extractUIDAndCounter (boltCardHelper.js:23:11)
+
+    console.error
+      [2026-02-27T22:35:47.711Z] [ERROR] Failed to extract UID and counter | {"error":"Invalid hex string","pHex":"invalid","cHex":"invalid"}
+
+      33 |   error(message, context = {}) {
+      34 |     if (this.shouldLog('error')) {
+    > 35 |       console.error(this.formatMessage('error', message, context));
+         |               ^
+      36 |     }
+      37 |   }
+      38 |
+
+      at Logger.error (utils/logger.js:35:15)
+      at handleRequest (index.js:92:12)
+      at Object.<anonymous> (tests/integration.test.js:118:30)
+
+    console.log
+      [2026-02-27T22:35:47.713Z] [DEBUG] Incoming request | {"method":"GET","url":"https://test.local/?p=4E2E289D945A66BB13377A728884E867","pathname":"/","searchParams":{"p":"4E2E289D945A66BB13377A728884E867"}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.error
+      [2026-02-27T22:35:47.727Z] [ERROR] Missing required parameters | {"pHex":true,"cHex":false}
+
+      33 |   error(message, context = {}) {
+      34 |     if (this.shouldLog('error')) {
+    > 35 |       console.error(this.formatMessage('error', message, context));
+         |               ^
+      36 |     }
+      37 |   }
+      38 |
+
+      at Logger.error (utils/logger.js:35:15)
+      at handleRequest (index.js:83:12)
+      at Object.<anonymous> (tests/integration.test.js:128:30)
+
+    console.log
+      [2026-02-27T22:35:47.729Z] [DEBUG] Incoming request | {"method":"GET","url":"https://test.local/unknown-route","pathname":"/unknown-route","searchParams":{}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.error
+      [2026-02-27T22:35:47.744Z] [ERROR] Route not found | {"pathname":"/unknown-route","method":"GET"}
+
+      33 |   error(message, context = {}) {
+      34 |     if (this.shouldLog('error')) {
+    > 35 |       console.error(this.formatMessage('error', message, context));
+         |               ^
+      36 |     }
+      37 |   }
+      38 |
+
+      at Logger.error (utils/logger.js:35:15)
+      at handleRequest (index.js:74:12)
+      at Object.<anonymous> (tests/integration.test.js:136:30)
+
+    console.log
+      [2026-02-27T22:35:47.792Z] [DEBUG] Incoming request | {"method":"GET","url":"https://test.local/status","pathname":"/status","searchParams":{}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      [2026-02-27T22:35:47.801Z] [DEBUG] Incoming request | {"method":"GET","url":"https://test.local/?p=4E2E289D945A66BB13377A728884E867&c=E19CCB1FED8892CE","pathname":"/","searchParams":{"p":"4E2E289D945A66BB13377A728884E867","c":"E19CCB1FED8892CE"}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      [2026-02-27T22:35:47.802Z] [DEBUG] LNURLW Verification | {"pHex":"4E2E289D945A66BB13377A728884E867","cHex":"E19CCB1FED8892CE"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      extractUIDAndCounter input pHex: 4E2E289D945A66BB13377A728884E867
+
+      at extractUIDAndCounter (boltCardHelper.js:19:11)
+
+    console.log
+      BOLT_CARD_K1 type: object
+
+      at extractUIDAndCounter (boltCardHelper.js:23:11)
+
+    console.log
+      decryptP result: {
+        success: true,
+        uidBytes: Uint8Array(7) [
+            4, 153, 108,
+          106, 146, 105,
+          128
+        ],
+        ctr: Uint8Array(3) [ 0, 0, 3 ],
+        usedK1: Uint8Array(16) [
+           12, 59,  37, 217,  43, 56,
+          174, 68,  50,  41, 221, 89,
+          173, 52, 184,  93
+        ]
+      }
+
+      at extractUIDAndCounter (boltCardHelper.js:44:11)
+
+    console.log
+      [2026-02-27T22:35:47.816Z] [DEBUG] Decryption result | {"success":true,"uidHex":"04996c6a926980","ctr":"000003"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      [2026-02-27T22:35:47.819Z] [DEBUG] Extracted UID and counter | {"uidHex":"04996c6a926980","ctr":"000003"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      Looking up config for UID: 04996c6a926980
+
+      at getUidConfig (getUidConfig.js:84:11)
+
+    console.error
+      Error retrieving config for UID=04996c6a926980 from KV: SyntaxError: Unexpected token 'e', "test" is not valid JSON
+          at JSON.parse (<anonymous>)
+          at getUidConfig (/Users/macbook/src/boltcard-cloudflareworker/getUidConfig.js:91:29)
+          at processTicksAndRejections (node:internal/process/task_queues:105:5)
+          at handleRequest (/Users/macbook/src/boltcard-cloudflareworker/index.js:109:20)
+          at Object.<anonymous> (/Users/macbook/src/boltcard-cloudflareworker/tests/integration.test.js:159:24)
+
+      104 |       console.log(`No config found in KV for UID=${normalizedUid}`);
+      105 |     } catch (error) {
+    > 106 |       console.error(`Error retrieving config for UID=${normalizedUid} from KV:`, error);
+          |               ^
+      107 |     }
+      108 |   } else {
+      109 |     console.warn("KV storage not available for config lookup");
+
+      at getUidConfig (getUidConfig.js:106:15)
+      at handleRequest (index.js:109:20)
+      at Object.<anonymous> (tests/integration.test.js:159:24)
+
+    console.log
+      Using static config for UID 04996c6a926980.
+
+      at getUidConfig (getUidConfig.js:114:13)
+
+    console.log
+      [2026-02-27T22:35:47.827Z] [DEBUG] Configuration loaded | {"uidHex":"04996c6a926980","config":{"K2":"B45775776CB224C75BCDE7CA3704E933","payment_method":"clnrest","clnrest":{"protocol":"https","host":"cln.example.com","port":3001,"rune":"abcd1234efgh5678ijkl"}}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      Payment method for UID 04996c6a926980: clnrest
+
+      at handleRequest (index.js:118:13)
+
+    console.log
+      K2 for UID 04996c6a926980: B45775776CB224C75BCDE7CA3704E933
+
+      at handleRequest (index.js:119:13)
+
+    console.log
+      Decoded UID: 04996c6a926980 Counter: 3
+
+      at handleRequest (index.js:142:13)
+
+    console.log
+      Response Payload: {
+        tag: 'withdrawRequest',
+        callback: 'https://boltcardpoc.psbt.me/boltcards/api/v1/lnurl/cb/4E2E289D945A66BB13377A728884E867',
+        k1: 'E19CCB1FED8892CE',
+        minWithdrawable: 1000,
+        maxWithdrawable: 1000,
+        defaultDescription: 'Boltcard payment from UID 04996c6a926980, counter 3',
+        payLink: 'lnurlp://boltcardpoc.psbt.me/boltcards/api/v1/lnurlp_not_implemented_yet/04996c6a926980/4E2E289D945A66BB13377A728884E867/E19CCB1FED8892CE',
+        verifiableCredentials: [
+          {
+            '@context': [Array],
+            type: [Array],
+            issuer: 'https://boltcardpoc.psbt.me',
+            issuanceDate: '2026-02-27T22:35:47.828Z',
+            credentialSubject: [Object],
+            proof: [Object]
+          },
+          {
+            '@context': [Array],
+            type: [Array],
+            issuer: 'https://boltcardpoc.psbt.me',
+            issuanceDate: '2026-02-27T22:35:47.828Z',
+            credentialSubject: [Object],
+            proof: [Object]
+          }
+        ]
+      }
+
+      at handleRequest (index.js:158:15)
+
+    console.log
+      [2026-02-27T22:35:47.833Z] [DEBUG] Incoming request | {"method":"GET","url":"https://test.local/?p=4E2E289D945A66BB13377A728884E867&c=E19CCB1FED8892CE","pathname":"/","searchParams":{"p":"4E2E289D945A66BB13377A728884E867","c":"E19CCB1FED8892CE"}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      [2026-02-27T22:35:47.850Z] [DEBUG] LNURLW Verification | {"pHex":"4E2E289D945A66BB13377A728884E867","cHex":"E19CCB1FED8892CE"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      extractUIDAndCounter input pHex: 4E2E289D945A66BB13377A728884E867
+
+      at extractUIDAndCounter (boltCardHelper.js:19:11)
+
+    console.log
+      BOLT_CARD_K1 type: object
+
+      at extractUIDAndCounter (boltCardHelper.js:23:11)
+
+    console.log
+      decryptP result: {
+        success: true,
+        uidBytes: Uint8Array(7) [
+            4, 153, 108,
+          106, 146, 105,
+          128
+        ],
+        ctr: Uint8Array(3) [ 0, 0, 3 ],
+        usedK1: Uint8Array(16) [
+           12, 59,  37, 217,  43, 56,
+          174, 68,  50,  41, 221, 89,
+          173, 52, 184,  93
+        ]
+      }
+
+      at extractUIDAndCounter (boltCardHelper.js:44:11)
+
+    console.log
+      [2026-02-27T22:35:47.852Z] [DEBUG] Decryption result | {"success":true,"uidHex":"04996c6a926980","ctr":"000003"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      [2026-02-27T22:35:47.853Z] [DEBUG] Extracted UID and counter | {"uidHex":"04996c6a926980","ctr":"000003"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      Looking up config for UID: 04996c6a926980
+
+      at getUidConfig (getUidConfig.js:84:11)
+
+    console.error
+      Error retrieving config for UID=04996c6a926980 from KV: SyntaxError: Unexpected token 'e', "test" is not valid JSON
+          at JSON.parse (<anonymous>)
+          at getUidConfig (/Users/macbook/src/boltcard-cloudflareworker/getUidConfig.js:91:29)
+          at processTicksAndRejections (node:internal/process/task_queues:105:5)
+          at handleRequest (/Users/macbook/src/boltcard-cloudflareworker/index.js:109:20)
+          at Object.<anonymous> (/Users/macbook/src/boltcard-cloudflareworker/tests/integration.test.js:185:24)
+
+      104 |       console.log(`No config found in KV for UID=${normalizedUid}`);
+      105 |     } catch (error) {
+    > 106 |       console.error(`Error retrieving config for UID=${normalizedUid} from KV:`, error);
+          |               ^
+      107 |     }
+      108 |   } else {
+      109 |     console.warn("KV storage not available for config lookup");
+
+      at getUidConfig (getUidConfig.js:106:15)
+      at handleRequest (index.js:109:20)
+      at Object.<anonymous> (tests/integration.test.js:185:24)
+
+    console.log
+      Using static config for UID 04996c6a926980.
+
+      at getUidConfig (getUidConfig.js:114:13)
+
+    console.log
+      [2026-02-27T22:35:47.854Z] [DEBUG] Configuration loaded | {"uidHex":"04996c6a926980","config":{"K2":"B45775776CB224C75BCDE7CA3704E933","payment_method":"clnrest","clnrest":{"protocol":"https","host":"cln.example.com","port":3001,"rune":"abcd1234efgh5678ijkl"}}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      Payment method for UID 04996c6a926980: clnrest
+
+      at handleRequest (index.js:118:13)
+
+    console.log
+      K2 for UID 04996c6a926980: B45775776CB224C75BCDE7CA3704E933
+
+      at handleRequest (index.js:119:13)
+
+    console.log
+      Decoded UID: 04996c6a926980 Counter: 3
+
+      at handleRequest (index.js:142:13)
+
+    console.log
+      Response Payload: {
+        tag: 'withdrawRequest',
+        callback: 'https://boltcardpoc.psbt.me/boltcards/api/v1/lnurl/cb/4E2E289D945A66BB13377A728884E867',
+        k1: 'E19CCB1FED8892CE',
+        minWithdrawable: 1000,
+        maxWithdrawable: 1000,
+        defaultDescription: 'Boltcard payment from UID 04996c6a926980, counter 3',
+        payLink: 'lnurlp://boltcardpoc.psbt.me/boltcards/api/v1/lnurlp_not_implemented_yet/04996c6a926980/4E2E289D945A66BB13377A728884E867/E19CCB1FED8892CE',
+        verifiableCredentials: [
+          {
+            '@context': [Array],
+            type: [Array],
+            issuer: 'https://boltcardpoc.psbt.me',
+            issuanceDate: '2026-02-27T22:35:47.855Z',
+            credentialSubject: [Object],
+            proof: [Object]
+          },
+          {
+            '@context': [Array],
+            type: [Array],
+            issuer: 'https://boltcardpoc.psbt.me',
+            issuanceDate: '2026-02-27T22:35:47.855Z',
+            credentialSubject: [Object],
+            proof: [Object]
+          }
+        ]
+      }
+
+      at handleRequest (index.js:158:15)
+
+    console.log
+      [2026-02-27T22:35:47.858Z] [DEBUG] Incoming request | {"method":"GET","url":"https://test.local/?p=malformed&c=data","pathname":"/","searchParams":{"p":"malformed","c":"data"}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      [2026-02-27T22:35:47.859Z] [DEBUG] LNURLW Verification | {"pHex":"malformed","cHex":"data"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      extractUIDAndCounter input pHex: malformed
+
+      at extractUIDAndCounter (boltCardHelper.js:19:11)
+
+    console.log
+      BOLT_CARD_K1 type: object
+
+      at extractUIDAndCounter (boltCardHelper.js:23:11)
+
+    console.error
+      [2026-02-27T22:35:47.862Z] [ERROR] Failed to extract UID and counter | {"error":"Invalid hex string","pHex":"malformed","cHex":"data"}
+
+      33 |   error(message, context = {}) {
+      34 |     if (this.shouldLog('error')) {
+    > 35 |       console.error(this.formatMessage('error', message, context));
+         |               ^
+      36 |     }
+      37 |   }
+      38 |
+
+      at Logger.error (utils/logger.js:35:15)
+      at handleRequest (index.js:92:12)
+      at Object.<anonymous> (tests/integration.test.js:195:30)
+
+    console.log
+      [2026-02-27T22:35:47.864Z] [DEBUG] Incoming request | {"method":"GET","url":"https://test.local/?p=4E2E289D945A66BB13377A728884E867&c=E19CCB1FED8892CE","pathname":"/","searchParams":{"p":"4E2E289D945A66BB13377A728884E867","c":"E19CCB1FED8892CE"}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      [2026-02-27T22:35:47.864Z] [DEBUG] LNURLW Verification | {"pHex":"4E2E289D945A66BB13377A728884E867","cHex":"E19CCB1FED8892CE"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      extractUIDAndCounter input pHex: 4E2E289D945A66BB13377A728884E867
+
+      at extractUIDAndCounter (boltCardHelper.js:19:11)
+
+    console.log
+      BOLT_CARD_K1 type: object
+
+      at extractUIDAndCounter (boltCardHelper.js:23:11)
+
+    console.log
+      decryptP result: {
+        success: true,
+        uidBytes: Uint8Array(7) [
+            4, 153, 108,
+          106, 146, 105,
+          128
+        ],
+        ctr: Uint8Array(3) [ 0, 0, 3 ],
+        usedK1: Uint8Array(16) [
+           12, 59,  37, 217,  43, 56,
+          174, 68,  50,  41, 221, 89,
+          173, 52, 184,  93
+        ]
+      }
+
+      at extractUIDAndCounter (boltCardHelper.js:44:11)
+
+    console.log
+      [2026-02-27T22:35:47.869Z] [DEBUG] Decryption result | {"success":true,"uidHex":"04996c6a926980","ctr":"000003"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      [2026-02-27T22:35:47.869Z] [DEBUG] Extracted UID and counter | {"uidHex":"04996c6a926980","ctr":"000003"}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      Looking up config for UID: 04996c6a926980
+
+      at getUidConfig (getUidConfig.js:84:11)
+
+    console.error
+      Error retrieving config for UID=04996c6a926980 from KV: SyntaxError: Unexpected token 'e', "test" is not valid JSON
+          at JSON.parse (<anonymous>)
+          at getUidConfig (/Users/macbook/src/boltcard-cloudflareworker/getUidConfig.js:91:29)
+          at processTicksAndRejections (node:internal/process/task_queues:105:5)
+          at handleRequest (/Users/macbook/src/boltcard-cloudflareworker/index.js:109:20)
+          at Object.<anonymous> (/Users/macbook/src/boltcard-cloudflareworker/tests/integration.test.js:208:27)
+
+      104 |       console.log(`No config found in KV for UID=${normalizedUid}`);
+      105 |     } catch (error) {
+    > 106 |       console.error(`Error retrieving config for UID=${normalizedUid} from KV:`, error);
+          |               ^
+      107 |     }
+      108 |   } else {
+      109 |     console.warn("KV storage not available for config lookup");
+
+      at getUidConfig (getUidConfig.js:106:15)
+      at handleRequest (index.js:109:20)
+      at Object.<anonymous> (tests/integration.test.js:208:27)
+
+    console.log
+      Using static config for UID 04996c6a926980.
+
+      at getUidConfig (getUidConfig.js:114:13)
+
+    console.log
+      [2026-02-27T22:35:47.873Z] [DEBUG] Configuration loaded | {"uidHex":"04996c6a926980","config":{"K2":"B45775776CB224C75BCDE7CA3704E933","payment_method":"clnrest","clnrest":{"protocol":"https","host":"cln.example.com","port":3001,"rune":"abcd1234efgh5678ijkl"}}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      Payment method for UID 04996c6a926980: clnrest
+
+      at handleRequest (index.js:118:13)
+
+    console.log
+      K2 for UID 04996c6a926980: B45775776CB224C75BCDE7CA3704E933
+
+      at handleRequest (index.js:119:13)
+
+    console.log
+      Decoded UID: 04996c6a926980 Counter: 3
+
+      at handleRequest (index.js:142:13)
+
+    console.log
+      Response Payload: {
+        tag: 'withdrawRequest',
+        callback: 'https://boltcardpoc.psbt.me/boltcards/api/v1/lnurl/cb/4E2E289D945A66BB13377A728884E867',
+        k1: 'E19CCB1FED8892CE',
+        minWithdrawable: 1000,
+        maxWithdrawable: 1000,
+        defaultDescription: 'Boltcard payment from UID 04996c6a926980, counter 3',
+        payLink: 'lnurlp://boltcardpoc.psbt.me/boltcards/api/v1/lnurlp_not_implemented_yet/04996c6a926980/4E2E289D945A66BB13377A728884E867/E19CCB1FED8892CE',
+        verifiableCredentials: [
+          {
+            '@context': [Array],
+            type: [Array],
+            issuer: 'https://boltcardpoc.psbt.me',
+            issuanceDate: '2026-02-27T22:35:47.877Z',
+            credentialSubject: [Object],
+            proof: [Object]
+          },
+          {
+            '@context': [Array],
+            type: [Array],
+            issuer: 'https://boltcardpoc.psbt.me',
+            issuanceDate: '2026-02-27T22:35:47.877Z',
+            credentialSubject: [Object],
+            proof: [Object]
+          }
+        ]
+      }
+
+      at handleRequest (index.js:158:15)
+
+    console.log
+      [2026-02-27T22:35:47.881Z] [DEBUG] Incoming request | {"method":"POST","url":"https://boltcardpoc.psbt.me/boltcards/api/v1/lnurl/cb/4E2E289D945A66BB13377A728884E867","pathname":"/boltcards/api/v1/lnurl/cb/4E2E289D945A66BB13377A728884E867","searchParams":{}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+    console.log
+      Received LNURLp Payment request (POST): {
+        "invoice": "lnbc1000n1p...your_bolt11_invoice...",
+        "amount": 1000,
+        "k1": "E19CCB1FED8892CE"
+      }
+
+      at handleLnurlpPayment (handlers/lnurlHandler.js:17:15)
+
+    console.log
+      Using p: 4E2E289D945A66BB13377A728884E867 and c: E19CCB1FED8892CE
+
+      at handleLnurlpPayment (handlers/lnurlHandler.js:47:15)
+
+    console.log
+      [2026-02-27T22:35:47.886Z] [DEBUG] Incoming request | {"method":"GET","url":"https://test.local/status","pathname":"/status","searchParams":{}}
+
+      at Logger.debug (utils/logger.js:53:15)
+
+
+Test Suites: 4 passed, 4 total
+Tests:       23 passed, 23 total
+Snapshots:   0 total
+Time:        5.66 s
+Ran all test suites.

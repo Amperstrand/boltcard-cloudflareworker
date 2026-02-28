@@ -1,0 +1,65 @@
+Task 2: Protocol Documentation QA Evidence
+Generated: 2026-02-27
+
+File: docs/boltcard-protocol.md
+
+=== Verification Grep Counts ===
+
+grep -c 'NTAG 424' docs/boltcard-protocol.md
+Result: 12  (expected >= 3) PASS
+
+grep -c 'AES-CMAC' docs/boltcard-protocol.md
+Result: 17  (expected >= 5) PASS
+
+grep -c 'SV2' docs/boltcard-protocol.md
+Result: 13  (expected >= 2) PASS
+
+grep -c 'https://' docs/boltcard-protocol.md
+Result: 11  (expected >= 4) PASS
+
+grep -c 'LUD-03\|LUD-17' docs/boltcard-protocol.md
+Result: 6   (expected >= 2) PASS
+
+=== Section Coverage Check ===
+
+Sections present in the document:
+1. NXP NTAG 424 DNA               - PRESENT
+2. AES-CMAC                        - PRESENT
+3. p parameter (byte table)        - PRESENT
+4. c parameter / SV2 (byte table)  - PRESENT
+5. Key derivation (K0-K4 table)    - PRESENT
+6. LNURL-withdraw flow             - PRESENT
+7. Counter replay protection       - PRESENT
+8. Multi-K1 key rotation           - PRESENT (bonus section)
+
+Total sections: 8 (expected >= 7) PASS
+
+=== Citation URLs Verified ===
+
+1. https://www.nxp.com/docs/en/application-note/AN12196.pdf  (NXP AN12196)
+2. https://github.com/boltcard/boltcard  (BoltCard spec)
+3. https://boltcard.org  (boltcard.org overview)
+4. https://github.com/lnurl/luds/blob/luds/03.md  (LUD-03)
+5. https://github.com/lnurl/luds/blob/luds/17.md  (LUD-17)
+6. https://datatracker.ietf.org/doc/html/rfc4493  (RFC 4493)
+
+Total citations: 6 (expected >= 4) PASS
+
+=== Byte Tables Check ===
+
+p parameter byte table: PRESENT
+  - Header 0xC7, UID[7 bytes], counter[3 bytes LSB first], padding[5 bytes]
+
+SV2 construction byte table: PRESENT
+  - 0x3C, 0xC3, 0x00, 0x01, 0x00, 0x80, UID[0..6], ctr[2], ctr[1], ctr[0]
+
+=== K0-K4 Roles Table Check ===
+
+K0-K4 table: PRESENT
+  - K0: Card master key (NXP file access control)
+  - K1: Encrypts the p parameter (UID + counter)
+  - K2: Computes the c parameter (AES-CMAC verification)
+  - K3: Reserved (NXP SDM read access key)
+  - K4: Reserved (NXP SDM read/write access key)
+
+=== ALL CHECKS PASSED ===
