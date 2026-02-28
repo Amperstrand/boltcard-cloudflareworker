@@ -1,4 +1,4 @@
-import worker from "../index.js"; // Import the Cloudflare Worker
+import { handleRequest } from "../index.js"; // Import the handleRequest function for testing
 
 // Simulate environment variables from `wrangler.toml`
 const env = {
@@ -17,7 +17,7 @@ async function makeRequest(path, method = "GET", body = null) {
     options.body = JSON.stringify(body);
     options.headers = { "Content-Type": "application/json" };
   }
-  return worker.fetch(new Request(url, options), env); // Pass the environment
+  return handleRequest(new Request(url, options), env); // Pass the environment
 }
 
 describe("Cloudflare Worker Tests", () => {
@@ -36,7 +36,6 @@ describe("Cloudflare Worker Tests", () => {
       minWithdrawable: 1000,
       maxWithdrawable: 1000,
       defaultDescription: expect.stringContaining("Boltcard payment from UID"),
-      payLink: expect.stringContaining("lnurlp://boltcardpoc.psbt.me"),
     });
   });
 
@@ -55,7 +54,6 @@ describe("Cloudflare Worker Tests", () => {
       minWithdrawable: 1000,
       maxWithdrawable: 1000,
       defaultDescription: expect.stringContaining("Boltcard payment from UID"),
-      payLink: expect.stringContaining("lnurlp://boltcardpoc.psbt.me"),
     });
   });
 

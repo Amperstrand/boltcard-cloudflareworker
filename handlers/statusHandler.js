@@ -1,6 +1,36 @@
-import { uidConfig } from "../uidConfig.js";
+export async function handleStatus(env) {
+  // If env is provided, do KV test
+  if (env?.UID_CONFIG) {
+    try {
+      await env.UID_CONFIG.put('test', 'test');
+      const testValue = await env.UID_CONFIG.get('test');
+      return new Response(JSON.stringify({
+        status: 'OK',
+        kv_status: testValue === 'test' ? 'working' : 'not working',
+        message: 'Server is running'
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      console.error('KV Test Error:', error);
+      return new Response(JSON.stringify({
+        status: 'ERROR',
+        kv_status: 'error',
+        error: error.message
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  }
 
-export async function handleStatus() {
+  // Otherwise show status page
+  return new Response(await generateStatusHtml(), {
+    status: 200,
+    headers: { "Content-Type": "text/html" },
+  });
+}
+
+async function generateStatusHtml() {
   const BASE_URL =
     "https://boltcardpoc.psbt.me/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards";
 
@@ -21,7 +51,7 @@ export async function handleStatus() {
   const humanReadableResetUrl = decodeURIComponent(deeplinkReset);
 
   // HTML content with human-readable links
-  const htmlContent = `
+  return `
   <!DOCTYPE html>
   <html>
   <head>
@@ -59,9 +89,4 @@ export async function handleStatus() {
   </body>
   </html>
   `;
-
-  return new Response(htmlContent, {
-    status: 200,
-    headers: { "Content-Type": "text/html" },
-  });
 }

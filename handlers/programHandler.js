@@ -1,8 +1,7 @@
 import { getDeterministicKeys } from "../keygenerator.js";
-import { uidConfig } from "../uidConfig.js";
 
 
-export async function handleProgram(url) {
+export async function handleProgram(url, env) {
   const uid = url.searchParams.get("uid");
   if (!uid) {
     return new Response(
@@ -18,7 +17,7 @@ export async function handleProgram(url) {
 
   try {
     // Assume getDeterministicKeys returns an object with k0, k1, k2, k3, k4, cardKey, etc.
-    const keys = await getDeterministicKeys(uid);
+    const keys = await getDeterministicKeys(uid, env);
 
     // Construct a human-readable card name (similar to the Python version)
     const cardName = `UID ${uid.toUpperCase()}`;

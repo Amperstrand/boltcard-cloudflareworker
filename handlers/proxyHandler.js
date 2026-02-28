@@ -1,5 +1,3 @@
-import { uidConfig } from "../uidConfig.js";
-
 /**
  * Proxy handler that forwards requests to a specified external URL on the LNBits instance.
  * 

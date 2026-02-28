@@ -23,7 +23,7 @@ const jsonResponse = (data, status = 200) => {
 const errorResponse = (error, status = 400) => jsonResponse({ error }, status);
 
 // Main handler function
-export async function fetchBoltCardKeys(request) {
+export async function fetchBoltCardKeys(request, env) {
   if (request.method !== "POST") {
     return errorResponse("Only POST allowed", 405);
   }
@@ -38,11 +38,11 @@ export async function fetchBoltCardKeys(request) {
     }
 
     if (onExisting === "UpdateVersion" && uid) {
-      return handleProgrammingFlow(uid);
+      return handleProgrammingFlow(uid, env);
     }
 
     if (onExisting === "KeepVersion" && lnurlw) {
-      return handleResetFlow(lnurlw);
+      return handleResetFlow(lnurlw, env);
     }
 
     return errorResponse("Invalid combination of 'onExisting' and request body");
@@ -52,12 +52,12 @@ export async function fetchBoltCardKeys(request) {
 }
 
 // Handles the "Program" flow (UpdateVersion)
-async function handleProgrammingFlow(uid) {
-  return generateKeyResponse(uid);
+async function handleProgrammingFlow(uid, env) {
+  return generateKeyResponse(uid, env);
 }
 
 // Handles the "Reset" flow (KeepVersion)
-async function handleResetFlow(lnurlw) {
+async function handleResetFlow(lnurlw, env) {
   try {
     // Parse the LNURLW
     const lnurl = new URL(lnurlw);
@@ -72,7 +72,7 @@ async function handleResetFlow(lnurlw) {
     console.log("Decoding LNURLW: pHex:", pHex, "cHex:", cHex);
       console.log("LNURLW Verification: pHex:", pHex, "cHex:", cHex);
       //const decryption = decrypt_uid_and_counter(pHex, BOLT_CARD_K1);
-      const decryption = extractUIDAndCounter(pHex);
+      const decryption = extractUIDAndCounter(pHex, env);
       if (!decryption.success) return errorResponse(decryption.error);
       const { uidHex, ctr } = decryption;
       console.log("uidHex:", uidHex, "ctr:", ctr);
@@ -101,16 +101,16 @@ async function handleResetFlow(lnurlw) {
     console.log("Reset Flow: Decoded UID:", uidHex, "Counter:", parseInt(ctr, 16));
 
     // Regenerate the keys and return them
-    return generateKeyResponse(uidHex);
+    return generateKeyResponse(uidHex, env);
   } catch (err) {
     return errorResponse("Error in generating keys : " + err.message, 500);
   }
 }
 
 // Generates the key response structure
-async function generateKeyResponse(uid) {
+async function generateKeyResponse(uid, env) {
   const version = 1; // Could be dynamically managed in future updates
-  const keys = await getDeterministicKeys(uid, version);
+  const keys = await getDeterministicKeys(uid, env, version);
 
   return jsonResponse({
     protocol_name: "new_bolt_card_response",

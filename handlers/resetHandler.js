@@ -1,8 +1,7 @@
 import { getDeterministicKeys } from "../keygenerator.js";
-//import { uidConfig } from "../uidConfig.js";
 
 
-export async function handleReset(uid) {
+export async function handleReset(uid, env) {
   try {
     if (!uid) {
       return new Response(JSON.stringify({ error: "Missing UID parameter for reset." }), {
@@ -12,7 +11,7 @@ export async function handleReset(uid) {
     }
     console.log(`Resetting card with UID: ${uid}`);
     // Derive keys using the decoded UID.
-    const keys = await getDeterministicKeys(uid);
+    const keys = await getDeterministicKeys(uid, env);
     // Construct response payload.
     const responsePayload = {
       protocol_name: "new_bolt_card_response",

@@ -1,5 +1,3 @@
-import { uidConfig } from "../uidConfig.js";
-
 export default async function handleNfc() {
   const html = `
     <!DOCTYPE html>

@@ -1,10 +1,10 @@
 import { decodeAndValidate } from "../boltCardHelper.js";
-import { uidConfig } from "../uidConfig.js";
+import { getUidConfig } from "../getUidConfig.js";
 
 // Global counter for fakewallet payments
 let fakewalletCounter = 0;
 
-export async function handleLnurlpPayment(request) {
+export async function handleLnurlpPayment(request, env) {
   try {
     const url = new URL(request.url);
     const pathname = url.pathname;
@@ -92,18 +92,28 @@ export async function handleLnurlpPayment(request) {
       }
       console.log(`Invoice from GET: ${invoice}`);
 
-      const { uidHex, ctr, error } = decodeAndValidate(p, c);
+      const { uidHex, ctr, error } = decodeAndValidate(p, c, env);
       if (error) {
         return new Response(
           JSON.stringify({ status: "ERROR", reason: error }),
           { status: 400, headers: { "Content-Type": "application/json" } }
         );
-      lonsole.log(uidHex)}
-      const normalizedUidHex = uidHex.toLowerCase(); // Ensure UID is in lowercase for lookup
+      }
+
+      // Add null check before toLowerCase
+      if (!uidHex) {
+        console.error("UID is undefined after decoding");
+        return new Response(
+          JSON.stringify({ status: "ERROR", reason: "Failed to decode UID" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      const normalizedUidHex = uidHex.toLowerCase(); // Now safe to call toLowerCase()
       console.log(`Processing withdrawal for UID=${normalizedUidHex} with invoice: ${invoice}`);
 
       // Process the withdrawal payment via CLN REST or fakewallet
-      const withdrawalResponse = await processWithdrawalPayment(normalizedUidHex, invoice);
+      const withdrawalResponse = await processWithdrawalPayment(normalizedUidHex, invoice, env);
       
       // If processWithdrawalPayment returns a Response, forward it.
       if (withdrawalResponse instanceof Response) {
@@ -125,11 +135,19 @@ export async function handleLnurlpPayment(request) {
   }
 }
 
-export async function processWithdrawalPayment(uid, pr) {
+export async function processWithdrawalPayment(uid, pr, env) {
+  if (!uid) {
+    console.error("Received undefined UID in processWithdrawalPayment");
+    return new Response(
+      JSON.stringify({ status: "ERROR", reason: "Invalid UID" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
   console.log(`Processing payment for invoice ${pr} with UID=${uid}`);
 
   uid = uid.toLowerCase(); // Ensure UID is in lowercase for lookup
-  const config = uidConfig[uid];
+  const config = await getUidConfig(uid, env);
   console.log(`Loaded config for UID=${uid}:`, JSON.stringify(config, null, 2));
 
   if (!config) {

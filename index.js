@@ -1,5 +1,5 @@
 // index.js
-import { decodeAndValidate } from "./boltCardHelper.js";
+import { Router } from "itty-router";
 import { extractUIDAndCounter, validate_cmac } from "./boltCardHelper.js";
 import { handleStatus } from "./handlers/statusHandler.js";
 import { fetchBoltCardKeys } from "./handlers/fetchBoltCardKeys.js";
@@ -8,114 +8,110 @@ import { handleProxy } from "./handlers/proxyHandler.js";
 import { constructWithdrawResponse } from "./handlers/withdrawHandler.js";
 import handleNfc from "./handlers/handleNfc.js";
 import { getUidConfig } from "./getUidConfig.js";
-import { BOLT_CARD_K1 } from './uidConfig';
+import { handleActivateCardPage, handleActivateCardSubmit } from "./handlers/activateCardHandler.js";
+import { hexToBytes } from "./cryptoutils.js";
+import { logger } from "./utils/logger.js";
 
-// Helper function to return JSON responses
+// Helper functions for responses
 const jsonResponse = (data, status = 200) =>
   new Response(JSON.stringify(data), {
     status,
     headers: { "Content-Type": "application/json" },
   });
 
-// Helper function for error responses
 const errorResponse = (reason, status = 400) =>
   jsonResponse({ status: "ERROR", reason }, status);
 
+const router = Router();
+
+router.get("/nfc", () => handleNfc());
+router.get("/status", (request, env) => handleStatus(env));
+router.all("/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards", (request, env) =>
+  fetchBoltCardKeys(request, env)
+);
+router.all("/boltcards/api/v1/lnurl/cb*", (request, env) => handleLnurlpPayment(request, env));
+router.get("/activate", () => handleActivateCardPage());
+router.post("/activate", (request, env) => handleActivateCardSubmit(request, env));
+router.get("/", handleLnurlw);
+router.all("*", (request) => {
+  logger.error("Route not found", { pathname: new URL(request.url).pathname, method: request.method });
+  return new Response("Not found", { status: 404 });
+});
+
+async function handleLnurlw(request, env) {
+  const { searchParams } = new URL(request.url);
+  const pHex = searchParams.get("p");
+  const cHex = searchParams.get("c");
+
+  if (!pHex || !cHex) {
+    logger.error("Missing required parameters", { pHex: !!pHex, cHex: !!cHex });
+    return jsonResponse({ error: "Missing required parameters: p and c are required" }, 400);
+  }
+
+  logger.debug("LNURLW Verification", { pHex, cHex });
+
+  const decryption = extractUIDAndCounter(pHex, env);
+  if (!decryption.success) {
+    logger.error("Failed to extract UID and counter", { error: decryption.error, pHex, cHex });
+    return jsonResponse({ error: decryption.error }, 400);
+  }
+
+  logger.debug("Decryption result", decryption);
+
+  const { uidHex, ctr } = decryption;
+
+  if (!uidHex) {
+    logger.error("UID is undefined after decryption", { pHex, cHex });
+    return jsonResponse({ error: "Failed to extract UID from payload" }, 400);
+  }
+
+  logger.debug("Extracted UID and counter", { uidHex, ctr });
+
+  const config = await getUidConfig(uidHex, env);
+  logger.debug("Configuration loaded", { uidHex, config });
+
+  if (!config) {
+    logger.error("UID not found in configuration", { uidHex });
+    return errorResponse("UID not found in config");
+  }
+
+  const { cmac_validated, cmac_error } = validate_cmac(
+    hexToBytes(uidHex),
+    hexToBytes(ctr),
+    cHex,
+    hexToBytes(config.K2)
+  );
+
+  if (!cmac_validated) {
+    logger.warn(`CMAC validation failed: ${cmac_error || "CMAC validation failed."}`);
+    return errorResponse(cmac_error || "CMAC validation failed");
+  }
+
+  logger.debug("Decoded UID and counter", { uidHex, ctr: parseInt(ctr, 16) });
+
+  if (config.payment_method === "proxy" && config.proxy?.proxyDomain) {
+    return handleProxy(request, uidHex, pHex, cHex, config.proxy.externalId);
+  }
+
+  if (config.payment_method === "clnrest" || config.payment_method === "fakewallet") {
+    const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated);
+    if (responsePayload.status === "ERROR") return errorResponse(responsePayload.reason);
+    return jsonResponse(responsePayload);
+  }
+
+  logger.error("Unsupported payment method", { uidHex, paymentMethod: config.payment_method });
+  return errorResponse(`Unsupported payment method: ${config.payment_method}`);
+}
+
+// Export handleRequest for tests
+export async function handleRequest(request, env) {
+  logger.logRequest(request);
+  return router.fetch(request, env);
+}
+
 export default {
-  async fetch(request, env) {
-    console.log("\n--- Incoming Request ---");
-    console.log("Method:", request.method);
-    console.log("URL:", request.url);
-
-    const url = new URL(request.url);
-    const { pathname, searchParams } = url;
-    console.log("Path:", pathname);
-    console.log("Query Params:", Object.fromEntries(searchParams));
-
-    // Route handling
-    if (pathname === "/nfc") return handleNfc();
-    if (pathname === "/status") return handleStatus();
-    if (pathname === "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards") {
-      return fetchBoltCardKeys(request);
-    }
-    if (pathname.startsWith("/boltcards/api/v1/lnurl/cb")) {
-      return handleLnurlpPayment(request);
-    }
-
-    // LNURLW Verification
-    const pHex = searchParams.get("p");
-    const cHex = searchParams.get("c");
-
-    if (pHex && cHex) {
-      console.log("LNURLW Verification: pHex:", pHex, "cHex:", cHex);
-      //const decryption = decrypt_uid_and_counter(pHex, BOLT_CARD_K1);
-      const decryption = extractUIDAndCounter(pHex);
-      if (!decryption.success) return errorResponse(decryption.error);
-      const { uidHex, ctr } = decryption;
-      console.log("uidHex:", uidHex, "ctr:", ctr);
-
-      // Fetch the UID configuration from KV, static config, or via deterministic keys
-      const config = await getUidConfig(uidHex, env);
-      console.log(JSON.stringify(config));
-
-      // If no configuration is found, return an error
-      if (!config) {
-        console.error(`UID ${uidHex} not found in any config`);
-        return errorResponse("UID not found in config");
-      }
-
-      console.log(`Payment method for UID ${uidHex}: ${config.payment_method}`);
-      console.log(`K2 for UID ${uidHex}: ${config.K2}`);
-      //const { cmac_validated, cmac_error } = validate_cmac(uidBytes, ctr, cHex);
-      //if (!cmac_validated) return errorResponse(cmac_error);
-      //dummy validation
-      const cmac_validated = true;
-
-      // Decode and validate the LNURL parameters
-      //const { uidHex, ctr, cmac_validated, cmac_error, error } = decodeAndValidate(
-      //  pHex,
-      //  cHex
-      //);
-      //if (error) return errorResponse(error);
-
-      console.log("Decoded UID:", uidHex, "Counter:", parseInt(ctr, 16));
-
-
-      // Handle proxy payment method
-      if (config.payment_method === "proxy" && config.proxy?.proxyDomain) {
-        console.log(`Proxying request for UID=${uidHex} to domain: ${config.proxy.proxyDomain}`);
-        return handleProxy(request, uidHex, pHex, cHex, config.proxy.externalId);
-      }
-
-      // Handle CLN REST payment method
-      if (config.payment_method === "clnrest" && config.clnrest?.host) {
-        if (!cmac_validated) {
-          console.warn(`CMAC Validation Warning: ${cmac_error || "CMAC validation skipped."}`);
-          return errorResponse(cmac_error || "CMAC validation failed");
-        }
-        const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated);
-        console.log("Response Payload:", responsePayload);
-        if (responsePayload.status === "ERROR") return errorResponse(responsePayload.reason);
-        return jsonResponse(responsePayload);
-      }
-
-      // Handle fake wallet payment method
-      if (config.payment_method === "fakewallet") {
-        if (!cmac_validated) {
-          console.warn(`CMAC Validation Warning: ${cmac_error || "CMAC validation skipped."}`);
-          return errorResponse(cmac_error || "CMAC validation failed");
-        }
-        const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated);
-        console.log("Response Payload:", responsePayload);
-        if (responsePayload.status === "ERROR") return errorResponse(responsePayload.reason);
-        return jsonResponse(responsePayload);
-      }
-
-      console.error(`Unsupported payment method for UID=${uidHex}: ${config.payment_method}`);
-      return errorResponse(`Unsupported payment method: ${config.payment_method}`);
-    }
-
-    console.error("Error: Route not found.");
-    return new Response("Not found", { status: 404 });
+  async fetch(request, env, ctx) {
+    logger.logRequest(request);
+    return router.fetch(request, env);
   },
 };
