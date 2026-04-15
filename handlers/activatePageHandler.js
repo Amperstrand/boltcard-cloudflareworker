@@ -4,8 +4,11 @@ export function handleActivatePage(request) {
   const pullPaymentId = url.searchParams.get("pullPaymentId") || "fUDXsnySxvb5LYZ1bSLiWzLjVuT";
   const apiUrl = `${baseUrl}/api/v1/pull-payments/${pullPaymentId}/boltcards`;
   
-  const programDeepLink = `boltcard://program?url=${encodeURIComponent(apiUrl)}`;
-  const resetDeepLink = `boltcard://reset?url=${encodeURIComponent(apiUrl)}`;
+  const programUrl = `${apiUrl}?onExisting=UpdateVersion`;
+  const resetUrl = `${apiUrl}?onExisting=KeepVersion`;
+
+  const programDeepLink = `boltcard://program?url=${encodeURIComponent(programUrl)}`;
+  const resetDeepLink = `boltcard://reset?url=${encodeURIComponent(resetUrl)}`;
 
   const html = `
     <!DOCTYPE html>
@@ -87,7 +90,7 @@ export function handleActivatePage(request) {
                   <span class="text-xs font-bold text-gray-500 uppercase">Program via UID</span>
                   <button onclick="copyText('curl-program')" class="text-xs text-amber-500 hover:text-amber-400 font-bold">COPY</button>
                 </div>
-                <pre id="curl-program" class="font-mono text-xs text-green-400 overflow-x-auto">curl -X POST ${apiUrl} \\
+                <pre id="curl-program" class="font-mono text-xs text-green-400 overflow-x-auto">curl -X POST '${programUrl}' \\
   -H "Content-Type: application/json" \\
   -d '{"UID": "04a39493cc8680"}'</pre>
               </div>
@@ -97,7 +100,7 @@ export function handleActivatePage(request) {
                   <span class="text-xs font-bold text-gray-500 uppercase">Reset via LNURLW</span>
                   <button onclick="copyText('curl-reset')" class="text-xs text-amber-500 hover:text-amber-400 font-bold">COPY</button>
                 </div>
-                <pre id="curl-reset" class="font-mono text-xs text-blue-400 overflow-x-auto">curl -X POST ${apiUrl} \\
+                <pre id="curl-reset" class="font-mono text-xs text-blue-400 overflow-x-auto">curl -X POST '${resetUrl}' \\
   -H "Content-Type: application/json" \\
   -d '{"LNURLW": "lnurlw://..."}'</pre>
               </div>

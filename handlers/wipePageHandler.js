@@ -205,7 +205,7 @@ export function handleWipePage(request) {
               const data = await response.json();
               
               const pullPaymentId = "fUDXsnySxvb5LYZ1bSLiWzLjVuT";
-              const resetApiUrl = \`\${baseUrl}/api/v1/pull-payments/\${pullPaymentId}/boltcards\`;
+              const resetApiUrl = \`\${baseUrl}/api/v1/pull-payments/\${pullPaymentId}/boltcards?onExisting=KeepVersion\`;
               displayOutput(uid, data, resetApiUrl);
             } catch (error) {
               alert("Error fetching wipe keys: " + error.message);

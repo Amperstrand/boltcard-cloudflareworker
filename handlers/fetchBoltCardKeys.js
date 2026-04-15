@@ -34,15 +34,23 @@ export async function fetchBoltCardKeys(request, env) {
       return errorResponse("Must provide UID for programming, or LNURLW for reset");
     }
 
-    if (onExisting === "UpdateVersion" && uid) {
+    if ((onExisting === "UpdateVersion" || (!onExisting && uid)) && uid) {
       return handleProgrammingFlow(uid, env);
     }
 
-    if (onExisting === "KeepVersion" && lnurlw) {
+    if ((onExisting === "KeepVersion" || (!onExisting && lnurlw)) && lnurlw) {
       return handleResetFlow(lnurlw, env);
     }
 
-    return errorResponse("Invalid combination of 'onExisting' and request body");
+    if (onExisting === "UpdateVersion" && !uid) {
+      return errorResponse("Programming flow requires UID in request body");
+    }
+
+    if (onExisting === "KeepVersion" && !lnurlw) {
+      return errorResponse("Reset flow requires LNURLW in request body");
+    }
+
+    return errorResponse("Must provide UID for programming, or LNURLW for reset");
   } catch (err) {
     return errorResponse(err.message, 500);
   }
