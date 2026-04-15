@@ -1,0 +1,80 @@
+{
+  "source": {
+    "document": "AN12196",
+    "title": "NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints",
+    "revision": "2.0",
+    "date": "2025-03-04"
+  },
+  "purpose": "Implementation-oriented context for building an NTAG 424 DNA reader/writer and SUN/SDM verifier.",
+  "core_split": [
+    "Provisioning/admin over EV2 secure messaging (SSM)",
+    "SUN/SDM verification of dynamic NDEF content"
+  ],
+  "must_support_commands": [
+    "ISO SELECT NDEF application",
+    "GetVersion",
+    "GetFileSettings",
+    "AuthenticateEV2First",
+    "AuthenticateEV2NonFirst",
+    "WriteData",
+    "ChangeFileSettings",
+    "ChangeKey",
+    "SetConfiguration",
+    "GetCardUID",
+    "Read_Sig"
+  ],
+  "session_state": [
+    "TI",
+    "CmdCtr",
+    "KSesAuthENC",
+    "KSesAuthMAC",
+    "authenticated key number",
+    "auth mode"
+  ],
+  "critical_gotchas": [
+    "Do not mix SDM KDF and SSM KDF logic",
+    "Offsets and lengths in commands are commonly LSB-first",
+    "Cryptographic values are MSB-first",
+    "Mirrored SDM values are ASCII hex in the NDEF presentation layer",
+    "SDMMAC is computed over the dynamic ASCII view, not raw binary structures",
+    "NXP MAC truncation must match the app note exactly",
+    "Random ID and LRP enablement are irreversible",
+    "GetCardUID is required for real UID retrieval when Random ID is enabled",
+    "Failed-auth counters can cause apparent delays or blocking"
+  ],
+  "recommended_modules": [
+    "APDU transport",
+    "Activation/session control",
+    "EV2 auth",
+    "SSM secure messaging",
+    "File model and settings",
+    "SDM/SUN verifier",
+    "Provisioning workflow"
+  ],
+  "provisioning_recipe": [
+    "Activate card",
+    "GetVersion",
+    "Optionally verify originality signature",
+    "Select NDEF application",
+    "GetFileSettings",
+    "AuthenticateEV2First with key 0x00",
+    "Build and write NDEF template",
+    "Change NDEF file settings to enable SDM",
+    "Authenticate with file-specific keys as needed",
+    "Write proprietary file if used",
+    "Finalize CC file",
+    "Change default keys",
+    "Optionally enable Random ID"
+  ],
+  "sun_verification_recipe": [
+    "Parse mirrored URL/NDEF fields",
+    "Decrypt PICCENCData if present",
+    "Recover UID and SDMReadCtr",
+    "Derive KSesSDMFileReadENC and KSesSDMFileReadMAC",
+    "Decrypt SDMENCFileData if present",
+    "Reconstruct exact ASCII MAC input slice",
+    "Compute SDMMAC",
+    "Compare with mirrored MAC",
+    "Apply replay and product policy checks"
+  ]
+}

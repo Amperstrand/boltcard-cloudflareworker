@@ -1,0 +1,1282 @@
+# NTAG 424 DNA / “NXP424” LLM Implementation Context
+_Source distilled from NXP AN12196: **“NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints”**, Rev. 2.0 (4 Mar 2025)._
+
+## What this file is for
+
+This file is not a general marketing summary. It is implementation-oriented context meant to help another LLM or engineer build a **reader/writer stack for NTAG 424 DNA cards/tags**.
+
+It focuses on:
+
+- APDU-level interaction patterns
+- authentication and session state
+- Secure Dynamic Messaging (SDM / SUN)
+- Standard Secure Messaging (SSM)
+- personalization flow
+- file model and access rights
+- Random ID, originality, TagTamper, failed-auth counters
+- practical gotchas that tend to break implementations
+
+It intentionally reorganizes the application note into an engineering-oriented shape.
+
+
+
+## Source map back to the PDF
+
+Use this when you want to jump from this brief back into the application note:
+
+- Section 2: variable definitions and byte-order conventions — pages 4-8
+- Section 3: Secure Dynamic Messaging (SDM / SUN) — pages 9-17
+- Section 4: Standard Secure Messaging (SSM) — pages 18-22
+- Section 5: personalization examples — pages 23-39
+- Section 6: special functionalities (`SetConfiguration`, Random ID, `GetCardUID`, failed-auth counters, TagTamper, `SDMReadCtrLimit`) — pages 40-46
+- Section 7: originality verification — pages 47-48
+- Section 8: system implementation concepts (online vs offline) — pages 49-50
+- Section 9: supporting tools — page 51
+
+---
+
+## 1. Document scope and how to use it
+
+AN12196 is explicitly a **supplementary** application note. It is not the full protocol spec and should be used together with the **NTAG 424 DNA data sheet** and, where relevant, the LRP-related notes AN12321 / AN12304. Treat the data sheet as authoritative for exact command semantics, edge cases, and any details this note only illustrates by example.
+
+The note is strongest on:
+
+- worked crypto examples
+- example APDUs
+- meaning of file settings bytes
+- example personalization flow
+- verification-side SDM/SUN processing
+- examples for secure messaging wrapping and MAC verification
+
+The note is weaker as a complete implementer’s reference for:
+
+- every possible command parameter combination
+- all error/status codes
+- all file-setting encodings outside the examples
+- a complete host library architecture
+
+So: use this file as a **task brief and mental model**, but expect to cross-check exact wire formats against the data sheet.
+
+---
+
+## 2. Mental model of the product
+
+NTAG 424 DNA is an NFC Forum Type 4 Tag built on ISO/IEC 14443 and ISO/IEC 7816-4. The common model exposed in this note is:
+
+- **CC file** (`E103`) — capability container, 32 bytes
+- **NDEF file** (`E104`) — 256 bytes
+- **Proprietary file** (`E105`) — optional application-defined data
+
+The product supports two security planes that matter to implementation:
+
+1. **SDM / SUN**
+   - used for dynamic NDEF content returned without a prior host authentication
+   - intended for consumer tap flows, especially URL-based backend verification
+
+2. **SSM**
+   - authenticated secure messaging between reader and PICC
+   - used for protected management operations and protected reads/writes
+
+A useful way to think about the device:
+
+- **Consumer tap mode**: tag boots, generates dynamic mirrored content in the NDEF file, the phone reads NDEF, backend verifies it.
+- **Provisioning / admin mode**: a reader authenticates with app keys, opens an SSM session, then writes files, changes keys, changes file settings, enables Random ID, etc.
+
+---
+
+## 3. The single most important implementation split
+
+Your software should be designed as **two mostly separate subsystems**:
+
+### A. Provisioning / maintenance channel
+Handles:
+
+- ISO activation
+- ISO SELECT of NDEF application / files
+- `GetVersion`
+- `GetFileSettings`
+- `AuthenticateEV2First`
+- `AuthenticateEV2NonFirst`
+- secure `WriteData`
+- `ChangeFileSettings`
+- `ChangeKey`
+- `SetConfiguration`
+- `GetCardUID`
+- optional originality / tag-tamper management
+
+This side maintains:
+- current authenticated session
+- `TI`
+- `CmdCtr`
+- `KSesAuthENC`
+- `KSesAuthMAC`
+- comm mode rules
+
+### B. SUN / SDM verification channel
+Handles:
+
+- parsing mirrored NDEF URL content
+- decrypting `PICCENCData` when used
+- deriving SDM session keys
+- decrypting `SDMENCFileData` when used
+- computing and verifying `SDMMAC`
+- enforcing backend policy (counter monotonicity, replay detection, expected product UID, etc.)
+
+This side does **not** use the SSM session keys from authenticated operations. SDM has its own derivation path.
+
+Do not blur these together.
+
+---
+
+## 4. Byte order and encoding rules that will bite you
+
+The note is explicit about representation rules:
+
+### LSB-first
+Use least-significant-byte first for:
+- plain command parameters consisting of multiple bytes
+- ISO/IEC 14443 activation parameters
+
+This affects values like:
+- offsets
+- lengths
+- counters in command payloads
+
+Examples:
+- offset `0x20` is sent as `200000`
+- length `0x53` is sent as `530000`
+- counter value 1 may appear as `010000`
+
+### MSB-first
+Use most-significant-byte first for:
+- cryptographic parameters
+- keys
+- random numbers exchanged during authentication
+- transaction identifier `TI`
+- computed MACs
+
+### ASCII mirroring
+In SDM, mirrored values in NDEF are ASCII hex text, not raw bytes.
+Examples:
+- 7-byte UID becomes 14 ASCII hex chars
+- 3-byte counter becomes 6 ASCII hex chars
+- truncated MAC becomes 16 ASCII hex chars
+
+### Truncated MAC rule
+`MACt` is an 8-byte truncation derived from the full 16-byte CMAC by taking:
+`S14 || S12 || S10 || S8 || S6 || S4 || S2 || S0`
+i.e. the even-numbered bytes in MSB-first order as defined in the note.
+
+This matters for both:
+- SDM MAC verification
+- SSM MAC wrapping / response verification
+
+If your truncation is wrong, everything “looks almost correct” but verification fails.
+
+---
+
+## 5. SDM / SUN: the non-authenticated dynamic NDEF model
+
+## 5.1 Core idea
+
+Secure Dynamic Messaging lets the tag produce a **different, cryptographically protected NDEF payload on each tap**, without a prior reader authentication. This is the mechanism behind “tap a URL, backend checks authenticity”.
+
+The note’s high-level flow:
+
+1. reader/phone activates the tag
+2. tag prepares the configured mirrors during power-up / field presence
+3. reader reads NDEF via `ISOReadBinary`
+4. NFC counter increments once per session
+5. backend verifies or decrypts the mirrored values
+
+Important implementation consequences:
+
+- mirroring only happens in the **non-authenticated** state
+- mirrored content overlays placeholders in the NDEF template
+- mirrors are individually configurable by offset and length
+- mirrors must not overlap
+- CMAC is usually appended near the end of the URL/query string
+
+---
+
+## 5.2 What can be mirrored
+
+Depending on configuration, the NDEF can contain:
+
+- UID
+- `SDMReadCtr`
+- encrypted PICC data (`PICCENCData`)
+- encrypted tag-tamper state
+- encrypted static file data (`SDMENCFileData`)
+- a truncated CMAC (`SDMMAC`)
+
+The note shows several representative layouts:
+
+- plain UID + counter + CMAC
+- encrypted `(UID + counter)` + CMAC
+- encrypted `(UID + counter)` + encrypted tamper state + CMAC
+- encrypted `(UID + counter)` + encrypted file data + CMAC
+
+You should implement your verifier to be driven by configuration, not by one hard-coded URL shape.
+
+---
+
+## 5.3 SUN generation invariants
+
+Important invariants from the note:
+
+- mirroring is inside NDEF only, and only when unauthenticated
+- dynamic data overlays placeholder text
+- each mirror has a start offset and length
+- offsets plus lengths must not overlap
+- mirror output is ASCII-encoded
+- separators between mirrored fields are arbitrary static URL text; the backend must know exact offsets or parse the URL fields robustly
+
+---
+
+## 5.4 SDM keys are not SSM keys
+
+This is critical.
+
+The note explicitly states that the SDM session keys used for SUN generation are **not the same** as the secure messaging session keys derived during `AuthenticateEV2First` / `AuthenticateEV2NonFirst`.
+
+For SDM, with `KSDMFileRead` (the SDM file read key), derive:
+
+- `KSesSDMFileReadENC = MAC(KSDMFileRead, SV1)`
+- `KSesSDMFileReadMAC = MAC(KSDMFileRead, SV2)`
+
+Example derivation seed structure in the note:
+
+- `SV1 = C33C 0001 0080 [UID] [SDMReadCtr] [ZeroPadding]`
+- `SV2 = 3CC3 0001 0080 [UID] [SDMReadCtr] [ZeroPadding]`
+
+The UID and `SDMReadCtr` are included when mirrored; for encrypted PICC data they are mandatory inputs to the derivation.
+
+Implementation rule:
+- build a dedicated SDM KDF module
+- do not attempt to reuse your EV2 authentication session derivation code directly unless you are very deliberate about the different inputs
+
+---
+
+## 5.5 `PICCData` and `PICCENCData`
+
+### `PICCData`
+Conceptually this is the tag-side dynamic data that can include:
+- UID
+- `SDMReadCtr`
+- padding / metadata tag
+
+### `PICCENCData`
+This is encrypted PICC data, produced with `KSDMMetaRead`:
+- algorithm in the note: `PICCENCData = E(KSDMMetaRead; PICCDataTag [|| UID] [|| SDMReadCtr] || RandomPadding)`
+
+The note shows a decrypted example where:
+- first byte is `PICCDataTag`
+- then 7-byte UID
+- then 3-byte `SDMReadCtr`
+- then random padding
+
+### `PICCDataTag` bits
+The example interpretation in the note implies:
+- bit 7: UID mirroring enabled
+- bit 6: `SDMReadCtr` mirroring enabled
+- bits 3..0: UID length (example shows `111b` meaning 7-byte UID)
+
+Implementation advice:
+- parse `PICCDataTag` rather than assuming fixed layout forever
+- however, for NTAG 424 DNA common cases, expect 7-byte UIDs and 3-byte counters
+
+### Security note from the application note
+When `PICCData` is encrypted, the verifier does not immediately know the UID. The note warns that in that case `KSDMMetaRead` should **not** rely on UID diversification for verification, because the UID is needed to recover the very thing that would drive diversification. That creates a key-management design constraint on the backend.
+
+This is one of the most important architecture warnings in the document.
+
+---
+
+## 5.6 `SDMENCFileData`
+
+This is encrypted application-defined file data mirrored into the NDEF output.
+
+The note’s model:
+
+- derive `KSesSDMFileReadENC` from `KSDMFileRead`
+- compute an encryption IV derived from `SDMReadCtr`
+- encrypt the selected static file slice
+- expose the encrypted value in ASCII hex in the NDEF URL
+
+The note’s decryption example shows the rough backend procedure:
+
+1. decrypt `PICCENCData`
+2. recover UID and `SDMReadCtr`
+3. derive `KSesSDMFileReadENC`
+4. compute IV from `SDMReadCtr`
+5. decrypt `SDMENCFileData`
+
+Implementation consequence:
+- verification order matters
+- you generally need `PICCENCData` first, because that gives you the counter and possibly the UID used in the next derivation step
+
+---
+
+## 5.7 `SDMMAC`
+
+`SDMMAC` is the truncated CMAC protecting the dynamic NDEF data view.
+
+The note defines:
+- `SDMMAC = MACt(KSesSDMFileReadMAC; DynamicFileData[SDMMACInputOffset :: SDMMACOffset - 1])`
+
+Key points:
+
+- the input is **dynamic file data as actually exposed externally**
+- placeholders must be replaced by the real mirrored values before MAC computation
+- when `SDMMACInputOffset == SDMMACOffset`, the MAC input is zero-length
+- modern CMAC libraries usually handle zero-length input correctly
+
+The note gives both:
+- zero-length input example
+- non-zero-length example where the MAC covers ASCII text including `enc=...&cmac=`
+
+Implementation gotcha:
+- the MAC input is on the **ASCII presentation layer**, not on your internal raw binary model
+- off-by-one errors around offsets or inclusion/exclusion of separators are common failure modes
+
+---
+
+## 5.8 Practical backend verification algorithm for SUN
+
+A robust verifier should do something like this:
+
+1. Parse the incoming URL / NDEF-derived fields.
+2. Extract:
+   - `PICCENCData` or plain UID/counter mirrors
+   - optional `SDMENCFileData`
+   - `SDMMAC`
+   - optional tamper mirror
+3. Recover dynamic metadata:
+   - if plain mirrors exist, parse them directly
+   - if encrypted PICC data exists, decrypt it using `KSDMMetaRead`
+4. Obtain UID and `SDMReadCtr`.
+5. Derive:
+   - `KSesSDMFileReadENC`
+   - `KSesSDMFileReadMAC`
+6. If `SDMENCFileData` exists:
+   - derive IV from counter
+   - decrypt it
+7. Reconstruct the exact MAC input substring from the external ASCII dynamic message.
+8. Compute full CMAC with `KSesSDMFileReadMAC`.
+9. Apply NXP’s truncation rule to get `MACt`.
+10. Compare with received `SDMMAC`.
+11. Enforce backend policy:
+   - reject replayed or regressing counters
+   - reject unexpected UID / product / state
+   - optionally bind to issuance records or expected keyset version
+
+This verification path should be completely test-vector driven.
+
+---
+
+## 6. Standard Secure Messaging (SSM)
+
+## 6.1 Purpose
+
+SSM is the authenticated channel used between the reader (PCD) and the tag (PICC) after a successful EV2 authentication. The note frames three communication modes:
+
+- `CommMode.Plain`
+- `CommMode.MAC`
+- `CommMode.Full`
+
+Use SSM for authorized settings/data changes and protected operations.
+
+---
+
+## 6.2 Authentication establishes transaction state
+
+Successful `AuthenticateEV2First` or `AuthenticateEV2NonFirst` establishes secure messaging state including:
+
+- `KSesAuthENC`
+- `KSesAuthMAC`
+- `TI` (Transaction Identifier)
+- `CmdCtr` (command counter)
+
+All subsequent commands in the transaction are cryptographically bound through `TI` and `CmdCtr`.
+
+Implementation rule:
+- treat the authenticated session as explicit state
+- on new authentication, reset and rebuild this state
+- do not let `CmdCtr` drift; increment exactly as required by the protocol
+
+---
+
+## 6.3 SSM session keys
+
+The note shows the EV2 KDF shape after authentication and gives fully worked examples for:
+- `AuthenticateEV2First` with key 0x00
+- `AuthenticateEV2First` with key 0x03
+- `AuthenticateEV2NonFirst` with key 0x00
+
+For implementation planning, the important takeaway is:
+
+- after RndA/RndB exchange and rotation checks,
+- derive `SV1` and `SV2` from the authentication transcript,
+- then:
+  - `KSesAuthENC = CMAC(Key, SV1)`
+  - `KSesAuthMAC = CMAC(Key, SV2)`
+
+Do not infer the full derivation from memory; use the data sheet / note examples as test vectors.
+
+---
+
+## 6.4 `CommMode.Plain`
+
+Plain mode means:
+- no encryption
+- no secure MAC wrapping at the command level
+
+Typical use:
+- simple ISO reads or writes when access rights allow
+- example CC-file write in the note
+
+Do not confuse “plain comm mode file setting” with “unauthenticated”. A command can still occur inside an authenticated transaction even if the underlying file comm mode is plain; what matters is the command’s expected secure wrapping behavior in context.
+
+---
+
+## 6.5 `CommMode.MAC`
+
+In MAC mode, data is sent in plain but protected by a truncated CMAC.
+
+The note’s formula for a command-side MAC is:
+- `CMAC = MACt(KSesAuthMAC, IV, Cmd || CmdCtr || TI || CmdHeader (if present) || EncCmdData (if present))`
+
+The worked `GetFileSettings` example is valuable because it demonstrates:
+
+- command-side MAC generation
+- response-side MAC verification
+- use of `CmdCtr + 1` in the response MAC input
+
+Implementation lesson:
+- you need separate helper functions for wrapping commands and validating responses
+- the response MAC input ordering is not identical to the request MAC input ordering
+
+---
+
+## 6.6 `CommMode.Full`
+
+Full mode means:
+- command payload and/or response payload is encrypted
+- integrity is still protected with MAC
+
+The note gives IV derivation formulas:
+
+- `IVc = E(KSesAuthENC, A55A || TI || CmdCtr || 0^16)`
+- `IVr = E(KSesAuthENC, 5AA5 || TI || CmdCtr+1 || 0^16)`
+
+The fully encrypted `WriteData` example in the personalization section is one of the most useful practical references in the note.
+
+Implementation rule:
+- centralize IV generation
+- centralize encrypt/decrypt + MAC wrapping
+- never hand-roll these per command in scattered code
+
+---
+
+## 7. APDU / command handling patterns
+
+The examples in the note imply a practical command taxonomy:
+
+### ISO commands
+Examples:
+- select NDEF application by DF name (`00 A4 04 0C ...`)
+- `ISOUpdateBinary`
+- `ISOReadBinary`
+
+These use ISO/IEC 7816-style framing.
+
+### Native NTAG / DESFire-style commands carried in ISO APDUs
+Examples:
+- `GetVersion`
+- `AuthenticateEV2First`
+- `AuthenticateEV2NonFirst`
+- `WriteData`
+- `ChangeFileSettings`
+- `SetConfiguration`
+- `GetCardUID`
+- `ChangeKey`
+
+These are wrapped as:
+- `90 <INS> 00 00 <Lc> <payload> 00`
+with multi-frame flows using `90 AF ...` where applicable.
+
+Implementation recommendation:
+- build a single APDU encoder/decoder layer that understands:
+  - ISO select/update/read
+  - native command-in-ISO wrappers
+  - `91AF` additional-frame handling
+  - `9100` success
+  - response parsing into `(status, body, mac)` where relevant
+
+---
+
+## 8. File model and the example personalization flow
+
+The note’s worked personalization sequence is excellent as a provisioning script blueprint.
+
+## 8.1 Example sequence in the note
+
+The example flow is:
+
+1. ISO14443-4 activation
+2. originality signature verification
+3. ISO SELECT NDEF application by DF name
+4. `GetFileSettings`
+5. `GetVersion`
+6. `AuthenticateEV2First` with app key `0x00`
+7. prepare NDEF data
+8. write NDEF file (`E104`)
+9. change NDEF file settings
+10. `AuthenticateEV2First` with app key `0x03`
+11. select proprietary file `E105`
+12. write proprietary file
+13. select CC file `E103`
+14. `AuthenticateEV2NonFirst` with app key `0x00`
+15. write CC file to switch lifecycle to read-only
+16. change key `0x02`
+17. change key `0x00`
+
+That is not mandatory as-is, but it is an excellent reference provisioning state machine.
+
+---
+
+## 8.2 Activation
+
+The note includes the ISO14443-4 activation sequence with:
+- `REQA`
+- anti-collision cascade levels
+- select CL1 / CL2
+- `RATS`
+- ATS
+- optional PPS
+
+For most host stacks this will be handled by the NFC chipset / lower library, but if your system is low-level you must preserve this distinction:
+- ISO14443-3 activation and anticollision are not the same as APDU exchange
+- Random ID affects anticollision behavior and ATQA
+
+---
+
+## 8.3 Selecting the NDEF application
+
+The note’s NDEF application DF name / AID is:
+
+- `D2760000850101`
+
+Example select APDU:
+- `00 A4 04 0C 07 D2760000850101 00`
+
+This should be one of the first concrete commands your writer implementation supports.
+
+---
+
+## 8.4 `GetFileSettings` as a capability probe
+
+The note explicitly says this step is optional, but it is very useful in practice because it tells you:
+
+- current communication mode
+- access rights
+- SDM options
+- offsets
+- key associations
+
+Use it as a “discover current card state” primitive.
+
+The worked NDEF file settings example decodes fields such as:
+
+- file type
+- file option (`SDM and mirror enabled`, `CommMode.Plain`)
+- access rights
+- file size
+- SDM options
+- SDM access rights
+- `UIDOffset`
+- `SDMReadCtrOffset`
+- optional other SDM offsets
+
+This should drive your read/write logic instead of assuming the card is in a default layout.
+
+---
+
+## 8.5 `GetVersion`
+
+The note gives the typical multi-frame `GetVersion` sequence and explains returned fields, including:
+
+- vendor/type/subtype
+- storage size
+- protocol type
+- UID when Random ID is not enabled
+- production batch info
+- production week/year
+
+Use `GetVersion` early in tooling because it is invaluable for:
+- sanity checking you are talking to the expected chip class
+- deciding whether Random ID is enabled
+- logging manufacturing metadata during provisioning
+
+---
+
+## 8.6 `AuthenticateEV2First`
+
+This is your main session bootstrap for SSM.
+
+The note’s examples show:
+
+- command INS `0x71`
+- two-part flow using an `AF` continuation
+- RndB decrypt
+- reader-generated RndA
+- rotate-left / rotate-right checks
+- derivation of `KSesAuthENC` and `KSesAuthMAC`
+
+Your implementation must expose this as a stateful operation returning something like:
+
+```text
+AuthSession {
+  key_no,
+  key_value,
+  ti,
+  cmd_ctr = 0,
+  kses_auth_enc,
+  kses_auth_mac,
+  auth_mode = EV2First | EV2NonFirst,
+  crypto_mode = AES | LRP
+}
+```
+
+---
+
+## 8.7 NDEF preparation
+
+The note’s example NDEF content is a URI-like string with placeholders:
+
+`https://choose.url.com/ntag424?e=0000...0000&c=0000...0000`
+
+The example then writes:
+- the NDEF length
+- NDEF URI header bytes
+- the ASCII URL payload
+
+The example also points out important offsets such as:
+- encrypted PICC data offset (`0x20` / 32)
+- CMAC input offset
+- CMAC offset (`0x43` / 67 in the example)
+
+Implementation rule:
+- build NDEF payloads from a structured template
+- calculate offsets from the final string, not by hand
+- validate that placeholder lengths match the expected mirrored lengths
+
+---
+
+## 8.8 Writing NDEF
+
+The note shows two ways:
+
+1. `ISOUpdateBinary` in plain mode
+2. native `WriteData` in full secure messaging mode
+
+For a generic writer library, support both:
+- `ISOUpdateBinary` is simple and useful when access rights allow
+- `WriteData` is the more universal native path and is required for many authenticated workflows
+
+The worked `WriteData` example is especially useful because it shows:
+- file number
+- offset
+- length
+- encrypted command data under full mode
+- MAC generation
+- response MAC verification
+
+---
+
+## 8.9 Changing NDEF file settings
+
+This is where the SDM behavior is really configured.
+
+The note’s example `Cmd.ChangeFileSettings` payload includes fields such as:
+
+- `FileOption = 0x40`  
+  meaning SDM and mirroring enabled, comm mode plain
+- access rights
+- `SDMOptions = 0xC1`
+  - UID mirror enabled
+  - `SDMReadCtr` enabled
+  - `SDMReadCtrLimit` disabled
+  - `SDMENCFileData` disabled
+  - ASCII mode enabled
+- `SDMAccessRights = 0xF121`
+  - `SDMCtrRet = 1`
+  - `SDMMetaRead = 2`
+  - `SDMFileRead = 1`
+- `ENCPICCDataOffset = 0x20`
+- `SDMMACOffset = 0x43`
+- `SDMMACInputOffset = 0x43`
+
+This is the heart of turning a generic NDEF file into a SUN-producing one.
+
+Implementation advice:
+- treat file-settings encoding/decoding as its own module
+- make it declarative (`NdefSdmSettings -> bytes`) rather than hand-concatenated hex everywhere
+- validate offset non-overlap before sending commands
+
+---
+
+## 8.10 Proprietary file write
+
+The note then authenticates with key `0x03`, selects proprietary file `E105`, and writes example data `01..0A` via encrypted `WriteData`.
+
+This is useful because it demonstrates:
+- multiple key domains in one card/application
+- using different keys for different file operations
+- re-authentication between provisioning steps
+
+Your host implementation should not assume one session/key is enough for all files.
+
+---
+
+## 8.11 CC file write
+
+The CC file (`E103`) example write is used to switch lifecycle to **read-only** as per NFC Forum T4T expectations.
+
+That makes this a finalization step, not just a data write.
+
+If you are building a provisioning pipeline, treat CC-file update as “publish/finalize”.
+
+---
+
+## 8.12 Key changes
+
+The note shows two key-change cases:
+
+### Case 1: changing a key different from the authenticated key
+Example: authenticated with key 0x00, change key 0x02
+
+Payload concept:
+- `OldKey XOR NewKey`
+- key version
+- CRC32 of new key
+- then secure wrapping
+
+### Case 2: changing the currently authenticated key
+Example: authenticated with key 0x00, change key 0x00
+
+The secure-wrapping pattern is similar, but the payload semantics differ because the authenticated key is the one being replaced.
+
+Implementation advice:
+- model these as two explicit branches
+- do not try to “one size fits all” until you are sure the payload rules are correct
+- use test vectors from the note before touching real keys
+
+---
+
+## 9. Special functionality you should design for
+
+## 9.1 `SetConfiguration`
+
+This command requires:
+- authentication with `AppMasterKey`
+- `CommMode.Full`
+
+The note says it can configure:
+- Random ID
+- disable chaining with `WriteData`
+- enable LRP mode (**irreversible**)
+- failed-auth counter configuration
+- strong back modulation
+
+This is a highly privileged admin command. Treat it accordingly.
+
+---
+
+## 9.2 Random ID (RID)
+
+Purpose:
+- privacy / anti-tracking
+- GDPR-oriented behavior
+- anticollision returns a random 4-byte ID instead of the real UID
+
+Important note details:
+
+- when enabled, `ATQA` changes from the default value
+- the process is **irreversible**
+- once enabled, the real UID is no longer available through anticollision
+- the real UID must then be retrieved using `GetCardUID` in `CommMode.Full`
+
+Design implication:
+- your software must separate:
+  - anticollision ID / presented RID
+  - real card UID
+- do not key inventory or backend identity solely off anticollision data when RID may be enabled
+
+---
+
+## 9.3 `GetCardUID`
+
+The note states that with Random ID enabled, the only way to get the real UID is `Cmd.GetCardUID` in full secure messaging after authentication.
+
+So if your provisioning or audit pipeline needs the permanent UID:
+- authenticate first
+- call `GetCardUID`
+- decrypt/verify response
+- log the real UID there
+
+---
+
+## 9.4 Failed authentication counters
+
+This feature is intended as an additional side-channel / brute-force mitigation, especially in AES mode.
+
+Per-key state includes:
+- `TotFailCtr`
+- `SeqFailCtr`
+- `SpentTimeCtr`
+
+Behavior described in the note:
+- failed auth increments counters
+- success decreases `TotFailCtr` by `TotFailCtrDecr`
+- after enough consecutive failures, response delays are introduced
+- default delayed-failure response code mentioned is `91AD`
+- changing an app key resets the related counter set to defaults
+
+Implementation implications:
+- repeated failed auths in testing can make a card appear “slow” or blocked
+- tooling should distinguish transport timeouts from deliberate anti-abuse delay
+- your test harness should avoid hammering wrong keys
+
+---
+
+## 9.5 TagTamper
+
+NTAG 424 DNA TagTamper variants support a detection loop whose open/closed state can be recorded and mirrored.
+
+The note’s important details:
+
+- tamper measurement happens on boot during processing of the first ISO14443-4 command after activation, if permanent status is still closed
+- if the loop is detected open, permanent status is updated in NVM
+- `Cmd.GetTTStatus` can trigger measurement and return:
+  - permanent status
+  - current status
+
+Implementation implications:
+- if your product uses TagTamper, backend verification may need to parse and interpret tamper mirrors
+- physical design still matters because the tag is passive and measurement happens only under field power
+
+---
+
+## 9.6 `SDMReadCtrLimit`
+
+This can be set via `ChangeFileSettings` and read via `GetFileSettings`.
+
+When the limit is reached:
+- NDEF reads with `ReadData` / `ISOReadBinary` stop working
+
+Use cases given by the note:
+- usage/tap limiting
+- reducing conditions for SDM side-channel attacks
+
+The note also warns this can create DoS risk.
+
+Implementation implication:
+- do not enable this casually in production unless your product model truly wants hard tap limits
+- your backend and field diagnostics should understand that a dead-looking NDEF may be an exhausted counter limit, not a broken tag
+
+---
+
+## 10. Originality verification
+
+The note distinguishes two forms.
+
+## 10.1 Symmetric originality check
+
+- based on four secret per-chip originality keys
+- uses **LRP authentication**, not AES
+- requires LRP mode to be enabled with `SetConfiguration`
+- originality keys are created in NXP secure manufacturing and cannot be changed
+- these keys are not generally public; access is limited to NXP licensees
+
+This is usually not the first thing to implement unless your program actually has access to those keys and intends to use LRP mode.
+
+## 10.2 Asymmetric originality check
+
+This is much more generally useful.
+
+The tag contains an NXP originality signature:
+- ECDSA based on the UID
+- 56 bytes
+- curve `secp224r1`
+
+The note’s flow:
+1. retrieve originality signature with `Cmd.Read_Sig`
+2. obtain NXP’s public key
+3. verify ECDSA over the UID
+
+Implementation note:
+- if you need to prove the chip itself is genuine NXP silicon before personalization, this is the most accessible path
+- it is independent from your own app keys
+
+---
+
+## 11. Online vs offline architecture
+
+The note explicitly describes two deployment models.
+
+## 11.1 Online system
+
+Typical SDM/SUN pattern:
+- phone or reader just relays data
+- backend/cloud verifies
+- keys stay in backend/HSM
+- no secure element required on the phone side
+
+This is the natural architecture for consumer authentication URLs.
+
+## 11.2 Offline system
+
+Typical closed-loop reader pattern:
+- host implements AES-128 or LRP crypto locally
+- host needs secure key storage, ideally a secure element / SAM
+- can verify and authenticate without broadband connectivity
+
+Implementation recommendation:
+- if you are building a desktop/mobile writer for provisioning, offline capability is often desirable
+- if you are building consumer authenticity checks, online backend verification is usually easier and safer for key custody
+
+---
+
+## 12. What another LLM should implement
+
+Below is the most useful “task decomposition” for another coding LLM.
+
+## 12.1 Core modules
+
+### 1. NFC transport / APDU layer
+Responsibilities:
+- send APDUs
+- support ISO select / read / update
+- support native wrapped commands (`90 INS 00 00 ... 00`)
+- handle `91AF` continuation
+- expose raw response bytes and status words cleanly
+
+### 2. ISO14443 / session control layer
+Responsibilities:
+- activation lifecycle hooks
+- recognize anticollision UID vs Random ID case
+- manage per-tap / per-session state resets
+
+### 3. EV2 authentication layer
+Responsibilities:
+- `AuthenticateEV2First`
+- `AuthenticateEV2NonFirst`
+- RndA/RndB transcript handling
+- session key derivation
+- produce `AuthSession`
+
+### 4. SSM secure messaging layer
+Responsibilities:
+- command wrapping in Plain / MAC / Full modes
+- IV derivation
+- CMAC truncation
+- response verification
+- command counter tracking
+
+### 5. File model layer
+Responsibilities:
+- select application / file
+- get/set file settings
+- read/write NDEF, CC, proprietary files
+- encode/decode access-rights and SDM settings
+
+### 6. SDM / SUN backend verification layer
+Responsibilities:
+- parse mirrored NDEF URL
+- decrypt `PICCENCData`
+- derive SDM session keys
+- decrypt `SDMENCFileData`
+- verify `SDMMAC`
+- apply replay / policy checks
+
+### 7. Provisioning workflow layer
+Responsibilities:
+- blank-card inspection
+- originality verification
+- write NDEF template
+- change file settings
+- write proprietary data
+- finalize CC
+- rotate/diversify keys
+- optional Random ID enablement
+
+---
+
+## 12.2 Recommended public API surface
+
+A useful host-side library API might include functions like:
+
+```text
+connect()
+activate()
+select_ndef_application()
+get_version()
+get_file_settings(file_no)
+authenticate_ev2_first(key_no, key_bytes)
+authenticate_ev2_non_first(key_no, key_bytes, session)
+wrap_command(session, ins, cmd_header, cmd_data, comm_mode)
+unwrap_response(session, ins, response, comm_mode)
+write_data(session, file_no, offset, data, comm_mode)
+change_file_settings(session, file_no, settings)
+change_key(session, target_key_no, old_key, new_key, version, case_type)
+set_configuration(session, option, value)
+get_card_uid(session)
+read_sig()
+build_ndef_url_template(base_url, mirrors)
+verify_sun(url_or_fields, sdm_config, keys)
+```
+
+And data types like:
+
+```text
+AuthSession
+CardVersionInfo
+FileSettings
+SdmConfig
+SunParseResult
+SunVerificationResult
+```
+
+---
+
+## 12.3 State machine expectations
+
+A correct implementation should model at least these states:
+
+```text
+DISCONNECTED
+  -> FIELD_PRESENT / ACTIVATED
+  -> APP_SELECTED
+  -> AUTHENTICATED(session)
+       -> COMMAND_1 (CmdCtr=0)
+       -> COMMAND_2 (CmdCtr=1)
+       -> ...
+  -> SESSION_END / FIELD_LOST
+```
+
+Rules:
+- a new authentication starts a new secure session
+- `CmdCtr` is scoped to that session
+- field loss / reconnect should invalidate cached session state unless you have very strong reason otherwise
+- SDM verification is independent from this state machine
+
+---
+
+## 12.4 Test vectors that matter most
+
+Before implementing exotic features, make sure another LLM can reproduce these classes of examples from the note:
+
+1. `AuthenticateEV2First` example
+2. `GetFileSettings` MACed example
+3. `WriteData` in `CommMode.Full`
+4. `ChangeFileSettings`
+5. `AuthenticateEV2NonFirst`
+6. `ChangeKey` case 1 and case 2
+7. decrypt `PICCENCData`
+8. derive SDM session keys from UID + counter
+9. verify zero-length `SDMMAC`
+10. verify non-zero-length `SDMMAC`
+11. Random ID enablement flow
+12. `GetCardUID` decryption flow
+13. `Read_Sig` originality verification
+
+If these pass, you probably have the core logic right.
+
+---
+
+## 13. Implementation pitfalls and non-obvious lessons
+
+### Pitfall 1: mixing SDM and SSM session key logic
+They are different derivation contexts. Keep them in different modules.
+
+### Pitfall 2: treating mirrored values as raw bytes
+SDM mirroring is ASCII hex in the NDEF view.
+
+### Pitfall 3: using the wrong byte order for offsets/counters
+Offsets and lengths are commonly LSB-first in command parameters.
+
+### Pitfall 4: wrong CMAC truncation
+NXP’s truncation rule is unusual enough to be worth a dedicated helper and unit tests.
+
+### Pitfall 5: MACing the wrong string
+For `SDMMAC`, the input is the **external dynamic ASCII presentation**, not your binary internal structures.
+
+### Pitfall 6: assuming UID is always visible
+With Random ID and/or encrypted PICC data, it may not be visible without authenticated retrieval or decryption.
+
+### Pitfall 7: assuming one key/session is enough for provisioning
+The example flow uses multiple keys for different operations.
+
+### Pitfall 8: forgetting `CmdCtr` increments on response verification paths
+Response MAC inputs use incremented counters.
+
+### Pitfall 9: enabling irreversible features too early
+- Random ID is irreversible
+- switching to LRP is irreversible
+
+Use clear operator confirmation in production tools.
+
+### Pitfall 10: not separating card identity notions
+You may have:
+- anticollision RID
+- real UID
+- backend product ID
+- originality-signature identity
+These are not the same thing.
+
+### Pitfall 11: failing to validate file-setting offset overlap
+SDM offsets must not overlap.
+
+### Pitfall 12: accidental test lockout from failed-auth counters
+Repeated wrong-key tests can trigger delays or apparent failures.
+
+---
+
+## 14. Minimal viable feature set for a first implementation
+
+If another LLM is building v1 of a usable reader/writer, it should prioritize:
+
+### Writer / provisioning v1
+- activate card
+- select NDEF application
+- `GetVersion`
+- `GetFileSettings`
+- `AuthenticateEV2First` (AES)
+- plain and full `WriteData`
+- `ChangeFileSettings` for basic SDM URL
+- `AuthenticateEV2NonFirst`
+- basic `ChangeKey`
+- `GetCardUID`
+
+### SUN verification v1
+- parse URL fields
+- decrypt `PICCENCData`
+- derive SDM session keys
+- verify `SDMMAC`
+- reject replayed counters
+
+### Defer until v2 unless needed
+- LRP mode
+- symmetric originality
+- TagTamper
+- `SDMENCFileData`
+- `SDMReadCtrLimit`
+- advanced failed-auth counter config
+
+---
+
+## 15. Suggested provisioning recipe based on the note
+
+A pragmatic recipe derived from the application note:
+
+1. Connect and activate.
+2. Read `GetVersion`.
+3. Optionally verify NXP originality signature.
+4. Select NDEF application.
+5. Read current file settings.
+6. Authenticate with master/app key 0x00.
+7. Build the NDEF URL template with fixed placeholders.
+8. Write NDEF file.
+9. Change NDEF file settings to enable SDM mirroring with chosen offsets.
+10. If using a proprietary file, authenticate with its governing key and write it.
+11. Finalize the CC file for desired NFC Forum behavior.
+12. Rotate default keys to diversified production keys.
+13. Only after validation, optionally enable Random ID.
+14. Store backend metadata:
+    - real UID
+    - keyset/version
+    - base URL/template version
+    - SDM offsets/config
+    - personalization timestamp
+
+---
+
+## 16. Suggested SUN verification recipe based on the note
+
+1. Receive tap URL from phone/browser/app.
+2. Parse mirrored fields.
+3. Decrypt `PICCENCData` if present to recover UID and counter.
+4. Derive SDM session keys.
+5. Decrypt `SDMENCFileData` if configured.
+6. Reconstruct MAC input exactly as the tag emitted it.
+7. Compute and truncate CMAC.
+8. Compare with received MAC.
+9. Check:
+   - UID known / expected
+   - counter monotonic
+   - tag not revoked
+   - product / tamper / metadata consistent
+10. Return application verdict.
+
+---
+
+## 17. Condensed “prompt-ready” context for another LLM
+
+Use this block directly as a coding brief:
+
+> You are implementing a reader/writer for **NTAG 424 DNA**. Separate the design into **two subsystems**:  
+> **(A) provisioning/admin over EV2 secure messaging**, and  
+> **(B) backend/client-side verification of SDM/SUN dynamic NDEF output**.  
+>
+> For provisioning/admin, support: ISO activation hooks, ISO SELECT of the NFC Forum Type 4 NDEF application (`D2760000850101`), `GetVersion`, `GetFileSettings`, `AuthenticateEV2First`, `AuthenticateEV2NonFirst`, `WriteData`, `ChangeFileSettings`, `ChangeKey`, `SetConfiguration`, `GetCardUID`, and optionally `Read_Sig`.  
+>
+> Model authenticated session state explicitly with: `TI`, `CmdCtr`, `KSesAuthENC`, `KSesAuthMAC`, current authenticated key number, and auth mode (`EV2First` / `EV2NonFirst`). Implement `CommMode.Plain`, `CommMode.MAC`, and `CommMode.Full`. Centralize command wrapping and response verification. In Full mode, use the EV2 IV derivation pattern shown in the app note (`A55A || TI || CmdCtr ...` for command encryption and `5AA5 || TI || CmdCtr+1 ...` for response-side decryption).  
+>
+> Do not mix up byte order. Multi-byte command parameters such as offsets and lengths are commonly **LSB-first** in APDU payloads, while cryptographic values, keys, `TI`, random numbers, and MACs are treated **MSB-first**.  
+>
+> Implement CMAC truncation exactly as shown by NXP: the 8-byte MAC token is derived from the full 16-byte CMAC by taking alternating bytes in the defined order. Put this in one tested helper.  
+>
+> For SUN/SDM verification, assume the NDEF file may contain ASCII-hex mirrored values for UID, `SDMReadCtr`, encrypted PICC data (`PICCENCData`), encrypted file data (`SDMENCFileData`), and `SDMMAC`. Build a configuration-driven verifier that can parse the dynamic URL/template, recover UID and counter (either directly or by decrypting `PICCENCData`), derive SDM session keys, optionally decrypt mirrored file data, reconstruct the exact ASCII MAC input slice, compute `SDMMAC`, and reject replayed counters.  
+>
+> Keep **SDM KDF logic separate from SSM KDF logic**. For SDM, derive `KSesSDMFileReadENC` and `KSesSDMFileReadMAC` from the SDM file read key using the UID and `SDMReadCtr` per the application note examples. Do not reuse EV2 auth-session derivation blindly.  
+>
+> The worked personalization flow in AN12196 is a good implementation blueprint: activate card, optionally verify originality signature, select NDEF app, inspect file settings, authenticate with key `0x00`, build and write NDEF, change NDEF file settings to enable SDM, authenticate with other keys as needed, write proprietary file, update CC file, and rotate default keys.  
+>
+> Treat **Random ID** and **LRP enablement** as irreversible. When Random ID is enabled, the anticollision UID is not the real card UID; use authenticated `GetCardUID` to retrieve the permanent UID.  
+>
+> Build the implementation around strong test vectors using the note’s examples for authentication, `GetFileSettings`, `WriteData`, `ChangeFileSettings`, `ChangeKey`, `PICCENCData` decryption, and `SDMMAC` verification.
+
+---
+
+## 18. Final recommendations for the coding LLM
+
+- Prefer correctness and explicitness over abstraction first.
+- Encode every example from the note as a unit test.
+- Centralize byte-order conversions.
+- Centralize CMAC truncation.
+- Centralize secure-message wrapping/unwrapping.
+- Keep a strict distinction between:
+  - ISO activation
+  - ISO application/file selection
+  - EV2 auth session establishment
+  - SSM command wrapping
+  - SDM backend verification
+- Do not ship with default all-zero keys.
+- Treat irreversible commands as protected operations in tooling UX.
+- Store per-card personalization metadata so the backend knows the exact SDM layout to verify.
+
+---
+
+## 19. What this file does **not** assume
+
+This context does **not** assume:
+- a particular NFC chipset SDK
+- a specific programming language
+- that LRP is required
+- that TagTamper is present
+- that the app should operate fully offline
+- that the note alone is sufficient as a formal spec
+
+It is intended to be a high-value implementation brief, not a replacement for the data sheet.
