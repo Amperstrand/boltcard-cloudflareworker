@@ -9,6 +9,7 @@ import { constructWithdrawResponse } from "./handlers/withdrawHandler.js";
 import handleNfc from "./handlers/handleNfc.js";
 import { getUidConfig } from "./getUidConfig.js";
 import { handleActivateCardPage, handleActivateCardSubmit } from "./handlers/activateCardHandler.js";
+import { handleReset } from "./handlers/resetHandler.js";
 import { hexToBytes } from "./cryptoutils.js";
 import { logger } from "./utils/logger.js";
 
@@ -32,6 +33,10 @@ router.all("/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards", (reque
 router.all("/boltcards/api/v1/lnurl/cb*", (request, env) => handleLnurlpPayment(request, env));
 router.get("/activate", () => handleActivateCardPage());
 router.post("/activate", (request, env) => handleActivateCardSubmit(request, env));
+router.get("/wipe", (request, env) => {
+  const uid = new URL(request.url).searchParams.get("uid");
+  return handleReset(uid, env);
+});
 router.get("/", handleLnurlw);
 router.all("*", (request) => {
   logger.error("Route not found", { pathname: new URL(request.url).pathname, method: request.method });
