@@ -1,26 +1,35 @@
 /**
  * keygenerator.js — Deterministic key derivation for BoltCard (K0-K4)
  *
- * Generates NTAG 424 DNA AES-128 keys from a master IssuerKey and card UID.
- * The derivation uses AES-CMAC as a PRF with domain-separation tags.
+ * Implements the deterministic key generation scheme from:
+ *   https://github.com/boltcard/boltcard/blob/main/docs/DETERMINISTIC.md
+ *   https://github.com/btcpayserver/BTCPayServer.BoltCardTools
  *
- * Key roles per NXP AN12196 and boltcard.org protocol:
- *   K0 — Application master key (AuthenticateEV2First with key 0x00)
- *   K1 — SDM meta read key (encrypts PICCENCData / `p` parameter).
+ * Generates NTAG 424 DNA AES-128 keys from a master IssuerKey and card UID.
+ * The derivation uses AES-CMAC (NIST SP 800-38B) as a PRF with domain-separation tags.
+ *
+ * Key roles per the boltcard DETERMINISTIC.md spec:
+ *   K0 — App Master Key. Only key permitted to change application keys.
+ *   K1 — Encryption key for PICCData (the `p` parameter).
  *         Derived from IssuerKey directly (not CardKey) → shared across card fleet.
- *   K2 — SDM file read key (used for SDMMAC / `c` parameter verification).
- *         Per-card via CardKey.
- *   K3 — SDM read access key (reserved per NTAG424 SDMAccessRights config)
- *   K4 — SDM read/write access key (reserved per NTAG424 SDMAccessRights config)
+ *         This allows decrypting `p` for any card without per-UID database lookup.
+ *   K2 — Authentication key for SUN MAC (the `c` parameter). Per-card via CardKey.
+ *   K3 — Not used in BoltCard protocol but configured per NXP AN12196 recommendations.
+ *         Derived independently as a unique per-card key via CardKey (NOT set equal to K1/K2).
+ *   K4 — Not used in BoltCard protocol but configured per NXP AN12196 recommendations.
+ *         Derived independently as a unique per-card key via CardKey (NOT set equal to K1/K2).
+ *
+ * NOTE on K3/K4: Some implementations (e.g., certain LNBits configurations) set K3=K1
+ * and K4=K2 as a simplification. This deviates from the deterministic spec, which derives
+ * each key independently. Our implementation follows the spec — all 5 keys are unique.
  *
  * CardKey diversification:
  *   CardKey = CMAC(IssuerKey, "2d003f75" || UID || version_le32)
  *
- * Per-card keys (K0, K2-K4) use CardKey; fleet-wide K1 uses IssuerKey directly.
- * This allows decrypting `p` for any card without per-UID lookup (K1 is shared).
+ * ID derivation (for database lookups without exposing raw UID):
+ *   ID = CMAC(IssuerKey, "2d003f7b" || UID)
  *
  * Ref: docs/ntag424_llm_context.md §8.6 (authentication), §8.12 (key changes)
- * Ref: docs/boltcard-protocol.md §5 (key derivation)
  */
 import { computeAesCmac, hexToBytes, bytesToHex } from "./cryptoutils.js";
 

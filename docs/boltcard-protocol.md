@@ -212,38 +212,66 @@ The server independently recomputes this same `ct` from the decrypted UID and co
 
 ## 5. Key Derivation
 
-BoltCards use **five 128-bit AES keys** (K0 through K4). These are either generated deterministically from a master IssuerKey, or assigned manually when programming the card.
+BoltCards use **five 128-bit AES keys** (K0 through K4). These are generated deterministically from a master IssuerKey using the scheme defined in:
+
+- **boltcard DETERMINISTIC.md** (canonical spec): https://github.com/boltcard/boltcard/blob/main/docs/DETERMINISTIC.md
+- **BTCPayServer.BoltCardTools** (reference C# implementation): https://github.com/btcpayserver/BTCPayServer.BoltCardTools
 
 ### K0-K4 Key Roles
 
+Per the DETERMINISTIC.md spec:
+
 | Key | Derivation Base | Role |
 |-----|----------------|------|
-| K0  | CardKey        | Card master key (NXP file access control) |
-| K1  | IssuerKey      | Encrypts the `p` parameter (UID + counter) |
-| K2  | CardKey        | Computes the `c` parameter (AES-CMAC verification) |
-| K3  | CardKey        | Reserved (NXP SDM read access key) |
-| K4  | CardKey        | Reserved (NXP SDM read/write access key) |
+| K0  | CardKey        | App Master Key — only key permitted to change application keys |
+| K1  | IssuerKey      | Encryption key for PICCData (`p` parameter). Shared across fleet. |
+| K2  | CardKey        | Authentication key for SUN MAC (`c` parameter). Per-card. |
+| K3  | CardKey        | Not used in BoltCard protocol. Per-card, uniquely derived. |
+| K4  | CardKey        | Not used in BoltCard protocol. Per-card, uniquely derived. |
 
 K1 is derived directly from the IssuerKey (not from CardKey), which means all cards issued under the same IssuerKey share the same K1. This design allows a single K1 to decrypt the `p` parameter for any card in the fleet without knowing the specific card's UID in advance.
+
+**K3 and K4**: The deterministic spec derives each as a unique per-card key. Some implementations (e.g., certain LNBits configurations) set K3=K1 and K4=K2 as a simplification, but this deviates from the spec. Our implementation follows the spec — all 5 keys are independently derived and unique.
 
 ### Key Derivation Formula
 
 ```
 CardKey := CMAC(IssuerKey, "2d003f75" || UID || version_bytes)
-
-K0 := CMAC(CardKey,  "2d003f76")
-K1 := CMAC(IssuerKey, "2d003f77")          // note: uses IssuerKey, not CardKey
-K2 := CMAC(CardKey,  "2d003f78")
-K3 := CMAC(CardKey,  "2d003f79")
-K4 := CMAC(CardKey,  "2d003f7a")
-ID := CMAC(IssuerKey, "2d003f7b" || UID)
+K0      := CMAC(CardKey,  "2d003f76")
+K1      := CMAC(IssuerKey, "2d003f77")          // note: uses IssuerKey, not CardKey
+K2      := CMAC(CardKey,  "2d003f78")
+K3      := CMAC(CardKey,  "2d003f79")
+K4      := CMAC(CardKey,  "2d003f7a")
+ID      := CMAC(IssuerKey, "2d003f7b" || UID)
 ```
 
 Where:
 - `"2d003f75"` etc. are fixed 4-byte hex constants (domain separation tags)
 - `UID` is the 7-byte card UID
 - `version_bytes` is a 4-byte little-endian version number (default: `1`)
-- `CMAC` here means AES-CMAC with a 128-bit key
+- `CMAC` is AES-CMAC per NIST SP 800-38B (RFC 4493)
+
+### Test Vectors
+
+From the DETERMINISTIC.md spec:
+
+```
+Input:
+  UID:         04a39493cc8680
+  IssuerKey:   00000000000000000000000000000001
+  Version:     1
+
+Expected output:
+  K0:       a29119fcb48e737d1591d3489557e49b
+  K1:       55da174c9608993dc27bb3f30a4a7314
+  K2:       f4b404be700ab285e333e32348fa3d3b
+  K3:       73610ba4afe45b55319691cb9489142f
+  K4:       addd03e52964369be7f2967736b7bdb5
+  ID:       e07ce1279d980ecb892a81924b67bf18
+  CardKey:  ebff5a4e6da5ee14cbfe720ae06fbed9
+```
+
+Our implementation is verified against these vectors in `tests/keygenerator.test.js`.
 
 ### Security Properties
 
