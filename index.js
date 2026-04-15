@@ -8,8 +8,10 @@ import { handleProxy } from "./handlers/proxyHandler.js";
 import { constructWithdrawResponse } from "./handlers/withdrawHandler.js";
 import handleNfc from "./handlers/handleNfc.js";
 import { getUidConfig } from "./getUidConfig.js";
-import { handleActivateCardPage, handleActivateCardSubmit } from "./handlers/activateCardHandler.js";
+import { handleActivateCardPage as handleActivateForm, handleActivateCardSubmit } from "./handlers/activateCardHandler.js";
 import { handleReset } from "./handlers/resetHandler.js";
+import { handleActivatePage } from "./handlers/activatePageHandler.js";
+import { handleWipePage } from "./handlers/wipePageHandler.js";
 import { hexToBytes } from "./cryptoutils.js";
 import { logger } from "./utils/logger.js";
 
@@ -31,11 +33,13 @@ router.all("/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards", (reque
   fetchBoltCardKeys(request, env)
 );
 router.all("/boltcards/api/v1/lnurl/cb*", (request, env) => handleLnurlpPayment(request, env));
-router.get("/activate", () => handleActivateCardPage());
-router.post("/activate", (request, env) => handleActivateCardSubmit(request, env));
+router.get("/activate", (request) => handleActivatePage(request));
+router.get("/activate/form", () => handleActivateForm());
+router.post("/activate/form", (request, env) => handleActivateCardSubmit(request, env));
 router.get("/wipe", (request, env) => {
   const uid = new URL(request.url).searchParams.get("uid");
-  return handleReset(uid, env);
+  if (uid) return handleReset(uid, env);
+  return handleWipePage(request);
 });
 router.get("/", handleLnurlw);
 router.all("*", (request) => {
