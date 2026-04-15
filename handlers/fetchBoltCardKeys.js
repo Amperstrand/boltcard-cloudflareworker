@@ -34,7 +34,7 @@ export async function fetchBoltCardKeys(request, env) {
       return errorResponse("Must provide UID for programming, or LNURLW for reset");
     }
 
-    if ((onExisting === "UpdateVersion" || (!onExisting && uid)) && uid) {
+    if ((onExisting === "UpdateVersion" || (!onExisting && uid && !lnurlw)) && uid) {
       return handleProgrammingFlow(uid, env);
     }
 
@@ -42,12 +42,12 @@ export async function fetchBoltCardKeys(request, env) {
       return handleResetFlow(lnurlw, env);
     }
 
-    if (onExisting === "UpdateVersion" && !uid) {
-      return errorResponse("Programming flow requires UID in request body");
+    if (onExisting === "KeepVersion" && uid && !lnurlw) {
+      return generateKeyResponse(uid, env);
     }
 
-    if (onExisting === "KeepVersion" && !lnurlw) {
-      return errorResponse("Reset flow requires LNURLW in request body");
+    if (onExisting === "UpdateVersion" && !uid) {
+      return errorResponse("Programming flow requires UID in request body");
     }
 
     return errorResponse("Must provide UID for programming, or LNURLW for reset");
