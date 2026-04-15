@@ -109,18 +109,18 @@ async function handleResetFlow(lnurlw, env) {
 async function generateKeyResponse(uid, env) {
   const version = 1;
   const keys = await getDeterministicKeys(uid, env, version);
+  const lnurlw_base = "lnurlw://boltcardpoc.psbt.me/";
 
   return jsonResponse({
     protocol_name: "new_bolt_card_response",
     protocol_version: 1,
     card_name: `UID ${uid.toUpperCase()}`,
-    // LNURLW base URL — the NFC programmer writes this into the NDEF template.
-    // The card appends ?p=<PICCENCData>&c=<SDMMAC> at runtime via SDM mirroring.
-    LNURLW: "lnurlw://boltcardpoc.psbt.me/",
-    K0: keys.k0,
-    K1: keys.k1,
-    K2: keys.k2,
-    K3: keys.k3,
-    K4: keys.k4,
+    lnurlw_base,
+    LNURLW: lnurlw_base,
+    k0: keys.k0, K0: keys.k0,
+    k1: keys.k1, K1: keys.k1,
+    k2: keys.k2, K2: keys.k2,
+    k3: keys.k3, K3: keys.k3,
+    k4: keys.k4, K4: keys.k4,
   });
 }

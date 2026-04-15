@@ -117,7 +117,7 @@ export function handleActivatePage(request) {
           // Generate QR Codes
           document.addEventListener('DOMContentLoaded', () => {
             const qrProgramOptions = {
-              text: "${programDeepLink}",
+              text: "${programUrl}",
               width: 200,
               height: 200,
               colorDark : "#000000",
@@ -127,7 +127,7 @@ export function handleActivatePage(request) {
             new QRCode(document.getElementById("qr-program"), qrProgramOptions);
 
             const qrResetOptions = {
-              text: "${resetDeepLink}",
+              text: "${resetUrl}",
               width: 200,
               height: 200,
               colorDark : "#000000",
