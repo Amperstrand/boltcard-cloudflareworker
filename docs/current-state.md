@@ -517,6 +517,8 @@ Without these exports, `wrangler deploy` will fail or the runtime will be unable
 
 3. **Static K2 lookup in `validate_cmac`.** `boltCardHelper.js validate_cmac` ignores its caller-supplied K2 and reads from `staticUidConfig` instead. This means CMAC validation only works for the 4 UIDs hardcoded in `getUidConfig.js`. Cards configured via KV always fail validation (see Bug 7).
 
+4. **Proxy-side CMAC policy needs an explicit configuration model.** The worker now supports two trust models: (a) full local verification when `K2` is present, and (b) decrypt-only relay for `payment_method: "proxy"` with `proxy.baseurl` but no `K2`, where downstream LNBits/BTCPay is responsible for validating `c` and enforcing replay protection. Follow-up issue: make this trust policy explicit in config/docs instead of inferring it from the presence or absence of `K2` on proxy entries.
+
 ### Service Worker vs. Module Worker Format
 
 `index.js` uses the service worker format (`addEventListener('fetch', ...)`) with a manual `export { handleRequest }` for testing. The Durable Object bindings require module worker format (`export default { fetch() {} }`) to work correctly. The current format may not support Durable Object exports properly.

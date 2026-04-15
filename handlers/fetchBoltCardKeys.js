@@ -78,7 +78,7 @@ async function handleResetFlow(lnurlw, env) {
     }
 
     if (!config.K2) {
-      return errorResponse("K2 key not available for CMAC validation");
+      return errorResponse("K2 key not available for CMAC validation during reset flow");
     }
 
     // Step 3: Validate CMAC with the card's K2 key

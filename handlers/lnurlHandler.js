@@ -110,11 +110,10 @@ export async function handleLnurlpPayment(request, env) {
 
       const normalizedUidHex = decryption.uidHex.toLowerCase();
 
-      // Step 2: Look up card config to get K2 for CMAC validation
       const config = await getUidConfig(normalizedUidHex, env);
       if (!config || !config.K2) {
         return new Response(
-          JSON.stringify({ status: "ERROR", reason: "Card configuration not found" }),
+          JSON.stringify({ status: "ERROR", reason: "Card configuration not found or missing K2 for local verification" }),
           { status: 400, headers: { "Content-Type": "application/json" } }
         );
       }

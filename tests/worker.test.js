@@ -1,4 +1,5 @@
 import { handleRequest } from "../index.js"; // Import the handleRequest function for testing
+import { jest } from "@jest/globals";
 
 // Simulate environment variables from `wrangler.toml`
 const env = {
@@ -100,5 +101,67 @@ describe("Cloudflare Worker Tests", () => {
       K3: "f78200e8918fceea9db3574ae35b67e7",
       K4: "62f41e0dcff67e74db596ae0fe1c0a3f"
     });
+  });
+
+  test("should support decrypt-only proxy relay when K2 is omitted", async () => {
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn(async () => new Response(JSON.stringify({ status: "OK" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    }));
+
+    const proxyEnv = {
+      ...env,
+      UID_CONFIG: {
+        get: async (uid) => uid === "04996c6a926980"
+          ? JSON.stringify({
+              payment_method: "proxy",
+              proxy: {
+                baseurl: "https://relay.example.com/boltcards/api/v1/scan/test-backend"
+              }
+            })
+          : null,
+      },
+    };
+
+    try {
+      const response = await handleRequest(
+        new Request("https://test.local/?p=4E2E289D945A66BB13377A728884E867&c=E19CCB1FED8892CE"),
+        proxyEnv
+      );
+
+      expect(response.status).toBe(200);
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+
+      const proxiedRequest = global.fetch.mock.calls[0][0];
+      expect(proxiedRequest.url).toContain("https://relay.example.com/boltcards/api/v1/scan/test-backend");
+      expect(proxiedRequest.url).toContain("p=4E2E289D945A66BB13377A728884E867");
+      expect(proxiedRequest.url).toContain("c=E19CCB1FED8892CE");
+      expect(proxiedRequest.headers.get("X-BoltCard-UID")).toBe("04996c6a926980");
+      expect(proxiedRequest.headers.get("X-BoltCard-CMAC-Validated")).toBe("false");
+      expect(proxiedRequest.headers.get("X-BoltCard-CMAC-Deferred")).toBe("true");
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  test("should still require K2 for local withdraw responses", async () => {
+    const localEnv = {
+      ...env,
+      UID_CONFIG: {
+        get: async (uid) => uid === "04996c6a926980"
+          ? JSON.stringify({ payment_method: "clnrest" })
+          : null,
+      },
+    };
+
+    const response = await handleRequest(
+      new Request("https://test.local/?p=4E2E289D945A66BB13377A728884E867&c=E19CCB1FED8892CE"),
+      localEnv
+    );
+
+    expect(response.status).toBe(400);
+    const json = await response.json();
+    expect(json.reason || json.error).toContain("K2");
   });
 });

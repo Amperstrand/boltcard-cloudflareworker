@@ -80,22 +80,42 @@ async function handleLnurlw(request, env) {
     return errorResponse("UID not found in config");
   }
 
-  const { cmac_validated, cmac_error } = validate_cmac(
-    hexToBytes(uidHex),
-    hexToBytes(ctr),
-    cHex,
-    hexToBytes(config.K2)
-  );
+  const proxyRelayMode = config.payment_method === "proxy" && !!config.proxy?.baseurl;
+  const hasK2 = typeof config.K2 === "string" && config.K2.length > 0;
 
-  if (!cmac_validated) {
+  let cmac_validated = false;
+  let cmac_error = null;
+
+  if (hasK2) {
+    ({ cmac_validated, cmac_error } = validate_cmac(
+      hexToBytes(uidHex),
+      hexToBytes(ctr),
+      cHex,
+      hexToBytes(config.K2)
+    ));
+  } else if (proxyRelayMode) {
+    cmac_error = "CMAC validation deferred to downstream backend";
+    logger.info("Proxy relay mode: skipping CMAC validation locally", { uidHex });
+  } else {
+    logger.error("K2 missing for payment method requiring local verification", {
+      uidHex,
+      paymentMethod: config.payment_method,
+    });
+    return errorResponse("K2 key not available for local CMAC validation");
+  }
+
+  if (hasK2 && !cmac_validated) {
     logger.warn(`CMAC validation failed: ${cmac_error || "CMAC validation failed."}`);
     return errorResponse(cmac_error || "CMAC validation failed");
   }
 
   logger.debug("Decoded UID and counter", { uidHex, ctr: parseInt(ctr, 16) });
 
-  if (config.payment_method === "proxy" && config.proxy?.proxyDomain) {
-    return handleProxy(request, uidHex, pHex, cHex, config.proxy.externalId);
+  if (proxyRelayMode) {
+    return handleProxy(request, uidHex, pHex, cHex, config.proxy.baseurl, {
+      cmacValidated: cmac_validated,
+      validationDeferred: !hasK2,
+    });
   }
 
   if (config.payment_method === "clnrest" || config.payment_method === "fakewallet") {
