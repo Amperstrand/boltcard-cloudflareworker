@@ -1,5 +1,8 @@
 import { getDeterministicKeys } from "../keygenerator.js";
 
+// Card wipe/reset endpoint — returns fresh keys so the NFC programmer can
+// overwrite the card, effectively wiping it.
+// Ref: NXP AN12196 §8.1 (personalization sequence), §8.12 (key changes)
 
 export async function handleReset(uid, env) {
   try {
@@ -9,15 +12,14 @@ export async function handleReset(uid, env) {
         headers: { "Content-Type": "application/json" }
       });
     }
-    console.log(`Resetting card with UID: ${uid}`);
-    // Derive keys using the decoded UID.
     const keys = await getDeterministicKeys(uid, env);
-    // Construct response payload.
     const responsePayload = {
       protocol_name: "new_bolt_card_response",
       protocol_version: 1,
       card_name: `UID ${uid}`,
-      LNURLW: "lnurlw://boltcardpoc.psbt.me/ln",
+      // LNURLW base URL written into NDEF — matches the root route handler.
+      // Path was previously /ln which had no matching route; corrected to /
+      LNURLW: "lnurlw://boltcardpoc.psbt.me/",
       K0: keys.k0,
       K1: keys.k1,
       K2: keys.k2,

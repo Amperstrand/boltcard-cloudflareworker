@@ -82,7 +82,7 @@ describe("Cloudflare Worker Tests", () => {
       "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=KeepVersion",
       "POST",
       {
-        LNURLW: "lnurlw://boltcardpoc.psbt.me/ln?p=C115F9FA83DCD2FEC0864A3B2DDD0AEF&c=BAA4A9496DEC311D"
+        LNURLW: "lnurlw://boltcardpoc.psbt.me/?p=C115F9FA83DCD2FEC0864A3B2DDD0AEF&c=BAA4A9496DEC311D"
       }
     );
 
@@ -93,7 +93,7 @@ describe("Cloudflare Worker Tests", () => {
       protocol_name: "new_bolt_card_response",
       protocol_version: 1,
       card_name: "UID 044561FA967380",
-      LNURLW: expect.stringContaining("lnurlw://boltcardpoc.psbt.me/ln"),
+      LNURLW: expect.stringContaining("lnurlw://boltcardpoc.psbt.me/"),
       K0: "157163032ef8a8f89c5fc3c271675a3c",
       K1: "55da174c9608993dc27bb3f30a4a7314",
       K2: "33268dea5b5511a1b3df961198fa46d5",

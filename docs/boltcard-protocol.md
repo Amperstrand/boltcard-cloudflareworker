@@ -25,7 +25,7 @@ The BoltCard uses NXP's **NTAG 424 DNA** chip, a 13.56 MHz ISO 14443A NFC tag de
 When a compatible reader taps the card, the chip automatically generates a URL containing two cryptographic parameters:
 
 ```
-https://example.com/nfc?p=<encrypted-payload>&c=<cmac>
+https://example.com/?p=<encrypted-payload>&c=<cmac>
 ```
 
 The card hardware handles encryption and MAC generation internally, using symmetric keys stored in the chip's protected memory. The card never exposes the raw UID or keys during a tap. Instead, each scan produces a fresh, unique `p` and `c` pair tied to the current NFC counter value.
@@ -39,7 +39,8 @@ The card hardware handles encryption and MAC generation internally, using symmet
 
 The NTAG 424 DNA performs AES-128-ECB encryption and AES-CMAC generation in hardware. The host system (server) must reproduce the same operations to authenticate a tap.
 
-> **Spec reference:** NXP Application Note AN12196, "NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints"
+> **Spec reference:** NXP Application Note AN12196 Rev. 2.0, "NTAG 424 DNA and NTAG 424 DNA TagTamper features and hints"
+> **See also:** `docs/ntag424_llm_context.md` — implementation-oriented distillation of AN12196
 
 ---
 
@@ -110,12 +111,17 @@ Before encryption, the plaintext block has this structure:
 
 | Offset | Length | Field       | Value         |
 |--------|--------|-------------|---------------|
-| 0      | 1      | Header      | `0xC7`        |
+| 0      | 1      | PICCDataTag | `0xC7`        |
 | 1      | 7      | UID         | Card UID bytes 0..6 |
 | 8      | 3      | Counter     | 24-bit counter, LSB first (bytes 8,9,10) |
-| 11     | 5      | Padding     | `0x00 0x00 0x00 0x00 0x00` |
+| 11     | 5      | Padding     | Random or zero-filled |
 
 Total: 16 bytes.
+
+PICCDataTag `0xC7` decoded per NXP AN12196 §5.5:
+- bit 7 = 1 → UID mirroring enabled
+- bit 6 = 1 → SDMReadCtr mirroring enabled
+- bits 3..0 = `0111` → UID length = 7 bytes
 
 The counter is stored in **little-endian order**: byte 8 is the least significant byte, byte 10 is the most significant.
 
@@ -134,7 +140,7 @@ Then validates the structure:
 3. `plaintext[8..10]` = counter (LSB first)
 4. `plaintext[11..15]` = padding (ignored)
 
-If `plaintext[0] != 0xC7`, decryption failed or the wrong K1 was used.
+If `plaintext[0] != 0xC7` (PICCDataTag mismatch), decryption failed or the wrong K1 was used.
 
 ### Example
 
@@ -173,7 +179,7 @@ SV2 is a 16-byte block assembled from fixed magic bytes, the UID, and the counte
 
 Total: 16 bytes.
 
-Note that the counter in SV2 is **big-endian** (MSB first at offset 13), whereas in the `p` plaintext it was LSB first. Both representations ultimately encode the same 24-bit counter value.
+The counter in SV2 is placed in the same little-endian order as in the `p` plaintext: the code extracts `[decrypted[10], decrypted[9], decrypted[8]]` (big-endian) then places `ctr[2]` at offset 13 (LSB) and `ctr[0]` at offset 15 (MSB), yielding little-endian at positions 13-15. This matches the NXP AN12196 §5.4 SV2 construction where SDMReadCtr bytes are arranged as `[ctr_LSB, ctr_mid, ctr_MSB]`.
 
 ### Verification Tag Derivation
 
@@ -186,21 +192,19 @@ ks := AES-CMAC(K2, SV2)          // session key, 16 bytes
 Then derives `cm` from `ks` using a second CMAC pass over an empty message (per the OMAC1 empty-message path):
 
 ```
-L'    := AES-128-ECB(ks, 0x00...00)
-K1'   := GenerateSubkey(L')
-K2'   := GenerateSubkey(K1')
-padded := [0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
-M_last := padded XOR K2'
-K1'[0] ^= 0x80                   // hash modification step
-cm    := AES-128-ECB(ks, K1'[0]^0x80 result)
+cm := AES-CMAC(ks, empty_message)
 ```
 
-The final 8-byte verification tag `ct` is extracted from **even-indexed bytes** of `cm`:
+This is equivalent to: derive subkeys K1' and K2' from `ks`, pad the empty message as `[0x80, 0x00, ...]`, XOR with K2', encrypt with `ks`.
+
+The final 8-byte verification tag `ct` is extracted from **odd-indexed bytes** of `cm`:
 
 ```
 ct = [cm[1], cm[3], cm[5], cm[7], cm[9], cm[11], cm[13], cm[15]]
 ```
+
+**IMPORTANT — BoltCard truncation differs from NTAG424 standard MACt:**
+The standard NTAG424 SDM MACt uses `S14 || S12 || S10 || S8 || S6 || S4 || S2 || S0` (even-indexed bytes, reverse order). The BoltCard protocol uses `[cm[1], cm[3], ..., cm[15]]` (odd-indexed bytes, forward order). Do NOT change this to match the NXP spec — all deployed cards use the BoltCard truncation.
 
 The server independently recomputes this same `ct` from the decrypted UID and counter. If the recomputed `ct` matches the `c` parameter from the URL, the tap is authentic.
 
@@ -409,7 +413,8 @@ The following external specifications define or inform the BoltCard protocol:
 
 - [ ] Build SV2: `[0x3C, 0xC3, 0x00, 0x01, 0x00, 0x80, UID[0..6], ctr[2], ctr[1], ctr[0]]`
 - [ ] Compute `ks = AES-CMAC(K2, SV2)`
-- [ ] Derive `ct` from `ks` (even-indexed bytes of the second-pass CMAC)
+- [ ] Compute `cm = AES-CMAC(ks, empty_message)`
+- [ ] Extract `ct` as odd-indexed bytes: `[cm[1], cm[3], cm[5], cm[7], cm[9], cm[11], cm[13], cm[15]]`
 - [ ] Assert `hex(ct) == c_param.toLowerCase()`
 
 ### Counter Validation Checklist

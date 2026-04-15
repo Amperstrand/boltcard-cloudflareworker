@@ -1,28 +1,25 @@
 import { getDeterministicKeys } from "../keygenerator.js";
 import { decodeAndValidate } from "../boltCardHelper.js";
 import { extractUIDAndCounter } from "../boltCardHelper.js";
-//import { getUidConfig } from "./getUidConfig.js";
-//import { uidConfig } from "../uidConfig.js";
-//import { getUidConfig } from "../uidConfig.js";
+import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 
+// Ref: NXP AN12196 §8 (personalization flow), §5.8 (SUN verification)
+// Ref: docs/ntag424_llm_context.md §15 (provisioning recipe)
 
-
-// Helper function to return JSON responses with logging
 const jsonResponse = (data, status = 200) => {
   const jsonStr = JSON.stringify(data);
-  console.log("Returning JSON response:", jsonStr); // Log the JSON data
-  console.log("Returning status:", status); // Log the JSON data
   return new Response(jsonStr, {
     status,
     headers: { "Content-Type": "application/json" },
   });
 };
 
-// Helper function for error responses
 const errorResponse = (error, status = 400) => jsonResponse({ error }, status);
 
-// Main handler function
+// NFC programmer app endpoint — handles both card programming (UpdateVersion)
+// and card reset/wipe (KeepVersion) flows.
+// Ref: NXP AN12196 §8.1 example personalization sequence
 export async function fetchBoltCardKeys(request, env) {
   if (request.method !== "POST") {
     return errorResponse("Only POST allowed", 405);
@@ -30,7 +27,7 @@ export async function fetchBoltCardKeys(request, env) {
 
   try {
     const url = new URL(request.url);
-    const onExisting = url.searchParams.get("onExisting"); // 'UpdateVersion' or 'KeepVersion'
+    const onExisting = url.searchParams.get("onExisting");
     const { UID: uid, LNURLW: lnurlw } = await request.json();
 
     if (!uid && !lnurlw) {
@@ -51,15 +48,14 @@ export async function fetchBoltCardKeys(request, env) {
   }
 }
 
-// Handles the "Program" flow (UpdateVersion)
 async function handleProgrammingFlow(uid, env) {
   return generateKeyResponse(uid, env);
 }
 
-// Handles the "Reset" flow (KeepVersion)
+// Reset flow: decrypt the LNURLW tap data to recover the UID, validate CMAC,
+// then regenerate keys so the programmer can overwrite the card.
 async function handleResetFlow(lnurlw, env) {
   try {
-    // Parse the LNURLW
     const lnurl = new URL(lnurlw);
     const pHex = lnurl.searchParams.get("p");
     const cHex = lnurl.searchParams.get("c");
@@ -68,55 +64,51 @@ async function handleResetFlow(lnurlw, env) {
       return errorResponse("Invalid LNURLW format: missing 'p' or 'c'");
     }
 
-    // Decode and validate
-    console.log("Decoding LNURLW: pHex:", pHex, "cHex:", cHex);
-      console.log("LNURLW Verification: pHex:", pHex, "cHex:", cHex);
-      //const decryption = decrypt_uid_and_counter(pHex, BOLT_CARD_K1);
-      const decryption = extractUIDAndCounter(pHex, env);
-      if (!decryption.success) return errorResponse(decryption.error);
-      const { uidHex, ctr } = decryption;
-      console.log("uidHex:", uidHex, "ctr:", ctr);
+    // Step 1: Decrypt PICCENCData to recover UID and SDMReadCtr
+    // (NXP AN12196 §5.8 step 3)
+    const decryption = extractUIDAndCounter(pHex, env);
+    if (!decryption.success) return errorResponse(decryption.error);
+    const { uidHex, ctr } = decryption;
 
-      // Fetch the UID configuration from KV, static config, or via deterministic keys
-      const config = await getUidConfig(uidHex);
-      console.log(JSON.stringify(config));
+    // Step 2: Look up card config (KV → static → deterministic keys)
+    const config = await getUidConfig(uidHex, env);
 
-      // If no configuration is found, return an error
-      if (!config) {
-        console.error(`UID ${uidHex} not found in any config`);
-        return errorResponse("UID not found in config");
-      }
+    if (!config) {
+      return errorResponse("UID not found in config");
+    }
 
-      console.log(`Payment method for UID ${uidHex}: ${config.payment_method}`);
-      console.log(`K2 for UID ${uidHex}: ${config.K2}`);
-      //const { cmac_validated, cmac_error } = validate_cmac(uidBytes, ctr, cHex);
-      //if (!cmac_validated) return errorResponse(cmac_error);
-      //dummy validation
-      const cmac_validated = true;
-    //const { uidHex, ctr, error } = decodeAndValidate(pHex, cHex);
-    //if (error) {
-    //  return errorResponse(error);
-    //}
+    if (!config.K2) {
+      return errorResponse("K2 key not available for CMAC validation");
+    }
 
-    console.log("Reset Flow: Decoded UID:", uidHex, "Counter:", parseInt(ctr, 16));
+    // Step 3: Validate CMAC with the card's K2 key
+    // (NXP AN12196 §5.8 steps 4-8)
+    const k2Bytes = hexToBytes(config.K2);
+    const validation = decodeAndValidate(pHex, cHex, env, k2Bytes);
+    if (!validation.cmac_validated) {
+      return errorResponse(validation.cmac_error || "CMAC validation failed");
+    }
 
-    // Regenerate the keys and return them
+    // Step 4: Regenerate keys for the programmer to write
     return generateKeyResponse(uidHex, env);
   } catch (err) {
-    return errorResponse("Error in generating keys : " + err.message, 500);
+    return errorResponse("Error in generating keys: " + err.message, 500);
   }
 }
 
-// Generates the key response structure
+// Generates the new_bolt_card_response payload expected by the NFC programmer app.
+// Contains all 5 AES keys (K0-K4) and the LNURLW base URL for the NDEF template.
 async function generateKeyResponse(uid, env) {
-  const version = 1; // Could be dynamically managed in future updates
+  const version = 1;
   const keys = await getDeterministicKeys(uid, env, version);
 
   return jsonResponse({
     protocol_name: "new_bolt_card_response",
     protocol_version: 1,
     card_name: `UID ${uid.toUpperCase()}`,
-    LNURLW: "lnurlw://boltcardpoc.psbt.me/ln", // Placeholder LNURL
+    // LNURLW base URL — the NFC programmer writes this into the NDEF template.
+    // The card appends ?p=<PICCENCData>&c=<SDMMAC> at runtime via SDM mirroring.
+    LNURLW: "lnurlw://boltcardpoc.psbt.me/",
     K0: keys.k0,
     K1: keys.k1,
     K2: keys.k2,

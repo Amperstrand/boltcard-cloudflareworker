@@ -1,5 +1,6 @@
-import { decodeAndValidate } from "../boltCardHelper.js";
+import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
 import { getUidConfig } from "../getUidConfig.js";
+import { hexToBytes } from "../cryptoutils.js";
 
 // Global counter for fakewallet payments
 let fakewalletCounter = 0;
@@ -90,27 +91,45 @@ export async function handleLnurlpPayment(request, env) {
           { status: 400, headers: { "Content-Type": "application/json" } }
         );
       }
-      console.log(`Invoice from GET: ${invoice}`);
 
-      const { uidHex, ctr, error } = decodeAndValidate(p, c, env);
-      if (error) {
+      // Step 1: Decrypt PICCENCData to recover UID and SDMReadCtr
+      const decryption = extractUIDAndCounter(p, env);
+      if (!decryption.success) {
         return new Response(
-          JSON.stringify({ status: "ERROR", reason: error }),
+          JSON.stringify({ status: "ERROR", reason: decryption.error }),
           { status: 400, headers: { "Content-Type": "application/json" } }
         );
       }
 
-      // Add null check before toLowerCase
-      if (!uidHex) {
-        console.error("UID is undefined after decoding");
+      if (!decryption.uidHex) {
         return new Response(
           JSON.stringify({ status: "ERROR", reason: "Failed to decode UID" }),
           { status: 400, headers: { "Content-Type": "application/json" } }
         );
       }
 
-      const normalizedUidHex = uidHex.toLowerCase(); // Now safe to call toLowerCase()
-      console.log(`Processing withdrawal for UID=${normalizedUidHex} with invoice: ${invoice}`);
+      const normalizedUidHex = decryption.uidHex.toLowerCase();
+
+      // Step 2: Look up card config to get K2 for CMAC validation
+      const config = await getUidConfig(normalizedUidHex, env);
+      if (!config || !config.K2) {
+        return new Response(
+          JSON.stringify({ status: "ERROR", reason: "Card configuration not found" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      // Step 3: Validate CMAC with the card's K2 key
+      const uidBytes = hexToBytes(decryption.uidHex);
+      const ctrBytes = hexToBytes(decryption.ctr);
+      const k2Bytes = hexToBytes(config.K2);
+      const { cmac_validated, cmac_error } = validate_cmac(uidBytes, ctrBytes, c, k2Bytes);
+      if (!cmac_validated) {
+        return new Response(
+          JSON.stringify({ status: "ERROR", reason: cmac_error || "CMAC validation failed" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
 
       // Process the withdrawal payment via CLN REST or fakewallet
       const withdrawalResponse = await processWithdrawalPayment(normalizedUidHex, invoice, env);

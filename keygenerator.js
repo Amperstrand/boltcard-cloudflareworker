@@ -1,26 +1,31 @@
+/**
+ * keygenerator.js — Deterministic key derivation for BoltCard (K0-K4)
+ *
+ * Generates NTAG 424 DNA AES-128 keys from a master IssuerKey and card UID.
+ * The derivation uses AES-CMAC as a PRF with domain-separation tags.
+ *
+ * Key roles per NXP AN12196 and boltcard.org protocol:
+ *   K0 — Application master key (AuthenticateEV2First with key 0x00)
+ *   K1 — SDM meta read key (encrypts PICCENCData / `p` parameter).
+ *         Derived from IssuerKey directly (not CardKey) → shared across card fleet.
+ *   K2 — SDM file read key (used for SDMMAC / `c` parameter verification).
+ *         Per-card via CardKey.
+ *   K3 — SDM read access key (reserved per NTAG424 SDMAccessRights config)
+ *   K4 — SDM read/write access key (reserved per NTAG424 SDMAccessRights config)
+ *
+ * CardKey diversification:
+ *   CardKey = CMAC(IssuerKey, "2d003f75" || UID || version_le32)
+ *
+ * Per-card keys (K0, K2-K4) use CardKey; fleet-wide K1 uses IssuerKey directly.
+ * This allows decrypting `p` for any card without per-UID lookup (K1 is shared).
+ *
+ * Ref: docs/ntag424_llm_context.md §8.6 (authentication), §8.12 (key changes)
+ * Ref: docs/boltcard-protocol.md §5 (key derivation)
+ */
 import { computeAesCmac, hexToBytes, bytesToHex } from "./cryptoutils.js";
 
-
-
 const DEBUG = false;
-/**
- * Deterministic Key Generation:
- * Generates keys for a BoltCard using the given UID and a fixed Issuer Key and Version.
- * 
- * Process:
- *   CardKey = PRF(IssuerKey, "2d003f75" || UID || Version)
- *   K0 = PRF(CardKey, "2d003f76")
- *   K1 = PRF(IssuerKey, "2d003f77")
- *   K2 = PRF(CardKey, "2d003f78")
- *   K3 = PRF(CardKey, "2d003f79")
- *   K4 = PRF(CardKey, "2d003f7a")
- *   ID = PRF(IssuerKey, "2d003f7b" || UID)
- * 
- * @param {string} uidHex - The UID as a 14-character hex string (7 bytes).
- * @param {object} [env] - The Cloudflare Workers env object (optional, for ISSUER_KEY).
- * @param {number} version - The version number (default 1).
- * @returns {Promise<Object>} An object with keys: k0, k1, k2, k3, k4, id, cardKey (all hex strings).
- */
+
 export async function getDeterministicKeys(uidHex, env, version = 1) {
   if (!uidHex || uidHex.length !== 14) {
     throw new Error(`Invalid UID: "${uidHex}" is not exactly 7 bytes (14 hex characters). Received ${uidHex ? uidHex.length : 'no'} characters.`);

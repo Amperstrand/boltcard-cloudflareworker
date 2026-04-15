@@ -1,3 +1,24 @@
+/**
+ * cryptoutils.js — Core cryptographic primitives for BoltCard SUN/SDM verification
+ *
+ * Implements Subsystem B (backend verification channel) of the NTAG 424 DNA architecture
+ * as described in NXP AN12196 Rev. 2.0:
+ *   - §3: SDM / SUN overview
+ *   - §4: Byte order conventions (LSB-first for params, MSB-first for crypto)
+ *   - §5.5: PICCData / PICCENCData (encrypted UID + counter)
+ *   - §5.7: SDMMAC (truncated CMAC over dynamic NDEF data)
+ *
+ * AES-CMAC implementation follows RFC 4493.
+ *
+ * IMPORTANT — BoltCard protocol deviations from NTAG424 standard SDM:
+ *   1. CMAC truncation: BoltCard extracts odd-indexed bytes [cm[1],cm[3],..,cm[15]]
+ *      (forward order). Standard NTAG424 MACt uses S14||S12||..||S0 (even bytes, reverse).
+ *   2. CMAC input: BoltCard computes CMAC over an empty message for the verification tag,
+ *      whereas standard SDM MACs over the dynamic ASCII file data.
+ *   These deviations are part of the boltcard.org protocol specification.
+ *
+ * Ref: docs/ntag424_llm_context.md §4 (byte order), §5.4-5.7 (SDM keys & MAC)
+ */
 import AES from "aes-js";
 
 const DEBUG = false;
@@ -83,9 +104,8 @@ export function generateSubkeyGo(input) {
 
 /**
  * Computes the AES-CMAC for a given message and key.
- * @param {Uint8Array} message - The input message.
- * @param {Uint8Array} key - The AES key.
- * @returns {Uint8Array} - The CMAC result.
+ * Per RFC 4493: https://datatracker.ietf.org/doc/html/rfc4493
+ * Ref: NXP AN12196 §4 (CMAC used throughout SDM/SSM)
  */
 export function computeAesCmac(message, key) {
   if (DEBUG)
@@ -191,10 +211,16 @@ export function computeCm(ks) {
 }
 
 /**
- * Computes AES-CMAC for verification and extracts a verification tag.
- * @param {Uint8Array} sv2 - The session derivation value.
- * @param {Uint8Array} cmacKeyBytes - The key used for AES-CMAC.
- * @returns {Uint8Array} - The verification tag.
+ * Computes the BoltCard verification tag from SV2 and K2.
+ *
+ * Derivation chain:
+ *   1. ks = AES-CMAC(K2, SV2)  — SDM session MAC key (NXP AN12196 §5.4)
+ *   2. cm = AES-CMAC(ks, empty_message) — BoltCard-specific: MACs over empty data
+ *   3. ct = cm[1,3,5,7,9,11,13,15] — BoltCard truncation (odd-indexed bytes)
+ *
+ * NOTE: Standard NTAG424 SDM MACt uses S14||S12||S10||S8||S6||S4||S2||S0
+ * (even-indexed bytes, reverse order). The BoltCard protocol uses a different
+ * truncation — do NOT change this to match the NXP spec or all cards will fail.
  */
 export function computeAesCmacForVerification(sv2, cmacKeyBytes) {
   if (DEBUG)
@@ -220,19 +246,24 @@ export function computeAesCmacForVerification(sv2, cmacKeyBytes) {
 }
 
 /**
- * Builds verification data using UID, counter, and the K2 key.
- * @param {Uint8Array} uidBytes - The UID from the card.
- * @param {Uint8Array} ctr - The counter (3 bytes).
- * @param {Uint8Array} k2Bytes - The K2 key.
- * @returns {{ sv2: Uint8Array, ks: Uint8Array, cm: Uint8Array, ct: Uint8Array }}
+ * Builds the SV2 (Session Derivation Value 2) used for SDM MAC key derivation.
+ *
+ * Per NXP AN12196 §5.4: SV2 = 3CC3 0001 0080 [UID] [SDMReadCtr] [ZeroPadding]
+ *   - 0x3C 0xC3: fixed magic bytes for MAC key derivation (SV1 uses C3 3C for ENC)
+ *   - 0x00 0x01 0x00 0x80: fixed constants
+ *   - UID: 7-byte card UID (MSB-first, per §4 crypto byte order)
+ *   - SDMReadCtr: 3-byte counter (little-endian in this implementation,
+ *     matching the byte order from the decrypted p-parameter)
+ *
+ * Counter byte order: the ctr array comes from decryptP() which extracts
+ * [decrypted[10], decrypted[9], decrypted[8]] — this is big-endian (MSB first).
+ * SV2 places ctr[2] at offset 13 (LSB), ctr[0] at offset 15 (MSB).
+ * Net effect: counter in SV2 is little-endian (same as in the p-plaintext).
  */
 export function buildVerificationData(uidBytes, ctr, k2Bytes) {
   const sv2 = new Uint8Array(BLOCK_SIZE);
-  // Set fixed header values.
   sv2.set([0x3c, 0xc3, 0x00, 0x01, 0x00, 0x80]);
-  // Place UID starting at index 6.
   sv2.set(uidBytes, 6);
-  // Set counter bytes in reverse order.
   sv2[13] = ctr[2];
   sv2[14] = ctr[1];
   sv2[15] = ctr[0];
@@ -256,10 +287,15 @@ export function buildVerificationData(uidBytes, ctr, k2Bytes) {
 }
 
 /**
- * Decrypts the given hex-encoded payload and extracts UID and counter.
- * @param {string} pHex - The payload in hex string form.
- * @param {Array<Uint8Array>} k1Keys - An array of possible K1 keys.
- * @returns {{ success: boolean, uidBytes?: Uint8Array, ctr?: Uint8Array, usedK1?: Uint8Array }}
+ * Decrypts the `p` parameter (PICCENCData) and extracts UID + SDMReadCtr.
+ *
+ * Per NXP AN12196 §5.5: PICCENCData = E(K1; PICCDataTag || UID || SDMReadCtr || RandomPadding)
+ *   - PICCDataTag 0xC7 = UID mirrored (bit7) + counter mirrored (bit6) + 7-byte UID (bits 3..0)
+ *   - Uses AES-128-ECB (single block, no IV) with K1 as key
+ *   - SDMReadCtr bytes 8-10 are little-endian (LSB at byte 8), per §4
+ *
+ * Multi-K1: tries each candidate K1 until one produces the 0xC7 header byte.
+ * Probability of false positive is 1/256 per wrong key. Ref: boltcard-protocol.md §8.
  */
 export function decryptP(pHex, k1Keys) {
   const pBytes = hexToBytes(pHex);
