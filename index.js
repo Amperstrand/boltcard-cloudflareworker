@@ -14,6 +14,7 @@ import { handleActivatePage } from "./handlers/activatePageHandler.js";
 import { handleWipePage } from "./handlers/wipePageHandler.js";
 import { hexToBytes } from "./cryptoutils.js";
 import { logger } from "./utils/logger.js";
+import { checkRateLimit } from "./rateLimiter.js";
 
 // Helper functions for responses
 const jsonResponse = (data, status = 200) =>
@@ -196,6 +197,21 @@ export async function handleRequest(request, env) {
 export default {
   async fetch(request, env, ctx) {
     logger.logRequest(request);
-    return router.fetch(request, env);
+
+    const { allowed, remaining, resetAt } = await checkRateLimit(request, env);
+    if (!allowed) {
+      return new Response(JSON.stringify({ status: "ERROR", reason: "Rate limit exceeded" }), {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "Retry-After": String(Math.ceil((resetAt - Date.now()) / 1000)),
+          "X-RateLimit-Remaining": "0",
+        },
+      });
+    }
+
+    const response = await router.fetch(request, env);
+    response.headers.set("X-RateLimit-Remaining", String(remaining));
+    return response;
   },
 };
