@@ -119,6 +119,8 @@ async function handleLnurlw(request, env) {
   // big-endian value mirrored inside the encrypted PICCData blob.
   // Replaying the same NFC tap (same p= and c= values) would reuse the
   // same counter, so rejecting counter <= stored counter prevents replay.
+  // Ref: BoltCard DETERMINISTIC.md — the counter is part of the PICCData
+  // encrypted payload and is the primary anti-replay mechanism.
   const counterValue = parseInt(ctr, 16);
 
   // Read last stored counter from KV.
