@@ -198,3 +198,30 @@ test("decryptP should work with multiple K1 keys and return first match", () => 
   expect(bytesToHex(result2.ctr)).toBe(expected_ctr);
   expect(result2.usedK1).toEqual(k1CorrectBytes);
 });
+
+test("computeAesCmac should throw for 15-byte key (wrong length)", () => {
+  const message = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+  const wrongKey = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+
+  expect(() => computeAesCmac(message, wrongKey)).toThrow(
+    "AES-CMAC requires a 16-byte key (AES-128), per RFC 4493 §2.3"
+  );
+});
+
+test("computeAesCmac should throw for 17-byte key (wrong length)", () => {
+  const message = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+  const wrongKey = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]);
+
+  expect(() => computeAesCmac(message, wrongKey)).toThrow(
+    "AES-CMAC requires a 16-byte key (AES-128), per RFC 4493 §2.3"
+  );
+});
+
+test("computeAesCmac should succeed with 16-byte key (correct length)", () => {
+  const message = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+  const correctKey = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+
+  expect(() => computeAesCmac(message, correctKey)).not.toThrow();
+  const result = computeAesCmac(message, correctKey);
+  expect(result.length).toBe(16);
+});

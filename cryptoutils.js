@@ -120,6 +120,15 @@ export function generateSubkeyGo(input) {
  * Ref: NXP AN12196 §4 (CMAC used throughout SDM/SSM)
  */
 export function computeAesCmac(message, key) {
+  // RFC 4493 §2.3: AES-CMAC is defined for AES-128 (16-byte key only).
+  // aes-js silently accepts wrong-length keys and produces garbage CMAC output.
+  // A misconfigured 15 or 17-byte key would cause all CMAC validations to
+  // silently fail, accepting or rejecting all taps without any error message —
+  // extremely difficult to debug. Fail fast with a clear message.
+  if (!(key instanceof Uint8Array) || key.length !== 16) {
+    throw new Error("AES-CMAC requires a 16-byte key (AES-128), per RFC 4493 §2.3");
+  }
+
   if (DEBUG)
     console.log(
       "[AES-CMAC] Computing AES-CMAC for message:",
