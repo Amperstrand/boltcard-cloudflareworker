@@ -8,7 +8,6 @@
 
 - 🔐 **Set a secure ISSUER_KEY** via Cloudflare Workers secret (see deployment section)
 - 🔐 **Replace the hardcoded BOLT_CARD_K1** values in `getUidConfig.js` (lines 3-6)  
-- 🔐 **Configure proper CMAC validation** - currently using dummy validation for development
 - 🔐 **Review all cryptographic constants** and ensure they match your security requirements
 
 ## 🔑 Development Key
@@ -51,7 +50,7 @@ The worker first attempts to fetch the UID configuration from KV. If no entry is
 - 💳 **Multi-Payment Support**: clnrest, proxy, and fakewallet payment methods  
 - 🌐 **LNURL Protocol**: Complete LNURL-withdraw implementation
 - 📱 **NFC Card Programming**: Card activation and programming endpoints
-- 🧪 **Tested**: Comprehensive test suite with 12+ passing tests
+- 🧪 **Tested**: Comprehensive test suite with 58 passing tests across 4 test suites
 - 🔒 **Security Hardened**: Recent dependency security updates applied
 
 ## 🏗️ Architecture
@@ -151,43 +150,47 @@ npm run deploy
 
 ### Core Endpoints
 
-#### GET `/nfc` 
-**LNURL Withdraw Request Entry Point**
-- **Description**: Initiates LNURL withdrawal flow
+#### GET `/`
+**LNURL Withdraw Flow Entry Point**
+- **Description**: Main LNURL-withdraw flow
 - **Parameters**: 
-  - `p` (hex): Encrypted payload 
+  - `p` (hex): Encrypted payload
   - `c` (hex): CMAC validation
 - **Response**: LNURL withdraw request object
 
-#### POST `/boltcards/api/v1/lnurl/cb`
-**LNURL Callback Handler**
-- **Description**: Handles LNURL payment callbacks
-- **Body**: JSON with invoice, amount, k1
-- **Response**: Payment confirmation
+#### GET `/nfc`
+**NFC Scanner Page**
+- **Description**: Serves an HTML page for NFC scanning
+- **Response**: HTML page
 
 #### GET `/status`
-**System Status**
-- **Description**: Health check endpoint
-- **Response**: System status and configuration info
-
-### Card Management
-
-#### POST `/api/v1/pull-payments/{id}/boltcards`
-**Fetch BoltCard Keys**
-- **Description**: Returns card programming keys
-- **Body**: `{ "UID": "hex_string" }`
-- **Response**: Card keys (K0, K1, K2, K3, K4)
+**System Status / Health Check**
+- **Description**: Health check endpoint. Redirects to `/activate` if no KV configuration is found
+- **Response**: System status and configuration info, or redirect to activation page
 
 #### GET `/activate`
 **Card Activation Page**
-- **Description**: HTML page for card activation
-- **Response**: HTML form
+- **Description**: HTML page for card activation with QR codes
+- **Response**: HTML page with activation form and QR codes
 
-#### POST `/activate`
-**Card Activation Submit**
-- **Description**: Processes card activation
-- **Body**: Form data with card details
-- **Response**: Activation confirmation
+#### GET `/wipe?uid=XXX`
+**Card Wipe Page**
+- **Description**: HTML page for wiping a card's configuration
+- **Parameters**:
+  - `uid` (query): Card UID to wipe
+- **Response**: HTML page
+
+#### POST `/api/v1/pull-payments/{id}/boltcards`
+**Card Programming / Reset**
+- **Description**: Returns card programming keys, supports both UpdateVersion and KeepVersion modes, including old app compatibility (UID) and new app (LNURLW)
+- **Body**: `{ "UID": "hex_string" }`
+- **Response**: Card keys (K0, K1, K2, K3, K4)
+
+#### POST `/boltcards/api/v1/lnurl/cb`
+**LNURL Callback Handler**
+- **Description**: Handles LNURL payment callbacks. Supports both GET with `pr` param and POST with `k1` body field
+- **Body**: JSON with invoice, amount, k1
+- **Response**: Payment confirmation
 
 ## 🔧 Configuration Options
 
@@ -218,11 +221,13 @@ export const staticUidConfig = {
 - **Description**: Direct integration with Core Lightning REST API
 - **Required**: `host`, `port`, `rune`
 - **Protocol**: HTTPS recommended
+- **Status check**: Uses HTTP 201 response + JSON body to verify invoice creation
 
 #### proxy
 - **Description**: Proxy requests to external LNBits instance
 - **Required**: `baseurl` with external ID
 - **Use Case**: Third-party payment processing
+- **Note**: When K2 is absent, the worker skips local CMAC validation and relays to the downstream service, which performs validation itself
 
 #### fakewallet
 - **Description**: Testing/development payment method
@@ -245,9 +250,11 @@ npm test -- --verbose
 
 ### Test Coverage
 
-- **✅ cryptoutils.test.js**: 8 tests - cryptographic functions
-- **✅ keygenerator.test.js**: 8 tests - deterministic key generation  
-- **✅ worker.test.js**: 12 tests - API endpoints and request handling
+- **✅ cryptoutils.test.js**: Cryptographic functions
+- **✅ keygenerator.test.js**: Deterministic key generation  
+- **✅ worker.test.js**: API endpoints and request handling
+- **✅ integration.test.js**: End-to-end integration tests
+- **Total**: 58 passing tests across 4 test suites
 
 ### Test Vectors
 
@@ -308,9 +315,8 @@ curl 'https://your-worker.domain/?p=0DBF3C59B59B0638D60B5842A997D4D1&c=CC61660C0
    - Store keys securely (environment variables, secrets manager)
 
 2. **CMAC Validation**:
-   - Currently using dummy validation for development
-   - MUST implement real CMAC validation before production
-   - See: `index.js` line 102 (replace `const cmac_validated = true`)
+   - AES-CMAC validation (RFC 4493) is implemented and validates card requests using K2 keys
+   - In proxy mode, CMAC validation is optional: if K2 is absent, validation is delegated to the downstream service
 
 3. **Environment Variables**:
    - Use Cloudflare Workers secrets for sensitive data
@@ -320,7 +326,6 @@ curl 'https://your-worker.domain/?p=0DBF3C59B59B0638D60B5842A997D4D1&c=CC61660C0
 ### Production Checklist
 
 - [ ] Changed all default cryptographic keys
-- [ ] Implemented real CMAC validation
 - [ ] Configured proper environment variables
 - [ ] Enabled HTTPS for all endpoints
 - [ ] Set up proper error logging
@@ -366,6 +371,7 @@ npm run lint
 │   └── withdrawHandler.js
 ├── tests/                     # Test files
 │   ├── cryptoutils.test.js
+│   ├── integration.test.js
 │   ├── keygenerator.test.js
 │   └── worker.test.js
 └── docs/                      # Documentation
