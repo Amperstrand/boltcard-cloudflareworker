@@ -3,9 +3,12 @@ main = "index.js"
 compatibility_date = "2025-02-28"
 
 kv_namespaces = [
-  { binding = "UID_CONFIG", id = "7eaddc7f33d242ed94054dfb8da8fcbc" },
-  { binding = "RATE_LIMITS", id = "RATE_LIMITS_KV_ID" }
+  { binding = "UID_CONFIG", id = "7eaddc7f33d242ed94054dfb8da8fcbc" }
 ]
+
+# Rate limiting via KV is disabled by default. To enable, create a KV namespace
+# and add: { binding = "RATE_LIMITS", id = "<your-namespace-id>" }
+# The worker gracefully skips rate limiting when the binding is absent.
 
 [[durable_objects.bindings]]
 name = "CARD_REPLAY"
