@@ -1,4 +1,4 @@
-export const constructWithdrawResponse = (uidHex, pHex, cHex, ctr, cmac_validated) => {
+export const constructWithdrawResponse = (uidHex, pHex, cHex, ctr, cmac_validated, baseUrl) => {
   if (!cmac_validated) {
     return {
       status: "ERROR",
@@ -7,10 +7,11 @@ export const constructWithdrawResponse = (uidHex, pHex, cHex, ctr, cmac_validate
   }
 
   const counterValue = parseInt(ctr, 16);
+  const host = baseUrl || "https://boltcardpoc.psbt.me";
 
   return {
     tag: "withdrawRequest",
-    callback: `https://boltcardpoc.psbt.me/boltcards/api/v1/lnurl/cb/${pHex}`,
+    callback: `${host}/boltcards/api/v1/lnurl/cb/${pHex}`,
     k1: cHex,
     minWithdrawable: 1000,
     maxWithdrawable: 1000,

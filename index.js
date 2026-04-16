@@ -28,7 +28,7 @@ const errorResponse = (reason, status = 400) =>
 const router = Router();
 
 router.get("/nfc", () => handleNfc());
-router.get("/status", (request, env) => handleStatus(env));
+router.get("/status", (request, env) => handleStatus(request, env));
 router.all("/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards", (request, env) =>
   fetchBoltCardKeys(request, env)
 );
@@ -37,8 +37,10 @@ router.get("/activate", (request) => handleActivatePage(request));
 router.get("/activate/form", () => handleActivateForm());
 router.post("/activate/form", (request, env) => handleActivateCardSubmit(request, env));
 router.get("/wipe", (request, env) => {
-  const uid = new URL(request.url).searchParams.get("uid");
-  if (uid) return handleReset(uid, env);
+  const url = new URL(request.url);
+  const uid = url.searchParams.get("uid");
+  const baseUrl = `${url.protocol}//${url.host}`;
+  if (uid) return handleReset(uid, env, baseUrl);
   return handleWipePage(request);
 });
 router.get("/", handleLnurlw);
@@ -175,7 +177,8 @@ async function handleLnurlw(request, env) {
   }
 
   if (config.payment_method === "clnrest" || config.payment_method === "fakewallet") {
-    const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated);
+    const baseUrl = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
+    const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated, baseUrl);
     if (responsePayload.status === "ERROR") return errorResponse(responsePayload.reason);
     return jsonResponse(responsePayload);
   }

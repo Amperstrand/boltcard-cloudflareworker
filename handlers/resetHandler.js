@@ -4,7 +4,7 @@ import { getDeterministicKeys } from "../keygenerator.js";
 // overwrite the card, effectively wiping it.
 // Ref: NXP AN12196 §8.1 (personalization sequence), §8.12 (key changes)
 
-export async function handleReset(uid, env) {
+export async function handleReset(uid, env, baseUrl) {
   try {
     if (!uid) {
       return new Response(JSON.stringify({ error: "Missing UID parameter for reset." }), {
@@ -13,13 +13,12 @@ export async function handleReset(uid, env) {
       });
     }
     const keys = await getDeterministicKeys(uid, env);
+    const host = baseUrl || "https://boltcardpoc.psbt.me";
     const responsePayload = {
       protocol_name: "new_bolt_card_response",
       protocol_version: 1,
       card_name: `UID ${uid}`,
-      // LNURLW base URL written into NDEF — matches the root route handler.
-      // Path was previously /ln which had no matching route; corrected to /
-      LNURLW: "lnurlw://boltcardpoc.psbt.me/",
+      LNURLW: `lnurlw://${host.replace(/^https?:\/\//, "")}/`,
       K0: keys.k0,
       K1: keys.k1,
       K2: keys.k2,

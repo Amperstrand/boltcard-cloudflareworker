@@ -29,21 +29,22 @@ export async function fetchBoltCardKeys(request, env) {
     const url = new URL(request.url);
     const onExisting = url.searchParams.get("onExisting");
     const { UID: uid, LNURLW: lnurlw } = await request.json();
+    const baseUrl = `${url.protocol}//${url.host}`;
 
     if (!uid && !lnurlw) {
       return errorResponse("Must provide UID for programming, or LNURLW for reset");
     }
 
     if ((onExisting === "UpdateVersion" || (!onExisting && uid && !lnurlw)) && uid) {
-      return handleProgrammingFlow(uid, env);
+      return handleProgrammingFlow(uid, env, baseUrl);
     }
 
     if ((onExisting === "KeepVersion" || (!onExisting && lnurlw)) && lnurlw) {
-      return handleResetFlow(lnurlw, env);
+      return handleResetFlow(lnurlw, env, baseUrl);
     }
 
     if (onExisting === "KeepVersion" && uid && !lnurlw) {
-      return generateKeyResponse(uid, env);
+      return generateKeyResponse(uid, env, baseUrl);
     }
 
     if (onExisting === "UpdateVersion" && !uid) {
@@ -56,13 +57,11 @@ export async function fetchBoltCardKeys(request, env) {
   }
 }
 
-async function handleProgrammingFlow(uid, env) {
-  return generateKeyResponse(uid, env);
+async function handleProgrammingFlow(uid, env, baseUrl) {
+  return generateKeyResponse(uid, env, baseUrl);
 }
 
-// Reset flow: decrypt the LNURLW tap data to recover the UID, validate CMAC,
-// then regenerate keys so the programmer can overwrite the card.
-async function handleResetFlow(lnurlw, env) {
+async function handleResetFlow(lnurlw, env, baseUrl) {
   try {
     const lnurl = new URL(lnurlw);
     const pHex = lnurl.searchParams.get("p");
@@ -97,8 +96,7 @@ async function handleResetFlow(lnurlw, env) {
       return errorResponse(validation.cmac_error || "CMAC validation failed");
     }
 
-    // Step 4: Regenerate keys for the programmer to write
-    return generateKeyResponse(uidHex, env);
+    return generateKeyResponse(uidHex, env, baseUrl);
   } catch (err) {
     return errorResponse("Error in generating keys: " + err.message, 500);
   }
@@ -106,10 +104,11 @@ async function handleResetFlow(lnurlw, env) {
 
 // Generates the new_bolt_card_response payload expected by the NFC programmer app.
 // Contains all 5 AES keys (K0-K4) and the LNURLW base URL for the NDEF template.
-async function generateKeyResponse(uid, env) {
+async function generateKeyResponse(uid, env, baseUrl) {
   const version = 1;
   const keys = await getDeterministicKeys(uid, env, version);
-  const lnurlw_base = "lnurlw://boltcardpoc.psbt.me/";
+  const host = baseUrl || "https://boltcardpoc.psbt.me";
+  const lnurlw_base = `lnurlw://${host.replace(/^https?:\/\//, "")}/`;
 
   return jsonResponse({
     protocol_name: "new_bolt_card_response",
