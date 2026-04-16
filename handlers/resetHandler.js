@@ -14,16 +14,19 @@ export async function handleReset(uid, env, baseUrl) {
     await resetReplayProtection(env, uid);
     const keys = await getDeterministicKeys(uid, env);
     const host = baseUrl || "https://boltcardpoc.psbt.me";
+    const lnurlwPath = `${host.replace(/^https?:\/\//, "")}/`;
     const responsePayload = {
-      protocol_name: "new_bolt_card_response",
-      protocol_version: 1,
-      card_name: `UID ${uid}`,
-      LNURLW: `lnurlw://${host.replace(/^https?:\/\//, "")}/`,
+      CARD_NAME: `UID ${uid.toUpperCase()}`,
+      ID: "1",
       K0: keys.k0,
       K1: keys.k1,
       K2: keys.k2,
       K3: keys.k3,
-      K4: keys.k4
+      K4: keys.k4,
+      LNURLW_BASE: `LNURLW://${lnurlwPath}`,
+      LNURLW: `LNURLW://${lnurlwPath}`,
+      PROTOCOL_NAME: "NEW_BOLT_CARD_RESPONSE",
+      PROTOCOL_VERSION: "1",
     };
     return jsonResponse(responsePayload, 200);
   } catch (err) {

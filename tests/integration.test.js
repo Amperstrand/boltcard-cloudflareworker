@@ -95,9 +95,9 @@ describe('End-to-End Payment Flow Integration Tests', () => {
       
       const responseData = await response.json();
       
-      expect(responseData.protocol_name).toBe('new_bolt_card_response');
-      expect(responseData.protocol_version).toBe(1);
-      expect(responseData.card_name).toContain('UID');
+      expect(responseData.PROTOCOL_NAME).toBe('NEW_BOLT_CARD_RESPONSE');
+      expect(responseData.PROTOCOL_VERSION).toBe('1');
+      expect(responseData.CARD_NAME).toContain('UID');
       expect(responseData.LNURLW).toBeDefined();
       
       expect(responseData.K0).toBeDefined();

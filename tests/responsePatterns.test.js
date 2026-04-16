@@ -43,9 +43,10 @@ async function makeRequest(path, method = "GET", body = null, requestEnv = env) 
 
 const expectBoltcardKeys = (json) => {
   expect(json).toMatchObject({
-    protocol_name: "new_bolt_card_response",
-    protocol_version: 1,
-    card_name: expect.any(String),
+    PROTOCOL_NAME: "NEW_BOLT_CARD_RESPONSE",
+    PROTOCOL_VERSION: "1",
+    CARD_NAME: expect.any(String),
+    ID: "1",
     K0: expect.any(String),
     K1: expect.any(String),
     K2: expect.any(String),
@@ -84,7 +85,7 @@ describe("response patterns", () => {
 
     const json = await response.json();
     expectBoltcardKeys(json);
-    expect(json.LNURLW).toContain("lnurlw://test.local/");
+    expect(json.LNURLW).toContain("LNURLW://test.local/");
   });
 
   test("GET /wipe returns JSON error body on exception", async () => {

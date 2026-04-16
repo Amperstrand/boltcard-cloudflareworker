@@ -117,18 +117,19 @@ async function generateKeyResponse(uid, env, baseUrl) {
   const version = 1;
   const keys = await getDeterministicKeys(uid, env, version);
   const host = baseUrl || "https://boltcardpoc.psbt.me";
-  const lnurlw_base = `lnurlw://${host.replace(/^https?:\/\//, "")}/`;
+  const lnurlw_path = `${host.replace(/^https?:\/\//, "")}/`;
 
   return jsonResponse({
-    protocol_name: "new_bolt_card_response",
-    protocol_version: 1,
-    card_name: `UID ${uid.toUpperCase()}`,
-    lnurlw_base,
-    LNURLW: lnurlw_base,
-    k0: keys.k0, K0: keys.k0,
-    k1: keys.k1, K1: keys.k1,
-    k2: keys.k2, K2: keys.k2,
-    k3: keys.k3, K3: keys.k3,
-    k4: keys.k4, K4: keys.k4,
+    CARD_NAME: `UID ${uid.toUpperCase()}`,
+    ID: "1",
+    K0: keys.k0,
+    K1: keys.k1,
+    K2: keys.k2,
+    K3: keys.k3,
+    K4: keys.k4,
+    LNURLW_BASE: `LNURLW://${lnurlw_path}`,
+    LNURLW: `LNURLW://${lnurlw_path}`,
+    PROTOCOL_NAME: "NEW_BOLT_CARD_RESPONSE",
+    PROTOCOL_VERSION: "1",
   });
 }
