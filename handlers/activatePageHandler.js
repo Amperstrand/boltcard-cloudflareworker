@@ -33,6 +33,15 @@ export function handleActivatePage(request) {
           </div>
 
           <div class="mb-8 space-y-4">
+            <div class="flex flex-wrap gap-3">
+              <a href="/nfc" class="inline-flex items-center rounded border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/20">
+                OPEN NFC TEST CONSOLE
+              </a>
+              <a href="/wipe" class="inline-flex items-center rounded border border-red-500/20 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/20">
+                OPEN WIPE TOOL
+              </a>
+            </div>
+
             <h2 class="text-lg font-semibold text-gray-300">API CONFIGURATION</h2>
             <div class="bg-gray-900 rounded p-4 border border-gray-700 font-mono text-sm break-all flex justify-between items-center group">
               <span id="api-url" class="text-gray-400">${apiUrl}</span>
