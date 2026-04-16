@@ -11,6 +11,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20]
 
     steps:
       # Step 1: Checkout code
@@ -21,13 +24,13 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: ${{ matrix.node-version }}
           cache: 'npm'  # Enable caching for npm dependencies
 
       # Step 3: Install dependencies
       - name: Install dependencies
         run: npm install
 
-      # Step 4: Run Jest tests
-      - name: Run Jest tests
+      # Step 4: Run vitest tests
+      - name: Run vitest tests
         run: npm test
