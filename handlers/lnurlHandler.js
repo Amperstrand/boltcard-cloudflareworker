@@ -195,6 +195,10 @@ export async function processWithdrawalPayment(uid, pr, env) {
   }
 
   // Handle CLN REST payment method
+  // CLN REST API: POST /v1/pay with {bolt11: invoice}, Rune auth header
+  // Success: HTTP 201 with JSON body containing status "complete" or "pending"
+  // See: https://docs.corelightning.org/reference/pay
+  // See: https://docs.corelightning.org/reference/post_rpc_method_resource
   if (config.payment_method === "clnrest") {
     if (!config.clnrest || !config.clnrest.rune) {
       console.error(`Missing CLN REST configuration or rune for UID=${uid}`);
@@ -203,6 +207,55 @@ export async function processWithdrawalPayment(uid, pr, env) {
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
+
+    try {
+      const clnrest = config.clnrest;
+      const clnrest_endpoint = `${clnrest.host}`;
+
+      const headers = new Headers();
+      headers.set("Content-Type", "application/json");
+      headers.set("Rune", clnrest.rune);
+
+      const requestBody = JSON.stringify({ bolt11: pr });
+      console.log(`CLN REST: POST ${clnrest_endpoint}/v1/pay with invoice: ${pr}`);
+
+      const response = await fetch(clnrest_endpoint + "/v1/pay", {
+        method: "POST",
+        headers,
+        body: requestBody,
+      });
+
+      const responseBody = await response.json();
+
+      if (response.status === 201) {
+        if (responseBody.status === "complete") {
+          console.log(`CLN payment complete:`, JSON.stringify(responseBody, null, 2));
+          return new Response(
+            JSON.stringify({ status: "OK", message: "Payment processed successfully" }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        console.warn(`CLN payment not complete, status: ${responseBody.status}`, JSON.stringify(responseBody, null, 2));
+        return new Response(
+          JSON.stringify({ status: "ERROR", reason: `Payment status: ${responseBody.status}` }),
+          { status: 202, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      const errorReason = `${response.status}: ${JSON.stringify(responseBody)}`;
+      console.error(`CLN REST error: ${errorReason}`);
+      return new Response(
+        JSON.stringify({ status: "ERROR", reason: errorReason }),
+        { status: response.status, headers: { "Content-Type": "application/json" } }
+      );
+    } catch (error) {
+      console.error(`CLN REST Pay Request Failed: ${error.message}`);
+      return new Response(
+        JSON.stringify({ status: "ERROR", reason: `CLN REST Pay Request Failed: ${error.message}` }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
 
     try {
       const clnrest = config.clnrest;
