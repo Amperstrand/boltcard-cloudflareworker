@@ -74,13 +74,16 @@ export function bytesToDecimalString(bytes) {
  * XORs two arrays of equal length.
  * @param {Uint8Array} a - First byte array.
  * @param {Uint8Array} b - Second byte array.
- * @returns {number[]}
+ * @returns {Uint8Array}
  */
 export function xorArrays(a, b) {
   if (a.length !== b.length) {
     throw new Error("xorArrays: Input arrays must have the same length");
   }
-  return a.map((val, i) => val ^ b[i]);
+  // Return Uint8Array for type consistency with the rest of the crypto layer.
+  // Array.prototype.map on a Uint8Array returns a plain Array, so we must
+  // explicitly wrap the result.
+  return new Uint8Array(a.map((val, i) => val ^ b[i]));
 }
 
 /**

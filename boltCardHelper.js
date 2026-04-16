@@ -69,9 +69,12 @@ export function extractUIDAndCounter(pHex, env) {
     return { error: "Unable to decode UID from provided p parameter." };
   }
 
-  // Ensure proper Uint8Array type (aes-js may return plain arrays)
-  const uidBytes = new Uint8Array(Object.values(result.uidBytes));
-  const ctrBytes = new Uint8Array(Object.values(result.ctr));
+  // Object.values() was a defensive wrapper in case aes-js returned a plain
+  // object instead of array-like. aes-js 3.1.2 ModeOfOperation.ecb.decrypt()
+  // returns Uint8Array, and decryptP() .slice() also returns Uint8Array.
+  // Object.values() on a Uint8Array works but is unnecessary overhead.
+  const uidBytes = new Uint8Array(result.uidBytes);
+  const ctrBytes = new Uint8Array(result.ctr);
 
   return {
     success: true,
