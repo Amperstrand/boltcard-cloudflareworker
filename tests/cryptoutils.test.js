@@ -144,6 +144,24 @@ test("verifyCmac should return null error when validation succeeds", () => {
   expect(result.cmac_error).toBe(null);
 });
 
+test("hexToBytes should throw for non-hex characters (ZZZZ)", () => {
+  expect(() => hexToBytes("ZZZZ")).toThrow("Invalid hex string: contains non-hex characters");
+});
+
+test("hexToBytes should throw for mixed hex/non-hex (0g1h)", () => {
+  expect(() => hexToBytes("0g1h")).toThrow("Invalid hex string: contains non-hex characters");
+});
+
+test("hexToBytes should accept lowercase hex (abCD12)", () => {
+  const bytes = hexToBytes("abCD12");
+  expect(bytesToHex(bytes)).toBe("abcd12");
+});
+
+test("hexToBytes should accept uppercase hex (ABCDEF)", () => {
+  const bytes = hexToBytes("ABCDEF");
+  expect(bytesToHex(bytes)).toBe("abcdef");
+});
+
 test("decryptP should work with single K1 key (existing behavior)", () => {
   const p = "4E2E289D945A66BB13377A728884E867";
   const k1 = "0c3b25d92b38ae443229dd59ad34b85d";

@@ -33,6 +33,18 @@ export function hexToBytes(hex) {
   if (!hex || hex.length % 2 !== 0) {
     throw new Error("Invalid hex string");
   }
+  // Validate that every character is a valid hex digit before parsing.
+  // Without this, parseInt("GZ", 16) returns NaN, which the Uint8Array
+  // constructor silently casts to 0x00. This causes silent data corruption
+  // in cryptographic operations: a wrong UID or key would be used without
+  // any error, potentially validating invalid taps or generating wrong
+  // session keys.
+  // Callers pass user-supplied URL params (p=, c= from index.js:52-53),
+  // making this an input validation security fix.
+  // Ref: RFC 4648 §8 — hex encoding alphabet [0-9A-Fa-f]
+  if (!/^[0-9a-fA-F]+$/.test(hex)) {
+    throw new Error("Invalid hex string: contains non-hex characters");
+  }
   return new Uint8Array(
     hex.match(/.{1,2}/g).map((byte) => parseInt(byte, 16))
   );
