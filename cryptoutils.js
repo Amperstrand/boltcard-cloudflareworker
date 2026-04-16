@@ -387,12 +387,28 @@ export function decryptP(pHex, k1Keys) {
  * @returns {{ cmac_validated: boolean, cmac_error: string|null }}
  */
 export function verifyCmac(uidBytes, ctr, cHex, k2Bytes) {
+  // Validate cHex length: truncated CMAC is 8 bytes = 16 hex chars.
+  // Rejecting wrong-length values before XOR prevents length-based oracles.
+  if (!cHex || cHex.length !== 16) {
+    return { cmac_validated: false, cmac_error: 'CMAC validation failed' };
+  }
+
   const { ct } = buildVerificationData(uidBytes, ctr, k2Bytes);
   if (!ct) { throw new Error('ct is undefined!'); }
-  const computedCmacHex = bytesToHex(ct).toLowerCase();
-  const providedCmac = cHex.toLowerCase();
-  const cmac_validated = computedCmacHex === providedCmac;
-  
+
+  // Timing-safe comparison: string === short-circuits on first mismatch,
+  // leaking information about how many leading bytes match via response timing.
+  // An attacker can brute-force the CMAC one byte at a time (timing oracle).
+  // XOR accumulator runs in constant time regardless of where bytes differ.
+  // Ref: https://codahale.com/a-lesson-in-timing-attacks/
+  // Ref: NXP AN12196 §5.7 (SDMMAC verification)
+  const providedBytes = hexToBytes(cHex);
+  let diff = 0;
+  for (let i = 0; i < ct.length; i++) {
+    diff |= ct[i] ^ providedBytes[i];
+  }
+  const cmac_validated = diff === 0;
+
   // SECURITY: Return generic error message to prevent oracle attacks.
   // Including expected/received CMAC values in error responses leaks the
   // session MAC key derivative to the client, enabling attackers to verify

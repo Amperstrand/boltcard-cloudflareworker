@@ -252,3 +252,30 @@ test("computeAesCmac should succeed with 0-byte message (empty message)", () => 
   const result = computeAesCmac(message, key);
   expect(result.length).toBe(16);
 });
+
+test("verifyCmac returns cmac_validated=true when CMAC matches", () => {
+  const { p, c, k1, k2 } = {
+    p: "4E2E289D945A66BB13377A728884E867",
+    c: "E19CCB1FED8892CE",
+    k1: "0c3b25d92b38ae443229dd59ad34b85d",
+    k2: "b45775776cb224c75bcde7ca3704e933",
+  };
+  const k1Bytes = hexToBytes(k1);
+  const k2Bytes = hexToBytes(k2);
+  const { success, uidBytes, ctr } = decryptP(p, [k1Bytes]);
+  expect(success).toBe(true);
+  const result = verifyCmac(uidBytes, ctr, c, k2Bytes);
+  expect(result.cmac_validated).toBe(true);
+  expect(result.cmac_error).toBeNull();
+});
+
+test("verifyCmac returns cmac_validated=false when cHex has wrong length", () => {
+  const k2Bytes = hexToBytes("b45775776cb224c75bcde7ca3704e933");
+  const uidBytes = hexToBytes("04996c6a926980");
+  const ctr = hexToBytes("000003");
+
+  const shortCHex = "E19CCB1FED8892";
+  const result = verifyCmac(uidBytes, ctr, shortCHex, k2Bytes);
+  expect(result.cmac_validated).toBe(false);
+  expect(result.cmac_error).toBe("CMAC validation failed");
+});
