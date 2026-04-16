@@ -1,4 +1,5 @@
 import { logger } from "../utils/logger.js";
+import { jsonResponse } from "../utils/responses.js";
 
 export async function handleProxy(request, uidHex, pHex, cHex, baseurl, verification = {}) {
   // Create the target URL by appending the query parameters for pHex and cHex
@@ -61,6 +62,6 @@ export async function handleProxy(request, uidHex, pHex, cHex, baseurl, verifica
 
   } catch (error) {
     logger.error("Error fetching from proxy", { uidHex, error: error.message });
-    return new Response("Proxy error", { status: 500 });
+    return jsonResponse({ error: "Proxy error" }, 500);
   }
 }

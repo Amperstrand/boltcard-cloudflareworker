@@ -1,6 +1,7 @@
 import { getDeterministicKeys } from "../keygenerator.js";
 import { resetReplayProtection } from "../replayProtection.js";
 import { logger } from "../utils/logger.js";
+import { htmlResponse, jsonResponse } from "../utils/responses.js";
 
 /**
  * Serves the card activation page
@@ -171,7 +172,6 @@ export function handleActivateCardPage() {
           } catch (error) {
             nfcStatus.className = 'error';
             nfcStatus.textContent = \`Error: \${error.message}\`;
-            console.error('NFC Error:', error);
           }
         });
 
@@ -220,9 +220,7 @@ export function handleActivateCardPage() {
     </html>
   `;
 
-  return new Response(html, {
-    headers: { "Content-Type": "text/html" }
-  });
+  return htmlResponse(html);
 }
 
 /**
@@ -245,12 +243,12 @@ export async function handleActivateCardSubmit(request, env) {
     const testResult = await testKvAccess(env);
     if (!testResult.success) {
       logger.error("KV write test failed", { error: testResult.error });
-      return new Response(
-        JSON.stringify({ 
+      return jsonResponse(
+        {
           status: "ERROR", 
           reason: `KV access test failed: ${testResult.error}` 
-        }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        },
+        500
       );
     }
     logger.trace("KV write test succeeded");
@@ -261,22 +259,19 @@ export async function handleActivateCardSubmit(request, env) {
     // Validate the UID
     const uid = data.uid?.toLowerCase();
     if (!uid || !/^[0-9a-f]{14}$/.test(uid)) {
-      return new Response(
-        JSON.stringify({ 
+      return jsonResponse(
+        {
           status: "ERROR", 
           reason: "Invalid UID format. Must be 14 hexadecimal characters (7 bytes)." 
-        }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
+        },
+        400
       );
     }
     
     // Generate deterministic keys for the UID
     const keys = await getDeterministicKeys(uid, env);
     if (!keys || !keys.k2) {
-      return new Response(
-        JSON.stringify({ status: "ERROR", reason: "Failed to generate keys for the UID." }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ status: "ERROR", reason: "Failed to generate keys for the UID." }, 500);
     }
     
     logger.debug("Generated deterministic keys for activation", { uid });
@@ -308,23 +303,23 @@ export async function handleActivateCardSubmit(request, env) {
           verified: savedConfig === JSON.stringify(config),
         });
         
-        return new Response(
-          JSON.stringify({ 
+        return jsonResponse(
+          {
             status: "SUCCESS", 
             message: `Card with UID ${uid} has been activated with fakewallet payment method.`,
             uid: uid,
             config: config
-          }),
-          { status: 201, headers: { "Content-Type": "application/json" } } // Changed to 201 Created
+          },
+          201
         );
       } catch (error) {
         logger.error("Failed to save activated card config", { uid, error: error.message });
-        return new Response(
-          JSON.stringify({ 
+        return jsonResponse(
+          {
             status: "ERROR", 
             reason: `Failed to save card configuration: ${error.message}` 
-          }),
-          { status: 500, headers: { "Content-Type": "application/json" } }
+          },
+          500
         );
       }
     } else {
@@ -332,20 +327,17 @@ export async function handleActivateCardSubmit(request, env) {
         hasEnv: Boolean(env),
         hasUidConfigBinding: Boolean(env?.UID_CONFIG),
       });
-      return new Response(
-        JSON.stringify({ 
+      return jsonResponse(
+        {
           status: "ERROR", 
           reason: "KV storage is not available. Cannot activate card." 
-        }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        },
+        500
       );
     }
   } catch (error) {
     logger.error("Error activating card", { error: error.message });
-    return new Response(
-      JSON.stringify({ status: "ERROR", reason: `Server error: ${error.message}` }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ status: "ERROR", reason: `Server error: ${error.message}` }, 500);
   }
 }
 

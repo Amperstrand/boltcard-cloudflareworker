@@ -1,5 +1,6 @@
 import { getDeterministicKeys } from "../keygenerator.js";
 import { resetReplayProtection } from "../replayProtection.js";
+import { jsonResponse } from "../utils/responses.js";
 
 // Card wipe/reset endpoint — returns fresh keys so the NFC programmer can
 // overwrite the card, effectively wiping it.
@@ -8,10 +9,7 @@ import { resetReplayProtection } from "../replayProtection.js";
 export async function handleReset(uid, env, baseUrl) {
   try {
     if (!uid) {
-      return new Response(JSON.stringify({ error: "Missing UID parameter for reset." }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" }
-      });
+      return jsonResponse({ error: "Missing UID parameter for reset." }, 400);
     }
     await resetReplayProtection(env, uid);
     const keys = await getDeterministicKeys(uid, env);
@@ -27,14 +25,8 @@ export async function handleReset(uid, env, baseUrl) {
       K3: keys.k3,
       K4: keys.k4
     };
-    return new Response(JSON.stringify(responsePayload), {
-      status: 200,
-      headers: { "Content-Type": "application/json" }
-    });
+    return jsonResponse(responsePayload, 200);
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" }
-    });
+    return jsonResponse({ error: err.message }, 500);
   }
 }

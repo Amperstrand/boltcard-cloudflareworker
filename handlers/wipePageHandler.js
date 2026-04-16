@@ -153,7 +153,7 @@ export function handleWipePage(request) {
                       pParam = url.searchParams.get("p") || pParam;
                       cParam = url.searchParams.get("c") || cParam;
                     } catch(e) {
-                      console.error("Error parsing NDEF URL", e);
+                      // URL parse failed — keep existing pParam/cParam values
                     }
                   }
                 }

@@ -4,17 +4,10 @@ import { extractUIDAndCounter } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { resetReplayProtection } from "../replayProtection.js";
+import { jsonResponse } from "../utils/responses.js";
 
 // Ref: NXP AN12196 §8 (personalization flow), §5.8 (SUN verification)
 // Ref: docs/ntag424_llm_context.md §15 (provisioning recipe)
-
-const jsonResponse = (data, status = 200) => {
-  const jsonStr = JSON.stringify(data);
-  return new Response(jsonStr, {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-};
 
 const errorResponse = (error, status = 400) => jsonResponse({ error }, status);
 

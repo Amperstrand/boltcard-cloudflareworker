@@ -143,8 +143,8 @@ export function handleActivatePage(request) {
             const text = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' ? el.value : el.innerText;
             navigator.clipboard.writeText(text).then(() => {
               showToast();
-            }).catch(err => {
-              console.error('Failed to copy text: ', err);
+            }).catch(() => {
+              // Clipboard API not available or denied
             });
           }
 

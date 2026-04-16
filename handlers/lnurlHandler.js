@@ -2,6 +2,7 @@ import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { logger } from "../utils/logger.js";
+import { jsonResponse } from "../utils/responses.js";
 
 // Global counter for fakewallet payments
 let fakewalletCounter = 0;
@@ -24,32 +25,23 @@ export async function handleLnurlpPayment(request, env) {
       });
 
       const extra = pathname.slice(lnurlpBase.length).split("/").filter(Boolean);
-      if (extra.length >= 1) {
-        p = extra[0];
-        if (!json.k1) {
-          return new Response(
-            JSON.stringify({ status: "ERROR", reason: "Missing k1 parameter for c value" }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
-          );
+        if (extra.length >= 1) {
+          p = extra[0];
+          if (!json.k1) {
+            return jsonResponse({ status: "ERROR", reason: "Missing k1 parameter for c value" }, 400);
+          }
+          c = json.k1;
+        } else {
+          if (!json.k1) {
+            return jsonResponse({ status: "ERROR", reason: "Missing k1 parameter" }, 400);
+          }
+          const k1Params = new URLSearchParams(json.k1);
+          p = k1Params.get("p");
+          c = k1Params.get("c");
+          if (!p || !c) {
+            return jsonResponse({ status: "ERROR", reason: "Invalid k1 format, missing p or c" }, 400);
+          }
         }
-        c = json.k1;
-      } else {
-        if (!json.k1) {
-          return new Response(
-            JSON.stringify({ status: "ERROR", reason: "Missing k1 parameter" }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
-          );
-        }
-        const k1Params = new URLSearchParams(json.k1);
-        p = k1Params.get("p");
-        c = k1Params.get("c");
-        if (!p || !c) {
-          return new Response(
-            JSON.stringify({ status: "ERROR", reason: "Invalid k1 format, missing p or c" }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
-          );
-        }
-      }
 
       logger.trace("Parsed LNURL callback POST params", {
         hasP: Boolean(p),
@@ -58,10 +50,7 @@ export async function handleLnurlpPayment(request, env) {
       // Optionally, if you want to support POST-based withdrawal processing,
       // you can call processWithdrawalPayment here.
       // For now, the POST branch only logs the request.
-      return new Response(
-        JSON.stringify({ status: "200", message: "POST received" }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ status: "200", message: "POST received" }, 200);
     } else if (request.method === "GET") {
       const extra = pathname.slice(lnurlpBase.length).split("/").filter(Boolean);
       if (extra.length >= 1) {
@@ -71,10 +60,7 @@ export async function handleLnurlpPayment(request, env) {
       const params = url.searchParams;
       const k1 = params.get("k1");
       if (!k1) {
-        return new Response(
-          JSON.stringify({ status: "ERROR", reason: "Missing k1 parameter in query string" }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
-        );
+        return jsonResponse({ status: "ERROR", reason: "Missing k1 parameter in query string" }, 400);
       }
 
       if (!p) {
@@ -82,10 +68,7 @@ export async function handleLnurlpPayment(request, env) {
         p = k1Params.get("p");
         c = k1Params.get("c");
         if (!p || !c) {
-          return new Response(
-            JSON.stringify({ status: "ERROR", reason: "Invalid k1 format, missing p or c" }),
-            { status: 400, headers: { "Content-Type": "application/json" } }
-          );
+          return jsonResponse({ status: "ERROR", reason: "Invalid k1 format, missing p or c" }, 400);
         }
       } else {
         c = k1;
@@ -98,36 +81,24 @@ export async function handleLnurlpPayment(request, env) {
 
       const invoice = params.get("pr");
       if (!invoice) {
-        return new Response(
-          JSON.stringify({ status: "ERROR", reason: "Missing invoice parameter in query string" }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
-        );
+        return jsonResponse({ status: "ERROR", reason: "Missing invoice parameter in query string" }, 400);
       }
 
       // Step 1: Decrypt PICCENCData to recover UID and SDMReadCtr
       const decryption = extractUIDAndCounter(p, env);
       if (!decryption.success) {
-        return new Response(
-          JSON.stringify({ status: "ERROR", reason: decryption.error }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
-        );
+        return jsonResponse({ status: "ERROR", reason: decryption.error }, 400);
       }
 
       if (!decryption.uidHex) {
-        return new Response(
-          JSON.stringify({ status: "ERROR", reason: "Failed to decode UID" }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
-        );
+        return jsonResponse({ status: "ERROR", reason: "Failed to decode UID" }, 400);
       }
 
       const normalizedUidHex = decryption.uidHex.toLowerCase();
 
       const config = await getUidConfig(normalizedUidHex, env);
       if (!config || !config.K2) {
-        return new Response(
-          JSON.stringify({ status: "ERROR", reason: "Card configuration not found or missing K2 for local verification" }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
-        );
+        return jsonResponse({ status: "ERROR", reason: "Card configuration not found or missing K2 for local verification" }, 400);
       }
 
       // Step 3: Validate CMAC with the card's K2 key
@@ -136,10 +107,7 @@ export async function handleLnurlpPayment(request, env) {
       const k2Bytes = hexToBytes(config.K2);
       const { cmac_validated, cmac_error } = validate_cmac(uidBytes, ctrBytes, c, k2Bytes);
       if (!cmac_validated) {
-        return new Response(
-          JSON.stringify({ status: "ERROR", reason: cmac_error || "CMAC validation failed" }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
-        );
+        return jsonResponse({ status: "ERROR", reason: cmac_error || "CMAC validation failed" }, 400);
       }
 
       // Process the withdrawal payment via CLN REST or fakewallet
@@ -151,27 +119,18 @@ export async function handleLnurlpPayment(request, env) {
       }
       
       // Fallback if no response was provided from processWithdrawalPayment.
-      return new Response(
-        JSON.stringify({ status: "-1" }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ status: "-1" }, 200);
     }
   } catch (err) {
     logger.error("Error processing LNURL withdraw request", { error: err.message });
-    return new Response(
-      JSON.stringify({ status: "ERROR", reason: err.message }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ status: "ERROR", reason: err.message }, 500);
   }
 }
 
 export async function processWithdrawalPayment(uid, pr, env) {
   if (!uid) {
     logger.error("Received undefined UID in processWithdrawalPayment");
-    return new Response(
-      JSON.stringify({ status: "ERROR", reason: "Invalid UID" }),
-      { status: 400, headers: { "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ status: "ERROR", reason: "Invalid UID" }, 400);
   }
 
   logger.debug("Processing LNURL payment", { uid });
@@ -186,10 +145,7 @@ export async function processWithdrawalPayment(uid, pr, env) {
 
   if (!config) {
     logger.error("No configuration found for UID", { uid });
-    return new Response(
-      JSON.stringify({ status: "ERROR", reason: "UID configuration not found" }),
-      { status: 400, headers: { "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ status: "ERROR", reason: "UID configuration not found" }, 400);
   }
 
   // Handle fakewallet payment method with alternating failure/success
@@ -197,16 +153,10 @@ export async function processWithdrawalPayment(uid, pr, env) {
     fakewalletCounter++;
     if (fakewalletCounter % 2 === 0) {
       logger.info("Fakewallet simulated failure", { uid });
-      return new Response(
-        JSON.stringify({ status: "ERROR", reason: "Simulated fakewallet failure" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ status: "ERROR", reason: "Simulated fakewallet failure" }, 400);
     } else {
       logger.info("Fakewallet simulated success", { uid });
-      return new Response(
-        JSON.stringify({ status: "OK", message: "Payment processed successfully by fakewallet" }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ status: "OK", message: "Payment processed successfully by fakewallet" }, 200);
     }
   }
 
@@ -218,10 +168,7 @@ export async function processWithdrawalPayment(uid, pr, env) {
   if (config.payment_method === "clnrest") {
     if (!config.clnrest || !config.clnrest.rune) {
       logger.error("Missing CLN REST configuration or rune", { uid });
-      return new Response(
-        JSON.stringify({ status: "ERROR", reason: "Invalid CLN REST configuration" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ status: "ERROR", reason: "Invalid CLN REST configuration" }, 400);
     }
 
     try {
@@ -249,37 +196,22 @@ export async function processWithdrawalPayment(uid, pr, env) {
       if (response.status === 201) {
         if (responseBody.status === "complete") {
           logger.info("CLN payment complete", { uid, status: responseBody.status });
-          return new Response(
-            JSON.stringify({ status: "OK", message: "Payment processed successfully" }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          );
+          return jsonResponse({ status: "OK", message: "Payment processed successfully" }, 200);
         }
         logger.warn("CLN payment not complete", { uid, status: responseBody.status });
-        return new Response(
-          JSON.stringify({ status: "ERROR", reason: `Payment status: ${responseBody.status}` }),
-          { status: 202, headers: { "Content-Type": "application/json" } }
-        );
+        return jsonResponse({ status: "ERROR", reason: `Payment status: ${responseBody.status}` }, 202);
       }
 
       const errorReason = `${response.status}: ${JSON.stringify(responseBody)}`;
       logger.error("CLN REST error", { uid, status: response.status });
-      return new Response(
-        JSON.stringify({ status: "ERROR", reason: errorReason }),
-        { status: response.status, headers: { "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ status: "ERROR", reason: errorReason }, response.status);
     } catch (error) {
       logger.error("CLN REST pay request failed", { uid, error: error.message });
-      return new Response(
-        JSON.stringify({ status: "ERROR", reason: `CLN REST Pay Request Failed: ${error.message}` }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ status: "ERROR", reason: `CLN REST Pay Request Failed: ${error.message}` }, 500);
     }
   }
 
   // If the payment_method is neither fakewallet nor clnrest, return an error.
   logger.error("Unsupported payment method", { uid, paymentMethod: config.payment_method });
-  return new Response(
-    JSON.stringify({ status: "ERROR", reason: `Unsupported payment method: ${config.payment_method}` }),
-    { status: 400, headers: { "Content-Type": "application/json" } }
-  );
+  return jsonResponse({ status: "ERROR", reason: `Unsupported payment method: ${config.payment_method}` }, 400);
 }
