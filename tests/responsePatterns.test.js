@@ -217,6 +217,43 @@ describe("response patterns", () => {
     expectBoltcardKeys(json);
   });
 
+  test("POST boltcards auto-registers new UID as fakewallet in KV", async () => {
+    const kvEnv = makeKvEnv();
+
+    const newUid = "04a39493cc8680";
+    expect(kvEnv.__kvStore[newUid]).toBeUndefined();
+
+    const response = await makeRequest(
+      "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion",
+      "POST",
+      { UID: newUid },
+      kvEnv
+    );
+
+    expect(response.status).toBe(200);
+
+    const savedConfig = JSON.parse(kvEnv.__kvStore[newUid]);
+    expect(savedConfig.payment_method).toBe("fakewallet");
+    expect(savedConfig.K2).toBeDefined();
+    expect(savedConfig.K2.length).toBe(32);
+  });
+
+  test("POST boltcards does not overwrite existing KV config", async () => {
+    const existingConfig = JSON.stringify({ K2: "EXISTINGKEY", payment_method: "clnrest" });
+    const kvEnv = makeKvEnv({ "04a39493cc8680": existingConfig });
+
+    await makeRequest(
+      "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion",
+      "POST",
+      { UID: "04a39493cc8680" },
+      kvEnv
+    );
+
+    const savedConfig = JSON.parse(kvEnv.__kvStore["04a39493cc8680"]);
+    expect(savedConfig.payment_method).toBe("clnrest");
+    expect(savedConfig.K2).toBe("EXISTINGKEY");
+  });
+
   test("POST boltcards pull-payment endpoint returns keys for KeepVersion LNURLW flow", async () => {
     const response = await makeRequest(
       "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=KeepVersion",

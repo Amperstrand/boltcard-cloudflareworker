@@ -52,8 +52,21 @@ export async function fetchBoltCardKeys(request, env) {
 }
 
 async function handleProgrammingFlow(uid, env, baseUrl) {
-  await resetReplayProtection(env, uid);
-  return generateKeyResponse(uid, env, baseUrl);
+  const normalizedUid = uid.toLowerCase();
+  await resetReplayProtection(env, normalizedUid);
+
+  if (env?.UID_CONFIG) {
+    const existing = await env.UID_CONFIG.get(normalizedUid);
+    if (!existing) {
+      const keys = await getDeterministicKeys(normalizedUid, env);
+      await env.UID_CONFIG.put(normalizedUid, JSON.stringify({
+        K2: keys.k2,
+        payment_method: "fakewallet",
+      }));
+    }
+  }
+
+  return generateKeyResponse(normalizedUid, env, baseUrl);
 }
 
 async function handleResetFlow(lnurlw, env, baseUrl) {
