@@ -303,22 +303,41 @@ export function decryptP(pHex, k1Keys) {
     throw new Error("Invalid p length. Expected 16 bytes.");
   }
 
-  let decrypted, uidBytes, ctr, usedK1 = null;
-  for (const k1Bytes of k1Keys) {
+  // NXP AN12196 §5.5: PICCDataTag 0xC7 indicates UID+counter mirroring.
+  // Only 1 byte is checked, so each wrong key has a 1/256 false-positive
+  // chance. With multiple K1 candidates (for key rotation), a wrong key
+  // could beat the correct one.
+  // ntag424-js also only checks the header byte, but with a single key —
+  // multi-key scenarios introduce false-positive risk.
+  // We exhaustively check ALL candidates and warn if multiple match.
+  let bestMatch = null;
+  let matchIndices = [];
+
+  for (let i = 0; i < k1Keys.length; i++) {
+    const k1Bytes = k1Keys[i];
     const aesEcbK1 = new AES.ModeOfOperation.ecb(k1Bytes);
-    decrypted = aesEcbK1.decrypt(pBytes);
+    const decrypted = aesEcbK1.decrypt(pBytes);
 
     // Look for the expected header byte.
     if (decrypted[0] === 0xc7) {
-      usedK1 = k1Bytes;
-      uidBytes = decrypted.slice(1, 8);
-      // Counter is stored in reverse order.
-      ctr = new Uint8Array([decrypted[10], decrypted[9], decrypted[8]]);
-      return { success: true, uidBytes, ctr, usedK1 };
+      if (bestMatch === null) {
+        const uidBytes = decrypted.slice(1, 8);
+        // Counter is stored in reverse order.
+        const ctr = new Uint8Array([decrypted[10], decrypted[9], decrypted[8]]);
+        bestMatch = { success: true, uidBytes, ctr, usedK1: k1Bytes };
+      }
+      matchIndices.push(i);
     }
   }
 
-  return { success: false };
+  if (matchIndices.length > 1) {
+    // Multiple keys produced 0xC7 header — possible false positive.
+    // First matching key wins (consistent with previous behavior).
+    // Investigate if this appears in logs — may indicate key rotation overlap.
+    console.warn(`decryptP: Multiple K1 keys matched PICCDataTag 0xC7 — possible false positive. Indices: [${matchIndices.join(', ')}]`);
+  }
+
+  return bestMatch !== null ? bestMatch : { success: false };
 }
 
 /**

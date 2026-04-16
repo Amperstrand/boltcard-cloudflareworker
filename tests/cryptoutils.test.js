@@ -143,3 +143,40 @@ test("verifyCmac should return null error when validation succeeds", () => {
   // Error should be null
   expect(result.cmac_error).toBe(null);
 });
+
+test("decryptP should work with single K1 key (existing behavior)", () => {
+  const p = "4E2E289D945A66BB13377A728884E867";
+  const k1 = "0c3b25d92b38ae443229dd59ad34b85d";
+  const expected_uid = "04996c6a926980";
+  const expected_ctr = "000003";
+
+  const k1Bytes = hexToBytes(k1);
+  const { success, uidBytes, ctr } = decryptP(p, [k1Bytes]);
+
+  expect(success).toBe(true);
+  expect(bytesToHex(uidBytes)).toBe(expected_uid);
+  expect(bytesToHex(ctr)).toBe(expected_ctr);
+});
+
+test("decryptP should work with multiple K1 keys and return first match", () => {
+  const p = "4E2E289D945A66BB13377A728884E867";
+  const k1Correct = "0c3b25d92b38ae443229dd59ad34b85d";
+  const k1Wrong = "00000000000000000000000000000001";
+  const expected_uid = "04996c6a926980";
+  const expected_ctr = "000003";
+
+  const k1CorrectBytes = hexToBytes(k1Correct);
+  const k1WrongBytes = hexToBytes(k1Wrong);
+
+  const result1 = decryptP(p, [k1CorrectBytes, k1WrongBytes]);
+  expect(result1.success).toBe(true);
+  expect(bytesToHex(result1.uidBytes)).toBe(expected_uid);
+  expect(bytesToHex(result1.ctr)).toBe(expected_ctr);
+  expect(result1.usedK1).toEqual(k1CorrectBytes);
+
+  const result2 = decryptP(p, [k1WrongBytes, k1CorrectBytes]);
+  expect(result2.success).toBe(true);
+  expect(bytesToHex(result2.uidBytes)).toBe(expected_uid);
+  expect(bytesToHex(result2.ctr)).toBe(expected_ctr);
+  expect(result2.usedK1).toEqual(k1CorrectBytes);
+});
