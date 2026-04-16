@@ -168,6 +168,7 @@ describe('End-to-End Payment Flow Integration Tests', () => {
       expect(responseData.minWithdrawable).toBeGreaterThan(0);
       expect(responseData.maxWithdrawable).toBeGreaterThanOrEqual(responseData.minWithdrawable);
       expect(responseData.defaultDescription).toBeDefined();
+    });
   });
 
   describe('Performance and Security Integration', () => {
@@ -238,4 +239,3 @@ describe('Complete Payment Flow Integration', () => {
     });
   });
 
-});

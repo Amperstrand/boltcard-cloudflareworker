@@ -257,62 +257,6 @@ export async function processWithdrawalPayment(uid, pr, env) {
     }
   }
 
-    try {
-      const clnrest = config.clnrest;
-      const clnrest_endpoint = `${clnrest.host}`;
-      console.log(`Sending request to CLN REST at ${clnrest_endpoint}/v1/pay with invoice: ${pr}`);
-
-      // Create headers with the required content type and Rune for authentication.
-      const headers = new Headers();
-      headers.set("Content-Type", "application/json");
-      headers.set("Rune", clnrest.rune);
-      console.log("Headers to be sent:", JSON.stringify(Array.from(headers.entries())));
-
-      // Build the request body using the correct parameter name
-      const requestBody = JSON.stringify({ bolt11: pr });
-      console.log("Request Body:", requestBody);
-
-      // Make the API call to the CLN REST endpoint.
-      const response = await fetch(clnrest_endpoint + "/v1/pay", {
-        method: "POST",
-        headers: headers,
-        body: requestBody,
-      });
-
-      if (!response) {
-        console.error("No response received from CLN REST endpoint.");
-        return new Response(
-          JSON.stringify({ status: "ERROR", reason: "No response from CLN REST endpoint" }),
-          { status: 500, headers: { "Content-Type": "application/json" } }
-        );
-      }
-
-      if (response.status === 201) {
-        const responseBody = await response.json();
-        console.log(`Payment processed successfully. Response Body:`, JSON.stringify(responseBody, null, 2));
-        return new Response(
-          JSON.stringify({ status: "OK", message: "Payment processed successfully" }),
-          { status: 200, headers: { "Content-Type": "application/json" } }
-        );
-      } else {
-        const errorText = await response.text();
-        // Construct the error message using the error code and message from core lightning.
-        const errorReason = `${response.status} ${errorText}`;
-        console.error(`Core Lightning failure: ${errorReason}`);
-        return new Response(
-          JSON.stringify({ status: "ERROR", reason: errorReason }),
-          { status: response.status, headers: { "Content-Type": "application/json" } }
-        );
-      }
-    } catch (error) {
-      console.error(`CLN REST Pay Request Failed: ${error.message}`);
-      return new Response(
-        JSON.stringify({ status: "ERROR", reason: `CLN REST Pay Request Failed: ${error.message}` }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
-    }
-  }
-
   // If the payment_method is neither fakewallet nor clnrest, return an error.
   console.error(`Unsupported payment method for UID=${uid}: ${config.payment_method}`);
   return new Response(
