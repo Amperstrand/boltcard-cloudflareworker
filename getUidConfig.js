@@ -1,5 +1,5 @@
 // getUidConfig.js
-import { hexToBytes } from './cryptoutils.js';
+import { computeAesCmac, hexToBytes } from './cryptoutils.js';
 import { logger } from './utils/logger.js';
 
 // BOLT_CARD_K1 from environment/secrets (secure for production)
@@ -15,6 +15,12 @@ export function getBoltCardK1(env) {
   // Support comma-separated string format (e.g., from test env)
   if (env && env.BOLT_CARD_K1) {
     return env.BOLT_CARD_K1.split(',').map(hexToBytes);
+  }
+
+  if (env && env.ISSUER_KEY) {
+    logger.debug("Deriving K1 from ISSUER_KEY for PICC decryption");
+    const issuerKeyBytes = hexToBytes(env.ISSUER_KEY);
+    return [computeAesCmac(hexToBytes("2d003f77"), issuerKeyBytes)];
   }
   
   // Fallback to development keys (for local testing only)

@@ -1,5 +1,8 @@
 import { getDeterministicKeys } from "../keygenerator.js"; // Ensure correct path
 import { expect, test } from "@jest/globals";
+import { bytesToHex } from "../cryptoutils.js";
+import { extractUIDAndCounter } from "../boltCardHelper.js";
+import { getBoltCardK1 } from "../getUidConfig.js";
 
 test("Generate deterministic keys for known UID", async () => {
   const uid = "04a39493cc8680";
@@ -22,4 +25,26 @@ test("Generate deterministic keys for known UID", async () => {
   expect(keys.k4).toBe(expectedKeys.k4);
   expect(keys.id).toBe(expectedKeys.id);
   expect(keys.cardKey).toBe(expectedKeys.cardKey);
+});
+
+test("getBoltCardK1 derives deterministic K1 from ISSUER_KEY when explicit K1 is absent", async () => {
+  const env = { ISSUER_KEY: "00000000000000000000000000000001" };
+
+  const derivedK1Keys = getBoltCardK1(env);
+  const deterministicKeys = await getDeterministicKeys("04a39493cc8680", env);
+
+  expect(derivedK1Keys).toHaveLength(1);
+  expect(bytesToHex(derivedK1Keys[0])).toBe(deterministicKeys.k1);
+});
+
+test("extractUIDAndCounter works with ISSUER_KEY-only env", () => {
+  const result = extractUIDAndCounter("3736A84681238418D4B9B7210C13DC39", {
+    ISSUER_KEY: "00000000000000000000000000000001",
+  });
+
+  expect(result).toMatchObject({
+    success: true,
+    uidHex: "044561fa967380",
+    ctr: "00004e",
+  });
 });
