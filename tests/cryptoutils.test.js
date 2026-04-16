@@ -225,3 +225,30 @@ test("computeAesCmac should succeed with 16-byte key (correct length)", () => {
   const result = computeAesCmac(message, correctKey);
   expect(result.length).toBe(16);
 });
+
+test("computeAesCmac should throw for 17-byte message (exceeds single-block limit)", () => {
+  const message = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]);
+  const key = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+
+  expect(() => computeAesCmac(message, key)).toThrow(
+    "computeAesCmac: message length 17 exceeds single-block limit (16)"
+  );
+});
+
+test("computeAesCmac should succeed with 16-byte message (exactly one block)", () => {
+  const message = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+  const key = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+
+  expect(() => computeAesCmac(message, key)).not.toThrow();
+  const result = computeAesCmac(message, key);
+  expect(result.length).toBe(16);
+});
+
+test("computeAesCmac should succeed with 0-byte message (empty message)", () => {
+  const message = new Uint8Array([]);
+  const key = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+
+  expect(() => computeAesCmac(message, key)).not.toThrow();
+  const result = computeAesCmac(message, key);
+  expect(result.length).toBe(16);
+});

@@ -129,6 +129,23 @@ export function computeAesCmac(message, key) {
     throw new Error("AES-CMAC requires a 16-byte key (AES-128), per RFC 4493 §2.3");
   }
 
+  // Guard: this implementation only handles 0 or 1 block messages (≤16 bytes).
+  // RFC 4493 §2.4 defines multi-block CMAC with CBC chaining (Algorithm 3,
+  // steps 5-6), but all BoltCard protocol messages are single-block:
+  //   - SV2 session vector = 16 bytes (exactly one block)
+  //   - Empty-message ks derivation = 0 bytes
+  // Without this guard, a >16 byte message would silently produce a wrong
+  // CMAC (only processing the last block, skipping CBC chaining), or throw
+  // a RangeError at padded.set(message) if message > 16 bytes.
+  // Fail explicitly rather than silently produce wrong output.
+  // If multi-block is ever needed, implement full CBC chain per RFC 4493 §2.4.
+  if (message.length > BLOCK_SIZE) {
+    throw new Error(
+      `computeAesCmac: message length ${message.length} exceeds single-block limit (${BLOCK_SIZE}). ` +
+      "Multi-block CBC-MAC chaining not implemented. See RFC 4493 §2.4."
+    );
+  }
+
   if (DEBUG)
     console.log(
       "[AES-CMAC] Computing AES-CMAC for message:",
