@@ -106,6 +106,32 @@ describe("response patterns", () => {
     expect(html).toContain("BoltCard Activation");
   });
 
+  test("GET /activate returns HTML with NFC console link", async () => {
+    const response = await makeRequest("/activate");
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("text/html");
+
+    const html = await response.text();
+    expect(html).toContain("CARD ACTIVATION");
+    expect(html).toContain('href="/nfc"');
+    expect(html).toContain("OPEN NFC TEST CONSOLE");
+  });
+
+  test("GET /nfc returns refreshed HTML console", async () => {
+    const response = await makeRequest("/nfc");
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("text/html");
+
+    const html = await response.text();
+    expect(html).toContain("BoltCard NFC Console");
+    expect(html).toContain("NFC test console");
+    expect(html).toContain("Back to operator home");
+    expect(html).toContain("Open QR scanner");
+    expect(html).toContain("Pay invoice");
+  });
+
   test("POST /activate/form returns success JSON for valid UID", async () => {
     const requestEnv = makeKvEnv();
     const response = await makeRequest("/activate/form", "POST", { uid: "04a39493cc8680" }, requestEnv);

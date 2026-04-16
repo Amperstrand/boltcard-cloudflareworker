@@ -1,81 +1,160 @@
+import { htmlResponse } from "../utils/responses.js";
+
 export default async function handleNfc() {
   const html = `
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="en" class="dark">
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Bolt Card Scanner (LUD-03)</title>
+        <title>BoltCard NFC Console</title>
         <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+          body { background-color: #030712; color: #f3f4f6; }
+        </style>
       </head>
-      <body class="bg-gray-100 flex items-center justify-center min-h-screen">
-        <div class="max-w-md w-full bg-white shadow-lg rounded-xl p-6">
-          <img id="profile-picture" src="" alt="User Profile" class="hidden w-20 h-20 rounded-full mx-auto mb-4">
+      <body class="min-h-screen bg-gray-950 text-gray-100 font-sans antialiased">
+        <div class="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 p-4 md:p-8">
+          <section class="rounded-2xl border border-gray-800 bg-gray-900/80 p-6 shadow-2xl shadow-black/30">
+            <div class="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+              <div class="max-w-3xl">
+                <p class="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-400">Operator utility</p>
+                <h1 class="mt-3 text-3xl font-bold tracking-tight text-white md:text-4xl">NFC test console</h1>
+                <p class="mt-3 text-sm leading-6 text-gray-400 md:text-base">
+                  Tap a BoltCard, inspect the decoded LNURL-withdraw payload, then scan or paste a BOLT11 invoice and trigger the callback directly from the browser.
+                </p>
+              </div>
 
-          <h1 class="text-2xl font-bold text-center text-gray-800">Bolt Card Scanner (LUD-03)</h1>
+              <div class="flex flex-wrap items-center gap-3">
+                <a
+                  href="/activate"
+                  class="rounded-xl border border-gray-700 bg-gray-950 px-4 py-2 text-sm font-semibold text-gray-200 transition hover:border-cyan-500/50 hover:text-cyan-300"
+                >
+                  Back to operator home
+                </a>
+                <button
+                  id="nfc-indicator"
+                  class="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-500/20"
+                >
+                  NFC inactive · click to start
+                </button>
+              </div>
+            </div>
 
-          <h3 class="text-lg font-semibold text-gray-700 mt-4">Enter BOLT11 Invoice</h3>
-          <div class="flex space-x-2 mt-2">
-            <input type="text" id="invoice-input" 
-                   class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                   placeholder="Enter BOLT11 Invoice here" oninput="updatePayButtonState()" />
-            <button id="toggle-qr-button" class="bg-green-600 text-white font-medium py-2 px-4 rounded-md">
-              Toggle QR
+            <div class="mt-6 grid gap-4 md:grid-cols-3">
+              <div class="rounded-xl border border-gray-800 bg-gray-950/70 p-4">
+                <div class="text-xs font-semibold uppercase tracking-[0.25em] text-gray-500">Card UID</div>
+                <div id="uid-box" class="mt-3 break-all font-mono text-sm text-amber-400">Waiting for scan...</div>
+              </div>
+
+              <div class="rounded-xl border border-gray-800 bg-gray-950/70 p-4">
+                <div class="text-xs font-semibold uppercase tracking-[0.25em] text-gray-500">NDEF payload</div>
+                <div id="ndef-box" class="mt-3 break-all font-mono text-xs leading-6 text-gray-300">Waiting for NFC scan...</div>
+              </div>
+
+              <div class="rounded-xl border border-gray-800 bg-gray-950/70 p-4">
+                <div class="text-xs font-semibold uppercase tracking-[0.25em] text-gray-500">Decoded LNURLW</div>
+                <div id="lnurlw-details" class="mt-3 text-sm leading-6 text-gray-300">Scan a card to load callback, limits, and payment metadata.</div>
+              </div>
+            </div>
+
+            <div id="error-message" class="mt-4 hidden rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200"></div>
+
+            <button
+              id="retry-button"
+              class="mt-4 hidden w-full rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/20"
+            >
+              Restart NFC scanner
             </button>
+          </section>
+
+          <div class="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+            <section class="rounded-2xl border border-gray-800 bg-gray-900/80 p-6 shadow-xl shadow-black/20">
+              <div class="flex flex-col gap-2">
+                <p class="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-400">Step 1</p>
+                <h2 class="text-2xl font-semibold text-white">Load an invoice</h2>
+                <p class="text-sm leading-6 text-gray-400">
+                  Paste a BOLT11 invoice directly or open the QR scanner with your device camera. Payment stays disabled until a card payload has been fetched.
+                </p>
+              </div>
+
+              <div class="mt-5 flex flex-col gap-3 sm:flex-row">
+                <input
+                  type="text"
+                  id="invoice-input"
+                  class="w-full rounded-xl border border-gray-700 bg-gray-950 px-4 py-3 text-sm text-gray-100 placeholder:text-gray-500 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                  placeholder="Paste BOLT11 invoice here"
+                />
+                <button
+                  id="toggle-qr-button"
+                  class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20 sm:min-w-[180px]"
+                >
+                  Open QR scanner
+                </button>
+              </div>
+
+              <video
+                id="qr-video"
+                class="mt-4 hidden w-full rounded-2xl border border-gray-800 bg-black"
+                style="max-height: 320px; object-fit: cover;"
+                autoplay
+                muted
+                playsinline
+              ></video>
+
+              <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                <button
+                  id="pay-button"
+                  class="hidden rounded-xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:bg-cyan-500/40 disabled:text-cyan-100"
+                  disabled
+                >
+                  Pay invoice
+                </button>
+
+                <button
+                  id="toggle-json-button"
+                  class="hidden rounded-xl border border-gray-700 bg-gray-950 px-4 py-3 text-sm font-semibold text-gray-200 transition hover:border-cyan-500/40 hover:text-cyan-300"
+                >
+                  Show raw JSON
+                </button>
+              </div>
+
+              <div id="payment-status" class="mt-4 hidden rounded-xl border px-4 py-3 text-sm font-semibold"></div>
+              <pre id="json-box" class="mt-4 hidden max-h-96 overflow-auto rounded-2xl border border-gray-800 bg-gray-950/80 p-4 text-xs leading-6 text-green-300"></pre>
+            </section>
+
+            <section class="rounded-2xl border border-gray-800 bg-gray-900/80 p-6 shadow-xl shadow-black/20">
+              <div class="flex flex-col gap-2">
+                <p class="text-xs font-semibold uppercase tracking-[0.25em] text-amber-400">Step 2</p>
+                <h2 class="text-2xl font-semibold text-white">Run a live browser-side payment check</h2>
+                <p class="text-sm leading-6 text-gray-400">
+                  This page is meant for operator testing. It helps you confirm that Web NFC, the LNURL-withdraw response, invoice submission, and callback handling all work together on a real device.
+                </p>
+              </div>
+
+              <div class="mt-5 space-y-4">
+                <div class="rounded-xl border border-gray-800 bg-gray-950/70 p-4">
+                  <div class="text-xs font-semibold uppercase tracking-[0.25em] text-gray-500">Suggested flow</div>
+                  <ol class="mt-3 space-y-3 text-sm leading-6 text-gray-300">
+                    <li>1. Tap a card and confirm the UID and NDEF payload appear above.</li>
+                    <li>2. Paste or scan a fresh BOLT11 invoice into the invoice field.</li>
+                    <li>3. Submit the payment and confirm the callback returns <span class="font-mono text-cyan-300">status: OK</span>.</li>
+                  </ol>
+                </div>
+
+                <div class="rounded-xl border border-gray-800 bg-gray-950/70 p-4">
+                  <div class="text-xs font-semibold uppercase tracking-[0.25em] text-gray-500">Environment notes</div>
+                  <div class="mt-3 space-y-3 text-sm leading-6 text-gray-300">
+                    <p>Web NFC works best in Chrome on Android. Camera-based QR scanning requires camera permission.</p>
+                    <p>The page waits three seconds between NFC reads so repeated taps do not spam the callback flow.</p>
+                  </div>
+                </div>
+              </div>
+            </section>
           </div>
-
-          <!-- Video element used for QR scanning (zoomed in via CSS) -->
-          <video id="qr-video" class="mt-3 hidden" 
-                 style="width: 100%; max-height: 300px; object-fit: cover; transform: scale(1.2);" 
-                 autoplay muted playsinline></video>
-
-          <!-- Pay Invoice button: visible when invoice field is non-empty -->
-          <button id="pay-button"
-                  class="w-full bg-blue-600 text-white font-medium py-2 rounded-md mt-3 hidden"
-                  disabled>
-            Pay Invoice
-          </button>
-          <div id="payment-status" class="mt-2 text-sm font-bold"></div>
-
-          <h3 class="text-lg font-semibold text-gray-700 mt-6">NDEF Data</h3>
-          <div id="ndef-box" class="p-3 bg-gray-200 rounded-md text-gray-700 mt-2">
-            Waiting for NFC scan...
-          </div>
-
-          <h3 class="text-lg font-semibold text-gray-700 mt-6">LNURLW Payment Details</h3>
-          <div id="lnurlw-details" class="p-3 bg-gray-200 rounded-md text-gray-700 mt-2">
-            Scan NFC to fetch payment data...
-          </div>
-
-          <button id="toggle-json-button" 
-                  class="w-full bg-gray-600 text-white font-medium py-2 rounded-md mt-3 hidden">
-            Show Full JSON
-          </button>
-          <div id="json-box" class="p-3 bg-gray-200 rounded-md text-gray-700 mt-2 hidden"></div>
-
-          <button id="retry-button" 
-                  class="w-full bg-red-600 text-white font-medium py-2 rounded-md mt-3 hidden">
-            Start NFC Scan
-          </button>
-          <div id="error-message" class="text-red-600 font-bold mt-3 hidden"></div>
-
-          <!-- New field to display NFC UID -->
-          <h3 class="text-lg font-semibold text-gray-700 mt-6">NFC UID</h3>
-          <div id="uid-box" class="p-3 bg-gray-200 rounded-md text-gray-700 mt-2">
-            Waiting for UID...
-          </div>
-
-          <!-- New NFC Indicator Button -->
-          <button id="nfc-indicator" 
-                  class="w-full text-white font-medium py-2 rounded-md mt-3"
-                  style="background-color: red;">
-            NFC Inactive (click to restart)
-          </button>
         </div>
 
-        <!-- Module script including NFC and QR scanning logic -->
         <script type="module">
-          // Import QrScanner from jsDelivr CDN
           import QrScanner from "https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner.min.js";
 
           let lastScannedUrl = "";
@@ -87,16 +166,83 @@ export default async function handleNfc() {
           let qrActive = false;
           let nfcActive = false;
           let lastNfcReadTime = 0;
-          let nfcScanner = null;
           let nfcAbortController = null;
 
-          // NFC scanning: create a new instance of NDEFReader each time using an AbortController.
+          const errorBox = document.getElementById("error-message");
+          const retryButton = document.getElementById("retry-button");
+          const ndefBox = document.getElementById("ndef-box");
+          const uidBox = document.getElementById("uid-box");
+          const lnurlwDetails = document.getElementById("lnurlw-details");
+          const invoiceInput = document.getElementById("invoice-input");
+          const payButton = document.getElementById("pay-button");
+          const paymentStatus = document.getElementById("payment-status");
+          const toggleJsonButton = document.getElementById("toggle-json-button");
+          const jsonBox = document.getElementById("json-box");
+          const qrVideo = document.getElementById("qr-video");
+
+          function showError(message) {
+            errorBox.textContent = message;
+            errorBox.classList.remove("hidden");
+          }
+
+          function clearError() {
+            errorBox.textContent = "";
+            errorBox.classList.add("hidden");
+          }
+
+          function setPaymentStatus(message, ok) {
+            paymentStatus.className = ok
+              ? "mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-200"
+              : "mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200";
+            paymentStatus.textContent = message;
+            paymentStatus.classList.remove("hidden");
+          }
+
+          function hidePaymentStatus() {
+            paymentStatus.textContent = "";
+            paymentStatus.className = "mt-4 hidden rounded-xl border px-4 py-3 text-sm font-semibold";
+          }
+
+          function updatePayButtonState() {
+            const invoice = invoiceInput.value.trim();
+            const readyToPay = invoice !== "" && jsonFetched && callbackUrl && k1 && !paymentUsed;
+            payButton.disabled = !readyToPay;
+            payButton.classList.toggle("hidden", !readyToPay);
+          }
+
+          function updateToggleQrButton() {
+            const button = document.getElementById("toggle-qr-button");
+            button.textContent = qrActive ? "Stop QR scanner" : "Open QR scanner";
+          }
+
+          function updateNfcIndicator() {
+            const indicator = document.getElementById("nfc-indicator");
+            if (nfcActive) {
+              indicator.className = "rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20";
+              indicator.textContent = "NFC active · click to restart";
+            } else {
+              indicator.className = "rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-500/20";
+              indicator.textContent = "NFC inactive · click to start";
+            }
+          }
+
+          function restartNfc() {
+            if (nfcAbortController) {
+              nfcAbortController.abort();
+            }
+            nfcActive = false;
+            updateNfcIndicator();
+            clearError();
+            retryButton.classList.add("hidden");
+            setTimeout(() => startNfc(), 1200);
+          }
+
           async function startNfc() {
-            const errorBox = document.getElementById("error-message");
-            const retryButton = document.getElementById("retry-button");
+            clearError();
+            retryButton.classList.add("hidden");
+
             try {
               const ndef = new NDEFReader();
-              nfcScanner = ndef;
               nfcAbortController = new AbortController();
               await ndef.scan({ signal: nfcAbortController.signal });
               nfcActive = true;
@@ -104,157 +250,134 @@ export default async function handleNfc() {
 
               ndef.onreading = async (event) => {
                 const now = Date.now();
-                // Enforce a 3-second delay between NFC readings.
-                if (now - lastNfcReadTime < 3000) return;
+                if (now - lastNfcReadTime < 3000) {
+                  return;
+                }
+
                 lastNfcReadTime = now;
+                clearError();
+                hidePaymentStatus();
 
                 const decoder = new TextDecoder();
                 let nfcData = decoder.decode(event.message.records[0].data);
                 if (nfcData.startsWith("lnurlw://")) {
                   nfcData = "https://" + nfcData.substring(9);
                 }
-                document.getElementById("ndef-box").textContent = nfcData;
 
-                // Display NFC UID if available.
+                ndefBox.textContent = nfcData;
+
                 if (event.serialNumber) {
-                  document.getElementById("uid-box").textContent = event.serialNumber;
+                  uidBox.textContent = event.serialNumber.replace(/:/g, "").toLowerCase();
                 } else {
-                  document.getElementById("uid-box").textContent = "No UID available";
+                  uidBox.textContent = "No UID available";
                 }
 
                 if (nfcData.startsWith("https://") && nfcData !== lastScannedUrl) {
                   lastScannedUrl = nfcData;
-                  fetchJsonAndHandlePayment(nfcData);
+                  await fetchJsonAndHandlePayment(nfcData);
                 }
               };
 
-              ndef.onreadingerror = (event) => {
-                document.getElementById("ndef-box").textContent = "Error reading NFC data.";
+              ndef.onreadingerror = () => {
+                showError("Error reading NFC data. Try tapping the card again.");
+                ndefBox.textContent = "Error reading NFC data.";
               };
-
             } catch (error) {
               nfcActive = false;
               updateNfcIndicator();
+              retryButton.classList.remove("hidden");
+
               if (error.name === "NotAllowedError") {
-                errorBox.classList.remove("hidden");
-                errorBox.textContent = "NFC permission denied. Click the NFC indicator to try again.";
-                retryButton.classList.remove("hidden");
-                retryButton.addEventListener("click", startNfc);
+                showError("NFC permission denied. Click restart once the browser is allowed to scan.");
+              } else if (error.name === "AbortError") {
+                clearError();
               } else {
-                document.getElementById("ndef-box").textContent = "Error: " + error.message;
+                showError("Unable to start NFC: " + error.message);
+                ndefBox.textContent = "Error: " + error.message;
               }
             }
           }
 
-          // Abort the current NFC scan via AbortController and create a new NDEFReader after a 2000ms delay.
-          function restartNfc() {
-            if (nfcAbortController) {
-              nfcAbortController.abort();
-            }
-            nfcScanner = null;
-            nfcActive = false;
-            updateNfcIndicator();
-            setTimeout(() => {
-              startNfc();
-            }, 2000);
-          }
-
           async function fetchJsonAndHandlePayment(url) {
+            jsonFetched = false;
+            paymentUsed = false;
+            callbackUrl = "";
+            k1 = "";
+            updatePayButtonState();
+
             try {
               const response = await fetch(url);
               const jsonData = await response.json();
-              jsonFetched = true;
-              paymentUsed = false;
 
-              document.getElementById("json-box").textContent = JSON.stringify(jsonData, null, 2);
-              document.getElementById("toggle-json-button").classList.remove("hidden");
-
-              document.getElementById("toggle-json-button").onclick = () => {
-                document.getElementById("json-box").classList.toggle("hidden");
-              };
+              jsonBox.textContent = JSON.stringify(jsonData, null, 2);
+              toggleJsonButton.classList.remove("hidden");
 
               if (jsonData.tag === "withdrawRequest") {
                 callbackUrl = jsonData.callback;
                 k1 = jsonData.k1;
-
-                if (k1) {
-                  updateProfilePicture(k1);
-                }
-
-                document.getElementById("lnurlw-details").innerHTML = 
-                  \`<b>Callback:</b> \${callbackUrl}<br>
-                   <b>K1:</b> \${k1}<br>
-                   <b>Min Withdraw:</b> \${jsonData.minWithdrawable / 1000} sats<br>
-                   <b>Max Withdraw:</b> \${jsonData.maxWithdrawable / 1000} sats\`;
+                jsonFetched = true;
+                lnurlwDetails.innerHTML =
+                  '<div class="space-y-2">' +
+                  '<div><span class="font-semibold text-gray-100">Callback:</span> <span class="break-all font-mono text-xs text-cyan-300">' + jsonData.callback + '</span></div>' +
+                  '<div><span class="font-semibold text-gray-100">K1:</span> <span class="break-all font-mono text-xs text-amber-300">' + jsonData.k1 + '</span></div>' +
+                  '<div><span class="font-semibold text-gray-100">Min withdraw:</span> ' + (jsonData.minWithdrawable / 1000) + ' sats</div>' +
+                  '<div><span class="font-semibold text-gray-100">Max withdraw:</span> ' + (jsonData.maxWithdrawable / 1000) + ' sats</div>' +
+                  '</div>';
+                updatePayButtonState();
+                return;
               }
+
+              lnurlwDetails.textContent = "The scanned URL did not return a withdrawRequest payload.";
             } catch (error) {
-              document.getElementById("lnurlw-details").textContent = "Error fetching JSON: " + error.message;
-            }
-          }
-
-          function updateProfilePicture(k1) {
-            let hash = 0;
-            for (let i = 0; i < k1.length; i++) {
-              hash = (hash * 31 + k1.charCodeAt(i)) % 11;
-            }
-            const profilePicture = document.getElementById("profile-picture");
-            profilePicture.src = \`https://randomuser.me/api/portraits/thumb/women/\${hash}.jpg\`;
-            profilePicture.style.display = "block";
-          }
-
-          // Update Pay Invoice button visibility based on the invoice field value.
-          function updatePayButtonState() {
-            const invoiceInput = document.getElementById("invoice-input").value.trim();
-            const payButton = document.getElementById("pay-button");
-            if (invoiceInput !== "") {
-              payButton.classList.remove("hidden");
-              payButton.disabled = false;
-            } else {
-              payButton.classList.add("hidden");
+              lnurlwDetails.textContent = "Error fetching JSON: " + error.message;
+              showError("Unable to fetch LNURLW response from scanned card URL.");
             }
           }
 
           async function processPayment() {
-            const invoiceInput = document.getElementById("invoice-input").value.trim();
-            if (!invoiceInput || !jsonFetched || paymentUsed) return;
+            const invoice = invoiceInput.value.trim();
+            if (!invoice || !jsonFetched || paymentUsed) {
+              return;
+            }
 
-            const withdrawUrl = \`\${callbackUrl}?k1=\${k1}&pr=\${encodeURIComponent(invoiceInput)}\`;
+            const withdrawUrl = callbackUrl + '?k1=' + k1 + '&pr=' + encodeURIComponent(invoice);
 
             try {
               const withdrawResponse = await fetch(withdrawUrl);
               const withdrawResult = await withdrawResponse.json();
-              const paymentStatus = document.getElementById("payment-status");
+              const succeeded = withdrawResult.status === "OK";
 
-              paymentStatus.style.display = "block";
-              paymentStatus.textContent =
-                withdrawResult.status === "OK" ? "Payment Successful!" : "Payment Failed: " + withdrawResult.reason;
-              paymentStatus.style.color = withdrawResult.status === "OK" ? "green" : "red";
+              setPaymentStatus(
+                succeeded ? "Payment successful." : 'Payment failed: ' + (withdrawResult.reason || 'Unknown error'),
+                succeeded
+              );
 
-              if (withdrawResult.status === "OK") {
+              if (succeeded) {
                 paymentUsed = true;
+                updatePayButtonState();
               }
             } catch {
-              document.getElementById("payment-status").textContent = "Error processing payment.";
+              setPaymentStatus("Error processing payment.", false);
             }
           }
 
-          // QR Code scanning logic.
           function startQrScanner() {
-            const videoElem = document.getElementById("qr-video");
-            videoElem.classList.remove("hidden");
+            qrVideo.classList.remove("hidden");
             if (qrScanner) {
               qrScanner.start();
               qrActive = true;
               updateToggleQrButton();
               return;
             }
-            qrScanner = new QrScanner(videoElem, (result) => {
+
+            qrScanner = new QrScanner(qrVideo, (result) => {
               if (result && result.toLowerCase().startsWith("lnbc")) {
-                document.getElementById("invoice-input").value = result;
+                invoiceInput.value = result;
                 updatePayButtonState();
-                toggleQrScanner(); // Stop scanning once a valid code is found.
+                toggleQrScanner();
               }
             });
+
             qrScanner.start();
             qrActive = true;
             updateToggleQrButton();
@@ -264,14 +387,12 @@ export default async function handleNfc() {
             if (qrScanner) {
               qrScanner.stop();
             }
-            document.getElementById("qr-video").classList.add("hidden");
+            qrVideo.classList.add("hidden");
             qrActive = false;
             updateToggleQrButton();
-            // When stopping the QR scanner, force a hard restart of the NFC reader.
             restartNfc();
           }
 
-          // Toggle QR scanning on or off.
           function toggleQrScanner() {
             if (qrActive) {
               stopQrScanner();
@@ -280,42 +401,24 @@ export default async function handleNfc() {
             }
           }
 
-          function updateToggleQrButton() {
-            const btn = document.getElementById("toggle-qr-button");
-            btn.textContent = qrActive ? "Stop QR" : "Toggle QR";
-          }
-
-          // Update the NFC indicator button's text and background color.
-          function updateNfcIndicator() {
-            const indicator = document.getElementById("nfc-indicator");
-            if (nfcActive) {
-              indicator.style.backgroundColor = "green";
-              indicator.textContent = "NFC Active (click to restart)";
-            } else {
-              indicator.style.backgroundColor = "red";
-              indicator.textContent = "NFC Inactive (click to start)";
-            }
-          }
-
-          // Bind the NFC indicator button to force a full restart (creates a new NDEFReader instance).
-          document.getElementById("nfc-indicator").addEventListener("click", () => {
-            restartNfc();
+          document.getElementById("nfc-indicator").addEventListener("click", restartNfc);
+          document.getElementById("retry-button").addEventListener("click", restartNfc);
+          document.getElementById("toggle-qr-button").addEventListener("click", toggleQrScanner);
+          document.getElementById("pay-button").addEventListener("click", processPayment);
+          document.getElementById("invoice-input").addEventListener("input", updatePayButtonState);
+          document.getElementById("toggle-json-button").addEventListener("click", () => {
+            jsonBox.classList.toggle("hidden");
+            toggleJsonButton.textContent = jsonBox.classList.contains("hidden") ? "Show raw JSON" : "Hide raw JSON";
           });
 
-          // Bind the toggle QR button to start/stop QR scanning.
-          document.getElementById("toggle-qr-button").addEventListener("click", toggleQrScanner);
-
-          // Bind the Pay Invoice button click.
-          document.getElementById("pay-button").addEventListener("click", processPayment);
-
-          // Update the Pay Invoice button state on invoice field changes.
-          document.getElementById("invoice-input").addEventListener("input", updatePayButtonState);
-
-          // Start NFC scanning when the page loads (using a fresh NDEFReader instance).
+          updateToggleQrButton();
+          updateNfcIndicator();
+          updatePayButtonState();
           window.addEventListener("load", startNfc);
         </script>
       </body>
     </html>
   `;
-  return new Response(html, { headers: { "Content-Type": "text/html" } });
+
+  return htmlResponse(html);
 }
