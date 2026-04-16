@@ -10,13 +10,13 @@ kv_namespaces = [
 # and add: { binding = "RATE_LIMITS", id = "<your-namespace-id>" }
 # The worker gracefully skips rate limiting when the binding is absent.
 
-[[durable_objects.bindings]]
-name = "CARD_REPLAY"
-class_name = "CardReplayDO"
-
 routes = [
   "https://boltcardpoc.psbt.me/*"
 ]
+
+[[durable_objects.bindings]]
+name = "CARD_REPLAY"
+class_name = "CardReplayDO"
 
 [[migrations]]
 tag = "v1"
