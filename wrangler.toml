@@ -3,18 +3,10 @@ main = "index.js"
 compatibility_date = "2025-02-28"
 
 kv_namespaces = [
-  { binding = "UID_CONFIG", id = "7eaddc7f33d242ed94054dfb8da8fcbc" }
+  { binding = "UID_CONFIG", id = "7eaddc7f33d242ed94054dfb8da8fcbc" },
+  { binding = "RATE_LIMITS", id = "RATE_LIMITS_KV_ID" }
 ]
-
-# Use a simple array of route strings
 
 routes = [
   "https://boltcardpoc.psbt.me/*"
 ]
-
-[vars]
-# These variables will be available to your Worker.
-#BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d"
-
-[build]
-command = "npm install"
