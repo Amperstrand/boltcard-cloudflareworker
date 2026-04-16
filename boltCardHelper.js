@@ -20,6 +20,7 @@ import {
   verifyCmac
 } from "./cryptoutils.js";
 import { getBoltCardK1 } from "./getUidConfig.js";
+import { logger } from "./utils/logger.js";
 
 /**
  * Extracts the UID and counter from the encrypted `p` parameter.
@@ -116,7 +117,7 @@ export function validate_cmac(uidBytes, ctr, cHex, k2Bytes) {
   if (k2Bytes) {
     const verification = verifyCmac(uidBytes, ctr, cHex, k2Bytes);
     if (!verification.cmac_validated) {
-      console.warn(`CMAC validation failed: ${verification.cmac_error}`);
+      logger.warn("CMAC validation failed", { error: verification.cmac_error });
     }
     return verification;
   }

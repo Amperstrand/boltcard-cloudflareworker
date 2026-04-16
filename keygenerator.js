@@ -32,6 +32,7 @@
  * Ref: docs/ntag424_llm_context.md §8.6 (authentication), §8.12 (key changes)
  */
 import { computeAesCmac, hexToBytes, bytesToHex } from "./cryptoutils.js";
+import { logger } from "./utils/logger.js";
 
 const DEBUG = false;
 
@@ -49,7 +50,7 @@ export async function getDeterministicKeys(uidHex, env, version = 1) {
   const versionBytes = new Uint8Array(4);
   new DataView(versionBytes.buffer).setUint32(0, version, true); // Little-endian
 
-  if (DEBUG) console.log("Generating deterministic keys for UID:", uidHex);
+  if (DEBUG) logger.trace("Generating deterministic keys", { uidHex });
 
   // Generate CardKey
   const cardKeyMessage = new Uint8Array([
@@ -74,16 +75,13 @@ export async function getDeterministicKeys(uidHex, env, version = 1) {
   const id = computeAesCmac(idMessage, ISSUER_KEY);
 
   if (DEBUG) {
-    console.log("Generated Keys:");
-    console.log("K0:", bytesToHex(k0));
-    console.log("K1:", bytesToHex(k1));
-    console.log("K2:", bytesToHex(k2));
-    console.log("K3:", bytesToHex(k3));
-    console.log("K4:", bytesToHex(k4));
-    console.log("ID:", bytesToHex(id));
-    console.log("CardKey:", bytesToHex(cardKey));
+    logger.trace("Deterministic keys generated", {
+      uidHex,
+      version,
+      generatedArtifacts: ["k0", "k1", "k2", "k3", "k4", "id", "cardKey"],
+    });
   } else {
-    console.log("✅ Keys generated for UID:", uidHex);
+    logger.trace("Deterministic keys generated", { uidHex, version });
   }
 
   return {

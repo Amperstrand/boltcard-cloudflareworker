@@ -20,6 +20,7 @@
  * Ref: docs/ntag424_llm_context.md §4 (byte order), §5.4-5.7 (SDM keys & MAC)
  */
 import AES from "aes-js";
+import { logger } from "./utils/logger.js";
 
 const DEBUG = false;
 const BLOCK_SIZE = 16; // AES block size in bytes
@@ -150,21 +151,21 @@ export function computeAesCmac(message, key) {
   }
 
   if (DEBUG)
-    console.log(
-      "[AES-CMAC] Computing AES-CMAC for message:",
-      bytesToDecimalString(message)
-    );
+    logger.trace("AES-CMAC: computing message", {
+      messageLength: message.length,
+      messageBytes: bytesToDecimalString(message),
+    });
 
   const aesEcb = new AES.ModeOfOperation.ecb(key);
   const zeroBlock = new Uint8Array(BLOCK_SIZE);
 
   // Step 1: Encrypt the zero block to produce L.
   const L = aesEcb.encrypt(zeroBlock);
-  if (DEBUG) console.log("[AES-CMAC] Step 1: L =", bytesToDecimalString(L));
+  if (DEBUG) logger.trace("AES-CMAC: step 1", { L: bytesToDecimalString(L) });
 
   // Step 2: Generate K1 from L.
   const K1 = generateSubkeyGo(L);
-  if (DEBUG) console.log("[AES-CMAC] Step 2: K1 =", bytesToDecimalString(K1));
+  if (DEBUG) logger.trace("AES-CMAC: step 2 K1", { K1: bytesToDecimalString(K1) });
 
   let M_last;
   if (message.length === BLOCK_SIZE) {
@@ -178,20 +179,17 @@ export function computeAesCmac(message, key) {
     padded[message.length] = 0x80; // Padding: append 0x80.
     const K2 = generateSubkeyGo(K1);
     if (DEBUG)
-      console.log("[AES-CMAC] Step 2: K2 =", bytesToDecimalString(K2));
+      logger.trace("AES-CMAC: step 2 K2", { K2: bytesToDecimalString(K2) });
     M_last = xorArrays(padded, K2);
   }
 
   if (DEBUG)
-    console.log("[AES-CMAC] Step 3: M_last =", bytesToDecimalString(M_last));
+    logger.trace("AES-CMAC: step 3 M_last", { M_last: bytesToDecimalString(M_last) });
 
   // Step 4: Encrypt the last block to produce the CMAC.
   const T = aesEcb.encrypt(M_last);
   if (DEBUG)
-    console.log(
-      "[AES-CMAC] Step 4: T (CMAC result) =",
-      bytesToDecimalString(T)
-    );
+    logger.trace("AES-CMAC: step 4 result", { T: bytesToDecimalString(T) });
 
   return T;
 }
@@ -204,9 +202,9 @@ export function computeAesCmac(message, key) {
  */
 export function computeKs(sv2, cmacKeyBytes) {
   if (DEBUG)
-    console.log("[KS] Computing ks using AES-CMAC(sv2, K2)...");
+    logger.trace("KS: computing session key");
   const ks = computeAesCmac(sv2, cmacKeyBytes);
-  if (DEBUG) console.log("[KS] ks =", bytesToDecimalString(ks));
+  if (DEBUG) logger.trace("KS: computed", { ks: bytesToDecimalString(ks) });
   return ks;
 }
 
@@ -216,37 +214,34 @@ export function computeKs(sv2, cmacKeyBytes) {
  * @returns {Uint8Array}
  */
 export function computeCm(ks) {
-  if (DEBUG) console.log("[CM] Computing cm from ks...");
+  if (DEBUG) logger.trace("CM: computing from session key");
 
   const aesEcbKs = new AES.ModeOfOperation.ecb(ks);
   const zeroBlock = new Uint8Array(BLOCK_SIZE);
 
   // Derive Lprime from encrypting a zero block.
   const Lprime = aesEcbKs.encrypt(zeroBlock);
-  if (DEBUG) console.log("[CM] Step X: L' =", bytesToDecimalString(Lprime));
+  if (DEBUG) logger.trace("CM: step L'", { Lprime: bytesToDecimalString(Lprime) });
 
   // Generate K1prime from Lprime.
   const K1prime = generateSubkeyGo(Lprime);
   if (DEBUG)
-    console.log("[CM] Step X: K1' =", bytesToDecimalString(K1prime));
+    logger.trace("CM: step K1'", { K1prime: bytesToDecimalString(K1prime) });
 
   // Generate an intermediate key hk1 from K1prime.
   const hk1 = generateSubkeyGo(K1prime);
-  if (DEBUG) console.log("[CM] Step X: h.k1 =", bytesToDecimalString(hk1));
+  if (DEBUG) logger.trace("CM: step h.k1", { hk1: bytesToDecimalString(hk1) });
 
   // Modify the first byte of hk1.
   const hashVal = new Uint8Array(hk1);
   hashVal[0] ^= 0x80;
   if (DEBUG)
-    console.log(
-      "[CM] Step X: Final MAC input (hash) =",
-      bytesToDecimalString(hashVal)
-    );
+    logger.trace("CM: final MAC input", { hashVal: bytesToDecimalString(hashVal) });
 
   // Encrypt hashVal to produce the final cm.
   const cm = aesEcbKs.encrypt(hashVal);
   if (DEBUG)
-    console.log("[CM] Step X: Final cm =", bytesToDecimalString(cm));
+    logger.trace("CM: final cm", { cm: bytesToDecimalString(cm) });
 
   return cm;
 }
@@ -265,7 +260,7 @@ export function computeCm(ks) {
  */
 export function computeAesCmacForVerification(sv2, cmacKeyBytes) {
   if (DEBUG)
-    console.log("[VERIFY] Computing AES-CMAC for verification...");
+    logger.trace("VERIFY: computing AES-CMAC for verification");
   const ks = computeKs(sv2, cmacKeyBytes);
   const cm = computeCm(ks);
 
@@ -281,7 +276,7 @@ export function computeAesCmacForVerification(sv2, cmacKeyBytes) {
     cm[15],
   ]);
   if (DEBUG)
-    console.log("[VERIFY] ct (extracted from cm) =", bytesToDecimalString(ct));
+    logger.trace("VERIFY: extracted ct", { ct: bytesToDecimalString(ct) });
 
   return ct;
 }
@@ -375,7 +370,10 @@ export function decryptP(pHex, k1Keys) {
     // Multiple keys produced 0xC7 header — possible false positive.
     // First matching key wins (consistent with previous behavior).
     // Investigate if this appears in logs — may indicate key rotation overlap.
-    console.warn(`decryptP: Multiple K1 keys matched PICCDataTag 0xC7 — possible false positive. Indices: [${matchIndices.join(', ')}]`);
+    logger.warn("Multiple K1 keys matched PICCDataTag 0xC7", {
+      matchIndices,
+      possibleFalsePositive: true,
+    });
   }
 
   return bestMatch !== null ? bestMatch : { success: false };
