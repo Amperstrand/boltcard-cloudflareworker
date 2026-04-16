@@ -1,5 +1,6 @@
 // getUidConfig.js
-import { hexToBytes } from './cryptoutils';
+import { hexToBytes } from './cryptoutils.js';
+import { logger } from './utils/logger.js';
 
 // BOLT_CARD_K1 from environment/secrets (secure for production)
 // Falls back to development keys for local testing
@@ -17,7 +18,7 @@ export function getBoltCardK1(env) {
   }
   
   // Fallback to development keys (for local testing only)
-  console.warn("⚠️  Using fallback BOLT_CARD_K1 development keys - NOT FOR PRODUCTION");
+  logger.warn("Using fallback BOLT_CARD_K1 development keys - not for production");
   return [
     hexToBytes("55da174c9608993dc27bb3f30a4a7314"),
     hexToBytes("0c3b25d92b38ae443229dd59ad34b85d"),
@@ -73,7 +74,7 @@ export const staticUidConfig = {
 export async function getUidConfig(uidHex, env) {
   // Normalize the UID to lowercase for consistency
   const normalizedUid = uidHex.toLowerCase();
-  console.log(`Looking up config for UID: ${normalizedUid}`);
+  logger.trace("Looking up UID config", { uidHex: normalizedUid });
   
   // Step 1: Try to get from KV
   if (env && env.UID_CONFIG) {
@@ -81,50 +82,64 @@ export async function getUidConfig(uidHex, env) {
       const configStr = await env.UID_CONFIG.get(normalizedUid);
       if (configStr) {
         const config = JSON.parse(configStr);
-        console.log(`Found config in KV for UID=${normalizedUid}:`, JSON.stringify(config));
+        logger.trace("Found UID config in KV", {
+          uidHex: normalizedUid,
+          paymentMethod: config.payment_method,
+          hasK2: typeof config.K2 === "string" && config.K2.length > 0,
+        });
         
         // Validation - ensure required fields exist
         if (!config.K2) {
-          console.warn(`Config for UID=${normalizedUid} is missing K2 key`);
+          logger.warn("UID config is missing K2 key", { uidHex: normalizedUid });
         }
         if (!config.payment_method) {
-          console.warn(`Config for UID=${normalizedUid} is missing payment_method`);
+          logger.warn("UID config is missing payment_method", { uidHex: normalizedUid });
         }
         
         return config;
       }
-      console.log(`No config found in KV for UID=${normalizedUid}`);
+      logger.trace("No UID config found in KV", { uidHex: normalizedUid });
     } catch (error) {
-      console.error(`Error retrieving config for UID=${normalizedUid} from KV:`, error);
+      logger.error("Error retrieving UID config from KV", {
+        uidHex: normalizedUid,
+        error: error.message,
+      });
     }
   } else {
-    console.warn("KV storage not available for config lookup");
+    logger.warn("KV storage not available for UID config lookup");
   }
 
   // Step 2: Check static configuration
   if (staticUidConfig.hasOwnProperty(normalizedUid)) {
-    console.log(`Using static config for UID ${normalizedUid}.`);
+    logger.trace("Using static UID config", { uidHex: normalizedUid });
     return staticUidConfig[normalizedUid];
   }
 
   // Step 3: Generate deterministic keys as fallback
   try {
-    console.log(`Attempting to generate deterministic keys for ${normalizedUid}`);
+    logger.debug("Generating deterministic fallback config", { uidHex: normalizedUid });
     const keys = await getDeterministicKeys(normalizedUid, env);
     if (keys && keys.k2) {
       const defaultConfig = { 
         payment_method: "fakewallet", 
         K2: keys.k2 
       };
-      console.log(`Returning default fakewallet config for UID ${normalizedUid} using deterministic key generation:`, JSON.stringify(defaultConfig));
+      logger.debug("Using deterministic fallback config", {
+        uidHex: normalizedUid,
+        paymentMethod: defaultConfig.payment_method,
+        hasK2: true,
+      });
       return defaultConfig;
     } else {
-      console.error(`Failed to generate valid k2 key for UID ${normalizedUid}`);
+      logger.error("Failed to generate valid K2 key", { uidHex: normalizedUid });
     }
   } catch (err) {
-    console.error(`Error generating deterministic keys for UID ${normalizedUid}:`, err.message);
+    logger.error("Error generating deterministic keys", {
+      uidHex: normalizedUid,
+      error: err.message,
+    });
   }
 
-  console.warn(`No configuration and no K2 key could be generated for UID ${normalizedUid}.`);
+  logger.warn("No UID configuration could be resolved", { uidHex: normalizedUid });
   return null;
 }

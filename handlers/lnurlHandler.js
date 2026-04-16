@@ -1,6 +1,7 @@
 import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { hexToBytes } from "../cryptoutils.js";
+import { logger } from "../utils/logger.js";
 
 // Global counter for fakewallet payments
 let fakewalletCounter = 0;
@@ -15,7 +16,12 @@ export async function handleLnurlpPayment(request, env) {
 
     if (request.method === "POST") {
       json = await request.json();
-      console.log("Received LNURLp Payment request (POST):", JSON.stringify(json, null, 2));
+      logger.debug("Received LNURL callback POST", {
+        pathname,
+        hasK1: Boolean(json?.k1),
+        hasInvoice: Boolean(json?.invoice),
+        hasAmount: Boolean(json?.amount),
+      });
 
       const extra = pathname.slice(lnurlpBase.length).split("/").filter(Boolean);
       if (extra.length >= 1) {
@@ -45,7 +51,10 @@ export async function handleLnurlpPayment(request, env) {
         }
       }
 
-      console.log(`Using p: ${p} and c: ${c}`);
+      logger.trace("Parsed LNURL callback POST params", {
+        hasP: Boolean(p),
+        hasC: Boolean(c),
+      });
       // Optionally, if you want to support POST-based withdrawal processing,
       // you can call processWithdrawalPayment here.
       // For now, the POST branch only logs the request.
@@ -82,7 +91,10 @@ export async function handleLnurlpPayment(request, env) {
         c = k1;
       }
 
-      console.log(`Using p: ${p} and c: ${c} (from GET request)`);
+      logger.trace("Parsed LNURL callback GET params", {
+        hasP: Boolean(p),
+        hasC: Boolean(c),
+      });
 
       const invoice = params.get("pr");
       if (!invoice) {
@@ -145,7 +157,7 @@ export async function handleLnurlpPayment(request, env) {
       );
     }
   } catch (err) {
-    console.error("Error processing LNURL withdraw request:", err.message);
+    logger.error("Error processing LNURL withdraw request", { error: err.message });
     return new Response(
       JSON.stringify({ status: "ERROR", reason: err.message }),
       { status: 500, headers: { "Content-Type": "application/json" } }
@@ -155,21 +167,25 @@ export async function handleLnurlpPayment(request, env) {
 
 export async function processWithdrawalPayment(uid, pr, env) {
   if (!uid) {
-    console.error("Received undefined UID in processWithdrawalPayment");
+    logger.error("Received undefined UID in processWithdrawalPayment");
     return new Response(
       JSON.stringify({ status: "ERROR", reason: "Invalid UID" }),
       { status: 400, headers: { "Content-Type": "application/json" } }
     );
   }
 
-  console.log(`Processing payment for invoice ${pr} with UID=${uid}`);
+  logger.debug("Processing LNURL payment", { uid });
 
   uid = uid.toLowerCase(); // Ensure UID is in lowercase for lookup
   const config = await getUidConfig(uid, env);
-  console.log(`Loaded config for UID=${uid}:`, JSON.stringify(config, null, 2));
+  logger.trace("Loaded payment config", {
+    uid,
+    paymentMethod: config?.payment_method,
+    hasConfig: Boolean(config),
+  });
 
   if (!config) {
-    console.error(`No configuration found for UID=${uid}`);
+    logger.error("No configuration found for UID", { uid });
     return new Response(
       JSON.stringify({ status: "ERROR", reason: "UID configuration not found" }),
       { status: 400, headers: { "Content-Type": "application/json" } }
@@ -180,13 +196,13 @@ export async function processWithdrawalPayment(uid, pr, env) {
   if (config.payment_method === "fakewallet") {
     fakewalletCounter++;
     if (fakewalletCounter % 2 === 0) {
-      console.log(`Fakewallet: simulated failure for UID=${uid}`);
+      logger.info("Fakewallet simulated failure", { uid });
       return new Response(
         JSON.stringify({ status: "ERROR", reason: "Simulated fakewallet failure" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     } else {
-      console.log(`Fakewallet: simulated success for UID=${uid}`);
+      logger.info("Fakewallet simulated success", { uid });
       return new Response(
         JSON.stringify({ status: "OK", message: "Payment processed successfully by fakewallet" }),
         { status: 200, headers: { "Content-Type": "application/json" } }
@@ -201,7 +217,7 @@ export async function processWithdrawalPayment(uid, pr, env) {
   // See: https://docs.corelightning.org/reference/post_rpc_method_resource
   if (config.payment_method === "clnrest") {
     if (!config.clnrest || !config.clnrest.rune) {
-      console.error(`Missing CLN REST configuration or rune for UID=${uid}`);
+      logger.error("Missing CLN REST configuration or rune", { uid });
       return new Response(
         JSON.stringify({ status: "ERROR", reason: "Invalid CLN REST configuration" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
@@ -217,7 +233,10 @@ export async function processWithdrawalPayment(uid, pr, env) {
       headers.set("Rune", clnrest.rune);
 
       const requestBody = JSON.stringify({ bolt11: pr });
-      console.log(`CLN REST: POST ${clnrest_endpoint}/v1/pay with invoice: ${pr}`);
+      logger.info("Calling CLN REST pay endpoint", {
+        uid,
+        endpoint: `${clnrest_endpoint}/v1/pay`,
+      });
 
       const response = await fetch(clnrest_endpoint + "/v1/pay", {
         method: "POST",
@@ -229,13 +248,13 @@ export async function processWithdrawalPayment(uid, pr, env) {
 
       if (response.status === 201) {
         if (responseBody.status === "complete") {
-          console.log(`CLN payment complete:`, JSON.stringify(responseBody, null, 2));
+          logger.info("CLN payment complete", { uid, status: responseBody.status });
           return new Response(
             JSON.stringify({ status: "OK", message: "Payment processed successfully" }),
             { status: 200, headers: { "Content-Type": "application/json" } }
           );
         }
-        console.warn(`CLN payment not complete, status: ${responseBody.status}`, JSON.stringify(responseBody, null, 2));
+        logger.warn("CLN payment not complete", { uid, status: responseBody.status });
         return new Response(
           JSON.stringify({ status: "ERROR", reason: `Payment status: ${responseBody.status}` }),
           { status: 202, headers: { "Content-Type": "application/json" } }
@@ -243,13 +262,13 @@ export async function processWithdrawalPayment(uid, pr, env) {
       }
 
       const errorReason = `${response.status}: ${JSON.stringify(responseBody)}`;
-      console.error(`CLN REST error: ${errorReason}`);
+      logger.error("CLN REST error", { uid, status: response.status });
       return new Response(
         JSON.stringify({ status: "ERROR", reason: errorReason }),
         { status: response.status, headers: { "Content-Type": "application/json" } }
       );
     } catch (error) {
-      console.error(`CLN REST Pay Request Failed: ${error.message}`);
+      logger.error("CLN REST pay request failed", { uid, error: error.message });
       return new Response(
         JSON.stringify({ status: "ERROR", reason: `CLN REST Pay Request Failed: ${error.message}` }),
         { status: 500, headers: { "Content-Type": "application/json" } }
@@ -258,7 +277,7 @@ export async function processWithdrawalPayment(uid, pr, env) {
   }
 
   // If the payment_method is neither fakewallet nor clnrest, return an error.
-  console.error(`Unsupported payment method for UID=${uid}: ${config.payment_method}`);
+  logger.error("Unsupported payment method", { uid, paymentMethod: config.payment_method });
   return new Response(
     JSON.stringify({ status: "ERROR", reason: `Unsupported payment method: ${config.payment_method}` }),
     { status: 400, headers: { "Content-Type": "application/json" } }

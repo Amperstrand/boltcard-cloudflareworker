@@ -61,15 +61,18 @@ async function handleLnurlw(request, env) {
     return jsonResponse({ error: "Missing required parameters: p and c are required" }, 400);
   }
 
-  logger.debug("LNURLW Verification", { pHex, cHex });
+  logger.trace("LNURLW verification request", {
+    hasP: Boolean(pHex),
+    hasC: Boolean(cHex),
+  });
 
   const decryption = extractUIDAndCounter(pHex, env);
   if (!decryption.success) {
-    logger.error("Failed to extract UID and counter", { error: decryption.error, pHex, cHex });
+    logger.error("Failed to extract UID and counter", { error: decryption.error });
     return jsonResponse({ error: decryption.error }, 400);
   }
 
-  logger.debug("Decryption result", decryption);
+  logger.trace("Decryption succeeded", { success: decryption.success });
 
   const { uidHex, ctr } = decryption;
 
@@ -78,10 +81,15 @@ async function handleLnurlw(request, env) {
     return jsonResponse({ error: "Failed to extract UID from payload" }, 400);
   }
 
-  logger.debug("Extracted UID and counter", { uidHex, ctr });
+  logger.trace("Extracted UID and counter", { uidHex, counterValue: parseInt(ctr, 16) });
 
   const config = await getUidConfig(uidHex, env);
-  logger.debug("Configuration loaded", { uidHex, config });
+  logger.trace("Configuration loaded", {
+    uidHex,
+    hasConfig: Boolean(config),
+    paymentMethod: config?.payment_method,
+    hasK2: typeof config?.K2 === "string" && config.K2.length > 0,
+  });
 
   if (!config) {
     logger.error("UID not found in configuration", { uidHex });
@@ -137,7 +145,7 @@ async function handleLnurlw(request, env) {
     return errorResponse("Replay protection unavailable", 500);
   }
 
-  logger.debug("Decoded UID and counter", { uidHex, ctr: parseInt(ctr, 16) });
+  logger.trace("LNURLW request accepted", { uidHex, counterValue });
 
   if (proxyRelayMode) {
     return handleProxy(request, uidHex, pHex, cHex, config.proxy.baseurl, {

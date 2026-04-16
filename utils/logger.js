@@ -9,7 +9,8 @@ class Logger {
       error: 0,
       warn: 1,
       info: 2,
-      debug: 3
+      debug: 3,
+      trace: 4
     };
     this.currentLevel = this.levels[level] || this.levels.info;
   }
@@ -54,10 +55,16 @@ class Logger {
     }
   }
 
+  trace(message, context = {}) {
+    if (this.shouldLog('trace')) {
+      console.log(this.formatMessage('trace', message, context));
+    }
+  }
+
   logRequest(request) {
-    if (this.shouldLog('debug')) {
+    if (this.shouldLog('trace')) {
       const url = new URL(request.url);
-      this.debug('Incoming request', {
+      this.trace('Incoming request', {
         method: request.method,
         url: request.url,
         pathname: url.pathname,
@@ -67,8 +74,8 @@ class Logger {
   }
 
   logResponse(status, body, context = {}) {
-    if (this.shouldLog('debug')) {
-      this.debug('Response sent', {
+    if (this.shouldLog('trace')) {
+      this.trace('Response sent', {
         status,
         bodyLength: typeof body === 'string' ? body.length : 'object',
         ...context
@@ -84,8 +91,8 @@ class Logger {
   }
 
   logCrypto(operation, context = {}) {
-    if (this.shouldLog('debug')) {
-      this.debug(`Crypto operation: ${operation}`, context);
+    if (this.shouldLog('trace')) {
+      this.trace(`Crypto operation: ${operation}`, context);
     }
   }
 
@@ -94,6 +101,6 @@ class Logger {
   }
 }
 
-export const logger = new Logger('debug');
+export const logger = new Logger('info');
 
 export { Logger };
