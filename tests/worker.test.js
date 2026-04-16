@@ -10,15 +10,31 @@ const env = {
   CLN_RUNE: "your-rune-string",
 };
 
+const baseEnv = env;
+
+const makeKvEnv = (initialStore = {}) => {
+  const kvStore = { ...initialStore };
+  return {
+    ...baseEnv,
+    UID_CONFIG: {
+      get: async (key) => kvStore[key] ?? null,
+      put: async (key, value) => {
+        kvStore[key] = value;
+      },
+    },
+    __kvStore: kvStore,
+  };
+};
+
 // Helper function to send requests to the Worker
-async function makeRequest(path, method = "GET", body = null) {
+async function makeRequest(path, method = "GET", body = null, requestEnv = env) {
   const url = "https://test.local" + path; // Use a mock domain
   const options = { method };
   if (body) {
     options.body = JSON.stringify(body);
     options.headers = { "Content-Type": "application/json" };
   }
-  return handleRequest(new Request(url, options), env); // Pass the environment
+  return handleRequest(new Request(url, options), requestEnv); // Pass the environment
 }
 
 describe("Cloudflare Worker Tests", () => {
@@ -121,6 +137,7 @@ describe("Cloudflare Worker Tests", () => {
               }
             })
           : null,
+        put: async () => {},
       },
     };
 
@@ -152,6 +169,7 @@ describe("Cloudflare Worker Tests", () => {
         get: async (uid) => uid === "04996c6a926980"
           ? JSON.stringify({ payment_method: "clnrest" })
           : null,
+        put: async () => {},
       },
     };
 
@@ -163,5 +181,43 @@ describe("Cloudflare Worker Tests", () => {
     expect(response.status).toBe(400);
     const json = await response.json();
     expect(json.reason || json.error).toContain("K2");
+  });
+
+  describe("counter replay protection", () => {
+    const counterThreePath = "/?p=4E2E289D945A66BB13377A728884E867&c=E19CCB1FED8892CE";
+    const counterFivePath = "/?p=00F48C4F8E386DED06BCDC78FA92E2FE&c=66B4826EA4C155B4";
+    const counterKey = "counter:04996c6a926980";
+
+    test("first tap with no stored counter succeeds", async () => {
+      const kvEnv = makeKvEnv();
+
+      const response = await makeRequest(counterThreePath, "GET", null, kvEnv);
+
+      expect(response.status).toBe(200);
+      expect(kvEnv.__kvStore[counterKey]).toBe("3");
+    });
+
+    test("replay with same counter is rejected", async () => {
+      const kvEnv = makeKvEnv();
+
+      const firstResponse = await makeRequest(counterThreePath, "GET", null, kvEnv);
+      expect(firstResponse.status).toBe(200);
+
+      const replayResponse = await makeRequest(counterThreePath, "GET", null, kvEnv);
+
+      expect(replayResponse.status).toBe(400);
+      const json = await replayResponse.json();
+      expect(json.reason || json.error).toMatch(/replay|counter/i);
+      expect(kvEnv.__kvStore[counterKey]).toBe("3");
+    });
+
+    test("incrementing counter succeeds", async () => {
+      const kvEnv = makeKvEnv({ [counterKey]: "3" });
+
+      const response = await makeRequest(counterFivePath, "GET", null, kvEnv);
+
+      expect(response.status).toBe(200);
+      expect(kvEnv.__kvStore[counterKey]).toBe("5");
+    });
   });
 });

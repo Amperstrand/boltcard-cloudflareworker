@@ -113,6 +113,56 @@ async function handleLnurlw(request, env) {
     return errorResponse(cmac_error || "CMAC validation failed");
   }
 
+  // NXP AN12196 §5.8 step 9: "The backend SHALL verify that SDMReadCtr
+  // is strictly greater than the last stored counter for this card."
+  // The SDMReadCtr is the NTAG424 monotonic tap counter — a 3-byte
+  // big-endian value mirrored inside the encrypted PICCData blob.
+  // Replaying the same NFC tap (same p= and c= values) would reuse the
+  // same counter, so rejecting counter <= stored counter prevents replay.
+  const counterValue = parseInt(ctr, 16);
+
+  // Read last stored counter from KV.
+  // Storage key: counter:{uidHex} in the UID_CONFIG namespace.
+  // We reuse UID_CONFIG for simplicity — no additional KV binding needed.
+  // KNOWN LIMITATION: Cloudflare KV has eventual consistency (~60s window).
+  // A replay on a different edge node within that window could succeed.
+  // For production, replace with Durable Objects for strong consistency.
+  // See: https://developers.cloudflare.com/workers/runtime-apis/durable-objects/
+  let lastCounterStr = null;
+  if (env && env.UID_CONFIG) {
+    try {
+      lastCounterStr = await env.UID_CONFIG.get(`counter:${uidHex}`);
+    } catch (e) {
+      logger.warn("Failed to read counter from KV — replay protection degraded", {
+        uidHex,
+        error: e.message,
+      });
+    }
+  }
+
+  if (lastCounterStr !== null && counterValue <= parseInt(lastCounterStr, 10)) {
+    logger.warn("Counter replay detected", {
+      uidHex,
+      counterValue,
+      lastCounter: parseInt(lastCounterStr, 10),
+    });
+    return errorResponse("Counter replay detected — tap rejected");
+  }
+
+  // Persist the new counter value for the next tap.
+  // If this write fails, we log but continue (fail open) to avoid
+  // blocking legitimate taps due to transient KV errors.
+  if (env && env.UID_CONFIG) {
+    try {
+      await env.UID_CONFIG.put(`counter:${uidHex}`, String(counterValue));
+    } catch (e) {
+      logger.warn("Failed to write counter to KV — replay protection degraded", {
+        uidHex,
+        error: e.message,
+      });
+    }
+  }
+
   logger.debug("Decoded UID and counter", { uidHex, ctr: parseInt(ctr, 16) });
 
   if (proxyRelayMode) {
