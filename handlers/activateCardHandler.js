@@ -1,4 +1,5 @@
 import { getDeterministicKeys } from "../keygenerator.js";
+import { resetReplayProtection } from "../replayProtection.js";
 
 /**
  * Serves the card activation page
@@ -278,6 +279,7 @@ export async function handleActivateCardSubmit(request, env) {
     }
     
     console.log(`Generated K2 for UID ${uid}: ${keys.k2}`);
+    await resetReplayProtection(env, uid);
     
     // Create configuration with fakewallet payment method
     const config = {

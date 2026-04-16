@@ -1,4 +1,5 @@
 import { getDeterministicKeys } from "../keygenerator.js";
+import { resetReplayProtection } from "../replayProtection.js";
 
 // Card wipe/reset endpoint — returns fresh keys so the NFC programmer can
 // overwrite the card, effectively wiping it.
@@ -12,6 +13,7 @@ export async function handleReset(uid, env, baseUrl) {
         headers: { "Content-Type": "application/json" }
       });
     }
+    await resetReplayProtection(env, uid);
     const keys = await getDeterministicKeys(uid, env);
     const host = baseUrl || "https://boltcardpoc.psbt.me";
     const responsePayload = {

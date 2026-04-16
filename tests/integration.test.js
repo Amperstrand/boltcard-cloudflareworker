@@ -6,11 +6,47 @@
 import { handleRequest } from '../index.js';
 import { logger } from '../utils/logger.js';
 
+const makeReplayNamespace = () => {
+  const counters = new Map();
+
+  return {
+    idFromName: (name) => name.toLowerCase(),
+    get: (id) => ({
+      fetch: async (request) => {
+        const url = new URL(request.url);
+        if (request.method === 'POST' && url.pathname === '/reset') {
+          counters.delete(String(id).toLowerCase());
+          return Response.json({ reset: true });
+        }
+
+        const { counterValue } = await request.json();
+        const key = String(id).toLowerCase();
+        const lastCounter = counters.has(key) ? counters.get(key) : null;
+
+        if (lastCounter !== null && counterValue <= lastCounter) {
+          return Response.json(
+            {
+              accepted: false,
+              reason: 'Counter replay detected — tap rejected',
+              lastCounter,
+            },
+            { status: 409 }
+          );
+        }
+
+        counters.set(key, counterValue);
+        return Response.json({ accepted: true, lastCounter: counterValue });
+      },
+    }),
+  };
+};
+
 const mockEnv = {
   UID_CONFIG: {
-    get: async () => 'test',
+    get: async () => null,
     put: async () => {}
-  }
+  },
+  CARD_REPLAY: makeReplayNamespace(),
 };
 
 const TEST_DATA = [
@@ -45,6 +81,7 @@ const TEST_DATA = [
 describe('End-to-End Payment Flow Integration Tests', () => {
   beforeEach(() => {
     Object.assign(mockEnv, {});
+    mockEnv.CARD_REPLAY = makeReplayNamespace();
   });
 
   describe('NFC Request Processing', () => {
@@ -238,4 +275,3 @@ describe('Complete Payment Flow Integration', () => {
       expect(true).toBe(true);
     });
   });
-

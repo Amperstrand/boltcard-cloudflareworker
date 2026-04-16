@@ -50,8 +50,9 @@ The worker first attempts to fetch the UID configuration from KV. If no entry is
 - 💳 **Multi-Payment Support**: clnrest, proxy, and fakewallet payment methods  
 - 🌐 **LNURL Protocol**: Complete LNURL-withdraw implementation
 - 📱 **NFC Card Programming**: Card activation and programming endpoints
-- 🧪 **Tested**: Comprehensive test suite with 58 passing tests across 4 test suites
-- 🔒 **Security Hardened**: Recent dependency security updates applied
+- 🔒 **Replay Protection**: Atomic counter-based replay protection using Durable Objects with SQLite storage — strongly consistent, not eventually consistent
+- 🛡️ **DDoS Rate Limiting**: IP-based fixed-window rate limiting (100 req/min default)
+- 🧪 **Tested**: Comprehensive test suite with 59 passing tests across 4 test suites
 
 ## 🏗️ Architecture
 
@@ -67,6 +68,13 @@ The worker first attempts to fetch the UID configuration from KV. If no entry is
 │   Configuration │    │   Cryptographic │    │   External      │
 │   Management    │◀───│   Validation    │◀───│   Services      │
 │   (KV + Static) │    │   (AES-CMAC)    │    │   (LNBits/CLN)  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │
+         ▼                       ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Rate Limiter  │    │ Replay Protection│   │   Durable       │
+│   (KV-based)    │    │ (replayProtection│   │   Objects       │
+│                 │    │     .js)         │───▶│ (CardReplayDO)  │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
@@ -138,7 +146,15 @@ npm run deploy
    # Update wrangler.toml with your namespace ID
    ```
 
-3. **Configure Environment**:
+4. **Setup Rate Limit KV** (optional, for DDoS protection):
+   ```bash
+   # Create rate limit namespace
+   wrangler kv:namespace create "RATE_LIMITS"
+   
+   # Update wrangler.toml with the returned namespace ID
+   ```
+
+5. **Configure Environment**:
    ```bash
    # Copy environment template
    cp .env.example .env
@@ -254,7 +270,7 @@ npm test -- --verbose
 - **✅ keygenerator.test.js**: Deterministic key generation  
 - **✅ worker.test.js**: API endpoints and request handling
 - **✅ integration.test.js**: End-to-end integration tests
-- **Total**: 58 passing tests across 4 test suites
+- **Total**: 59 passing tests across 4 test suites
 
 ### Test Vectors
 
@@ -281,10 +297,20 @@ curl 'https://your-worker.domain/?p=0DBF3C59B59B0638D60B5842A997D4D1&c=CC61660C0
      { binding = "UID_CONFIG", id = "your-kv-namespace-id" }
    ]
 
+   [[durable_objects.bindings]]
+   name = "CARD_REPLAY"
+   class_name = "CardReplayDO"
+
+   [[migrations]]
+   tag = "v1"
+   new_sqlite_classes = ["CardReplayDO"]
+
    routes = [
      "https://your-domain.com/*"
    ]
    ```
+
+   > **Note**: The Durable Object binding and migration are already configured in the repo's `wrangler.toml`. The first `wrangler deploy` will create the DO namespace and run the migration automatically.
 
 2. **Deploy**:
    ```bash
@@ -323,6 +349,13 @@ curl 'https://your-worker.domain/?p=0DBF3C59B59B0638D60B5842A997D4D1&c=CC61660C0
    - Never commit secrets to version control
    - Rotate keys regularly
 
+4. **Replay Protection**:
+   - Implemented via Durable Objects with SQLite storage — each card UID gets its own DO instance
+   - Counter validation is **atomic** using SQL `INSERT ... ON CONFLICT ... WHERE last_counter < new RETURNING`
+   - Strongly consistent (not eventually consistent like KV) — all requests for a given card are serialized through a single DO instance
+   - Fails **closed**: if the DO is unreachable, the request is rejected (500) rather than allowed through
+   - Replay state is automatically reset on card wipe, reprogramming, and activation
+
 ### Production Checklist
 
 - [ ] Changed all default cryptographic keys
@@ -332,6 +365,8 @@ curl 'https://your-worker.domain/?p=0DBF3C59B59B0638D60B5842A997D4D1&c=CC61660C0
 - [ ] Tested with real hardware
 - [ ] Reviewed payment method configurations
 - [ ] Set up monitoring and alerts
+- [ ] Verified Durable Object binding is active (replay protection)
+- [ ] Created RATE_LIMITS KV namespace (DDoS protection)
 
 ## 🛠️ Development
 
@@ -359,6 +394,10 @@ npm run lint
 ├── cryptoutils.js             # Crypto utilities (AES-CMAC)
 ├── getUidConfig.js            # Configuration management
 ├── keygenerator.js            # Deterministic key generation
+├── rateLimiter.js             # IP-based DDoS rate limiting
+├── replayProtection.js        # Replay protection helper (routes to DO)
+├── durableObjects/            # Durable Object classes
+│   └── CardReplayDO.js        # Per-card SQLite-backed replay counter
 ├── handlers/                  # Route handlers
 │   ├── activateCardHandler.js
 │   ├── fetchBoltCardKeys.js
@@ -370,6 +409,7 @@ npm run lint
 │   ├── statusHandler.js
 │   └── withdrawHandler.js
 ├── tests/                     # Test files
+│   ├── cloudflare-workers-shim.js  # Jest shim for cloudflare:workers
 │   ├── cryptoutils.test.js
 │   ├── integration.test.js
 │   ├── keygenerator.test.js

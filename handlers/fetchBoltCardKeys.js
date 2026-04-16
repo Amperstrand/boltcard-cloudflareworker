@@ -3,6 +3,7 @@ import { decodeAndValidate } from "../boltCardHelper.js";
 import { extractUIDAndCounter } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
+import { resetReplayProtection } from "../replayProtection.js";
 
 // Ref: NXP AN12196 §8 (personalization flow), §5.8 (SUN verification)
 // Ref: docs/ntag424_llm_context.md §15 (provisioning recipe)
@@ -58,6 +59,7 @@ export async function fetchBoltCardKeys(request, env) {
 }
 
 async function handleProgrammingFlow(uid, env, baseUrl) {
+  await resetReplayProtection(env, uid);
   return generateKeyResponse(uid, env, baseUrl);
 }
 
@@ -96,6 +98,7 @@ async function handleResetFlow(lnurlw, env, baseUrl) {
       return errorResponse(validation.cmac_error || "CMAC validation failed");
     }
 
+    await resetReplayProtection(env, uidHex);
     return generateKeyResponse(uidHex, env, baseUrl);
   } catch (err) {
     return errorResponse("Error in generating keys: " + err.message, 500);

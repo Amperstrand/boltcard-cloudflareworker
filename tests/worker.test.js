@@ -2,18 +2,60 @@ import { handleRequest } from "../index.js"; // Import the handleRequest functio
 import { jest } from "@jest/globals";
 
 // Simulate environment variables from `wrangler.toml`
+const makeReplayNamespace = (initialCounters = {}) => {
+  const counters = new Map(Object.entries(initialCounters).map(([uid, value]) => [uid.toLowerCase(), value]));
+
+  return {
+    idFromName: (name) => name.toLowerCase(),
+    get: (id) => ({
+      fetch: async (request) => {
+        const url = new URL(request.url);
+        if (request.method === "POST" && url.pathname === "/reset") {
+          counters.delete(String(id).toLowerCase());
+          return Response.json({ reset: true });
+        }
+
+        if (request.method !== "POST" || url.pathname !== "/check") {
+          return new Response("Not found", { status: 404 });
+        }
+
+        const { counterValue } = await request.json();
+        const key = String(id).toLowerCase();
+        const lastCounter = counters.has(key) ? counters.get(key) : null;
+
+        if (lastCounter !== null && counterValue <= lastCounter) {
+          return Response.json(
+            {
+              accepted: false,
+              reason: "Counter replay detected — tap rejected",
+              lastCounter,
+            },
+            { status: 409 }
+          );
+        }
+
+        counters.set(key, counterValue);
+        return Response.json({ accepted: true, lastCounter: counterValue });
+      },
+    }),
+    __counters: counters,
+  };
+};
+
 const env = {
   BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
   CLN_PROTOCOL: "https",
   CLN_IP: "192.0.2.10",
   CLN_PORT: "8080",
   CLN_RUNE: "your-rune-string",
+  CARD_REPLAY: makeReplayNamespace(),
 };
 
 const baseEnv = env;
 
 const makeKvEnv = (initialStore = {}) => {
   const kvStore = { ...initialStore };
+  const replay = makeReplayNamespace();
   return {
     ...baseEnv,
     UID_CONFIG: {
@@ -22,7 +64,9 @@ const makeKvEnv = (initialStore = {}) => {
         kvStore[key] = value;
       },
     },
+    CARD_REPLAY: replay,
     __kvStore: kvStore,
+    __replayStore: replay.__counters,
   };
 };
 
@@ -128,6 +172,7 @@ describe("Cloudflare Worker Tests", () => {
 
     const proxyEnv = {
       ...env,
+      CARD_REPLAY: makeReplayNamespace(),
       UID_CONFIG: {
         get: async (uid) => uid === "04996c6a926980"
           ? JSON.stringify({
@@ -165,6 +210,7 @@ describe("Cloudflare Worker Tests", () => {
   test("should still require K2 for local withdraw responses", async () => {
     const localEnv = {
       ...env,
+      CARD_REPLAY: makeReplayNamespace(),
       UID_CONFIG: {
         get: async (uid) => uid === "04996c6a926980"
           ? JSON.stringify({ payment_method: "clnrest" })
@@ -194,7 +240,7 @@ describe("Cloudflare Worker Tests", () => {
       const response = await makeRequest(counterThreePath, "GET", null, kvEnv);
 
       expect(response.status).toBe(200);
-      expect(kvEnv.__kvStore[counterKey]).toBe("3");
+      expect(kvEnv.__replayStore.get("04996c6a926980")).toBe(3);
     });
 
     test("replay with same counter is rejected", async () => {
@@ -208,16 +254,37 @@ describe("Cloudflare Worker Tests", () => {
       expect(replayResponse.status).toBe(400);
       const json = await replayResponse.json();
       expect(json.reason || json.error).toMatch(/replay|counter/i);
-      expect(kvEnv.__kvStore[counterKey]).toBe("3");
+      expect(kvEnv.__replayStore.get("04996c6a926980")).toBe(3);
     });
 
     test("incrementing counter succeeds", async () => {
       const kvEnv = makeKvEnv({ [counterKey]: "3" });
+      kvEnv.CARD_REPLAY = makeReplayNamespace({ "04996c6a926980": 3 });
+      kvEnv.__replayStore = kvEnv.CARD_REPLAY.__counters;
 
       const response = await makeRequest(counterFivePath, "GET", null, kvEnv);
 
       expect(response.status).toBe(200);
-      expect(kvEnv.__kvStore[counterKey]).toBe("5");
+      expect(kvEnv.__replayStore.get("04996c6a926980")).toBe(5);
+    });
+
+    test("wipe resets replay state for reprovisioned cards", async () => {
+      const kvEnv = makeKvEnv();
+
+      const firstTap = await makeRequest(counterThreePath, "GET", null, kvEnv);
+      expect(firstTap.status).toBe(200);
+      expect(kvEnv.__replayStore.get("04996c6a926980")).toBe(3);
+
+      const wipeResponse = await handleRequest(
+        new Request("https://test.local/wipe?uid=04996c6a926980"),
+        kvEnv
+      );
+      expect(wipeResponse.status).toBe(200);
+      expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(false);
+
+      const replayAfterWipe = await makeRequest(counterThreePath, "GET", null, kvEnv);
+      expect(replayAfterWipe.status).toBe(200);
+      expect(kvEnv.__replayStore.get("04996c6a926980")).toBe(3);
     });
   });
 });

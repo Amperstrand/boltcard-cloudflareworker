@@ -15,6 +15,7 @@ import { handleWipePage } from "./handlers/wipePageHandler.js";
 import { hexToBytes } from "./cryptoutils.js";
 import { logger } from "./utils/logger.js";
 import { checkRateLimit } from "./rateLimiter.js";
+import { enforceReplayProtection } from "./replayProtection.js";
 
 // Helper functions for responses
 const jsonResponse = (data, status = 200) =>
@@ -116,56 +117,24 @@ async function handleLnurlw(request, env) {
     return errorResponse(cmac_error || "CMAC validation failed");
   }
 
-  // NXP AN12196 §5.8 step 9: "The backend SHALL verify that SDMReadCtr
-  // is strictly greater than the last stored counter for this card."
-  // The SDMReadCtr is the NTAG424 monotonic tap counter — a 3-byte
-  // big-endian value mirrored inside the encrypted PICCData blob.
-  // Replaying the same NFC tap (same p= and c= values) would reuse the
-  // same counter, so rejecting counter <= stored counter prevents replay.
-  // Ref: BoltCard DETERMINISTIC.md — the counter is part of the PICCData
-  // encrypted payload and is the primary anti-replay mechanism.
   const counterValue = parseInt(ctr, 16);
-
-  // Read last stored counter from KV.
-  // Storage key: counter:{uidHex} in the UID_CONFIG namespace.
-  // We reuse UID_CONFIG for simplicity — no additional KV binding needed.
-  // KNOWN LIMITATION: Cloudflare KV has eventual consistency (~60s window).
-  // A replay on a different edge node within that window could succeed.
-  // For production, replace with Durable Objects for strong consistency.
-  // See: https://developers.cloudflare.com/workers/runtime-apis/durable-objects/
-  let lastCounterStr = null;
-  if (env && env.UID_CONFIG) {
-    try {
-      lastCounterStr = await env.UID_CONFIG.get(`counter:${uidHex}`);
-    } catch (e) {
-      logger.warn("Failed to read counter from KV — replay protection degraded", {
+  try {
+    const replayResult = await enforceReplayProtection(env, uidHex, counterValue);
+    if (!replayResult.accepted) {
+      logger.warn("Counter replay detected", {
         uidHex,
-        error: e.message,
+        counterValue,
+        lastCounter: replayResult.lastCounter,
       });
+      return errorResponse(replayResult.reason || "Counter replay detected — tap rejected");
     }
-  }
-
-  if (lastCounterStr !== null && counterValue <= parseInt(lastCounterStr, 10)) {
-    logger.warn("Counter replay detected", {
+  } catch (error) {
+    logger.error("Replay protection check failed", {
       uidHex,
       counterValue,
-      lastCounter: parseInt(lastCounterStr, 10),
+      error: error.message,
     });
-    return errorResponse("Counter replay detected — tap rejected");
-  }
-
-  // Persist the new counter value for the next tap.
-  // If this write fails, we log but continue (fail open) to avoid
-  // blocking legitimate taps due to transient KV errors.
-  if (env && env.UID_CONFIG) {
-    try {
-      await env.UID_CONFIG.put(`counter:${uidHex}`, String(counterValue));
-    } catch (e) {
-      logger.warn("Failed to write counter to KV — replay protection degraded", {
-        uidHex,
-        error: e.message,
-      });
-    }
+    return errorResponse("Replay protection unavailable", 500);
   }
 
   logger.debug("Decoded UID and counter", { uidHex, ctr: parseInt(ctr, 16) });
@@ -193,6 +162,8 @@ export async function handleRequest(request, env) {
   logger.logRequest(request);
   return router.fetch(request, env);
 }
+
+export { CardReplayDO } from "./durableObjects/CardReplayDO.js";
 
 export default {
   async fetch(request, env, ctx) {

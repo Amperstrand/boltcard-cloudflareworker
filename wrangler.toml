@@ -7,6 +7,14 @@ kv_namespaces = [
   { binding = "RATE_LIMITS", id = "RATE_LIMITS_KV_ID" }
 ]
 
+[[durable_objects.bindings]]
+name = "CARD_REPLAY"
+class_name = "CardReplayDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CardReplayDO"]
+
 routes = [
   "https://boltcardpoc.psbt.me/*"
 ]
