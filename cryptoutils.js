@@ -335,10 +335,18 @@ export function verifyCmac(uidBytes, ctr, cHex, k2Bytes) {
   const computedCmacHex = bytesToHex(ct).toLowerCase();
   const providedCmac = cHex.toLowerCase();
   const cmac_validated = computedCmacHex === providedCmac;
+  
+  // SECURITY: Return generic error message to prevent oracle attacks.
+  // Including expected/received CMAC values in error responses leaks the
+  // session MAC key derivative to the client, enabling attackers to verify
+  // guesses without knowing the key (oracle attack pattern).
+  //
+  // Server-side debugging can log the mismatch separately if needed.
+  // See: NXP AN12196 §5.7 (SDMMAC verification), ntag424-js pattern.
   return {
     cmac_validated,
     cmac_error: cmac_validated
       ? null
-      : `CMAC validation failed: expected ${computedCmacHex}, received ${providedCmac}`
+      : 'CMAC validation failed'
   };
 }

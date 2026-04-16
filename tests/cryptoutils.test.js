@@ -1,16 +1,17 @@
-import { 
-  hexToBytes, 
-  bytesToHex, 
-  bytesToDecimalString, 
-  xorArrays, 
-  shiftGo, 
-  generateSubkeyGo, 
-  computeAesCmac, 
-  computeKs, 
-  computeCm, 
-  computeAesCmacForVerification, 
-  buildVerificationData, 
-  decryptP, 
+import {
+  hexToBytes,
+  bytesToHex,
+  bytesToDecimalString,
+  xorArrays,
+  shiftGo,
+  generateSubkeyGo,
+  computeAesCmac,
+  computeKs,
+  computeCm,
+  computeAesCmacForVerification,
+  buildVerificationData,
+  decryptP,
+  verifyCmac,
 } from "../cryptoutils.js";
 
 import AES from "aes-js";
@@ -104,4 +105,41 @@ test("buildVerificationData should generate correct outputs", () => {
   expect(ks.length).toBe(16);
   expect(cm.length).toBe(16);
   expect(ct.length).toBe(8);
+});
+
+test("verifyCmac should return generic error message without leaking hex values", () => {
+  const uidBytes = hexToBytes("04996c6a926980");
+  const ctr = hexToBytes("000003");
+  const k2Bytes = hexToBytes("b45775776cb224c75bcde7ca3704e933");
+
+  // Provide a WRONG CMAC (not the expected value)
+  const wrongCmac = "0000000000000000";
+  const result = verifyCmac(uidBytes, ctr, wrongCmac, k2Bytes);
+
+  // Should fail validation
+  expect(result.cmac_validated).toBe(false);
+
+  // Error message should be generic and NOT contain hex values
+  expect(result.cmac_error).toBe("CMAC validation failed");
+
+  // Verify no hex patterns (8+ hex chars) in error message
+  expect(result.cmac_error).not.toMatch(/[0-9a-fA-F]{8,}/i);
+});
+
+test("verifyCmac should return null error when validation succeeds", () => {
+  const uidBytes = hexToBytes("04996c6a926980");
+  const ctr = hexToBytes("000003");
+  const k2Bytes = hexToBytes("b45775776cb224c75bcde7ca3704e933");
+
+  // Build the correct CMAC
+  const { ct } = buildVerificationData(uidBytes, ctr, k2Bytes);
+  const correctCmac = bytesToHex(ct);
+
+  const result = verifyCmac(uidBytes, ctr, correctCmac, k2Bytes);
+
+  // Should pass validation
+  expect(result.cmac_validated).toBe(true);
+
+  // Error should be null
+  expect(result.cmac_error).toBe(null);
 });
