@@ -23,8 +23,8 @@ export async function handleReset(uid, env, baseUrl) {
       K2: keys.k2,
       K3: keys.k3,
       K4: keys.k4,
-      LNURLW_BASE: `LNURLW://${lnurlwPath}`,
-      LNURLW: `LNURLW://${lnurlwPath}`,
+      LNURLW_BASE: `lnurlw://${lnurlwPath}`,
+      LNURLW: `lnurlw://${lnurlwPath}`,
       PROTOCOL_NAME: "NEW_BOLT_CARD_RESPONSE",
       PROTOCOL_VERSION: "1",
     };

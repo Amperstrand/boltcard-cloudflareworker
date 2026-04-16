@@ -1,9 +1,120 @@
 {
-  "active_plan": "/Users/macbook/src/boltcard-cloudflareworker/.sisyphus/plans/boltcard-cleanup.md",
-  "started_at": "2026-02-27T22:09:20.446Z",
+  "active_plan": "/home/ubuntu/src/pn532/boltcard-cloudflareworker/.sisyphus/plans/crypto-security-fixes.md",
+  "started_at": "2026-04-16T04:35:14.245Z",
   "session_ids": [
-    "ses_35ef2f3f4ffeHboGPddgOfx8tl"
+    "ses_26d0d9bd7ffez2576glVaCK1sQ",
+    "ses_26b696571ffeH3gNqmiG94wYWW",
+    "ses_26b5bad3cffemQl5mcobMhvVIB",
+    "ses_26b53a50fffepAhC6tFWMUdrAp",
+    "ses_26b4c8f04ffeBw7RIdcI4LXNIe",
+    "ses_26b487912ffepqRSZR574J6hkT",
+    "ses_26b43d3deffeoIAeRqQhu2qJxV",
+    "ses_26b3edcddffeNAbQMkPoXMPq21",
+    "ses_26b3c8b08ffeYokXtzp5pnLdey",
+    "ses_26b356e36ffe4YMGK4WKXtHUi1",
+    "ses_26b36163affeYMh4DnOFgI1AfU",
+    "ses_26b2f342effeAcYFHY0QkSpKI6",
+    "ses_26b2c2558ffeCBz21UbhZqNYv1",
+    "ses_26b2bed56ffewQ0DVqCNhkLeU4",
+    "ses_26b2c4bc3ffe7QQJa29HOcLKub",
+    "ses_26b26bc8effeZvhrBb0rfXLFwG",
+    "ses_26b21aff5ffegEqzgv4qDFFWlw",
+    "ses_26b21d448ffejYHuGlz0147q7K",
+    "ses_26af014d5ffeo7kC2T74nawIe5",
+    "ses_26aef04cbffeE8rZ9ofskgGIqc",
+    "ses_26aef983bffeNIaVXnOaGRmE1Y",
+    "ses_26aeda242ffen147wlMmWYXhXC",
+    "ses_26ae904dcffeQaauglawVEyNZa",
+    "ses_26ae799a0ffeQZbhd02CeAn21m",
+    "ses_26ae7a50fffePqyrc6NWxX2WCI",
+    "ses_26ae61d34ffeZOfYto6rJbmTp7",
+    "ses_26ae28115ffeqVr7jGdH54ecPH",
+    "ses_26ae2810fffeFs78Abc2etVBx6",
+    "ses_26ae28107ffeSBqbjrbVY2ZdDo"
   ],
-  "plan_name": "boltcard-cleanup",
-  "agent": "atlas"
+  "plan_name": "crypto-security-fixes",
+  "agent": "atlas",
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "[P0-1] Remove expected CMAC from error responses",
+      "session_id": "ses_26b696571ffeH3gNqmiG94wYWW",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-04-16T04:41:58.852Z"
+    },
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "[P0-2] Implement counter replay protection",
+      "session_id": "ses_26b5bad3cffemQl5mcobMhvVIB",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-16T04:58:52.233Z"
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "[P1-1] Fix multi-K1 false positive handling in decryptP()",
+      "session_id": "ses_26b53a50fffepAhC6tFWMUdrAp",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-04-16T05:10:46.337Z"
+    },
+    "todo:4": {
+      "task_key": "todo:4",
+      "task_label": "4",
+      "task_title": "[P1-2] Add hex character validation to hexToBytes()",
+      "session_id": "ses_26b4c8f04ffeBw7RIdcI4LXNIe",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-04-16T05:13:37.668Z"
+    },
+    "todo:5": {
+      "task_key": "todo:5",
+      "task_label": "5",
+      "task_title": "[P1-3] Add key length validation to computeAesCmac()",
+      "session_id": "ses_26b487912ffepqRSZR574J6hkT",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-04-16T05:17:46.478Z"
+    },
+    "todo:6": {
+      "task_key": "todo:6",
+      "task_label": "6",
+      "task_title": "[P2-1] Add multi-block guard to computeAesCmac()",
+      "session_id": "ses_26b43d3deffeoIAeRqQhu2qJxV",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-04-16T05:24:52.130Z"
+    },
+    "todo:7": {
+      "task_key": "todo:7",
+      "task_label": "7",
+      "task_title": "[P2-2] Constant-time CMAC comparison",
+      "session_id": "ses_26b3edcddffeNAbQMkPoXMPq21",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-low",
+      "updated_at": "2026-04-16T05:27:33.112Z"
+    },
+    "todo:8": {
+      "task_key": "todo:8",
+      "task_label": "8",
+      "task_title": "[P3-1] Clean up Object.values() wrapping and xorArrays return type",
+      "session_id": "ses_26b3c8b08ffeYokXtzp5pnLdey",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-04-16T05:34:51.828Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "**Plan Compliance Audit** — `oracle`",
+      "session_id": "ses_26b21aff5ffegEqzgv4qDFFWlw",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-04-16T06:00:20.596Z"
+    }
+  }
 }

@@ -85,7 +85,7 @@ describe("response patterns", () => {
 
     const json = await response.json();
     expectBoltcardKeys(json);
-    expect(json.LNURLW).toContain("LNURLW://test.local/");
+    expect(json.LNURLW).toContain("lnurlw://test.local/");
   });
 
   test("GET /wipe returns JSON error body on exception", async () => {

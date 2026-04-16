@@ -127,8 +127,8 @@ async function generateKeyResponse(uid, env, baseUrl) {
     K2: keys.k2,
     K3: keys.k3,
     K4: keys.k4,
-    LNURLW_BASE: `LNURLW://${lnurlw_path}`,
-    LNURLW: `LNURLW://${lnurlw_path}`,
+    LNURLW_BASE: `lnurlw://${lnurlw_path}`,
+    LNURLW: `lnurlw://${lnurlw_path}`,
     PROTOCOL_NAME: "NEW_BOLT_CARD_RESPONSE",
     PROTOCOL_VERSION: "1",
   });

@@ -1,0 +1,383 @@
+{
+    "wallTime": 664,
+    "cpuTime": 4,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "3b6e194a-603c-4fd7-9ebf-14756ed705d7"
+    },
+    "scriptName": "boltcard-poc",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1776347798585,
+    "event": {
+        "request": {
+            "url": "https://boltcardpoc.psbt.me/api/v1/pull-payments/REDACTED/boltcards?onExisting=KeepVersion",
+            "method": "POST",
+            "headers": {
+                "accept": "application/json",
+                "accept-encoding": "gzip, br",
+                "cf-connecting-ip": "2001:4655:a39d:0:ed85:2fa8:20ed:dc17",
+                "cf-ipcountry": "NO",
+                "cf-ray": "9ed3b1cd2ee01a30",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "content-length": "96",
+                "content-type": "application/json",
+                "host": "boltcardpoc.psbt.me",
+                "user-agent": "okhttp/4.12.0",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "2001:4655:a39d:0:ed85:2fa8:20ed:dc17"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/2",
+                "clientAcceptEncoding": "gzip",
+                "requestPriority": "weight=16;exclusive=0;group=0;group-weight=0",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 15,
+                "clientQuicRtt": 0,
+                "colo": "OSL",
+                "asn": 2119,
+                "asOrganization": "Telenor Norge AS",
+                "country": "NO",
+                "isEUCountry": false,
+                "city": "Oslo",
+                "continent": "EU",
+                "region": "Oslo",
+                "regionCode": "03",
+                "timezone": "Europe/Oslo",
+                "longitude": "10.74609",
+                "latitude": "59.91273",
+                "postalCode": "0001",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "oNW9gaB9/oxAYjn7DWfk50kr1tE1Jf5zvQVqFw3d6AQ=",
+                "tlsClientCiphersSha1": "OySUU1XvSUmYWK/Lsl8Shb+Usa8=",
+                "tlsClientExtensionsSha1": "ssdcdhIsFMNN4LDxorCrVrLtaTo=",
+                "tlsClientExtensionsSha1Le": "dMWK3B9fMEzPWNur+CGDtQRIlL4=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "f85341303a31fa15fb73a599a601195e3e2fe10b868d3e85a75eb51201e46b34",
+                    "serverHandshake": "9012d89493ad3c55f30486831245e972713e7d206a06f2e809949691bf5cdef3",
+                    "clientFinished": "257a07c98ced8ffc2ad4b2f210ac99f803e956450c2626daf8dff5e617434b1a",
+                    "serverFinished": "1950b55ffb48955cb75117279123b7b44415046582e5b8ea28f2ff586e626440"
+                },
+                "tlsClientHelloLength": "508",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": "",
+                    "certRFC9440": "",
+                    "certRFC9440TooLarge": false,
+                    "certChainRFC9440": "",
+                    "certChainRFC9440TooLarge": false
+                },
+                "verifiedBotCategory": "",
+                "edgeL4": {
+                    "deliveryRate": 253193
+                }
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 593,
+    "cpuTime": 1,
+    "truncated": false,
+    "executionModel": "durableObject",
+    "outcome": "ok",
+    "durableObjectId": "54031d81daa807fb5d93f09df046be0681ac5864fcab83245ce5114757910641",
+    "scriptVersion": {
+        "id": "3b6e194a-603c-4fd7-9ebf-14756ed705d7"
+    },
+    "entrypoint": "CardReplayDO",
+    "scriptName": "boltcard-poc",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1776347798647,
+    "event": {
+        "request": {
+            "url": "https://card-replay.internal/reset",
+            "method": "POST",
+            "headers": {}
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 1,
+    "cpuTime": 0,
+    "truncated": false,
+    "executionModel": "durableObject",
+    "outcome": "ok",
+    "durableObjectId": "54031d81daa807fb5d93f09df046be0681ac5864fcab83245ce5114757910641",
+    "scriptVersion": {
+        "id": "3b6e194a-603c-4fd7-9ebf-14756ed705d7"
+    },
+    "entrypoint": "CardReplayDO",
+    "scriptName": "boltcard-poc",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1776347799381,
+    "event": {
+        "request": {
+            "url": "https://card-replay.internal/reset",
+            "method": "POST",
+            "headers": {}
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 23,
+    "cpuTime": 2,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "3b6e194a-603c-4fd7-9ebf-14756ed705d7"
+    },
+    "scriptName": "boltcard-poc",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1776347814669,
+    "event": {
+        "request": {
+            "url": "https://boltcardpoc.psbt.me/api/v1/pull-payments/REDACTED/boltcards?onExisting=UpdateVersion",
+            "method": "POST",
+            "headers": {
+                "accept": "application/json",
+                "accept-encoding": "gzip, br",
+                "cf-connecting-ip": "2001:4655:a39d:0:ed85:2fa8:20ed:dc17",
+                "cf-ipcountry": "NO",
+                "cf-ray": "9ed3b231a8441a30",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "content-length": "24",
+                "content-type": "application/json",
+                "host": "boltcardpoc.psbt.me",
+                "user-agent": "okhttp/4.12.0",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "2001:4655:a39d:0:ed85:2fa8:20ed:dc17"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/2",
+                "clientAcceptEncoding": "gzip",
+                "requestPriority": "weight=16;exclusive=0;group=0;group-weight=0",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 17,
+                "clientQuicRtt": 0,
+                "colo": "OSL",
+                "asn": 2119,
+                "asOrganization": "Telenor Norge AS",
+                "country": "NO",
+                "isEUCountry": false,
+                "city": "Oslo",
+                "continent": "EU",
+                "region": "Oslo",
+                "regionCode": "03",
+                "timezone": "Europe/Oslo",
+                "longitude": "10.74609",
+                "latitude": "59.91273",
+                "postalCode": "0001",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "oNW9gaB9/oxAYjn7DWfk50kr1tE1Jf5zvQVqFw3d6AQ=",
+                "tlsClientCiphersSha1": "OySUU1XvSUmYWK/Lsl8Shb+Usa8=",
+                "tlsClientExtensionsSha1": "ssdcdhIsFMNN4LDxorCrVrLtaTo=",
+                "tlsClientExtensionsSha1Le": "dMWK3B9fMEzPWNur+CGDtQRIlL4=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "f85341303a31fa15fb73a599a601195e3e2fe10b868d3e85a75eb51201e46b34",
+                    "serverHandshake": "9012d89493ad3c55f30486831245e972713e7d206a06f2e809949691bf5cdef3",
+                    "clientFinished": "257a07c98ced8ffc2ad4b2f210ac99f803e956450c2626daf8dff5e617434b1a",
+                    "serverFinished": "1950b55ffb48955cb75117279123b7b44415046582e5b8ea28f2ff586e626440"
+                },
+                "tlsClientHelloLength": "508",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": "",
+                    "certRFC9440": "",
+                    "certRFC9440TooLarge": false,
+                    "certChainRFC9440": "",
+                    "certChainRFC9440TooLarge": false
+                },
+                "verifiedBotCategory": "",
+                "edgeL4": {
+                    "deliveryRate": 253193
+                }
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 30,
+    "cpuTime": 0,
+    "truncated": false,
+    "executionModel": "durableObject",
+    "outcome": "ok",
+    "durableObjectId": "54031d81daa807fb5d93f09df046be0681ac5864fcab83245ce5114757910641",
+    "scriptVersion": {
+        "id": "3b6e194a-603c-4fd7-9ebf-14756ed705d7"
+    },
+    "entrypoint": "CardReplayDO",
+    "scriptName": "boltcard-poc",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1776347814694,
+    "event": {
+        "request": {
+            "url": "https://card-replay.internal/check",
+            "method": "POST",
+            "headers": {
+                "content-type": "application/json"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 49,
+    "cpuTime": 1,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "3b6e194a-603c-4fd7-9ebf-14756ed705d7"
+    },
+    "scriptName": "boltcard-poc",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1776347815005,
+    "event": {
+        "request": {
+            "url": "https://boltcardpoc.psbt.me/?p=REDACTED&c=0AB5C3C3C7AF97D6",
+            "method": "GET",
+            "headers": {
+                "accept-encoding": "gzip, br",
+                "cf-connecting-ip": "2001:4655:a39d:0:ed85:2fa8:20ed:dc17",
+                "cf-ipcountry": "NO",
+                "cf-ray": "9ed3b233c80b1a30",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "boltcardpoc.psbt.me",
+                "user-agent": "okhttp/4.12.0",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "2001:4655:a39d:0:ed85:2fa8:20ed:dc17"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/2",
+                "clientAcceptEncoding": "gzip",
+                "requestPriority": "weight=16;exclusive=0;group=0;group-weight=0",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 26,
+                "clientQuicRtt": 0,
+                "colo": "OSL",
+                "asn": 2119,
+                "asOrganization": "Telenor Norge AS",
+                "country": "NO",
+                "isEUCountry": false,
+                "city": "Oslo",
+                "continent": "EU",
+                "region": "Oslo",
+                "regionCode": "03",
+                "timezone": "Europe/Oslo",
+                "longitude": "10.74609",
+                "latitude": "59.91273",
+                "postalCode": "0001",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "oNW9gaB9/oxAYjn7DWfk50kr1tE1Jf5zvQVqFw3d6AQ=",
+                "tlsClientCiphersSha1": "OySUU1XvSUmYWK/Lsl8Shb+Usa8=",
+                "tlsClientExtensionsSha1": "ssdcdhIsFMNN4LDxorCrVrLtaTo=",
+                "tlsClientExtensionsSha1Le": "dMWK3B9fMEzPWNur+CGDtQRIlL4=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "f85341303a31fa15fb73a599a601195e3e2fe10b868d3e85a75eb51201e46b34",
+                    "serverHandshake": "9012d89493ad3c55f30486831245e972713e7d206a06f2e809949691bf5cdef3",
+                    "clientFinished": "257a07c98ced8ffc2ad4b2f210ac99f803e956450c2626daf8dff5e617434b1a",
+                    "serverFinished": "1950b55ffb48955cb75117279123b7b44415046582e5b8ea28f2ff586e626440"
+                },
+                "tlsClientHelloLength": "508",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": "",
+                    "certRFC9440": "",
+                    "certRFC9440TooLarge": false,
+                    "certChainRFC9440": "",
+                    "certChainRFC9440TooLarge": false
+                },
+                "verifiedBotCategory": "",
+                "edgeL4": {
+                    "deliveryRate": 42640
+                }
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}

@@ -115,7 +115,7 @@ describe("Cloudflare Worker Tests", () => {
       PROTOCOL_VERSION: "1",
       CARD_NAME: "UID 044561FA967380",
       ID: "1",
-      LNURLW: expect.stringContaining("LNURLW://test.local/"),
+      LNURLW: expect.stringContaining("lnurlw://test.local/"),
       K0: "157163032ef8a8f89c5fc3c271675a3c",
       K1: "55da174c9608993dc27bb3f30a4a7314",
       K2: "33268dea5b5511a1b3df961198fa46d5",
