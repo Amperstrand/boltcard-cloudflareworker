@@ -14,15 +14,9 @@ import { handleActivatePage } from "./handlers/activatePageHandler.js";
 import { handleWipePage } from "./handlers/wipePageHandler.js";
 import { hexToBytes } from "./cryptoutils.js";
 import { logger } from "./utils/logger.js";
+import { jsonResponse } from "./utils/responses.js";
 import { checkRateLimit } from "./rateLimiter.js";
 import { enforceReplayProtection } from "./replayProtection.js";
-
-// Helper functions for responses
-const jsonResponse = (data, status = 200) =>
-  new Response(JSON.stringify(data), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
 
 const errorResponse = (reason, status = 400) =>
   jsonResponse({ status: "ERROR", reason }, status);
@@ -58,7 +52,7 @@ async function handleLnurlw(request, env) {
 
   if (!pHex || !cHex) {
     logger.error("Missing required parameters", { pHex: !!pHex, cHex: !!cHex });
-    return jsonResponse({ error: "Missing required parameters: p and c are required" }, 400);
+    return errorResponse("Missing required parameters: p and c are required");
   }
 
   logger.trace("LNURLW verification request", {
@@ -69,7 +63,7 @@ async function handleLnurlw(request, env) {
   const decryption = extractUIDAndCounter(pHex, env);
   if (!decryption.success) {
     logger.error("Failed to extract UID and counter", { error: decryption.error });
-    return jsonResponse({ error: decryption.error }, 400);
+    return errorResponse(decryption.error);
   }
 
   logger.trace("Decryption succeeded", { success: decryption.success });
@@ -78,7 +72,7 @@ async function handleLnurlw(request, env) {
 
   if (!uidHex) {
     logger.error("UID is undefined after decryption", { pHex, cHex });
-    return jsonResponse({ error: "Failed to extract UID from payload" }, 400);
+    return errorResponse("Failed to extract UID from payload");
   }
 
   logger.trace("Extracted UID and counter", { uidHex, counterValue: parseInt(ctr, 16) });
@@ -179,14 +173,10 @@ export default {
 
     const { allowed, remaining, resetAt } = await checkRateLimit(request, env);
     if (!allowed) {
-      return new Response(JSON.stringify({ status: "ERROR", reason: "Rate limit exceeded" }), {
-        status: 429,
-        headers: {
-          "Content-Type": "application/json",
-          "Retry-After": String(Math.ceil((resetAt - Date.now()) / 1000)),
-          "X-RateLimit-Remaining": "0",
-        },
-      });
+      const response = jsonResponse({ status: "ERROR", reason: "Rate limit exceeded" }, 429);
+      response.headers.set("Retry-After", String(Math.ceil((resetAt - Date.now()) / 1000)));
+      response.headers.set("X-RateLimit-Remaining", "0");
+      return response;
     }
 
     const response = await router.fetch(request, env);

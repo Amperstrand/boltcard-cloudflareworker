@@ -122,7 +122,7 @@ describe('End-to-End Payment Flow Integration Tests', () => {
       
       expect(response.status).toBe(400);
       const responseData = await response.json();
-      expect(responseData.error).toBeDefined();
+      expect(responseData.reason).toBeDefined();
     });
 
     it('should handle missing parameters', async () => {
@@ -193,8 +193,8 @@ describe('End-to-End Payment Flow Integration Tests', () => {
       const response = await handleRequest(request, mockEnv);
       const responseData = await response.json();
       
-      expect(responseData.error).toBeDefined();
-      expect(responseData.error).not.toMatch(/stack|trace|private|secret|key/i);
+      expect(responseData.reason).toBeDefined();
+      expect(responseData.reason).not.toMatch(/stack|trace|private|secret|key/i);
     });
   });
 });
