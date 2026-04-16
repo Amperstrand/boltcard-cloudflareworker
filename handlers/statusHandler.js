@@ -1,3 +1,5 @@
+import { logger } from "../utils/logger.js";
+
 export async function handleStatus(request, env) {
   if (env?.UID_CONFIG) {
     try {
@@ -11,7 +13,7 @@ export async function handleStatus(request, env) {
         headers: { 'Content-Type': 'application/json' }
       });
     } catch (error) {
-      console.error('KV Test Error:', error);
+      logger.error('KV test error', { error: error.message });
       return new Response(JSON.stringify({
         status: 'ERROR',
         kv_status: 'error',

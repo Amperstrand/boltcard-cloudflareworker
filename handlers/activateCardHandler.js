@@ -1,5 +1,6 @@
 import { getDeterministicKeys } from "../keygenerator.js";
 import { resetReplayProtection } from "../replayProtection.js";
+import { logger } from "../utils/logger.js";
 
 /**
  * Serves the card activation page
@@ -240,10 +241,10 @@ export function handleActivateCardPage() {
 export async function handleActivateCardSubmit(request, env) {
   try {
     // Test KV write access first
-    console.log("Testing KV write access...");
+    logger.trace("Testing KV write access before activation");
     const testResult = await testKvAccess(env);
     if (!testResult.success) {
-      console.error("KV write test failed:", testResult.error);
+      logger.error("KV write test failed", { error: testResult.error });
       return new Response(
         JSON.stringify({ 
           status: "ERROR", 
@@ -252,7 +253,7 @@ export async function handleActivateCardSubmit(request, env) {
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
-    console.log("KV write test succeeded!");
+    logger.trace("KV write test succeeded");
     
     // Parse the JSON request body
     const data = await request.json();
@@ -278,7 +279,7 @@ export async function handleActivateCardSubmit(request, env) {
       );
     }
     
-    console.log(`Generated K2 for UID ${uid}: ${keys.k2}`);
+    logger.debug("Generated deterministic keys for activation", { uid });
     await resetReplayProtection(env, uid);
     
     // Create configuration with fakewallet payment method
@@ -287,21 +288,25 @@ export async function handleActivateCardSubmit(request, env) {
       payment_method: "fakewallet"
     };
     
-    console.log(`Saving config for UID ${uid}: ${JSON.stringify(config)}`);
-    
-    // Debug env object to see what's available
-    console.log(`Environment check: UID_CONFIG available: ${!!env?.UID_CONFIG}`);
+    logger.trace("Preparing to save activated card config", {
+      uid,
+      paymentMethod: config.payment_method,
+      hasUidConfigBinding: Boolean(env?.UID_CONFIG),
+    });
     
     // Store in Cloudflare KV storage
     if (env && env.UID_CONFIG) {
       try {
-        console.log(`Attempting to write to KV for UID ${uid}`);
+        logger.trace("Writing activated card config to KV", { uid });
         await env.UID_CONFIG.put(uid, JSON.stringify(config));
-        console.log(`KV write successful for UID ${uid}`);
+        logger.debug("Activated card config written to KV", { uid });
         
         // Verify the config was saved correctly
         const savedConfig = await env.UID_CONFIG.get(uid);
-        console.log(`Verified KV config for UID ${uid}: ${savedConfig}`);
+        logger.trace("Verified KV write for activated card", {
+          uid,
+          verified: savedConfig === JSON.stringify(config),
+        });
         
         return new Response(
           JSON.stringify({ 
@@ -313,7 +318,7 @@ export async function handleActivateCardSubmit(request, env) {
           { status: 201, headers: { "Content-Type": "application/json" } } // Changed to 201 Created
         );
       } catch (error) {
-        console.error(`KV error for UID ${uid}: ${error.message}`, error);
+        logger.error("Failed to save activated card config", { uid, error: error.message });
         return new Response(
           JSON.stringify({ 
             status: "ERROR", 
@@ -323,7 +328,10 @@ export async function handleActivateCardSubmit(request, env) {
         );
       }
     } else {
-      console.error("KV not available. env object:", JSON.stringify(env, null, 2));
+      logger.error("KV storage is not available for activation", {
+        hasEnv: Boolean(env),
+        hasUidConfigBinding: Boolean(env?.UID_CONFIG),
+      });
       return new Response(
         JSON.stringify({ 
           status: "ERROR", 
@@ -333,7 +341,7 @@ export async function handleActivateCardSubmit(request, env) {
       );
     }
   } catch (error) {
-    console.error("Error activating card:", error);
+    logger.error("Error activating card", { error: error.message });
     return new Response(
       JSON.stringify({ status: "ERROR", reason: `Server error: ${error.message}` }),
       { status: 500, headers: { "Content-Type": "application/json" } }
@@ -346,7 +354,7 @@ export async function handleActivateCardSubmit(request, env) {
  */
 async function testKvAccess(env) {
   try {
-    console.log("Environment check:", {
+    logger.trace("Checking KV environment for activation", {
       hasEnv: !!env,
       hasUidConfig: !!(env && env.UID_CONFIG),
       // Check if the KV object has expected methods
@@ -357,7 +365,7 @@ async function testKvAccess(env) {
     if (!env || !env.UID_CONFIG) {
       // Try accessing global UID_CONFIG as a fallback (older Workers runtime)
       if (typeof UID_CONFIG !== 'undefined') {
-        console.log("Found global UID_CONFIG binding, using that instead");
+        logger.warn("Using global UID_CONFIG fallback binding");
         env = { UID_CONFIG };
       } else {
         return { 
@@ -372,10 +380,10 @@ async function testKvAccess(env) {
     const testValue = "test_value_" + new Date().getTime();
     
     await env.UID_CONFIG.put(testKey, testValue);
-    console.log(`Test write completed for key: ${testKey}`);
+    logger.trace("KV test write completed", { testKey });
     
     const readValue = await env.UID_CONFIG.get(testKey);
-    console.log(`Test read completed for key: ${testKey}, value: ${readValue}`);
+    logger.trace("KV test read completed", { testKey, readMatched: readValue === testValue });
     
     if (readValue !== testValue) {
       return {
@@ -386,7 +394,7 @@ async function testKvAccess(env) {
     
     return { success: true };
   } catch (error) {
-    console.error("KV test error:", error);
+    logger.error("KV test error during activation", { error: error.message });
     return { 
       success: false, 
       error: error.message

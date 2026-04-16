@@ -1,13 +1,17 @@
+import { logger } from "../utils/logger.js";
+
 export async function handleProxy(request, uidHex, pHex, cHex, baseurl, verification = {}) {
   // Create the target URL by appending the query parameters for pHex and cHex
   const targetUrl = new URL(baseurl);
   targetUrl.searchParams.append('p', pHex);
   targetUrl.searchParams.append('c', cHex);
 
-  console.log(`Proxying request for UID ${uidHex} to ${targetUrl.toString()}`);
-  console.log("Proxy Request Details:");
-  console.log("Method:", request.method);
-  console.log("Headers:", JSON.stringify(Object.fromEntries(request.headers.entries()), null, 2));
+  logger.trace("Proxying boltcard request", {
+    uidHex,
+    method: request.method,
+    targetOrigin: targetUrl.origin,
+    targetPathname: targetUrl.pathname,
+  });
 
   let requestBody = null;
 
@@ -15,12 +19,15 @@ export async function handleProxy(request, uidHex, pHex, cHex, baseurl, verifica
     if (request.method !== "GET") {
       const requestClone = request.clone();
       requestBody = await requestClone.text();
-      console.log("Request Body:", requestBody.length > 0 ? requestBody : "Empty Body");
+      logger.trace("Proxy request body captured", {
+        uidHex,
+        requestBodyLength: requestBody.length,
+      });
     } else {
-      console.log("GET request - No body expected.");
+      logger.trace("Proxy GET request has no body", { uidHex });
     }
   } catch (error) {
-    console.error("Error reading request body:", error);
+    logger.error("Error reading proxy request body", { uidHex, error: error.message });
   }
 
   // Send the proxied request
@@ -39,13 +46,12 @@ export async function handleProxy(request, uidHex, pHex, cHex, baseurl, verifica
   try {
     const proxiedResponse = await fetch(proxyRequest);
 
-    // Log response details
-    console.log("Proxy Response Details:");
-    console.log("Status:", proxiedResponse.status);
-    console.log("Headers:", JSON.stringify(Object.fromEntries(proxiedResponse.headers.entries()), null, 2));
-
     const responseBody = await proxiedResponse.text();
-    console.log("Response Body:", responseBody.length > 0 ? responseBody : "Empty Response");
+    logger.trace("Proxy response received", {
+      uidHex,
+      status: proxiedResponse.status,
+      responseBodyLength: responseBody.length,
+    });
 
     // Return the proxied response
     return new Response(responseBody, {
@@ -54,7 +60,7 @@ export async function handleProxy(request, uidHex, pHex, cHex, baseurl, verifica
     });
 
   } catch (error) {
-    console.error("Error fetching from proxy:", error);
+    logger.error("Error fetching from proxy", { uidHex, error: error.message });
     return new Response("Proxy error", { status: 500 });
   }
 }

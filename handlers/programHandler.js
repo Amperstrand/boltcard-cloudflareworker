@@ -1,4 +1,5 @@
 import { getDeterministicKeys } from "../keygenerator.js";
+import { logger } from "../utils/logger.js";
 
 
 export async function handleProgram(url, env) {
@@ -10,7 +11,7 @@ export async function handleProgram(url, env) {
     );
   }
 
-  console.log("Programming the BoltCard with UID:", uid);
+  logger.debug("Programming boltcard", { uid });
 
   // Get privacy mode flag from environment; default is NOT enabled
   UID_PRIVACY && UID_PRIVACY.toLowerCase() === "true";
