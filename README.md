@@ -7,7 +7,7 @@
 **CRITICAL**: This project implements cryptographic payment processing. Before deploying to production:
 
 - 🔐 **Set a secure ISSUER_KEY** via Cloudflare Workers secret (see deployment section)
-- 🔐 **Replace the hardcoded BOLT_CARD_K1** values in `getUidConfig.js` (lines 3-6)  
+- 🔐 **Set explicit K1 decryption keys** via `BOLT_CARD_K1_0` / `BOLT_CARD_K1_1` (or `BOLT_CARD_K1`) instead of relying on development fallbacks
 - 🔐 **Review all cryptographic constants** and ensure they match your security requirements
 
 ## 🔑 Development Key
@@ -129,14 +129,13 @@ npm run deploy
    console.log(secureKey); // e.g., "A1B2C3D4E5F60718293A4B5C6D7E8F901"
    ```
 
-2. **Update BOLT_CARD_K1 Values** (if needed):
-   ```javascript
-   // In getUidConfig.js - lines 3-6  
-   export const BOLT_CARD_K1 = [
-     hexToBytes("YOUR_SECURE_K1_KEY_1"),
-     hexToBytes("YOUR_SECURE_K1_KEY_2"),
-   ];
+2. **Set K1 decryption keys** (recommended for production):
+   ```bash
+   wrangler secret put BOLT_CARD_K1_0
+   wrangler secret put BOLT_CARD_K1_1
    ```
+
+   The worker supports either two separate secrets (`BOLT_CARD_K1_0`, `BOLT_CARD_K1_1`) or a single comma-separated value in `BOLT_CARD_K1`. If none are set, it falls back to development keys for local testing only.
 
 3. **Setup Cloudflare KV**:
    ```bash
@@ -154,13 +153,10 @@ npm run deploy
    # Update wrangler.toml with the returned namespace ID
    ```
 
-5. **Configure Environment**:
-   ```bash
-   # Copy environment template
-   cp .env.example .env
-   
-   # Edit with your configuration
-   ```
+5. **Review `wrangler.toml` bindings before deploy**:
+   - Replace the placeholder `RATE_LIMITS_KV_ID` if you want DDoS throttling enabled
+   - Confirm your `UID_CONFIG` namespace ID is correct
+   - Keep the `CARD_REPLAY` Durable Object binding and `v1` migration in place
 
 ## 📚 API Documentation
 
@@ -305,12 +301,17 @@ curl 'https://your-worker.domain/?p=0DBF3C59B59B0638D60B5842A997D4D1&c=CC61660C0
    tag = "v1"
    new_sqlite_classes = ["CardReplayDO"]
 
+   kv_namespaces = [
+     { binding = "UID_CONFIG", id = "your-kv-namespace-id" },
+     { binding = "RATE_LIMITS", id = "your-rate-limit-kv-id" } # optional
+   ]
+
    routes = [
      "https://your-domain.com/*"
    ]
    ```
 
-   > **Note**: The Durable Object binding and migration are already configured in the repo's `wrangler.toml`. The first `wrangler deploy` will create the DO namespace and run the migration automatically.
+   > **Note**: The Durable Object binding and migration are already configured in the repo's `wrangler.toml`. The first `wrangler deploy` will create the DO namespace and run the migration automatically. The `RATE_LIMITS` binding is optional and only provides coarse DDoS throttling.
 
 2. **Deploy**:
    ```bash
@@ -356,6 +357,11 @@ curl 'https://your-worker.domain/?p=0DBF3C59B59B0638D60B5842A997D4D1&c=CC61660C0
    - Fails **closed**: if the DO is unreachable, the request is rejected (500) rather than allowed through
    - Replay state is automatically reset on card wipe, reprogramming, and activation
 
+5. **Rate Limiting**:
+   - Implemented as a KV-backed fixed-window counter on `CF-Connecting-IP`
+   - Intended as **best-effort DDoS throttling**, not a strict security boundary
+   - KV read/write is not atomic, so treat it as coarse abuse reduction rather than precise enforcement
+
 ### Production Checklist
 
 - [ ] Changed all default cryptographic keys
@@ -366,7 +372,7 @@ curl 'https://your-worker.domain/?p=0DBF3C59B59B0638D60B5842A997D4D1&c=CC61660C0
 - [ ] Reviewed payment method configurations
 - [ ] Set up monitoring and alerts
 - [ ] Verified Durable Object binding is active (replay protection)
-- [ ] Created RATE_LIMITS KV namespace (DDoS protection)
+- [ ] Created RATE_LIMITS KV namespace if DDoS throttling is desired
 
 ## 🛠️ Development
 
@@ -446,11 +452,12 @@ For detailed card programming instructions, see [guide.md](guide.md).
 - Verify KV namespace binding in wrangler.toml
 - Check Cloudflare account permissions
 - Ensure KV namespace exists
+- If using rate limiting, replace the placeholder `RATE_LIMITS_KV_ID` in `wrangler.toml`
 
 #### Card Programming Issues
 **Symptom**: "Last check not green" in programming app
 **Solution**:
-- Verify UID format (16-character hex string)
+- Verify UID format (14-character hex string / 7 bytes)
 - Check network connectivity
 - Ensure server accessibility from mobile device
 
