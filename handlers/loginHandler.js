@@ -34,8 +34,10 @@ export async function handleLoginPage(request) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NFC Login</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <style>
       body { background-color: #111827; color: #f3f4f6; }
+      .qr-container { display: inline-block; padding: 10px; background: white; border-radius: 8px; margin-top: 10px; }
       .pulse-ring {
         animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
       }
@@ -100,15 +102,10 @@ export async function handleLoginPage(request) {
 
       <div class="bg-amber-900/30 border border-amber-500/40 rounded-lg p-4 mb-4">
         <p class="text-amber-300 font-bold text-sm mb-1">Public card</p>
-        <p class="text-amber-200/70 text-xs mb-3">This card's keys are from a public dump. You can wipe it and reprogram it for your own use.</p>
-        <div class="flex gap-2">
-          <a id="pub-wipe-link" href="#" class="flex-1 text-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-3 rounded transition-colors text-sm">
-            Wipe &amp; Reprogram
-          </a>
-          <button onclick="navigator.clipboard.writeText(document.getElementById('pub-wipe-link').href)" class="bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold py-2 px-3 rounded transition-colors text-xs">
-            COPY
-          </button>
-        </div>
+        <p class="text-amber-200/70 text-xs mb-2">This card's keys are from a public dump.</p>
+        <a href="/bulkwipe" class="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 text-sm font-semibold transition-colors">
+          Go to Bulk Wipe Tool →
+        </a>
       </div>
 
       <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
@@ -123,9 +120,22 @@ export async function handleLoginPage(request) {
       <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
         <div class="flex justify-between items-center mb-3">
           <p class="text-xs text-gray-500 uppercase tracking-wider">Keys</p>
-          <button onclick="navigator.clipboard.writeText([...document.querySelectorAll('#pub-keys td:last-child')].map(t=>t.textContent).join('\\n'))" class="text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">COPY ALL</button>
+          <button onclick="copyWipeJson('pub')" class="text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">COPY ALL</button>
         </div>
         <table class="w-full text-sm"><tbody id="pub-keys"></tbody></table>
+      </div>
+
+      <div class="bg-gray-800 border border-amber-500/30 rounded-lg p-4 mb-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wider mb-3">Wipe via Bolt Card Programmer</p>
+        <div class="flex flex-col items-center">
+          <div id="qr-pub-wipe" class="qr-container mb-3"></div>
+          <a id="pub-wipe-deeplink" href="#" class="w-full text-center bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-4 rounded transition-colors mb-2">
+            WIPE CARD (App Deeplink)
+          </a>
+          <button onclick="navigator.clipboard.writeText(document.getElementById('pub-wipe-deeplink').href)" class="text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">
+            COPY DEEPLINK
+          </button>
+        </div>
       </div>
 
       <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
@@ -179,7 +189,7 @@ export async function handleLoginPage(request) {
       <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
         <div class="flex justify-between items-center mb-3">
           <p class="text-xs text-gray-500 uppercase tracking-wider">Keys</p>
-          <button onclick="navigator.clipboard.writeText([...document.querySelectorAll('#priv-keys td:last-child')].map(t=>t.textContent).join('\\n'))" class="text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">COPY ALL</button>
+          <button onclick="copyWipeJson('priv')" class="text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">COPY ALL</button>
         </div>
         <table class="w-full text-sm"><tbody id="priv-keys"></tbody></table>
       </div>
@@ -192,15 +202,23 @@ export async function handleLoginPage(request) {
         <p id="priv-ndef" class="font-mono text-xs text-gray-400 break-all"></p>
       </div>
 
-      <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
+      <div id="priv-wipe-section" class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4 hidden">
         <p class="text-xs text-gray-500 uppercase tracking-wider mb-3">Card Actions</p>
-        <div class="flex gap-2">
-          <a id="priv-reset-link" href="#" class="flex-1 text-center bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-3 rounded transition-colors text-sm">
-            Reset Card
+        <div class="flex justify-center mb-3">
+          <div id="qr-priv-wipe" class="qr-container"></div>
+        </div>
+        <div id="priv-wipe-deeplink" class="flex gap-2">
+          <a id="priv-wipe-link" href="#" class="flex-1 text-center bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-3 rounded transition-colors text-sm">
+            Wipe This Card
           </a>
-          <button onclick="navigator.clipboard.writeText(document.getElementById('priv-reset-link').href)" class="bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold py-2 px-3 rounded transition-colors text-xs">
+          <button onclick="navigator.clipboard.writeText(document.getElementById('priv-wipe-link').href)" class="bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold py-2 px-3 rounded transition-colors text-xs">
             COPY
           </button>
+        </div>
+        <div id="priv-wipe-fallback" class="hidden">
+          <a href="/bulkwipe" class="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 text-sm font-semibold transition-colors">
+            Go to Bulk Wipe Tool →
+          </a>
         </div>
       </div>
 
@@ -285,6 +303,20 @@ export async function handleLoginPage(request) {
          'bg-amber-500/10 text-amber-400 border-amber-500/30');
     }
 
+    function wipeJson(prefix) {
+      const cells = document.querySelectorAll('#' + prefix + '-keys td:last-child');
+      const vals = [...cells].map(t => t.textContent.trim());
+      return JSON.stringify({
+        k0: vals[0] || '', k1: vals[1] || '', k2: vals[2] || '',
+        k3: vals[3] || '', k4: vals[4] || '',
+        action: 'wipe', version: '1'
+      }, null, 2);
+    }
+
+    function copyWipeJson(prefix) {
+      navigator.clipboard.writeText(wipeJson(prefix));
+    }
+
     function buildKeysRows(k0, k1, k2, k3, k4) {
       return '<tr><td class="pr-3 text-gray-500">K0</td><td class="font-mono text-xs text-gray-400">' + (k0 || '-') + '</td></tr>' +
         '<tr><td class="pr-3 text-gray-500">K1</td><td class="font-mono text-xs text-gray-400">' + (k1 || '-') + '</td></tr>' +
@@ -314,8 +346,16 @@ export async function handleLoginPage(request) {
       cmacEl.className = result.cmacValid ? 'font-mono text-emerald-400' : 'font-mono text-red-400';
       document.getElementById('pub-keys').innerHTML = buildKeysRows(result.k0, result.k1, result.k2, result.k3, result.k4);
       document.getElementById('pub-ndef').textContent = result.ndef || '';
-      document.getElementById('pub-wipe-link').href = resetDeeplink();
       document.getElementById('public-view').classList.remove('hidden');
+      const pubUid = result.uidHex;
+      const pubKeys = [result.k0, result.k1, result.k2, result.k3, result.k4];
+      if (pubKeys[0] && pubKeys[1] && pubKeys[2] && pubKeys[3] && pubKeys[4]) {
+        const endpointUrl = API_HOST + '/api/keys?uid=' + pubUid;
+        document.getElementById('pub-wipe-deeplink').href = 'boltcard://reset?url=' + encodeURIComponent(endpointUrl);
+        const qrEl = document.getElementById('qr-pub-wipe');
+        qrEl.innerHTML = '';
+        new QRCode(qrEl, { text: wipeJson('pub'), width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
+      }
     }
 
     function showPrivateCard(result) {
@@ -334,11 +374,30 @@ export async function handleLoginPage(request) {
       cmacEl.className = result.cmacValid ? 'font-mono text-emerald-400' : 'font-mono text-red-400';
       document.getElementById('priv-keys').innerHTML = buildKeysRows(result.k0, result.k1, result.k2, result.k3, result.k4);
       document.getElementById('priv-ndef').textContent = result.ndef || '';
-      document.getElementById('priv-reset-link').href = resetDeeplink();
+
+      const wipeSection = document.getElementById('priv-wipe-section');
+      const wipeDeeplink = document.getElementById('priv-wipe-deeplink');
+      const wipeFallback = document.getElementById('priv-wipe-fallback');
+      if (result.issuerKeyHex) {
+        const endpointUrl = API_HOST + '/api/bulk-wipe-keys?uid=' + result.uidHex + '&key=' + result.issuerKeyHex;
+        document.getElementById('priv-wipe-link').href = 'boltcard://reset?url=' + encodeURIComponent(endpointUrl);
+        wipeDeeplink.classList.remove('hidden');
+        wipeFallback.classList.add('hidden');
+      } else {
+        wipeDeeplink.classList.add('hidden');
+        wipeFallback.classList.remove('hidden');
+      }
+      wipeSection.classList.remove('hidden');
 
       loginTime = Date.now();
       document.getElementById('priv-timer').textContent = '00:00:00';
       document.getElementById('private-view').classList.remove('hidden');
+      const privKeys = [result.k0, result.k1, result.k2, result.k3, result.k4];
+      if (privKeys[0] && privKeys[1] && privKeys[2] && privKeys[3] && privKeys[4]) {
+        const qrPrivEl = document.getElementById('qr-priv-wipe');
+        qrPrivEl.innerHTML = '';
+        new QRCode(qrPrivEl, { text: wipeJson('priv'), width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
+      }
       startTimer();
     }
 
@@ -567,6 +626,7 @@ export async function handleLoginVerify(request, env) {
       cardType: pm,
       cmacValid: matchedCmacValid,
       issuerKey: matchedIssuer.label,
+      issuerKeyHex: perCardSource ? undefined : matchedIssuer.hex,
       k0: matchedKeys.k0,
       k1: matchedKeys.k1,
       k2: matchedKeys.k2,

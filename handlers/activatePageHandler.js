@@ -40,9 +40,6 @@ export function handleActivatePage(request) {
               <a href="/login" class="inline-flex items-center rounded border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20">
                 NFC LOGIN DEMO
               </a>
-              <a href="/wipe" class="inline-flex items-center rounded border border-red-500/20 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-500/20">
-                OPEN WIPE TOOL
-              </a>
             </div>
 
             <h2 class="text-lg font-semibold text-gray-300">API CONFIGURATION</h2>
