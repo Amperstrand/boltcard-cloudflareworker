@@ -1,28 +1,11 @@
 import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
-import { computeAesCmac, hexToBytes } from "../cryptoutils.js";
+import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse } from "../utils/responses.js";
 import { getAllIssuerKeyCandidates, getPerCardKeys } from "../utils/keyLookup.js";
 import { PERCARD_KEYS } from "../utils/generatedKeyData.js";
-
-function deriveAllKeys(uidHex, issuerKeyHex) {
-  const issuerKey = hexToBytes(issuerKeyHex);
-  const uid = hexToBytes(uidHex);
-  const versionBytes = new Uint8Array(4);
-  new DataView(versionBytes.buffer).setUint32(0, 1, true);
-
-  const cardKeyMsg = new Uint8Array([...hexToBytes("2d003f75"), ...uid, ...versionBytes]);
-  const cardKey = computeAesCmac(cardKeyMsg, issuerKey);
-
-  return {
-    k0: Array.from(computeAesCmac(hexToBytes("2d003f76"), cardKey)).map(b => b.toString(16).padStart(2, "0")).join(""),
-    k1: Array.from(computeAesCmac(hexToBytes("2d003f77"), issuerKey)).map(b => b.toString(16).padStart(2, "0")).join(""),
-    k2: Array.from(computeAesCmac(hexToBytes("2d003f78"), cardKey)).map(b => b.toString(16).padStart(2, "0")).join(""),
-    k3: Array.from(computeAesCmac(hexToBytes("2d003f79"), cardKey)).map(b => b.toString(16).padStart(2, "0")).join(""),
-    k4: Array.from(computeAesCmac(hexToBytes("2d003f7a"), cardKey)).map(b => b.toString(16).padStart(2, "0")).join(""),
-  };
-}
+import { deriveKeysFromHex } from "../keygenerator.js";
 
 export async function handleLoginPage(request) {
   const host = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
@@ -325,11 +308,6 @@ export async function handleLoginPage(request) {
         '<tr><td class="pr-3 text-gray-500">K4</td><td class="font-mono text-xs text-gray-400">' + (k4 || '-') + '</td></tr>';
     }
 
-    function resetDeeplink() {
-      const apiUrl = API_HOST + '/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=KeepVersion';
-      return 'boltcard://reset?url=' + encodeURIComponent(apiUrl);
-    }
-
     function showPublicCard(result) {
       clearErrors();
       hideAllViews();
@@ -515,7 +493,7 @@ export async function handleLoginVerify(request, env) {
       if (!decryption.success) continue;
 
       const { uidHex, ctr } = decryption;
-      const keys = deriveAllKeys(uidHex, candidate.hex);
+      const keys = deriveKeysFromHex(uidHex, candidate.hex);
 
       const { cmac_validated } = validate_cmac(
         hexToBytes(uidHex),

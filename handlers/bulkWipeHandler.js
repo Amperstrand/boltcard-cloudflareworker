@@ -1,27 +1,5 @@
-import { computeAesCmac, hexToBytes, bytesToHex } from "../cryptoutils.js";
-import { jsonResponse } from "../utils/responses.js";
-
-function deriveKeysFromMasterKey(uidHex, issuerKeyHex) {
-  const issuerKey = hexToBytes(issuerKeyHex);
-  const uid = hexToBytes(uidHex);
-  const versionBytes = new Uint8Array(4);
-  new DataView(versionBytes.buffer).setUint32(0, 1, true); // version = 1, little-endian
-
-  const cardKeyMessage = new Uint8Array([
-    ...hexToBytes("2d003f75"),
-    ...uid,
-    ...versionBytes,
-  ]);
-  const cardKey = computeAesCmac(cardKeyMessage, issuerKey);
-
-  const k0 = bytesToHex(computeAesCmac(hexToBytes("2d003f76"), cardKey));
-  const k1 = bytesToHex(computeAesCmac(hexToBytes("2d003f77"), issuerKey));
-  const k2 = bytesToHex(computeAesCmac(hexToBytes("2d003f78"), cardKey));
-  const k3 = bytesToHex(computeAesCmac(hexToBytes("2d003f79"), cardKey));
-  const k4 = bytesToHex(computeAesCmac(hexToBytes("2d003f7a"), cardKey));
-
-  return { k0, k1, k2, k3, k4 };
-}
+import { deriveKeysFromHex } from "../keygenerator.js";
+import { jsonResponse, buildBoltCardResponse, buildResetDeeplink } from "../utils/responses.js";
 
 export async function handleBulkWipeKeys(request, env) {
   const url = new URL(request.url);
@@ -36,38 +14,23 @@ export async function handleBulkWipeKeys(request, env) {
   }
 
   try {
-    const { k0, k1, k2, k3, k4 } = deriveKeysFromMasterKey(uid, key);
+    const keys = deriveKeysFromHex(uid, key);
 
     const host = `${url.protocol}//${url.host}`;
-    const lnurlwPath = host.replace(/^https?:\/\//, "") + "/";
-    const uidUpper = uid.toUpperCase();
-
-    const boltcard_response = {
-      CARD_NAME: `UID ${uidUpper}`,
-      ID: "1",
-      K0: k0.toUpperCase(),
-      K1: k1.toUpperCase(),
-      K2: k2.toUpperCase(),
-      K3: k3.toUpperCase(),
-      K4: k4.toUpperCase(),
-      LNURLW_BASE: `lnurlw://${lnurlwPath}`,
-      LNURLW: `lnurlw://${lnurlwPath}`,
-      PROTOCOL_NAME: "NEW_BOLT_CARD_RESPONSE",
-      PROTOCOL_VERSION: "1",
-    };
+    const boltcard_response = buildBoltCardResponse(keys, uid, host);
 
     const wipe_json = {
       version: 1,
       action: "wipe",
-      k0,
-      k1,
-      k2,
-      k3,
-      k4,
+      k0: keys.k0,
+      k1: keys.k1,
+      k2: keys.k2,
+      k3: keys.k3,
+      k4: keys.k4,
     };
 
     const endpointUrl = `${host}/api/bulk-wipe-keys?uid=${uid}&key=${key}`;
-    const reset_deeplink = `boltcard://reset?url=${encodeURIComponent(endpointUrl)}`;
+    const reset_deeplink = buildResetDeeplink(endpointUrl);
 
     return jsonResponse({ uid, boltcard_response, wipe_json, reset_deeplink }, 200);
   } catch (err) {

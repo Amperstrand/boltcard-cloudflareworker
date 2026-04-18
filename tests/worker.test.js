@@ -116,11 +116,11 @@ describe("Cloudflare Worker Tests", () => {
       CARD_NAME: "UID 044561FA967380",
       ID: "1",
       LNURLW: expect.stringContaining("lnurlw://test.local/"),
-      K0: "157163032ef8a8f89c5fc3c271675a3c",
-      K1: "55da174c9608993dc27bb3f30a4a7314",
-      K2: "33268dea5b5511a1b3df961198fa46d5",
-      K3: "f78200e8918fceea9db3574ae35b67e7",
-      K4: "62f41e0dcff67e74db596ae0fe1c0a3f"
+      K0: "157163032EF8A8F89C5FC3C271675A3C",
+      K1: "55DA174C9608993DC27BB3F30A4A7314",
+      K2: "33268DEA5B5511A1B3DF961198FA46D5",
+      K3: "F78200E8918FCEEA9DB3574AE35B67E7",
+      K4: "62F41E0DCFF67E74DB596AE0FE1C0A3F"
     });
   });
 

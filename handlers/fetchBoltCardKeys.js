@@ -4,7 +4,7 @@ import { extractUIDAndCounter } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { resetReplayProtection } from "../replayProtection.js";
-import { jsonResponse } from "../utils/responses.js";
+import { jsonResponse, buildBoltCardResponse } from "../utils/responses.js";
 
 // Ref: NXP AN12196 §8 (personalization flow), §5.8 (SUN verification)
 // Ref: docs/ntag424_llm_context.md §15 (provisioning recipe)
@@ -146,30 +146,16 @@ async function generateKeyResponse(uid, env, baseUrl, cardType = "withdraw") {
   const host = baseUrl || "https://boltcardpoc.psbt.me";
   const hostPart = host.replace(/^https?:\/\//, "");
 
-  let scheme;
-  let path;
+  const response = buildBoltCardResponse(keys, uid, host);
+
+  // Override LNURLW_BASE and LNURLW for card types that don't use lnurlw:// scheme
   if (cardType === "2fa") {
-    scheme = "https://";
-    path = `${hostPart}/2fa`;
+    response.LNURLW_BASE = `https://${hostPart}/2fa`;
+    response.LNURLW = `https://${hostPart}/2fa`;
   } else if (cardType === "pos") {
-    scheme = "lnurlp://";
-    path = `${hostPart}/`;
-  } else {
-    scheme = "lnurlw://";
-    path = `${hostPart}/`;
+    response.LNURLW_BASE = `lnurlp://${hostPart}/`;
+    response.LNURLW = `lnurlp://${hostPart}/`;
   }
 
-  return jsonResponse({
-    CARD_NAME: `UID ${uid.toUpperCase()}`,
-    ID: "1",
-    K0: keys.k0,
-    K1: keys.k1,
-    K2: keys.k2,
-    K3: keys.k3,
-    K4: keys.k4,
-    LNURLW_BASE: `${scheme}${path}`,
-    LNURLW: `${scheme}${path}`,
-    PROTOCOL_NAME: "NEW_BOLT_CARD_RESPONSE",
-    PROTOCOL_VERSION: "1",
-  });
+  return jsonResponse(response);
 }

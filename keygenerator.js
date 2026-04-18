@@ -32,65 +32,36 @@
  * Ref: docs/ntag424_llm_context.md §8.6 (authentication), §8.12 (key changes)
  */
 import { computeAesCmac, hexToBytes, bytesToHex } from "./cryptoutils.js";
-import { logger } from "./utils/logger.js";
-
-const DEBUG = false;
 
 export async function getDeterministicKeys(uidHex, env, version = 1) {
   if (!uidHex || uidHex.length !== 14) {
     throw new Error(`Invalid UID: "${uidHex}" is not exactly 7 bytes (14 hex characters). Received ${uidHex ? uidHex.length : 'no'} characters.`);
-
   }
-
-  // Get issuer key from env or fall back to development key
   const issuerKeyHex = (env && env.ISSUER_KEY) ? env.ISSUER_KEY : "00000000000000000000000000000001";
-  const ISSUER_KEY = hexToBytes(issuerKeyHex);
+  const result = deriveKeysFromHex(uidHex, issuerKeyHex, version);
+  const uid = hexToBytes(uidHex);
+  const issuerKey = hexToBytes(issuerKeyHex);
+  const id = computeAesCmac(new Uint8Array([...hexToBytes("2d003f7b"), ...uid]), issuerKey);
+  return { ...result, id: bytesToHex(id) };
+}
 
+export function deriveKeysFromHex(uidHex, issuerKeyHex, version = 1) {
+  const issuerKey = hexToBytes(issuerKeyHex);
   const uid = hexToBytes(uidHex);
   const versionBytes = new Uint8Array(4);
-  new DataView(versionBytes.buffer).setUint32(0, version, true); // Little-endian
+  new DataView(versionBytes.buffer).setUint32(0, version, true);
 
-  if (DEBUG) logger.trace("Generating deterministic keys", { uidHex });
-
-  // Generate CardKey
-  const cardKeyMessage = new Uint8Array([
-    ...hexToBytes("2d003f75"),
-    ...uid,
-    ...versionBytes
-  ]);
-  const cardKey = computeAesCmac(cardKeyMessage, ISSUER_KEY);
-
-  // Generate application keys
-  const k0 = computeAesCmac(hexToBytes("2d003f76"), cardKey);
-  const k1 = computeAesCmac(hexToBytes("2d003f77"), ISSUER_KEY);
-  const k2 = computeAesCmac(hexToBytes("2d003f78"), cardKey);
-  const k3 = computeAesCmac(hexToBytes("2d003f79"), cardKey);
-  const k4 = computeAesCmac(hexToBytes("2d003f7a"), cardKey);
-
-  // Generate ID using IssuerKey and UID
-  const idMessage = new Uint8Array([
-    ...hexToBytes("2d003f7b"),
-    ...uid
-  ]);
-  const id = computeAesCmac(idMessage, ISSUER_KEY);
-
-  if (DEBUG) {
-    logger.trace("Deterministic keys generated", {
-      uidHex,
-      version,
-      generatedArtifacts: ["k0", "k1", "k2", "k3", "k4", "id", "cardKey"],
-    });
-  } else {
-    logger.trace("Deterministic keys generated", { uidHex, version });
-  }
+  const cardKey = computeAesCmac(
+    new Uint8Array([...hexToBytes("2d003f75"), ...uid, ...versionBytes]),
+    issuerKey
+  );
 
   return {
-    k0: bytesToHex(k0),
-    k1: bytesToHex(k1),
-    k2: bytesToHex(k2),
-    k3: bytesToHex(k3),
-    k4: bytesToHex(k4),
-    id: bytesToHex(id),
+    k0: bytesToHex(computeAesCmac(hexToBytes("2d003f76"), cardKey)),
+    k1: bytesToHex(computeAesCmac(hexToBytes("2d003f77"), issuerKey)),
+    k2: bytesToHex(computeAesCmac(hexToBytes("2d003f78"), cardKey)),
+    k3: bytesToHex(computeAesCmac(hexToBytes("2d003f79"), cardKey)),
+    k4: bytesToHex(computeAesCmac(hexToBytes("2d003f7a"), cardKey)),
     cardKey: bytesToHex(cardKey),
   };
 }

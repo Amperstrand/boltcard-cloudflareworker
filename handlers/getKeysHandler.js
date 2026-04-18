@@ -1,6 +1,6 @@
 import { getDeterministicKeys } from "../keygenerator.js";
 import { getPerCardKeys, getAllIssuerKeyCandidates } from "../utils/keyLookup.js";
-import { jsonResponse } from "../utils/responses.js";
+import { jsonResponse, buildBoltCardResponse } from "../utils/responses.js";
 
 async function findFirstKeyset(normalizedUid, env) {
   const perCard = getPerCardKeys(normalizedUid);
@@ -34,25 +34,6 @@ async function findFirstKeyset(normalizedUid, env) {
   return null;
 }
 
-function toAppResponse(keys, uid, baseUrl) {
-  const host = baseUrl ? baseUrl.replace(/^https?:\/\//, "") : "boltcardpoc.psbt.me";
-  const lnurlw = `lnurlw://${host}/`;
-  return {
-    CARD_NAME: `UID ${uid.toUpperCase()}`,
-    ID: "1",
-    K0: keys.k0, k0: keys.k0,
-    K1: keys.k1, k1: keys.k1,
-    K2: keys.k2, k2: keys.k2,
-    K3: keys.k3, k3: keys.k3,
-    K4: keys.k4, k4: keys.k4,
-    LNURLW_BASE: lnurlw,
-    LNURLW: lnurlw,
-    lnurlw_base: lnurlw,
-    PROTOCOL_NAME: "NEW_BOLT_CARD_RESPONSE",
-    PROTOCOL_VERSION: "1",
-  };
-}
-
 export async function handleGetKeys(request, env) {
   const url = new URL(request.url);
   const uidParam = url.searchParams.get("uid");
@@ -80,7 +61,7 @@ export async function handleGetKeys(request, env) {
       return jsonResponse({ error: "No keys found for UID", uid: normalizedUid }, 404);
     }
 
-    return jsonResponse(toAppResponse(keys, normalizedUid, baseUrl));
+    return jsonResponse(buildBoltCardResponse(keys, normalizedUid, baseUrl));
   }
 
   if (!uidParam) {
@@ -97,7 +78,7 @@ export async function handleGetKeys(request, env) {
     if (!keys) {
       return jsonResponse({ error: "No keys found for UID", uid: normalizedUid }, 404);
     }
-    return jsonResponse(toAppResponse(keys, normalizedUid, baseUrl));
+    return jsonResponse(buildBoltCardResponse(keys, normalizedUid, baseUrl));
   }
 
   const keysets = [];

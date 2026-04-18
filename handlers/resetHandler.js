@@ -1,6 +1,6 @@
 import { getDeterministicKeys } from "../keygenerator.js";
 import { resetReplayProtection } from "../replayProtection.js";
-import { jsonResponse } from "../utils/responses.js";
+import { jsonResponse, buildBoltCardResponse } from "../utils/responses.js";
 
 // Card wipe/reset endpoint — returns fresh keys so the NFC programmer can
 // overwrite the card, effectively wiping it.
