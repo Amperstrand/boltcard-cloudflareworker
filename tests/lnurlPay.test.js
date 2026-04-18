@@ -48,7 +48,7 @@ describe("LNURL-pay POS card flow", () => {
         tag: "payRequest",
         minSendable: 1000,
         maxSendable: 1000,
-        metadata: expect.stringContaining("POS checkout"),
+        metadata: expect.stringContaining("Order #"),
       });
 
       expect(json.callback).toContain("/lnurlp/cb");

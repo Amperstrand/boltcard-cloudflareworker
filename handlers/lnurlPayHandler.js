@@ -17,13 +17,14 @@ export function constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, c
 
   const minSendable = config?.lnurlpay?.min_sendable ?? 1000;
   const maxSendable = config?.lnurlpay?.max_sendable ?? 1000;
+  const destination = config?.lnurlpay?.lightning_address || "unknown";
 
   return {
     tag: "payRequest",
     callback: callbackUrl.toString(),
     minSendable,
     maxSendable,
-    metadata: JSON.stringify([["text/plain", `POS checkout - Order #${counterValue}`]]),
+    metadata: JSON.stringify([["text/plain", `${destination} - Order #${counterValue}`]]),
   };
 }
 
