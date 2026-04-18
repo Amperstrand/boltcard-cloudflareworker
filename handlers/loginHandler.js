@@ -88,49 +88,81 @@ export async function handleLoginPage(request) {
       </div>
     </div>
 
-    <!-- Logged-in State -->
-    <div id="session-view" class="max-w-md w-full hidden">
+    <!-- Session View: Public Card (CSV dump recovery) -->
+    <div id="public-view" class="max-w-md w-full hidden">
+      <div class="text-center mb-6">
+        <div class="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-full px-4 py-1 mb-2">
+          <span class="text-amber-400 text-sm font-semibold">🔑 KEYS RECOVERED</span>
+        </div>
+        <span id="pub-card-type-badge" class="px-3 py-1 rounded text-xs font-bold border bg-amber-500/10 text-amber-400 border-amber-500/30">WITHDRAW</span>
+        <p class="text-gray-500 text-xs font-mono mt-2" id="pub-uid-display"></p>
+      </div>
+
+      <div class="bg-amber-900/30 border border-amber-500/40 rounded-lg p-4 mb-4">
+        <p class="text-amber-300 font-bold text-sm mb-1">Public card</p>
+        <p class="text-amber-200/70 text-xs mb-3">This card's keys are from a public dump. You can wipe it and reprogram it for your own use.</p>
+        <div class="flex gap-2">
+          <a id="pub-wipe-link" href="#" class="flex-1 text-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-3 rounded transition-colors text-sm">
+            Wipe &amp; Reprogram
+          </a>
+          <button onclick="navigator.clipboard.writeText(document.getElementById('pub-wipe-link').href)" class="bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold py-2 px-3 rounded transition-colors text-xs">
+            COPY
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wider mb-3">Card Details</p>
+        <div class="space-y-2 text-sm">
+          <div class="flex justify-between"><span class="text-gray-500">Counter</span><span id="pub-counter" class="font-mono text-gray-300">0</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">Source</span><span id="pub-issuer" class="font-mono text-gray-300 text-xs">-</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">CMAC</span><span id="pub-cmac" class="font-mono text-emerald-400">-</span></div>
+        </div>
+      </div>
+
+      <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
+        <div class="flex justify-between items-center mb-3">
+          <p class="text-xs text-gray-500 uppercase tracking-wider">Keys</p>
+          <button onclick="navigator.clipboard.writeText([...document.querySelectorAll('#pub-keys td:last-child')].map(t=>t.textContent).join('\\n'))" class="text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">COPY ALL</button>
+        </div>
+        <table class="w-full text-sm"><tbody id="pub-keys"></tbody></table>
+      </div>
+
+      <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
+        <div class="flex justify-between items-center mb-2">
+          <p class="text-xs text-gray-500 uppercase tracking-wider">NDEF URL</p>
+          <button onclick="navigator.clipboard.writeText(document.getElementById('pub-ndef').textContent)" class="text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">COPY</button>
+        </div>
+        <p id="pub-ndef" class="font-mono text-xs text-gray-400 break-all"></p>
+      </div>
+
+      <div id="public-error-box" class="hidden bg-red-900/30 border border-red-500/40 rounded-lg p-4 mb-4">
+        <p id="public-error-msg" class="text-red-300 text-sm"></p>
+      </div>
+
+      <p class="text-center text-xs text-gray-600 mt-4">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1"></span>
+        NFC active — tap card again to refresh
+      </p>
+    </div>
+
+    <!-- Session View: Private Card (provisioned by us) -->
+    <div id="private-view" class="max-w-md w-full hidden">
       <div class="text-center mb-6">
         <div class="inline-flex items-center gap-3 mb-2">
           <div class="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 rounded-full px-4 py-1">
             <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
             <span class="text-emerald-400 text-sm font-semibold">AUTHENTICATED</span>
           </div>
-          <span id="card-type-badge" class="px-3 py-1 rounded text-xs font-bold border bg-amber-500/10 text-amber-400 border-amber-500/30">WITHDRAW</span>
+          <span id="priv-card-type-badge" class="px-3 py-1 rounded text-xs font-bold border bg-amber-500/10 text-amber-400 border-amber-500/30">WITHDRAW</span>
         </div>
-        <p class="text-gray-500 text-xs font-mono" id="uid-display"></p>
-      </div>
-
-      <div id="compromised-banner" class="hidden bg-amber-900/30 border border-amber-500/40 rounded-lg p-4 mb-4">
-        <p class="text-amber-300 font-bold text-sm mb-1">🔑 Keys Recovered</p>
-        <p class="text-amber-200/70 text-xs mb-3">Good news — your card's keys are known, which means you can wipe and repurpose this bolt card.</p>
-        <a id="wipe-link" href="#" class="block w-full text-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded transition-colors text-sm">
-          Open Bolt Card App to Wipe &amp; Reprogram
-        </a>
-      </div>
-
-      <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
-        <p class="text-xs text-gray-500 uppercase tracking-wider mb-3">Card Actions</p>
-        <div class="space-y-3">
-          <div>
-            <p class="text-xs text-gray-400 mb-2">Reset this card (opens Bolt Card app):</p>
-            <div class="flex gap-2">
-              <a id="reset-deeplink" href="#" class="flex-1 text-center bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-3 rounded transition-colors text-sm">
-                Open in App
-              </a>
-              <button onclick="navigator.clipboard.writeText(document.getElementById('reset-deeplink').href)" class="bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold py-2 px-3 rounded transition-colors text-xs">
-                COPY
-              </button>
-            </div>
-            <p id="reset-url-text" class="font-mono text-xs text-gray-600 break-all mt-2"></p>
-          </div>
-        </div>
+        <p class="text-gray-500 text-xs font-mono" id="priv-uid-display"></p>
       </div>
 
       <div class="bg-gray-800 border border-gray-700 shadow-xl rounded-lg p-8 mb-4">
         <div class="text-center">
           <p class="text-xs text-gray-500 uppercase tracking-wider mb-2">Session Duration</p>
-          <div id="timer" class="text-5xl font-mono text-gray-200 font-bold tracking-wider">00:00:00</div>
+          <div id="priv-timer" class="text-5xl font-mono text-gray-200 font-bold tracking-wider">00:00:00</div>
           <p class="text-xs text-gray-600 mt-3 font-mono">tap card again to reset</p>
         </div>
       </div>
@@ -138,43 +170,47 @@ export async function handleLoginPage(request) {
       <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
         <p class="text-xs text-gray-500 uppercase tracking-wider mb-3">Card Details</p>
         <div class="space-y-2 text-sm">
-          <div class="flex justify-between">
-            <span class="text-gray-500">Counter</span>
-            <span id="card-counter" class="font-mono text-gray-300">0</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-gray-500">Issuer Key</span>
-            <span id="card-issuer" class="font-mono text-gray-300 text-xs">-</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-gray-500">CMAC</span>
-            <span id="card-cmac" class="font-mono text-emerald-400">-</span>
-          </div>
+          <div class="flex justify-between"><span class="text-gray-500">Counter</span><span id="priv-counter" class="font-mono text-gray-300">0</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">Issuer Key</span><span id="priv-issuer" class="font-mono text-gray-300 text-xs">-</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">CMAC</span><span id="priv-cmac" class="font-mono text-emerald-400">-</span></div>
         </div>
       </div>
 
       <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
         <div class="flex justify-between items-center mb-3">
           <p class="text-xs text-gray-500 uppercase tracking-wider">Keys</p>
+          <button onclick="navigator.clipboard.writeText([...document.querySelectorAll('#priv-keys td:last-child')].map(t=>t.textContent).join('\\n'))" class="text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">COPY ALL</button>
         </div>
-        <table class="w-full text-sm"><tbody id="card-keys"></tbody></table>
+        <table class="w-full text-sm"><tbody id="priv-keys"></tbody></table>
       </div>
 
       <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
         <div class="flex justify-between items-center mb-2">
           <p class="text-xs text-gray-500 uppercase tracking-wider">NDEF URL</p>
-          <button onclick="navigator.clipboard.writeText(document.getElementById('card-ndef').textContent)" class="text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">COPY</button>
+          <button onclick="navigator.clipboard.writeText(document.getElementById('priv-ndef').textContent)" class="text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">COPY</button>
         </div>
-        <p id="card-ndef" class="font-mono text-xs text-gray-400 break-all"></p>
+        <p id="priv-ndef" class="font-mono text-xs text-gray-400 break-all"></p>
       </div>
 
-      <div id="session-error-box" class="hidden bg-red-900/30 border border-red-500/40 rounded-lg p-4 mb-4">
-        <p id="session-error-msg" class="text-red-300 text-sm"></p>
+      <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wider mb-3">Card Actions</p>
+        <div class="flex gap-2">
+          <a id="priv-reset-link" href="#" class="flex-1 text-center bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-3 rounded transition-colors text-sm">
+            Reset Card
+          </a>
+          <button onclick="navigator.clipboard.writeText(document.getElementById('priv-reset-link').href)" class="bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold py-2 px-3 rounded transition-colors text-xs">
+            COPY
+          </button>
+        </div>
+      </div>
+
+      <div id="private-error-box" class="hidden bg-red-900/30 border border-red-500/40 rounded-lg p-4 mb-4">
+        <p id="private-error-msg" class="text-red-300 text-sm"></p>
       </div>
 
       <p class="text-center text-xs text-gray-600 mt-4">
         <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1"></span>
-        NFC still active — tap card again to refresh session
+        NFC active — tap card again to refresh session
       </p>
     </div>
   </body>
@@ -205,17 +241,26 @@ export async function handleLoginPage(request) {
       if (timerInterval) clearInterval(timerInterval);
       timerInterval = setInterval(() => {
         if (loginTime) {
-          document.getElementById('timer').textContent = formatDuration(Date.now() - loginTime);
+          document.getElementById('priv-timer').textContent = formatDuration(Date.now() - loginTime);
         }
       }, 1000);
     }
 
+    function hideAllViews() {
+      document.getElementById('login-view').classList.add('hidden');
+      document.getElementById('public-view').classList.add('hidden');
+      document.getElementById('private-view').classList.add('hidden');
+    }
+
     function showPersistentError(msg) {
-      const loginView = document.getElementById('login-view');
-      const sessionView = document.getElementById('session-view');
-      if (!sessionView.classList.contains('hidden')) {
-        document.getElementById('session-error-msg').textContent = msg;
-        document.getElementById('session-error-box').classList.remove('hidden');
+      const privView = document.getElementById('private-view');
+      const pubView = document.getElementById('public-view');
+      if (!privView.classList.contains('hidden')) {
+        document.getElementById('private-error-msg').textContent = msg;
+        document.getElementById('private-error-box').classList.remove('hidden');
+      } else if (!pubView.classList.contains('hidden')) {
+        document.getElementById('public-error-msg').textContent = msg;
+        document.getElementById('public-error-box').classList.remove('hidden');
       } else {
         document.getElementById('error-msg').textContent = msg;
         document.getElementById('error-box').classList.remove('hidden');
@@ -224,7 +269,8 @@ export async function handleLoginPage(request) {
 
     function clearErrors() {
       document.getElementById('error-box').classList.add('hidden');
-      document.getElementById('session-error-box').classList.add('hidden');
+      document.getElementById('public-error-box').classList.add('hidden');
+      document.getElementById('private-error-box').classList.add('hidden');
     }
 
     function showNdef(url) {
@@ -232,53 +278,67 @@ export async function handleLoginPage(request) {
       document.getElementById('last-ndef').classList.remove('hidden');
     }
 
-    function showSession(result) {
-      clearErrors();
-      const uidHex = result.uidHex;
-      document.getElementById('uid-display').textContent = 'UID: ' + uidHex.toUpperCase();
-
-      const typeLabels = { fakewallet: 'WITHDRAW', lnurlpay: 'POS', twofactor: '2FA' };
-      const cardType = result.cardType || 'unknown';
-      document.getElementById('card-type-badge').textContent = typeLabels[cardType] || cardType.toUpperCase();
-      document.getElementById('card-type-badge').className = 'px-3 py-1 rounded text-xs font-bold border ' +
+    function typeBadgeClass(cardType) {
+      return 'px-3 py-1 rounded text-xs font-bold border ' +
         (cardType === 'lnurlpay' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' :
          cardType === 'twofactor' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
          'bg-amber-500/10 text-amber-400 border-amber-500/30');
+    }
 
-      document.getElementById('card-counter').textContent = result.counterValue;
-      document.getElementById('card-issuer').textContent = result.issuerKey || 'unknown';
-      const cmacEl = document.getElementById('card-cmac');
+    function buildKeysRows(k0, k1, k2, k3, k4) {
+      return '<tr><td class="pr-3 text-gray-500">K0</td><td class="font-mono text-xs text-gray-400">' + (k0 || '-') + '</td></tr>' +
+        '<tr><td class="pr-3 text-gray-500">K1</td><td class="font-mono text-xs text-gray-400">' + (k1 || '-') + '</td></tr>' +
+        '<tr><td class="pr-3 text-gray-500">K2</td><td class="font-mono text-xs text-gray-400">' + (k2 || '-') + '</td></tr>' +
+        '<tr><td class="pr-3 text-gray-500">K3</td><td class="font-mono text-xs text-gray-400">' + (k3 || '-') + '</td></tr>' +
+        '<tr><td class="pr-3 text-gray-500">K4</td><td class="font-mono text-xs text-gray-400">' + (k4 || '-') + '</td></tr>';
+    }
+
+    function resetDeeplink() {
+      const apiUrl = API_HOST + '/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=KeepVersion';
+      return 'boltcard://reset?url=' + encodeURIComponent(apiUrl);
+    }
+
+    function showPublicCard(result) {
+      clearErrors();
+      hideAllViews();
+      const cardType = result.cardType || 'unknown';
+      const typeLabels = { fakewallet: 'WITHDRAW', lnurlpay: 'POS', twofactor: '2FA' };
+
+      document.getElementById('pub-uid-display').textContent = 'UID: ' + result.uidHex.toUpperCase();
+      document.getElementById('pub-card-type-badge').textContent = typeLabels[cardType] || cardType.toUpperCase();
+      document.getElementById('pub-card-type-badge').className = typeBadgeClass(cardType);
+      document.getElementById('pub-counter').textContent = result.counterValue;
+      document.getElementById('pub-issuer').textContent = result.issuerKey || 'recovered';
+      const cmacEl = document.getElementById('pub-cmac');
       cmacEl.textContent = result.cmacValid ? 'VERIFIED' : 'FAILED';
       cmacEl.className = result.cmacValid ? 'font-mono text-emerald-400' : 'font-mono text-red-400';
-      document.getElementById('card-keys').innerHTML =
-        '<tr><td class="pr-3 text-gray-500">K0</td><td class="font-mono text-xs text-gray-400">' + (result.k0 || '-') + '</td></tr>' +
-        '<tr><td class="pr-3 text-gray-500">K1</td><td class="font-mono text-xs text-gray-400">' + (result.k1 || '-') + '</td></tr>' +
-        '<tr><td class="pr-3 text-gray-500">K2</td><td class="font-mono text-xs text-gray-400">' + (result.k2 || '-') + '</td></tr>' +
-        '<tr><td class="pr-3 text-gray-500">K3</td><td class="font-mono text-xs text-gray-400">' + (result.k3 || '-') + '</td></tr>' +
-        '<tr><td class="pr-3 text-gray-500">K4</td><td class="font-mono text-xs text-gray-400">' + (result.k4 || '-') + '</td></tr>';
+      document.getElementById('pub-keys').innerHTML = buildKeysRows(result.k0, result.k1, result.k2, result.k3, result.k4);
+      document.getElementById('pub-ndef').textContent = result.ndef || '';
+      document.getElementById('pub-wipe-link').href = resetDeeplink();
+      document.getElementById('public-view').classList.remove('hidden');
+    }
 
-      if (result.ndef) {
-        document.getElementById('card-ndef').textContent = result.ndef;
-      }
+    function showPrivateCard(result) {
+      clearErrors();
+      hideAllViews();
+      const cardType = result.cardType || 'unknown';
+      const typeLabels = { fakewallet: 'WITHDRAW', lnurlpay: 'POS', twofactor: '2FA' };
 
-      const banner = document.getElementById('compromised-banner');
-      if (result.compromised) {
-        banner.classList.remove('hidden');
-        const wipeUrl = API_HOST + '/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=KeepVersion';
-        document.getElementById('wipe-link').href = 'boltcard://reset?url=' + encodeURIComponent(wipeUrl);
-      } else {
-        banner.classList.add('hidden');
-      }
-
-      const resetApiUrl = API_HOST + '/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=KeepVersion';
-      const resetDeepLink = 'boltcard://reset?url=' + encodeURIComponent(resetApiUrl);
-      document.getElementById('reset-deeplink').href = resetDeepLink;
-      document.getElementById('reset-url-text').textContent = resetDeepLink;
+      document.getElementById('priv-uid-display').textContent = 'UID: ' + result.uidHex.toUpperCase();
+      document.getElementById('priv-card-type-badge').textContent = typeLabels[cardType] || cardType.toUpperCase();
+      document.getElementById('priv-card-type-badge').className = typeBadgeClass(cardType);
+      document.getElementById('priv-counter').textContent = result.counterValue;
+      document.getElementById('priv-issuer').textContent = result.issuerKey || 'current';
+      const cmacEl = document.getElementById('priv-cmac');
+      cmacEl.textContent = result.cmacValid ? 'VERIFIED' : 'FAILED';
+      cmacEl.className = result.cmacValid ? 'font-mono text-emerald-400' : 'font-mono text-red-400';
+      document.getElementById('priv-keys').innerHTML = buildKeysRows(result.k0, result.k1, result.k2, result.k3, result.k4);
+      document.getElementById('priv-ndef').textContent = result.ndef || '';
+      document.getElementById('priv-reset-link').href = resetDeeplink();
 
       loginTime = Date.now();
-      document.getElementById('timer').textContent = '00:00:00';
-      document.getElementById('login-view').classList.add('hidden');
-      document.getElementById('session-view').classList.remove('hidden');
+      document.getElementById('priv-timer').textContent = '00:00:00';
+      document.getElementById('private-view').classList.remove('hidden');
       startTimer();
     }
 
@@ -327,7 +387,11 @@ export async function handleLoginPage(request) {
                 if (p && c) {
                   const result = await validateWithServer(p, c);
                   if (result.success) {
-                    showSession(result);
+                    if (result.public) {
+                      showPublicCard(result);
+                    } else {
+                      showPrivateCard(result);
+                    }
                   } else {
                     showPersistentError(result.error || 'Authentication failed');
                     statusEl.textContent = 'Failed. Tap card to retry.';
@@ -510,6 +574,7 @@ export async function handleLoginVerify(request, env) {
       k4: matchedKeys.k4,
       ndef: ndefUrl,
       compromised: !!perCardSource,
+      public: !!perCardSource,
       timestamp: Date.now(),
     });
   } catch (error) {
