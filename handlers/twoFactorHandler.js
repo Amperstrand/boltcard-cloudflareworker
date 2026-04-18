@@ -47,13 +47,19 @@ export async function handleTwoFactor(request, env) {
 
   logger.info("2FA codes generated", { uidHex, counterValue });
 
-  return renderTwoFactorPage(uidHex, totp, hotp, counterValue);
+  const baseUrl = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
+
+  return renderTwoFactorPage(uidHex, totp, hotp, counterValue, pHex, cHex, baseUrl);
 }
 
-function renderTwoFactorPage(uidHex, totp, hotp, counterValue) {
+function renderTwoFactorPage(uidHex, totp, hotp, counterValue, pHex, cHex, baseUrl) {
   const maskedUid = uidHex.length >= 8
     ? uidHex.substring(0, 4) + "···" + uidHex.substring(uidHex.length - 4)
     : uidHex;
+
+  const host = baseUrl.replace(/^https?:\/\//, "");
+  const withdrawLink = `lnurlw://${host}/?p=${pHex}&c=${cHex}`;
+  const payLink = `lnurlp://${host}/?p=${pHex}&c=${cHex}`;
 
   const html = `<!DOCTYPE html>
 <html lang="en" class="dark">
@@ -98,7 +104,19 @@ function renderTwoFactorPage(uidHex, totp, hotp, counterValue) {
         <p class="mt-3 text-xs text-gray-500 font-mono">Counter: ${counterValue}</p>
       </div>
 
-      <div class="border-t border-gray-700 pt-4 text-center">
+      <div class="border-t border-gray-700 pt-6 mb-4">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 text-center">Lightning Actions</h2>
+        <div class="grid grid-cols-2 gap-3">
+          <a href="${withdrawLink}" class="block text-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-4 rounded transition-colors text-sm shadow-[0_0_15px_rgba(217,119,6,0.2)]">
+            WITHDRAW<br/><span class="font-normal text-amber-200 text-xs">lnurlw://</span>
+          </a>
+          <a href="${payLink}" class="block text-center bg-purple-700 hover:bg-purple-600 text-white font-bold py-3 px-4 rounded transition-colors text-sm">
+            PAY<br/><span class="font-normal text-purple-200 text-xs">lnurlp://</span>
+          </a>
+        </div>
+      </div>
+
+      <div class="text-center">
         <p class="text-xs text-gray-500">Auto-refreshes every 5 seconds. Tap card again for new HOTP code.</p>
       </div>
 
