@@ -1,8 +1,33 @@
 import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
-import { hexToBytes } from "../cryptoutils.js";
+import { computeAesCmac, hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse } from "../utils/responses.js";
+
+const ISSUER_KEY_CANDIDATES = [
+  { hex: "00000000000000000000000000000000", label: "all-zeros" },
+  { hex: "00000000000000000000000000000001", label: "dev-01" },
+  { hex: "b0733959686c5da274123084b5c07820", label: "boltpoc-1" },
+  { hex: "0a276206ccae41739b3541e285223eee", label: "boltpoc-2" },
+];
+
+function deriveAllKeys(uidHex, issuerKeyHex) {
+  const issuerKey = hexToBytes(issuerKeyHex);
+  const uid = hexToBytes(uidHex);
+  const versionBytes = new Uint8Array(4);
+  new DataView(versionBytes.buffer).setUint32(0, 1, true);
+
+  const cardKeyMsg = new Uint8Array([...hexToBytes("2d003f75"), ...uid, ...versionBytes]);
+  const cardKey = computeAesCmac(cardKeyMsg, issuerKey);
+
+  return {
+    k0: Array.from(computeAesCmac(hexToBytes("2d003f76"), cardKey)).map(b => b.toString(16).padStart(2, "0")).join(""),
+    k1: Array.from(computeAesCmac(hexToBytes("2d003f77"), issuerKey)).map(b => b.toString(16).padStart(2, "0")).join(""),
+    k2: Array.from(computeAesCmac(hexToBytes("2d003f78"), cardKey)).map(b => b.toString(16).padStart(2, "0")).join(""),
+    k3: Array.from(computeAesCmac(hexToBytes("2d003f79"), cardKey)).map(b => b.toString(16).padStart(2, "0")).join(""),
+    k4: Array.from(computeAesCmac(hexToBytes("2d003f7a"), cardKey)).map(b => b.toString(16).padStart(2, "0")).join(""),
+  };
+}
 
 export async function handleLoginPage(request) {
   const host = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
@@ -80,6 +105,14 @@ export async function handleLoginPage(request) {
           <div class="flex justify-between">
             <span class="text-gray-500">Counter</span>
             <span id="card-counter" class="font-mono text-gray-300">0</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-500">Issuer Key</span>
+            <span id="card-issuer" class="font-mono text-gray-300 text-xs">-</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-500">CMAC</span>
+            <span id="card-cmac" class="font-mono text-emerald-400">-</span>
           </div>
         </div>
       </div>
@@ -164,6 +197,10 @@ export async function handleLoginPage(request) {
            'bg-amber-500/10 text-amber-400 border-amber-500/30');
 
         document.getElementById('card-counter').textContent = result.counterValue;
+        document.getElementById('card-issuer').textContent = result.issuerKey || 'unknown';
+        const cmacEl = document.getElementById('card-cmac');
+        cmacEl.textContent = result.cmacValid ? 'VERIFIED' : 'FAILED';
+        cmacEl.className = result.cmacValid ? 'font-mono text-emerald-400' : 'font-mono text-red-400';
         document.getElementById('card-keys').innerHTML =
           '<tr><td class="pr-3 text-gray-500">K0</td><td class="font-mono text-xs text-gray-400">' + (result.k0 || '-') + '</td></tr>' +
           '<tr><td class="pr-3 text-gray-500">K1</td><td class="font-mono text-xs text-gray-400">' + (result.k1 || '-') + '</td></tr>' +
@@ -353,50 +390,73 @@ export async function handleLoginVerify(request, env) {
       return jsonResponse({ success: false, error: "Missing p or c" }, 400);
     }
 
-    const decryption = extractUIDAndCounter(pHex, env);
-    if (!decryption.success) {
-      return jsonResponse({ success: false, error: "Decryption failed" }, 400);
+    // Try all issuer keys to find which one this card was provisioned with
+    let matchedIssuer = null;
+    let matchedUid = null;
+    let matchedCtr = null;
+    let matchedKeys = null;
+    let matchedCmacValid = false;
+
+    for (const candidate of ISSUER_KEY_CANDIDATES) {
+      const tryEnv = { ...env, ISSUER_KEY: candidate.hex };
+      const decryption = extractUIDAndCounter(pHex, tryEnv);
+      if (!decryption.success) continue;
+
+      const { uidHex, ctr } = decryption;
+      const keys = deriveAllKeys(uidHex, candidate.hex);
+
+      const { cmac_validated } = validate_cmac(
+        hexToBytes(uidHex),
+        hexToBytes(ctr),
+        cHex,
+        hexToBytes(keys.k2),
+      );
+
+      matchedIssuer = candidate;
+      matchedUid = uidHex;
+      matchedCtr = ctr;
+      matchedKeys = keys;
+
+      if (cmac_validated) {
+        matchedCmacValid = true;
+        break;
+      }
     }
 
-    const { uidHex, ctr } = decryption;
+    if (!matchedIssuer) {
+      return jsonResponse({ success: false, error: "Could not decrypt card with any known issuer key" }, 400);
+    }
+
+    const uidHex = matchedUid;
+    const counterValue = parseInt(matchedCtr, 16);
 
     const config = await getUidConfig(uidHex, env);
-    if (!config || !config.K2) {
-      return jsonResponse({ success: false, error: "Card not registered" }, 404);
-    }
-
-    const { cmac_validated, cmac_error } = validate_cmac(
-      hexToBytes(uidHex),
-      hexToBytes(ctr),
-      cHex,
-      hexToBytes(config.K2),
-    );
-    if (!cmac_validated) {
-      return jsonResponse({ success: false, error: "CMAC validation failed" }, 403);
-    }
+    const pm = config?.payment_method || "unknown";
 
     const host = new URL(request.url).host;
-    const pm = config.payment_method || "unknown";
-    let path;
-    if (pm === "twofactor") {
-      path = "/2fa";
-    } else {
-      path = "/";
-    }
+    const path = pm === "twofactor" ? "/2fa" : "/";
     const ndefUrl = `https://${host}${path}?p=${pHex}&c=${cHex}`;
 
-    logger.info("NFC login successful", { uidHex, counterValue: parseInt(ctr, 16), cardType: pm });
+    logger.info("NFC login", {
+      uidHex,
+      counterValue,
+      cardType: pm,
+      issuerKey: matchedIssuer.label,
+      cmacValid: matchedCmacValid,
+    });
 
     return jsonResponse({
       success: true,
       uidHex,
-      counterValue: parseInt(ctr, 16),
+      counterValue,
       cardType: pm,
-      k0: config.K0 || null,
-      k1: config.K1 || null,
-      k2: config.K2 || null,
-      k3: config.K3 || null,
-      k4: config.K4 || null,
+      cmacValid: matchedCmacValid,
+      issuerKey: matchedIssuer.label,
+      k0: matchedKeys.k0,
+      k1: matchedKeys.k1,
+      k2: matchedKeys.k2,
+      k3: matchedKeys.k3,
+      k4: matchedKeys.k4,
       ndef: ndefUrl,
       timestamp: Date.now(),
     });
