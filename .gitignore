@@ -2,6 +2,8 @@ node_modules
 wrangler
 .wrangler/
 coverage/
+pam_ntag424/test_crypto
+pam_ntag424/pam_ntag424.so
 # Archive of subagent-generated noise (kept for reference, not tracked)
 .archive/
 
