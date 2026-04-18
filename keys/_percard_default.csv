@@ -1,0 +1,5 @@
+# Boltcard key recovery — per-card keys (LNBits-style exports)
+# For cards where we have individual K0/K1/K2 keys rather than an issuer key.
+# These are from direct dumps or abandoned LNBits instances.
+# Format: uid,k0,k1,k2,card_name
+uid,k0,k1,k2,card_name

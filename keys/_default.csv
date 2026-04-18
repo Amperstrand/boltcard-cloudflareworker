@@ -1,0 +1,6 @@
+# Boltcard key recovery — default issuer keys
+# These are well-known / development issuer keys tried for all domains.
+# Format: issuer_key_hex,label
+issuer_key,label
+00000000000000000000000000000000,all-zeros
+00000000000000000000000000000001,dev-01

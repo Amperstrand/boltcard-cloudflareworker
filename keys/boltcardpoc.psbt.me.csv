@@ -1,0 +1,7 @@
+# Boltcard key recovery — boltcardpoc.psbt.me
+# Production issuer keys used by the boltcardpoc.psbt.me service.
+# Format: issuer_key_hex,label
+issuer_key,label
+b0733959686c5da274123084b5c07820,boltpoc-1
+0a276206ccae41739b3541e285223eee,boltpoc-2
+55734571ce72ed364994cf2f20914092,boltpoc-3
