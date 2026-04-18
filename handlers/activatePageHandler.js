@@ -52,51 +52,86 @@ export function handleActivatePage(request) {
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-            <!-- Program Card -->
+            <!-- Program Withdraw Card -->
             <div class="bg-gray-900 border border-gray-700 rounded-lg p-6 flex flex-col items-center">
-              <h3 class="text-xl font-bold text-gray-200 mb-2">PROGRAM</h3>
-              <p class="text-sm text-gray-400 mb-6 text-center">Initialize a blank or wiped NFC card</p>
+              <h3 class="text-xl font-bold text-gray-200 mb-1">PROGRAM WITHDRAW</h3>
+              <p class="text-xs text-green-400 mb-3 font-mono">Payment card (LNURL-withdraw)</p>
+              <p class="text-sm text-gray-400 mb-4 text-center">Tap to pay — card holds sats</p>
               
-              <div id="qr-program" class="qr-container mb-6"></div>
+              <div id="qr-program" class="qr-container mb-4"></div>
               
               <a href="${programDeepLink}" class="w-full text-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-4 rounded transition-colors mb-3 shadow-[0_0_15px_rgba(217,119,6,0.2)]">
-                OPEN PROGRAM APP
+                PROGRAM WITHDRAW CARD
               </a>
               
               <div class="w-full bg-black/50 rounded p-3 border border-gray-800 flex justify-between items-center group mt-auto">
                 <span id="link-program" class="font-mono text-xs text-gray-500 truncate mr-2">${programDeepLink}</span>
                 <button onclick="copyText('link-program')" class="text-gray-600 hover:text-amber-500 text-xs font-bold shrink-0 transition-colors">
-                  COPY LINK
+                  COPY
                 </button>
               </div>
             </div>
 
             <!-- Reset Card -->
             <div class="bg-gray-900 border border-gray-700 rounded-lg p-6 flex flex-col items-center">
-              <h3 class="text-xl font-bold text-gray-200 mb-2">RESET</h3>
-              <p class="text-sm text-gray-400 mb-6 text-center">Re-provision an existing card</p>
+              <h3 class="text-xl font-bold text-gray-200 mb-1">RESET</h3>
+              <p class="text-xs text-blue-400 mb-3 font-mono">Re-provision existing card</p>
+              <p class="text-sm text-gray-400 mb-4 text-center">Wipe and re-key an active card</p>
               
-              <div id="qr-reset" class="qr-container mb-6"></div>
+              <div id="qr-reset" class="qr-container mb-4"></div>
               
               <a href="${resetDeepLink}" class="w-full text-center border-2 border-amber-600 text-amber-500 hover:bg-amber-600 hover:text-white font-bold py-3 px-4 rounded transition-all mb-3">
-                OPEN RESET APP
+                RESET CARD
               </a>
               
               <div class="w-full bg-black/50 rounded p-3 border border-gray-800 flex justify-between items-center group mt-auto">
                 <span id="link-reset" class="font-mono text-xs text-gray-500 truncate mr-2">${resetDeepLink}</span>
                 <button onclick="copyText('link-reset')" class="text-gray-600 hover:text-amber-500 text-xs font-bold shrink-0 transition-colors">
-                  COPY LINK
+                  COPY
                 </button>
               </div>
             </div>
           </div>
 
+          <!-- Program POS Card -->
+          <div class="bg-gray-900 border border-purple-500/30 rounded-lg p-6 mb-8">
+            <div class="flex items-center gap-3 mb-4">
+              <h3 class="text-xl font-bold text-gray-200">PROGRAM POS CARD</h3>
+              <span class="text-xs text-purple-400 font-mono border border-purple-500/30 rounded px-2 py-0.5">LNURL-PAY</span>
+            </div>
+            <p class="text-sm text-gray-400 mb-4">Customer taps merchant's card and pays — Lightning Address receives sats. Counter becomes order reference.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+              <div>
+                <label class="block text-sm font-semibold text-gray-300 mb-2">Lightning Address</label>
+                <input id="pos-lightning-address" type="text" value="test@getalby.com" placeholder="user@domain.com"
+                  class="w-full bg-black/50 border border-gray-700 rounded px-3 py-2 text-gray-200 font-mono text-sm focus:border-purple-500 focus:outline-none" />
+                
+                <label class="block text-sm font-semibold text-gray-300 mt-4 mb-2">Amount (sats)</label>
+                <input id="pos-amount" type="number" value="1" min="1"
+                  class="w-full bg-black/50 border border-gray-700 rounded px-3 py-2 text-gray-200 font-mono text-sm focus:border-purple-500 focus:outline-none" />
+                <p class="text-xs text-gray-500 mt-1">Fixed amount per tap. 1 sat for testing.</p>
+              </div>
+
+              <div class="flex flex-col items-center">
+                <div id="qr-pos" class="qr-container mb-4"></div>
+                <a id="pos-deeplink" href="#" class="w-full text-center bg-purple-700 hover:bg-purple-600 text-white font-bold py-3 px-4 rounded transition-colors mb-3">
+                  PROGRAM POS CARD
+                </a>
+                <div class="w-full bg-black/50 rounded p-3 border border-gray-800 flex justify-between items-center group">
+                  <span id="link-pos" class="font-mono text-xs text-gray-500 truncate mr-2"></span>
+                  <button onclick="copyText('link-pos')" class="text-gray-600 hover:text-amber-500 text-xs font-bold shrink-0 transition-colors">COPY</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="border-t border-gray-700 pt-6">
-            <h2 class="text-lg font-semibold text-gray-300 mb-4">JSON API (MASS ACTIVATION)</h2>
+            <h2 class="text-lg font-semibold text-gray-300 mb-4">JSON API</h2>
             <div class="space-y-4">
               <div class="bg-gray-900 border border-gray-800 rounded p-4">
                 <div class="flex justify-between items-center mb-2">
-                  <span class="text-xs font-bold text-gray-500 uppercase">Program via UID</span>
+                  <span class="text-xs font-bold text-green-500 uppercase">Program Withdraw Card</span>
                   <button onclick="copyText('curl-program')" class="text-xs text-amber-500 hover:text-amber-400 font-bold">COPY</button>
                 </div>
                 <pre id="curl-program" class="font-mono text-xs text-green-400 overflow-x-auto">curl -X POST '${programUrl}' \\
@@ -106,7 +141,17 @@ export function handleActivatePage(request) {
 
               <div class="bg-gray-900 border border-gray-800 rounded p-4">
                 <div class="flex justify-between items-center mb-2">
-                  <span class="text-xs font-bold text-gray-500 uppercase">Reset via LNURLW</span>
+                  <span class="text-xs font-bold text-purple-500 uppercase">Program POS Card</span>
+                  <button onclick="copyText('curl-pos')" class="text-xs text-amber-500 hover:text-amber-400 font-bold">COPY</button>
+                </div>
+                <pre id="curl-pos" class="font-mono text-xs text-purple-400 overflow-x-auto">curl -X POST '${programUrl}&card_type=pos&lightning_address=user@domain.com' \\
+  -H "Content-Type: application/json" \\
+  -d '{"UID": "04a39493cc8680"}'</pre>
+              </div>
+
+              <div class="bg-gray-900 border border-gray-800 rounded p-4">
+                <div class="flex justify-between items-center mb-2">
+                  <span class="text-xs font-bold text-blue-500 uppercase">Reset via LNURLW</span>
                   <button onclick="copyText('curl-reset')" class="text-xs text-amber-500 hover:text-amber-400 font-bold">COPY</button>
                 </div>
                 <pre id="curl-reset" class="font-mono text-xs text-blue-400 overflow-x-auto">curl -X POST '${resetUrl}' \\
@@ -123,38 +168,60 @@ export function handleActivatePage(request) {
         </div>
 
         <script>
-          // Generate QR Codes
-          document.addEventListener('DOMContentLoaded', () => {
-            const qrProgramOptions = {
-              text: "${programUrl}",
-              width: 200,
-              height: 200,
-              colorDark : "#000000",
-              colorLight : "#ffffff",
-              correctLevel : QRCode.CorrectLevel.L
-            };
-            new QRCode(document.getElementById("qr-program"), qrProgramOptions);
+          const posBaseUrl = "${apiUrl}";
+          let posQr = null;
 
-            const qrResetOptions = {
+          function updatePosConfig() {
+            const address = document.getElementById('pos-lightning-address').value.trim();
+            const amount = parseInt(document.getElementById('pos-amount').value) || 1;
+            const amountMsat = amount * 1000;
+            const posUrl = posBaseUrl + '&card_type=pos&lightning_address=' + encodeURIComponent(address) + '&min_sendable=' + amountMsat + '&max_sendable=' + amountMsat;
+            const deepLink = 'boltcard://program?url=' + encodeURIComponent(posUrl);
+
+            const linkEl = document.getElementById('link-pos');
+            linkEl.textContent = deepLink;
+
+            const deeplinkEl = document.getElementById('pos-deeplink');
+            deeplinkEl.href = deepLink;
+
+            if (posQr) posQr.clear();
+            posQr.makeCode(posUrl);
+          }
+
+          document.addEventListener('DOMContentLoaded', () => {
+            new QRCode(document.getElementById("qr-program"), {
+              text: "${programUrl}",
+              width: 200, height: 200,
+              colorDark: "#000000", colorLight: "#ffffff",
+              correctLevel: QRCode.CorrectLevel.L
+            });
+
+            new QRCode(document.getElementById("qr-reset"), {
               text: "${resetUrl}",
-              width: 200,
-              height: 200,
-              colorDark : "#000000",
-              colorLight : "#ffffff",
-              correctLevel : QRCode.CorrectLevel.L
-            };
-            new QRCode(document.getElementById("qr-reset"), qrResetOptions);
+              width: 200, height: 200,
+              colorDark: "#000000", colorLight: "#ffffff",
+              correctLevel: QRCode.CorrectLevel.L
+            });
+
+            posQr = new QRCode(document.getElementById("qr-pos"), {
+              text: "",
+              width: 200, height: 200,
+              colorDark: "#000000", colorLight: "#ffffff",
+              correctLevel: QRCode.CorrectLevel.L
+            });
+
+            updatePosConfig();
+
+            document.getElementById('pos-lightning-address').addEventListener('input', updatePosConfig);
+            document.getElementById('pos-amount').addEventListener('input', updatePosConfig);
           });
 
-          // Copy function
           function copyText(elementId) {
             const el = document.getElementById(elementId);
             const text = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' ? el.value : el.innerText;
             navigator.clipboard.writeText(text).then(() => {
               showToast();
-            }).catch(() => {
-              // Clipboard API not available or denied
-            });
+            }).catch(() => {});
           }
 
           function showToast() {

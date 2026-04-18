@@ -258,6 +258,39 @@ describe("response patterns", () => {
     expect(savedConfig.K2).toBe("EXISTINGKEY");
   });
 
+  test("POST boltcards with card_type=pos registers as lnurlpay in KV", async () => {
+    const kvEnv = makeKvEnv();
+    const posUid = "04a123fa967380";
+
+    const response = await makeRequest(
+      "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion&card_type=pos&lightning_address=merchant%40getalby.com&min_sendable=2000&max_sendable=2000",
+      "POST",
+      { UID: posUid },
+      kvEnv
+    );
+
+    expect(response.status).toBe(200);
+    const savedConfig = JSON.parse(kvEnv.__kvStore[posUid]);
+    expect(savedConfig.payment_method).toBe("lnurlpay");
+    expect(savedConfig.lnurlpay.lightning_address).toBe("merchant@getalby.com");
+    expect(savedConfig.lnurlpay.min_sendable).toBe(2000);
+    expect(savedConfig.lnurlpay.max_sendable).toBe(2000);
+    expect(savedConfig.K2).toBeDefined();
+  });
+
+  test("POST boltcards with card_type=pos rejects missing lightning_address", async () => {
+    const kvEnv = makeKvEnv();
+
+    const response = await makeRequest(
+      "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion&card_type=pos",
+      "POST",
+      { UID: "04a123fa967380" },
+      kvEnv
+    );
+
+    expect(response.status).toBe(400);
+  });
+
   test("POST boltcards pull-payment endpoint returns keys for KeepVersion LNURLW flow", async () => {
     const response = await makeRequest(
       "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=KeepVersion",

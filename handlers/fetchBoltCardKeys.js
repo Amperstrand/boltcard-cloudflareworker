@@ -22,6 +22,10 @@ export async function fetchBoltCardKeys(request, env) {
   try {
     const url = new URL(request.url);
     const onExisting = url.searchParams.get("onExisting");
+    const cardType = url.searchParams.get("card_type") || "withdraw";
+    const lightningAddress = url.searchParams.get("lightning_address") || "";
+    const minSendable = parseInt(url.searchParams.get("min_sendable")) || 1000;
+    const maxSendable = parseInt(url.searchParams.get("max_sendable")) || 1000;
     const { UID: uid, LNURLW: lnurlw } = await request.json();
     const baseUrl = `${url.protocol}//${url.host}`;
 
@@ -30,7 +34,10 @@ export async function fetchBoltCardKeys(request, env) {
     }
 
     if ((onExisting === "UpdateVersion" || (!onExisting && uid && !lnurlw)) && uid) {
-      return handleProgrammingFlow(uid, env, baseUrl);
+      if (cardType === "pos" && !lightningAddress) {
+        return errorResponse("POS card programming requires lightning_address parameter");
+      }
+      return handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddress, minSendable, maxSendable);
     }
 
     if ((onExisting === "KeepVersion" || (!onExisting && lnurlw)) && lnurlw) {
@@ -51,7 +58,7 @@ export async function fetchBoltCardKeys(request, env) {
   }
 }
 
-async function handleProgrammingFlow(uid, env, baseUrl) {
+async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddress, minSendable, maxSendable) {
   const normalizedUid = uid.toLowerCase();
   await resetReplayProtection(env, normalizedUid);
 
@@ -59,10 +66,26 @@ async function handleProgrammingFlow(uid, env, baseUrl) {
     const existing = await env.UID_CONFIG.get(normalizedUid);
     if (!existing) {
       const keys = await getDeterministicKeys(normalizedUid, env);
-      await env.UID_CONFIG.put(normalizedUid, JSON.stringify({
-        K2: keys.k2,
-        payment_method: "fakewallet",
-      }));
+
+      let config;
+      if (cardType === "pos" && lightningAddress) {
+        config = {
+          K2: keys.k2,
+          payment_method: "lnurlpay",
+          lnurlpay: {
+            lightning_address: lightningAddress,
+            min_sendable: minSendable,
+            max_sendable: maxSendable,
+          },
+        };
+      } else {
+        config = {
+          K2: keys.k2,
+          payment_method: "fakewallet",
+        };
+      }
+
+      await env.UID_CONFIG.put(normalizedUid, JSON.stringify(config));
     }
   }
 
