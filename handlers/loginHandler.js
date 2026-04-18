@@ -3,30 +3,8 @@ import { computeAesCmac, hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse } from "../utils/responses.js";
-
-const BUILTIN_ISSUER_KEYS = [
-  { hex: "00000000000000000000000000000000", label: "all-zeros" },
-  { hex: "00000000000000000000000000000001", label: "dev-01" },
-  { hex: "b0733959686c5da274123084b5c07820", label: "boltpoc-1" },
-  { hex: "0a276206ccae41739b3541e285223eee", label: "boltpoc-2" },
-  { hex: "55734571ce72ed364994cf2f20914092", label: "boltpoc-3" },
-];
-
-function getIssuerKeyCandidates(env) {
-  const candidates = [...BUILTIN_ISSUER_KEYS];
-  if (env?.ISSUER_KEY) {
-    candidates.unshift({ hex: env.ISSUER_KEY, label: "current" });
-  }
-  if (env?.RECOVERY_ISSUER_KEYS) {
-    for (const hex of env.RECOVERY_ISSUER_KEYS.split(",")) {
-      const trimmed = hex.trim();
-      if (trimmed && !candidates.some(c => c.hex === trimmed)) {
-        candidates.push({ hex: trimmed, label: trimmed.substring(0, 8) + "..." });
-      }
-    }
-  }
-  return candidates;
-}
+import { getAllIssuerKeyCandidates, getPerCardKeys } from "../utils/keyLookup.js";
+import { PERCARD_KEYS } from "../utils/generatedKeyData.js";
 
 function deriveAllKeys(uidHex, issuerKeyHex) {
   const issuerKey = hexToBytes(issuerKeyHex);
@@ -106,6 +84,14 @@ export async function handleLoginPage(request) {
           <span id="card-type-badge" class="px-3 py-1 rounded text-xs font-bold border bg-amber-500/10 text-amber-400 border-amber-500/30">WITHDRAW</span>
         </div>
         <p class="text-gray-500 text-xs font-mono" id="uid-display"></p>
+      </div>
+
+      <div id="compromised-banner" class="hidden bg-amber-900/30 border border-amber-500/40 rounded-lg p-4 mb-4">
+        <p class="text-amber-300 font-bold text-sm mb-1">🔑 Keys Recovered</p>
+        <p class="text-amber-200/70 text-xs mb-3">Good news — your card's keys are known, which means you can wipe and repurpose this bolt card.</p>
+        <a id="wipe-link" href="#" class="block w-full text-center bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded transition-colors text-sm">
+          Open Bolt Card App to Wipe &amp; Reprogram
+        </a>
       </div>
 
       <div class="bg-gray-800 border border-gray-700 shadow-xl rounded-lg p-8 mb-4">
@@ -227,6 +213,15 @@ export async function handleLoginPage(request) {
 
         if (result.ndef) {
           document.getElementById('card-ndef').textContent = result.ndef;
+        }
+
+        const banner = document.getElementById('compromised-banner');
+        if (result.compromised) {
+          banner.classList.remove('hidden');
+          const resetUrl = API_HOST + '/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=KeepVersion';
+          document.getElementById('wipe-link').href = 'boltcard://reset?url=' + encodeURIComponent(resetUrl);
+        } else {
+          banner.classList.add('hidden');
         }
 
         document.getElementById('login-view').classList.add('hidden');
@@ -407,14 +402,17 @@ export async function handleLoginVerify(request, env) {
       return jsonResponse({ success: false, error: "Missing p or c" }, 400);
     }
 
-    // Try all issuer keys to find which one this card was provisioned with
+    const candidates = getAllIssuerKeyCandidates(env);
+
     let matchedIssuer = null;
     let matchedUid = null;
     let matchedCtr = null;
     let matchedKeys = null;
     let matchedCmacValid = false;
+    let perCardSource = null;
 
-    for (const candidate of getIssuerKeyCandidates(env)) {
+    // Phase 1: Try issuer key derivation
+    for (const candidate of candidates) {
       const tryEnv = { ...env, ISSUER_KEY: candidate.hex };
       const decryption = extractUIDAndCounter(pHex, tryEnv);
       if (!decryption.success) continue;
@@ -436,12 +434,69 @@ export async function handleLoginVerify(request, env) {
 
       if (cmac_validated) {
         matchedCmacValid = true;
+
+        // Check if per-card keys exist (compromised key set)
+        const perCard = getPerCardKeys(uidHex);
+        if (perCard) {
+          perCardSource = perCard.card_name || "recovered";
+          matchedKeys = {
+            k0: perCard.k0,
+            k1: perCard.k1,
+            k2: perCard.k2,
+            k3: perCard.k1,
+            k4: perCard.k2,
+          };
+          const { cmac_validated: pcCmac } = validate_cmac(
+            hexToBytes(uidHex),
+            hexToBytes(ctr),
+            cHex,
+            hexToBytes(perCard.k2),
+          );
+          matchedCmacValid = pcCmac;
+        }
+
         break;
       }
     }
 
+    // Phase 2: If issuer key derivation failed, try per-card K1 directly
     if (!matchedIssuer) {
-      return jsonResponse({ success: false, error: "Could not decrypt card with any known issuer key" }, 400);
+      for (const entry of getUniquePerCardK1s()) {
+        const tryEnv = { ...env, ISSUER_KEY: entry.k1 };
+        const decryption = extractUIDAndCounter(pHex, tryEnv);
+        if (!decryption.success) continue;
+
+        const { uidHex, ctr } = decryption;
+        const perCard = getPerCardKeys(uidHex);
+        if (!perCard) continue;
+
+        const { cmac_validated } = validate_cmac(
+          hexToBytes(uidHex),
+          hexToBytes(ctr),
+          cHex,
+          hexToBytes(perCard.k2),
+        );
+
+        if (cmac_validated) {
+          matchedIssuer = { hex: "per-card", label: perCard.card_name || "recovered" };
+          matchedUid = uidHex;
+          matchedCtr = ctr;
+          matchedCmacValid = true;
+          perCardSource = perCard.card_name || "recovered";
+          matchedKeys = {
+            k0: perCard.k0,
+            k1: perCard.k1,
+            k2: perCard.k2,
+            k3: perCard.k1,
+            k4: perCard.k2,
+          };
+          break;
+        }
+      }
+    }
+
+    if (!matchedIssuer) {
+      return jsonResponse({ success: false, error: "Could not decrypt card with any known key" }, 400);
     }
 
     const uidHex = matchedUid;
@@ -460,6 +515,7 @@ export async function handleLoginVerify(request, env) {
       cardType: pm,
       issuerKey: matchedIssuer.label,
       cmacValid: matchedCmacValid,
+      perCardSource,
     });
 
     return jsonResponse({
@@ -475,10 +531,20 @@ export async function handleLoginVerify(request, env) {
       k3: matchedKeys.k3,
       k4: matchedKeys.k4,
       ndef: ndefUrl,
+      compromised: !!perCardSource,
       timestamp: Date.now(),
     });
   } catch (error) {
     logger.error("Login verification error", { error: error.message });
     return jsonResponse({ success: false, error: error.message }, 500);
   }
+}
+
+function getUniquePerCardK1s() {
+  const seen = new Set();
+  return PERCARD_KEYS.filter((e) => {
+    if (seen.has(e.k1)) return false;
+    seen.add(e.k1);
+    return true;
+  });
 }
