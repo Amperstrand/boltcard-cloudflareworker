@@ -76,6 +76,11 @@ async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddre
           max_sendable: maxSendable,
         },
       };
+    } else if (cardType === "2fa") {
+      config = {
+        K2: keys.k2,
+        payment_method: "twofactor",
+      };
     } else {
       config = {
         K2: keys.k2,
@@ -88,7 +93,7 @@ async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddre
     }
   }
 
-  return generateKeyResponse(normalizedUid, env, baseUrl);
+  return generateKeyResponse(normalizedUid, env, baseUrl, cardType);
 }
 
 async function handleResetFlow(lnurlw, env, baseUrl) {
@@ -135,11 +140,24 @@ async function handleResetFlow(lnurlw, env, baseUrl) {
 
 // Generates the new_bolt_card_response payload expected by the NFC programmer app.
 // Contains all 5 AES keys (K0-K4) and the LNURLW base URL for the NDEF template.
-async function generateKeyResponse(uid, env, baseUrl) {
+async function generateKeyResponse(uid, env, baseUrl, cardType = "withdraw") {
   const version = 1;
   const keys = await getDeterministicKeys(uid, env, version);
   const host = baseUrl || "https://boltcardpoc.psbt.me";
-  const lnurlw_path = `${host.replace(/^https?:\/\//, "")}/`;
+  const hostPart = host.replace(/^https?:\/\//, "");
+
+  let scheme;
+  let path;
+  if (cardType === "2fa") {
+    scheme = "https://";
+    path = `${hostPart}/2fa`;
+  } else if (cardType === "pos") {
+    scheme = "lnurlp://";
+    path = `${hostPart}/`;
+  } else {
+    scheme = "lnurlw://";
+    path = `${hostPart}/`;
+  }
 
   return jsonResponse({
     CARD_NAME: `UID ${uid.toUpperCase()}`,
@@ -149,8 +167,8 @@ async function generateKeyResponse(uid, env, baseUrl) {
     K2: keys.k2,
     K3: keys.k3,
     K4: keys.k4,
-    LNURLW_BASE: `lnurlw://${lnurlw_path}`,
-    LNURLW: `lnurlw://${lnurlw_path}`,
+    LNURLW_BASE: `${scheme}${path}`,
+    LNURLW: `${scheme}${path}`,
     PROTOCOL_NAME: "NEW_BOLT_CARD_RESPONSE",
     PROTOCOL_VERSION: "1",
   });

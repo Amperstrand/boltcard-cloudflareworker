@@ -126,6 +126,26 @@ export function handleActivatePage(request) {
             </div>
           </div>
 
+          <!-- Program 2FA Card -->
+          <div class="bg-gray-900 border border-emerald-500/30 rounded-lg p-6 mb-8">
+            <div class="flex items-center gap-3 mb-4">
+              <h3 class="text-xl font-bold text-gray-200">PROGRAM 2FA CARD</h3>
+              <span class="text-xs text-emerald-400 font-mono border border-emerald-500/30 rounded px-2 py-0.5">TOTP + HOTP</span>
+            </div>
+            <p class="text-sm text-gray-400 mb-4">NFC tap provides time-based (TOTP) and counter-based (HOTP) one-time passwords. Tap card to phone, get codes on screen.</p>
+
+            <div class="flex flex-col items-center">
+              <div id="qr-2fa" class="qr-container mb-4"></div>
+              <a id="2fa-deeplink" href="#" class="w-full text-center bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded transition-colors mb-3">
+                PROGRAM 2FA CARD
+              </a>
+              <div class="w-full bg-black/50 rounded p-3 border border-gray-800 flex justify-between items-center group">
+                <span id="link-2fa" class="font-mono text-xs text-gray-500 truncate mr-2"></span>
+                <button onclick="copyText('link-2fa')" class="text-gray-600 hover:text-amber-500 text-xs font-bold shrink-0 transition-colors">COPY</button>
+              </div>
+            </div>
+          </div>
+
           <div class="border-t border-gray-700 pt-6">
             <h2 class="text-lg font-semibold text-gray-300 mb-4">JSON API</h2>
             <div class="space-y-4">
@@ -145,6 +165,16 @@ export function handleActivatePage(request) {
                   <button onclick="copyText('curl-pos')" class="text-xs text-amber-500 hover:text-amber-400 font-bold">COPY</button>
                 </div>
                 <pre id="curl-pos" class="font-mono text-xs text-purple-400 overflow-x-auto">curl -X POST '${programUrl}&card_type=pos&lightning_address=user@domain.com' \\
+  -H "Content-Type: application/json" \\
+  -d '{"UID": "04a39493cc8680"}'</pre>
+              </div>
+
+              <div class="bg-gray-900 border border-gray-800 rounded p-4">
+                <div class="flex justify-between items-center mb-2">
+                  <span class="text-xs font-bold text-emerald-500 uppercase">Program 2FA Card</span>
+                  <button onclick="copyText('curl-2fa')" class="text-xs text-amber-500 hover:text-amber-400 font-bold">COPY</button>
+                </div>
+                <pre id="curl-2fa" class="font-mono text-xs text-emerald-400 overflow-x-auto">curl -X POST '${programUrl}&card_type=2fa' \\
   -H "Content-Type: application/json" \\
   -d '{"UID": "04a39493cc8680"}'</pre>
               </div>
@@ -188,6 +218,21 @@ export function handleActivatePage(request) {
             posQr.makeCode(posUrl);
           }
 
+          function setup2faConfig() {
+            const twoFaUrl = posBaseUrl + '&card_type=2fa';
+            const deepLink = 'boltcard://program?url=' + encodeURIComponent(twoFaUrl);
+
+            document.getElementById('link-2fa').textContent = deepLink;
+            document.getElementById('2fa-deeplink').href = deepLink;
+
+            const qr2fa = new QRCode(document.getElementById("qr-2fa"), {
+              text: twoFaUrl,
+              width: 200, height: 200,
+              colorDark: "#000000", colorLight: "#ffffff",
+              correctLevel: QRCode.CorrectLevel.L
+            });
+          }
+
           document.addEventListener('DOMContentLoaded', () => {
             new QRCode(document.getElementById("qr-program"), {
               text: "${programUrl}",
@@ -211,6 +256,7 @@ export function handleActivatePage(request) {
             });
 
             updatePosConfig();
+            setup2faConfig();
 
             document.getElementById('pos-lightning-address').addEventListener('input', updatePosConfig);
             document.getElementById('pos-amount').addEventListener('input', updatePosConfig);

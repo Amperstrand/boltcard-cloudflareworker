@@ -307,7 +307,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
     expect(json.K0).toBeDefined();
     expect(json.K1).toBeDefined();
     expect(json.K2).toBeDefined();
-    expect(json.LNURLW).toContain("lnurlw://");
+    expect(json.LNURLW).toContain("lnurlp://");
 
     const savedConfig = JSON.parse(kvStore[POS_UID]);
     expect(savedConfig.payment_method).toBe("lnurlpay");
