@@ -152,7 +152,7 @@ async function handleLnurlw(request, env) {
   if (config.payment_method === "lnurlpay") {
     const baseUrl = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
     const counterValue = parseInt(ctr, 16);
-    return jsonResponse(constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl));
+    return jsonResponse(constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, config));
   }
 
   if (config.payment_method === "clnrest" || config.payment_method === "fakewallet") {

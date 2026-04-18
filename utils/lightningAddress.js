@@ -46,12 +46,17 @@ async function parseJsonResponse(response, url, errorPrefix) {
 }
 
 async function fetchJson(url, errorPrefix) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+
   let response;
 
   try {
-    response = await fetch(url);
+    response = await fetch(url, { signal: controller.signal });
   } catch (error) {
     throw new Error(`${errorPrefix}: failed to fetch ${url}: ${error.message}`);
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   return parseJsonResponse(response, url, errorPrefix);

@@ -9,17 +9,20 @@ import { resolveLightningAddress } from "../utils/lightningAddress.js";
 const errorResponse = (reason, status = 400) =>
   jsonResponse({ status: "ERROR", reason }, status);
 
-export function constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl) {
+export function constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, config) {
   const host = baseUrl || "https://boltcardpoc.psbt.me";
   const callbackUrl = new URL("/lnurlp/cb", host);
   callbackUrl.searchParams.set("p", pHex);
   callbackUrl.searchParams.set("c", cHex);
 
+  const minSendable = config?.lnurlpay?.min_sendable ?? 1000;
+  const maxSendable = config?.lnurlpay?.max_sendable ?? 1000;
+
   return {
     tag: "payRequest",
     callback: callbackUrl.toString(),
-    minSendable: 1000,
-    maxSendable: 1000,
+    minSendable,
+    maxSendable,
     metadata: JSON.stringify([["text/plain", `POS checkout - Order #${counterValue}`]]),
   };
 }

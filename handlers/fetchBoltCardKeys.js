@@ -64,27 +64,27 @@ async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddre
 
   if (env?.UID_CONFIG) {
     const existing = await env.UID_CONFIG.get(normalizedUid);
-    if (!existing) {
-      const keys = await getDeterministicKeys(normalizedUid, env);
+    const keys = await getDeterministicKeys(normalizedUid, env);
 
-      let config;
-      if (cardType === "pos" && lightningAddress) {
-        config = {
-          K2: keys.k2,
-          payment_method: "lnurlpay",
-          lnurlpay: {
-            lightning_address: lightningAddress,
-            min_sendable: minSendable,
-            max_sendable: maxSendable,
-          },
-        };
-      } else {
-        config = {
-          K2: keys.k2,
-          payment_method: "fakewallet",
-        };
-      }
+    let config;
+    if (cardType === "pos" && lightningAddress) {
+      config = {
+        K2: keys.k2,
+        payment_method: "lnurlpay",
+        lnurlpay: {
+          lightning_address: lightningAddress,
+          min_sendable: minSendable,
+          max_sendable: maxSendable,
+        },
+      };
+    } else if (!existing) {
+      config = {
+        K2: keys.k2,
+        payment_method: "fakewallet",
+      };
+    }
 
+    if (config) {
       await env.UID_CONFIG.put(normalizedUid, JSON.stringify(config));
     }
   }
