@@ -61,15 +61,30 @@ export async function handleLoginPage(request) {
         </div>
 
         <div id="nfc-ready" class="text-center">
-          <button id="login-btn" onclick="startLoginScan()"
-            class="relative mx-auto w-32 h-32 rounded-full bg-emerald-600 hover:bg-emerald-500 transition-colors flex items-center justify-center mb-4 cursor-pointer">
+          <div class="relative mx-auto w-32 h-32 rounded-full bg-emerald-600 flex items-center justify-center mb-4">
             <div class="pulse-ring absolute inset-0 rounded-full bg-emerald-500 opacity-30" id="pulse"></div>
             <svg class="w-12 h-12 text-white relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
             </svg>
-          </button>
-          <p id="scan-status" class="text-gray-400 text-sm">Tap button, then tap card</p>
+          </div>
+          <p id="scan-status" class="text-gray-400 text-sm">Starting NFC...</p>
+          <p id="nfc-indicator" class="text-xs mt-2 hidden">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1"></span>
+            <span class="text-emerald-400">NFC active</span>
+          </p>
         </div>
+      </div>
+
+      <div id="last-ndef" class="hidden bg-gray-800 border border-gray-700 rounded-lg p-4 mt-4">
+        <div class="flex justify-between items-center mb-2">
+          <p class="text-xs text-gray-500 uppercase tracking-wider">Last NDEF Read</p>
+          <button onclick="navigator.clipboard.writeText(document.getElementById('ndef-raw').textContent)" class="text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">COPY</button>
+        </div>
+        <p id="ndef-raw" class="font-mono text-xs text-gray-400 break-all"></p>
+      </div>
+
+      <div id="error-box" class="hidden bg-red-900/30 border border-red-500/40 rounded-lg p-4 mt-4">
+        <p id="error-msg" class="text-red-300 text-sm"></p>
       </div>
     </div>
 
@@ -94,11 +109,29 @@ export async function handleLoginPage(request) {
         </a>
       </div>
 
+      <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wider mb-3">Card Actions</p>
+        <div class="space-y-3">
+          <div>
+            <p class="text-xs text-gray-400 mb-2">Reset this card (opens Bolt Card app):</p>
+            <div class="flex gap-2">
+              <a id="reset-deeplink" href="#" class="flex-1 text-center bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-3 rounded transition-colors text-sm">
+                Open in App
+              </a>
+              <button onclick="navigator.clipboard.writeText(document.getElementById('reset-deeplink').href)" class="bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold py-2 px-3 rounded transition-colors text-xs">
+                COPY
+              </button>
+            </div>
+            <p id="reset-url-text" class="font-mono text-xs text-gray-600 break-all mt-2"></p>
+          </div>
+        </div>
+      </div>
+
       <div class="bg-gray-800 border border-gray-700 shadow-xl rounded-lg p-8 mb-4">
         <div class="text-center">
           <p class="text-xs text-gray-500 uppercase tracking-wider mb-2">Session Duration</p>
           <div id="timer" class="text-5xl font-mono text-gray-200 font-bold tracking-wider">00:00:00</div>
-          <p class="text-xs text-gray-600 mt-3 font-mono">since last tap</p>
+          <p class="text-xs text-gray-600 mt-3 font-mono">tap card again to reset</p>
         </div>
       </div>
 
@@ -135,256 +168,201 @@ export async function handleLoginPage(request) {
         <p id="card-ndef" class="font-mono text-xs text-gray-400 break-all"></p>
       </div>
 
-      <div id="nfc-reset-ready" class="text-center">
-        <button id="reset-btn" onclick="startResetScan()"
-          class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded transition-colors mb-3">
-          TAP TO RESET TIMER
-        </button>
-        <p id="reset-status" class="text-gray-500 text-xs"></p>
+      <div id="session-error-box" class="hidden bg-red-900/30 border border-red-500/40 rounded-lg p-4 mb-4">
+        <p id="session-error-msg" class="text-red-300 text-sm"></p>
       </div>
 
-      <div id="nfc-reset-not-supported" class="hidden text-center">
-        <button onclick="resetTimerManual()"
-          class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded transition-colors mb-3">
-          RESET TIMER
-        </button>
-        <p class="text-gray-500 text-xs">Web NFC unavailable — manual reset only</p>
-      </div>
+      <p class="text-center text-xs text-gray-600 mt-4">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1"></span>
+        NFC still active — tap card again to refresh session
+      </p>
     </div>
-
-    <div id="error-toast" class="fixed bottom-4 right-4 bg-red-600 text-white px-4 py-2 rounded shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 font-medium z-50">
-    </div>
-
-    <script>
-      let loginTime = null;
-      let timerInterval = null;
-      let abortController = null;
-      const API_HOST = "${host}";
-
-      if (!('NDEFReader' in window)) {
-        document.getElementById('nfc-not-supported').classList.remove('hidden');
-        document.getElementById('nfc-ready').classList.add('hidden');
-      }
-
-      function formatDuration(ms) {
-        const totalSec = Math.floor(ms / 1000);
-        const h = String(Math.floor(totalSec / 3600)).padStart(2, '0');
-        const m = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
-        const s = String(totalSec % 60).padStart(2, '0');
-        return h + ':' + m + ':' + s;
-      }
-
-      function startTimer() {
-        if (timerInterval) clearInterval(timerInterval);
-        timerInterval = setInterval(() => {
-          if (loginTime) {
-            document.getElementById('timer').textContent = formatDuration(Date.now() - loginTime);
-          }
-        }, 1000);
-      }
-
-      function showSession(result) {
-        const uidHex = result.uidHex;
-        const masked = uidHex.length >= 8
-          ? uidHex.substring(0, 4) + '\\u00b7\\u00b7\\u00b7' + uidHex.substring(uidHex.length - 4)
-          : uidHex;
-        document.getElementById('uid-display').textContent = 'UID: ' + uidHex.toUpperCase();
-
-        const typeColors = { fakewallet: 'text-amber-400', lnurlpay: 'text-purple-400', twofactor: 'text-emerald-400' };
-        const typeLabels = { fakewallet: 'WITHDRAW', lnurlpay: 'POS', twofactor: '2FA' };
-        const cardType = result.cardType || 'unknown';
-        document.getElementById('card-type-badge').textContent = typeLabels[cardType] || cardType.toUpperCase();
-        document.getElementById('card-type-badge').className = 'px-3 py-1 rounded text-xs font-bold border ' +
-          (cardType === 'lnurlpay' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' :
-           cardType === 'twofactor' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
-           'bg-amber-500/10 text-amber-400 border-amber-500/30');
-
-        document.getElementById('card-counter').textContent = result.counterValue;
-        document.getElementById('card-issuer').textContent = result.issuerKey || 'unknown';
-        const cmacEl = document.getElementById('card-cmac');
-        cmacEl.textContent = result.cmacValid ? 'VERIFIED' : 'FAILED';
-        cmacEl.className = result.cmacValid ? 'font-mono text-emerald-400' : 'font-mono text-red-400';
-        document.getElementById('card-keys').innerHTML =
-          '<tr><td class="pr-3 text-gray-500">K0</td><td class="font-mono text-xs text-gray-400">' + (result.k0 || '-') + '</td></tr>' +
-          '<tr><td class="pr-3 text-gray-500">K1</td><td class="font-mono text-xs text-gray-400">' + (result.k1 || '-') + '</td></tr>' +
-          '<tr><td class="pr-3 text-gray-500">K2</td><td class="font-mono text-xs text-gray-400">' + (result.k2 || '-') + '</td></tr>' +
-          '<tr><td class="pr-3 text-gray-500">K3</td><td class="font-mono text-xs text-gray-400">' + (result.k3 || '-') + '</td></tr>' +
-          '<tr><td class="pr-3 text-gray-500">K4</td><td class="font-mono text-xs text-gray-400">' + (result.k4 || '-') + '</td></tr>';
-
-        if (result.ndef) {
-          document.getElementById('card-ndef').textContent = result.ndef;
-        }
-
-        const banner = document.getElementById('compromised-banner');
-        if (result.compromised) {
-          banner.classList.remove('hidden');
-          const resetUrl = API_HOST + '/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=KeepVersion';
-          document.getElementById('wipe-link').href = 'boltcard://reset?url=' + encodeURIComponent(resetUrl);
-        } else {
-          banner.classList.add('hidden');
-        }
-
-        document.getElementById('login-view').classList.add('hidden');
-        document.getElementById('session-view').classList.remove('hidden');
-
-        if (!('NDEFReader' in window)) {
-          document.getElementById('nfc-reset-ready').classList.add('hidden');
-          document.getElementById('nfc-reset-not-supported').classList.remove('hidden');
-        }
-      }
-
-      function resetTimerManual() {
-        loginTime = Date.now();
-        document.getElementById('timer').textContent = '00:00:00';
-      }
-
-      function showError(msg) {
-        const toast = document.getElementById('error-toast');
-        toast.textContent = msg;
-        toast.classList.remove('translate-y-20', 'opacity-0');
-        setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
-      }
-
-      async function validateWithServer(p, c) {
-        const resp = await fetch(API_HOST + '/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ p, c }),
-        });
-        return resp.json();
-      }
-
-      async function startLoginScan() {
-        if (abortController) {
-          abortController.abort();
-          abortController = null;
-          document.getElementById('scan-status').textContent = 'Tap button, then tap card';
-          document.getElementById('pulse').classList.add('pulse-ring');
-          return;
-        }
-
-        const ndef = new NDEFReader();
-        abortController = new AbortController();
-
-        try {
-          await ndef.scan({ signal: abortController.signal });
-          document.getElementById('scan-status').textContent = 'Scanning... tap your card now';
-          document.getElementById('pulse').classList.remove('pulse-ring');
-
-          ndef.onreading = async (event) => {
-            abortController.abort();
-            abortController = null;
-            document.getElementById('scan-status').textContent = 'Card detected!';
-
-            for (const record of event.message.records) {
-              if (record.recordType === 'url') {
-                const url = new TextDecoder().decode(record.data);
-                try {
-                  const urlObj = new URL(url);
-                  const p = urlObj.searchParams.get('p');
-                  const c = urlObj.searchParams.get('c');
-                  if (p && c) {
-                    document.getElementById('scan-status').textContent = 'Verifying...';
-                    const result = await validateWithServer(p, c);
-                    if (result.success) {
-                      loginTime = Date.now();
-                      document.getElementById('timer').textContent = '00:00:00';
-                      showSession(result);
-                      startTimer();
-                    } else {
-                      showError(result.error || 'Authentication failed');
-                      document.getElementById('scan-status').textContent = 'Failed. Try again.';
-                    }
-                  } else {
-                    showError('Card URL missing p/c parameters');
-                  }
-                } catch(e) {
-                  showError('Invalid card URL: ' + e.message);
-                }
-              }
-            }
-          };
-
-          ndef.onreadingerror = () => {
-            document.getElementById('scan-status').textContent = 'Read error. Try again.';
-          };
-        } catch (error) {
-          abortController = null;
-          if (error.name === 'NotAllowedError') {
-            showError('NFC permission denied');
-          } else if (error.name === 'NotSupportedError') {
-            showError('NFC not available on this device');
-          } else {
-            showError(error.message);
-          }
-          document.getElementById('scan-status').textContent = 'Tap button, then tap card';
-        }
-      }
-
-      async function startResetScan() {
-        const btn = document.getElementById('reset-btn');
-        btn.textContent = 'SCANNING...';
-        btn.disabled = true;
-
-        const ndef = new NDEFReader();
-        const ac = new AbortController();
-
-        try {
-          await ndef.scan({ signal: ac.signal });
-          document.getElementById('reset-status').textContent = 'Tap your card now';
-
-          ndef.onreading = async (event) => {
-            ac.abort();
-            for (const record of event.message.records) {
-              if (record.recordType === 'url') {
-                const url = new TextDecoder().decode(record.data);
-                try {
-                  const urlObj = new URL(url);
-                  const p = urlObj.searchParams.get('p');
-                  const c = urlObj.searchParams.get('c');
-                  if (p && c) {
-                    document.getElementById('reset-status').textContent = 'Verifying...';
-                    const result = await validateWithServer(p, c);
-                    if (result.success) {
-                      loginTime = Date.now();
-                      document.getElementById('timer').textContent = '00:00:00';
-                      document.getElementById('reset-status').textContent = 'Timer reset!';
-                    } else {
-                      showError(result.error || 'Verification failed');
-                      document.getElementById('reset-status').textContent = '';
-                    }
-                  }
-                } catch(e) {
-                  showError('Invalid card URL');
-                }
-              }
-            }
-            btn.textContent = 'TAP TO RESET TIMER';
-            btn.disabled = false;
-          };
-
-          ndef.onreadingerror = () => {
-            btn.textContent = 'TAP TO RESET TIMER';
-            btn.disabled = false;
-            document.getElementById('reset-status').textContent = 'Read error. Try again.';
-          };
-
-          setTimeout(() => {
-            if (!ac.signal.aborted) {
-              ac.abort();
-              btn.textContent = 'TAP TO RESET TIMER';
-              btn.disabled = false;
-              document.getElementById('reset-status').textContent = 'Scan timed out. Try again.';
-            }
-          }, 30000);
-        } catch (error) {
-          btn.textContent = 'TAP TO RESET TIMER';
-          btn.disabled = false;
-          showError(error.message);
-        }
-      }
-    </script>
   </body>
+
+  <script>
+    let loginTime = null;
+    let timerInterval = null;
+    let nfcAbortController = null;
+    let lastNfcReadTime = 0;
+    const API_HOST = "${host}";
+
+    if (!('NDEFReader' in window)) {
+      document.getElementById('nfc-not-supported').classList.remove('hidden');
+      document.getElementById('nfc-ready').classList.add('hidden');
+    } else {
+      window.addEventListener('load', startNfc);
+    }
+
+    function formatDuration(ms) {
+      const totalSec = Math.floor(ms / 1000);
+      const h = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+      const m = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+      const s = String(totalSec % 60).padStart(2, '0');
+      return h + ':' + m + ':' + s;
+    }
+
+    function startTimer() {
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        if (loginTime) {
+          document.getElementById('timer').textContent = formatDuration(Date.now() - loginTime);
+        }
+      }, 1000);
+    }
+
+    function showPersistentError(msg) {
+      const loginView = document.getElementById('login-view');
+      const sessionView = document.getElementById('session-view');
+      if (!sessionView.classList.contains('hidden')) {
+        document.getElementById('session-error-msg').textContent = msg;
+        document.getElementById('session-error-box').classList.remove('hidden');
+      } else {
+        document.getElementById('error-msg').textContent = msg;
+        document.getElementById('error-box').classList.remove('hidden');
+      }
+    }
+
+    function clearErrors() {
+      document.getElementById('error-box').classList.add('hidden');
+      document.getElementById('session-error-box').classList.add('hidden');
+    }
+
+    function showNdef(url) {
+      document.getElementById('ndef-raw').textContent = url;
+      document.getElementById('last-ndef').classList.remove('hidden');
+    }
+
+    function showSession(result) {
+      clearErrors();
+      const uidHex = result.uidHex;
+      document.getElementById('uid-display').textContent = 'UID: ' + uidHex.toUpperCase();
+
+      const typeLabels = { fakewallet: 'WITHDRAW', lnurlpay: 'POS', twofactor: '2FA' };
+      const cardType = result.cardType || 'unknown';
+      document.getElementById('card-type-badge').textContent = typeLabels[cardType] || cardType.toUpperCase();
+      document.getElementById('card-type-badge').className = 'px-3 py-1 rounded text-xs font-bold border ' +
+        (cardType === 'lnurlpay' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' :
+         cardType === 'twofactor' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
+         'bg-amber-500/10 text-amber-400 border-amber-500/30');
+
+      document.getElementById('card-counter').textContent = result.counterValue;
+      document.getElementById('card-issuer').textContent = result.issuerKey || 'unknown';
+      const cmacEl = document.getElementById('card-cmac');
+      cmacEl.textContent = result.cmacValid ? 'VERIFIED' : 'FAILED';
+      cmacEl.className = result.cmacValid ? 'font-mono text-emerald-400' : 'font-mono text-red-400';
+      document.getElementById('card-keys').innerHTML =
+        '<tr><td class="pr-3 text-gray-500">K0</td><td class="font-mono text-xs text-gray-400">' + (result.k0 || '-') + '</td></tr>' +
+        '<tr><td class="pr-3 text-gray-500">K1</td><td class="font-mono text-xs text-gray-400">' + (result.k1 || '-') + '</td></tr>' +
+        '<tr><td class="pr-3 text-gray-500">K2</td><td class="font-mono text-xs text-gray-400">' + (result.k2 || '-') + '</td></tr>' +
+        '<tr><td class="pr-3 text-gray-500">K3</td><td class="font-mono text-xs text-gray-400">' + (result.k3 || '-') + '</td></tr>' +
+        '<tr><td class="pr-3 text-gray-500">K4</td><td class="font-mono text-xs text-gray-400">' + (result.k4 || '-') + '</td></tr>';
+
+      if (result.ndef) {
+        document.getElementById('card-ndef').textContent = result.ndef;
+      }
+
+      const banner = document.getElementById('compromised-banner');
+      if (result.compromised) {
+        banner.classList.remove('hidden');
+        const wipeUrl = API_HOST + '/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=KeepVersion';
+        document.getElementById('wipe-link').href = 'boltcard://reset?url=' + encodeURIComponent(wipeUrl);
+      } else {
+        banner.classList.add('hidden');
+      }
+
+      const resetApiUrl = API_HOST + '/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=KeepVersion';
+      const resetDeepLink = 'boltcard://reset?url=' + encodeURIComponent(resetApiUrl);
+      document.getElementById('reset-deeplink').href = resetDeepLink;
+      document.getElementById('reset-url-text').textContent = resetDeepLink;
+
+      loginTime = Date.now();
+      document.getElementById('timer').textContent = '00:00:00';
+      document.getElementById('login-view').classList.add('hidden');
+      document.getElementById('session-view').classList.remove('hidden');
+      startTimer();
+    }
+
+    async function validateWithServer(p, c) {
+      const resp = await fetch(API_HOST + '/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p, c }),
+      });
+      return resp.json();
+    }
+
+    async function startNfc() {
+      const statusEl = document.getElementById('scan-status');
+      const indicatorEl = document.getElementById('nfc-indicator');
+
+      try {
+        const ndef = new NDEFReader();
+        nfcAbortController = new AbortController();
+        await ndef.scan({ signal: nfcAbortController.signal });
+
+        statusEl.textContent = 'Scanning... tap your card';
+        indicatorEl.classList.remove('hidden');
+
+        ndef.onreading = async (event) => {
+          const now = Date.now();
+          if (now - lastNfcReadTime < 3000) return;
+          lastNfcReadTime = now;
+
+          clearErrors();
+
+          for (const record of event.message.records) {
+            if (record.recordType === 'url') {
+              const rawUrl = new TextDecoder().decode(record.data);
+              let url = rawUrl;
+              if (url.startsWith('lnurlw://')) url = 'https://' + url.substring(9);
+              else if (url.startsWith('lnurlp://')) url = 'https://' + url.substring(9);
+
+              showNdef(rawUrl);
+              statusEl.textContent = 'Card detected! Verifying...';
+
+              try {
+                const urlObj = new URL(url);
+                const p = urlObj.searchParams.get('p');
+                const c = urlObj.searchParams.get('c');
+                if (p && c) {
+                  const result = await validateWithServer(p, c);
+                  if (result.success) {
+                    showSession(result);
+                  } else {
+                    showPersistentError(result.error || 'Authentication failed');
+                    statusEl.textContent = 'Failed. Tap card to retry.';
+                  }
+                } else {
+                  showPersistentError('Card URL missing p/c parameters. Raw: ' + rawUrl);
+                  statusEl.textContent = 'Invalid card. Tap to retry.';
+                }
+              } catch(e) {
+                showPersistentError('Could not parse card URL: ' + e.message + '. Raw: ' + rawUrl);
+                statusEl.textContent = 'Parse error. Tap to retry.';
+              }
+            }
+          }
+        };
+
+        ndef.onreadingerror = () => {
+          statusEl.textContent = 'Read error. Tap card again.';
+        };
+      } catch (error) {
+        nfcAbortController = null;
+        indicatorEl.classList.add('hidden');
+        if (error.name === 'NotAllowedError') {
+          statusEl.textContent = 'NFC permission denied';
+          showPersistentError('NFC permission was denied. Refresh the page and allow NFC access.');
+        } else if (error.name === 'NotSupportedError') {
+          statusEl.textContent = 'NFC not available';
+          showPersistentError('NFC is not available on this device. Use Chrome 89+ on Android.');
+        } else {
+          statusEl.textContent = 'NFC error';
+          showPersistentError('NFC error: ' + error.message);
+        }
+      }
+    }
+  </script>
 </html>`;
 
   return new Response(html, {
