@@ -266,7 +266,7 @@ npm test -- --verbose
 - **✅ keygenerator.test.js**: Deterministic key generation  
 - **✅ worker.test.js**: API endpoints and request handling
 - **✅ integration.test.js**: End-to-end integration tests
-- **Total**: 59 passing tests across 4 test suites
+- **Total**: 119 passing tests across 8 test suites
 
 ### Test Vectors
 
@@ -408,17 +408,32 @@ npm run lint
 │   ├── activateCardHandler.js
 │   ├── fetchBoltCardKeys.js
 │   ├── handleNfc.js
+│   ├── loginHandler.js        # NFC login + key recovery
 │   ├── lnurlHandler.js
 │   ├── programHandler.js
 │   ├── proxyHandler.js
 │   ├── resetHandler.js
 │   ├── statusHandler.js
 │   └── withdrawHandler.js
+├── keys/                      # Key recovery CSV files (source of truth)
+│   ├── _default.csv           # Default issuer keys (tried for all cards)
+│   ├── boltcardpoc.psbt.me.csv
+│   └── _percard_k.psbt.me.csv # Per-card keys from k.psbt.me
+├── scripts/
+│   └── build_keys.js          # CSV → JS bundler (run before deploy)
+├── utils/
+│   ├── generatedKeyData.js    # AUTO-GENERATED — bundled key data
+│   ├── keyLookup.js           # Key lookup functions
+│   ├── lightningAddress.js
+│   ├── logger.js
+│   ├── otp.js
+│   └── responses.js
 ├── tests/                     # Test files
-│   ├── cloudflare-workers-shim.js  # Jest shim for cloudflare:workers
+│   ├── cloudflare-workers-shim.js
 │   ├── cryptoutils.test.js
 │   ├── integration.test.js
 │   ├── keygenerator.test.js
+│   ├── keyLookup.test.js
 │   └── worker.test.js
 └── docs/                      # Documentation
 ```
@@ -430,6 +445,51 @@ npm run lint
 3. Add tests for new functionality
 4. Ensure all tests pass (`npm test`)
 5. Submit a pull request
+
+## 🔑 Bolt Card Key Recovery
+
+This service helps bolt card owners recover their cards. If you have an NTAG424 bolt card from a defunct or abandoned service, tap it on the [login page](https://boltcardpoc.psbt.me/login) — if we have your keys, you'll see them and get a link to wipe and repurpose the card.
+
+### How It Works
+
+1. Card owner taps their card on the login page (Web NFC) or scans the card URL
+2. The server tries to decrypt the card using all known issuer keys and per-card key dumps
+3. If a match is found, the card's keys (K0–K4) are displayed
+4. For recovered cards, a "wipe and reprogram" deeplink opens the Bolt Card programmer app
+
+### Submitting Keys — Pull Requests Welcome
+
+If you run (or ran) a bolt card service and want to help users recover their cards, submit a pull request with a key file.
+
+**Option A: Issuer key** — if you used deterministic key derivation (one master key for all cards):
+
+Create `keys/your-domain.example.csv`:
+```csv
+issuer_key,label
+your32charhexkey,your-service-name
+```
+
+**Option B: Per-card keys** — if you used per-card keys (e.g. LNBits):
+
+Create `keys/_percard_your-domain.example.csv`:
+```csv
+uid,k0,k1,k2,card_name
+040a69fa967380,d6672015...,3db8852a...,ce08c579...,optional-name
+```
+
+**Exporting from LNBits:**
+```bash
+sqlite3 /path/to/ext_boltcards.sqlite3 -csv -header \
+  "SELECT uid, k0, k1, k2 FROM boltcards.cards;" > keys/_percard_your-domain.csv
+```
+
+Then run `node scripts/build_keys.js` and `npm test` to regenerate the bundled key data and verify.
+
+### Important Notes
+
+- **These keys are already public** — they were stored on the card's NFC chip. Publishing them lets owners verify and repurpose their cards.
+- **For LNBits cards**: K3 = K1 and K4 = K2 (per LNBits convention).
+- **Counter values are not needed** for key recovery and should not be included in exports.
 
 ## 📚 Programming Guide
 

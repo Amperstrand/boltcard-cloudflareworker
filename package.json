@@ -17,7 +17,8 @@
     "itty-router": "^5.0.23"
   },
   "scripts": {
+    "prebuild": "node scripts/build_keys.js",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --config=jest.config.js",
-    "deploy": "npm test && wrangler deploy"
+    "deploy": "npm test && node scripts/build_keys.js && wrangler deploy"
   }
 }
