@@ -6,6 +6,7 @@ import { fetchBoltCardKeys } from "./handlers/fetchBoltCardKeys.js";
 import { handleLnurlpPayment } from "./handlers/lnurlHandler.js";
 import { handleProxy } from "./handlers/proxyHandler.js";
 import { constructWithdrawResponse } from "./handlers/withdrawHandler.js";
+import { constructPayRequest, handleLnurlPayCallback } from "./handlers/lnurlPayHandler.js";
 import handleNfc from "./handlers/handleNfc.js";
 import { getUidConfig } from "./getUidConfig.js";
 import { handleActivateCardPage as handleActivateForm, handleActivateCardSubmit } from "./handlers/activateCardHandler.js";
@@ -32,6 +33,7 @@ router.all("/boltcards/api/v1/lnurl/cb*", (request, env) => handleLnurlpPayment(
 router.get("/activate", (request) => handleActivatePage(request));
 router.get("/activate/form", () => handleActivateForm());
 router.post("/activate/form", (request, env) => handleActivateCardSubmit(request, env));
+router.get("/lnurlp/cb", (request, env) => handleLnurlPayCallback(request, env));
 router.get("/wipe", (request, env) => {
   const url = new URL(request.url);
   const uid = url.searchParams.get("uid");
@@ -119,36 +121,62 @@ async function handleLnurlw(request, env) {
     return errorResponse(cmac_error || "CMAC validation failed");
   }
 
-  const counterValue = parseInt(ctr, 16);
-  try {
-    const replayResult = await enforceReplayProtection(env, uidHex, counterValue);
-    if (!replayResult.accepted) {
-      logger.warn("Counter replay detected", {
+  if (proxyRelayMode) {
+    const counterValue = parseInt(ctr, 16);
+    try {
+      const replayResult = await enforceReplayProtection(env, uidHex, counterValue);
+      if (!replayResult.accepted) {
+        logger.warn("Counter replay detected", {
+          uidHex,
+          counterValue,
+          lastCounter: replayResult.lastCounter,
+        });
+        return errorResponse(replayResult.reason || "Counter replay detected — tap rejected");
+      }
+    } catch (error) {
+      logger.error("Replay protection check failed", {
         uidHex,
         counterValue,
-        lastCounter: replayResult.lastCounter,
+        error: error.message,
       });
-      return errorResponse(replayResult.reason || "Counter replay detected — tap rejected");
+      return errorResponse("Replay protection unavailable", 500);
     }
-  } catch (error) {
-    logger.error("Replay protection check failed", {
-      uidHex,
-      counterValue,
-      error: error.message,
-    });
-    return errorResponse("Replay protection unavailable", 500);
-  }
 
-  logger.trace("LNURLW request accepted", { uidHex, counterValue });
-
-  if (proxyRelayMode) {
+    logger.trace("LNURLW request accepted", { uidHex, counterValue });
     return handleProxy(request, uidHex, pHex, cHex, config.proxy.baseurl, {
       cmacValidated: cmac_validated,
       validationDeferred: !hasK2,
     });
   }
 
+  if (config.payment_method === "lnurlpay") {
+    const baseUrl = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
+    const counterValue = parseInt(ctr, 16);
+    return jsonResponse(constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl));
+  }
+
   if (config.payment_method === "clnrest" || config.payment_method === "fakewallet") {
+    const counterValue = parseInt(ctr, 16);
+    try {
+      const replayResult = await enforceReplayProtection(env, uidHex, counterValue);
+      if (!replayResult.accepted) {
+        logger.warn("Counter replay detected", {
+          uidHex,
+          counterValue,
+          lastCounter: replayResult.lastCounter,
+        });
+        return errorResponse(replayResult.reason || "Counter replay detected — tap rejected");
+      }
+    } catch (error) {
+      logger.error("Replay protection check failed", {
+        uidHex,
+        counterValue,
+        error: error.message,
+      });
+      return errorResponse("Replay protection unavailable", 500);
+    }
+
+    logger.trace("LNURLW request accepted", { uidHex, counterValue });
     const baseUrl = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
     const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated, baseUrl);
     if (responsePayload.status === "ERROR") return errorResponse(responsePayload.reason);

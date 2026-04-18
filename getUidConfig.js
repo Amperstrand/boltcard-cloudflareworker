@@ -34,6 +34,28 @@ export const UID_PRIVACY = false
 
 import { getDeterministicKeys } from "./keygenerator.js";
 
+async function withDeterministicK2IfMissing(uidHex, config, env, source) {
+  if (!config || config.K2) {
+    return config;
+  }
+
+  try {
+    const keys = await getDeterministicKeys(uidHex, env);
+    if (keys?.k2) {
+      logger.debug("Resolved deterministic K2 for UID config", { uidHex, source });
+      return { ...config, K2: keys.k2 };
+    }
+  } catch (error) {
+    logger.error("Error deriving deterministic K2 for UID config", {
+      uidHex,
+      source,
+      error: error.message,
+    });
+  }
+
+  return config;
+}
+
 // Static UID configuration. This is our fallback if no KV store entry is found.
 export const staticUidConfig = {
   "044561fa967380": {
@@ -71,6 +93,15 @@ export const staticUidConfig = {
   "04b060fa967380": {
     K2: "8378cb4c0660012b6c791e3858c2353b",
     payment_method: "fakewallet"
+  },
+
+  "04d070fa967380": {
+    payment_method: "lnurlpay",
+    lnurlpay: {
+      lightning_address: "test@getalby.com",
+      min_sendable: 1000,
+      max_sendable: 1000
+    }
   }
 };
 
@@ -118,7 +149,7 @@ export async function getUidConfig(uidHex, env) {
   // Step 2: Check static configuration
   if (staticUidConfig.hasOwnProperty(normalizedUid)) {
     logger.trace("Using static UID config", { uidHex: normalizedUid });
-    return staticUidConfig[normalizedUid];
+    return withDeterministicK2IfMissing(normalizedUid, staticUidConfig[normalizedUid], env, "static");
   }
 
   // Step 3: Generate deterministic keys as fallback
