@@ -4,12 +4,29 @@ import { getUidConfig } from "../getUidConfig.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse } from "../utils/responses.js";
 
-const ISSUER_KEY_CANDIDATES = [
+const BUILTIN_ISSUER_KEYS = [
   { hex: "00000000000000000000000000000000", label: "all-zeros" },
   { hex: "00000000000000000000000000000001", label: "dev-01" },
   { hex: "b0733959686c5da274123084b5c07820", label: "boltpoc-1" },
   { hex: "0a276206ccae41739b3541e285223eee", label: "boltpoc-2" },
+  { hex: "55734571ce72ed364994cf2f20914092", label: "boltpoc-3" },
 ];
+
+function getIssuerKeyCandidates(env) {
+  const candidates = [...BUILTIN_ISSUER_KEYS];
+  if (env?.ISSUER_KEY) {
+    candidates.unshift({ hex: env.ISSUER_KEY, label: "current" });
+  }
+  if (env?.RECOVERY_ISSUER_KEYS) {
+    for (const hex of env.RECOVERY_ISSUER_KEYS.split(",")) {
+      const trimmed = hex.trim();
+      if (trimmed && !candidates.some(c => c.hex === trimmed)) {
+        candidates.push({ hex: trimmed, label: trimmed.substring(0, 8) + "..." });
+      }
+    }
+  }
+  return candidates;
+}
 
 function deriveAllKeys(uidHex, issuerKeyHex) {
   const issuerKey = hexToBytes(issuerKeyHex);
@@ -397,7 +414,7 @@ export async function handleLoginVerify(request, env) {
     let matchedKeys = null;
     let matchedCmacValid = false;
 
-    for (const candidate of ISSUER_KEY_CANDIDATES) {
+    for (const candidate of getIssuerKeyCandidates(env)) {
       const tryEnv = { ...env, ISSUER_KEY: candidate.hex };
       const decryption = extractUIDAndCounter(pHex, tryEnv);
       if (!decryption.success) continue;
