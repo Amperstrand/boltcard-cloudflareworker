@@ -4,10 +4,11 @@ import { jsonResponse } from "../utils/responses.js";
 
 async function findFirstKeyset(normalizedUid, env) {
   const perCard = getPerCardKeys(normalizedUid);
-  if (perCard && perCard.k0 && perCard.k1 && perCard.k2 && perCard.k3 && perCard.k4) {
+  if (perCard && perCard.k0 && perCard.k1 && perCard.k2) {
     return {
       k0: perCard.k0, k1: perCard.k1, k2: perCard.k2,
-      k3: perCard.k3, k4: perCard.k4,
+      k3: perCard.k3 || perCard.k1,
+      k4: perCard.k4 || perCard.k2,
       source: "percard", label: perCard.card_name || "per-card import",
     };
   }
@@ -89,6 +90,14 @@ export async function handleGetKeys(request, env) {
   const normalizedUid = uidParam.toLowerCase();
   if (!/^[0-9a-f]{14}$/i.test(normalizedUid)) {
     return jsonResponse({ error: "Invalid UID: must be exactly 14 hex characters (7 bytes)" }, 400);
+  }
+
+  if (url.searchParams.get("format") === "boltcard") {
+    const keys = await findFirstKeyset(normalizedUid, env);
+    if (!keys) {
+      return jsonResponse({ error: "No keys found for UID", uid: normalizedUid }, 404);
+    }
+    return jsonResponse(toAppResponse(keys, normalizedUid, baseUrl));
   }
 
   const keysets = [];

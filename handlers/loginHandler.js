@@ -350,7 +350,7 @@ export async function handleLoginPage(request) {
       const pubUid = result.uidHex;
       const pubKeys = [result.k0, result.k1, result.k2, result.k3, result.k4];
       if (pubKeys[0] && pubKeys[1] && pubKeys[2] && pubKeys[3] && pubKeys[4]) {
-        const endpointUrl = API_HOST + '/api/keys?uid=' + pubUid;
+        const endpointUrl = API_HOST + '/api/keys?uid=' + pubUid + '&format=boltcard';
         document.getElementById('pub-wipe-deeplink').href = 'boltcard://reset?url=' + encodeURIComponent(endpointUrl);
         const qrEl = document.getElementById('qr-pub-wipe');
         qrEl.innerHTML = '';
@@ -378,15 +378,11 @@ export async function handleLoginPage(request) {
       const wipeSection = document.getElementById('priv-wipe-section');
       const wipeDeeplink = document.getElementById('priv-wipe-deeplink');
       const wipeFallback = document.getElementById('priv-wipe-fallback');
-      if (result.issuerKeyHex) {
-        const endpointUrl = API_HOST + '/api/bulk-wipe-keys?uid=' + result.uidHex + '&key=' + result.issuerKeyHex;
-        document.getElementById('priv-wipe-link').href = 'boltcard://reset?url=' + encodeURIComponent(endpointUrl);
-        wipeDeeplink.classList.remove('hidden');
-        wipeFallback.classList.add('hidden');
-      } else {
-        wipeDeeplink.classList.add('hidden');
-        wipeFallback.classList.remove('hidden');
-      }
+      const privUid = result.uidHex;
+      const endpointUrl = API_HOST + '/api/keys?uid=' + privUid + '&format=boltcard';
+      document.getElementById('priv-wipe-link').href = 'boltcard://reset?url=' + encodeURIComponent(endpointUrl);
+      wipeDeeplink.classList.remove('hidden');
+      wipeFallback.classList.add('hidden');
       wipeSection.classList.remove('hidden');
 
       loginTime = Date.now();
