@@ -56,19 +56,47 @@ export async function handleLoginPage(request) {
     <!-- Logged-in State -->
     <div id="session-view" class="max-w-md w-full hidden">
       <div class="text-center mb-6">
-        <div class="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 rounded-full px-4 py-1 mb-4">
-          <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-          <span class="text-emerald-400 text-sm font-semibold">AUTHENTICATED</span>
+        <div class="inline-flex items-center gap-3 mb-2">
+          <div class="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 rounded-full px-4 py-1">
+            <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span class="text-emerald-400 text-sm font-semibold">AUTHENTICATED</span>
+          </div>
+          <span id="card-type-badge" class="px-3 py-1 rounded text-xs font-bold border bg-amber-500/10 text-amber-400 border-amber-500/30">WITHDRAW</span>
         </div>
         <p class="text-gray-500 text-xs font-mono" id="uid-display"></p>
       </div>
 
-      <div class="bg-gray-800 border border-gray-700 shadow-xl rounded-lg p-8 mb-6">
+      <div class="bg-gray-800 border border-gray-700 shadow-xl rounded-lg p-8 mb-4">
         <div class="text-center">
           <p class="text-xs text-gray-500 uppercase tracking-wider mb-2">Session Duration</p>
           <div id="timer" class="text-5xl font-mono text-gray-200 font-bold tracking-wider">00:00:00</div>
           <p class="text-xs text-gray-600 mt-3 font-mono">since last tap</p>
         </div>
+      </div>
+
+      <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wider mb-3">Card Details</p>
+        <div class="space-y-2 text-sm">
+          <div class="flex justify-between">
+            <span class="text-gray-500">Counter</span>
+            <span id="card-counter" class="font-mono text-gray-300">0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
+        <div class="flex justify-between items-center mb-3">
+          <p class="text-xs text-gray-500 uppercase tracking-wider">Keys</p>
+        </div>
+        <table class="w-full text-sm"><tbody id="card-keys"></tbody></table>
+      </div>
+
+      <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
+        <div class="flex justify-between items-center mb-2">
+          <p class="text-xs text-gray-500 uppercase tracking-wider">NDEF URL</p>
+          <button onclick="navigator.clipboard.writeText(document.getElementById('card-ndef').textContent)" class="text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">COPY</button>
+        </div>
+        <p id="card-ndef" class="font-mono text-xs text-gray-400 break-all"></p>
       </div>
 
       <div id="nfc-reset-ready" class="text-center">
@@ -119,11 +147,34 @@ export async function handleLoginPage(request) {
         }, 1000);
       }
 
-      function showSession(uidHex) {
+      function showSession(result) {
+        const uidHex = result.uidHex;
         const masked = uidHex.length >= 8
           ? uidHex.substring(0, 4) + '\\u00b7\\u00b7\\u00b7' + uidHex.substring(uidHex.length - 4)
           : uidHex;
-        document.getElementById('uid-display').textContent = 'UID: ' + masked;
+        document.getElementById('uid-display').textContent = 'UID: ' + uidHex.toUpperCase();
+
+        const typeColors = { fakewallet: 'text-amber-400', lnurlpay: 'text-purple-400', twofactor: 'text-emerald-400' };
+        const typeLabels = { fakewallet: 'WITHDRAW', lnurlpay: 'POS', twofactor: '2FA' };
+        const cardType = result.cardType || 'unknown';
+        document.getElementById('card-type-badge').textContent = typeLabels[cardType] || cardType.toUpperCase();
+        document.getElementById('card-type-badge').className = 'px-3 py-1 rounded text-xs font-bold border ' +
+          (cardType === 'lnurlpay' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' :
+           cardType === 'twofactor' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
+           'bg-amber-500/10 text-amber-400 border-amber-500/30');
+
+        document.getElementById('card-counter').textContent = result.counterValue;
+        document.getElementById('card-keys').innerHTML =
+          '<tr><td class="pr-3 text-gray-500">K0</td><td class="font-mono text-xs text-gray-400">' + (result.k0 || '-') + '</td></tr>' +
+          '<tr><td class="pr-3 text-gray-500">K1</td><td class="font-mono text-xs text-gray-400">' + (result.k1 || '-') + '</td></tr>' +
+          '<tr><td class="pr-3 text-gray-500">K2</td><td class="font-mono text-xs text-gray-400">' + (result.k2 || '-') + '</td></tr>' +
+          '<tr><td class="pr-3 text-gray-500">K3</td><td class="font-mono text-xs text-gray-400">' + (result.k3 || '-') + '</td></tr>' +
+          '<tr><td class="pr-3 text-gray-500">K4</td><td class="font-mono text-xs text-gray-400">' + (result.k4 || '-') + '</td></tr>';
+
+        if (result.ndef) {
+          document.getElementById('card-ndef').textContent = result.ndef;
+        }
+
         document.getElementById('login-view').classList.add('hidden');
         document.getElementById('session-view').classList.remove('hidden');
 
@@ -189,7 +240,7 @@ export async function handleLoginPage(request) {
                     if (result.success) {
                       loginTime = Date.now();
                       document.getElementById('timer').textContent = '00:00:00';
-                      showSession(result.uidHex);
+                      showSession(result);
                       startTimer();
                     } else {
                       showError(result.error || 'Authentication failed');
@@ -324,12 +375,29 @@ export async function handleLoginVerify(request, env) {
       return jsonResponse({ success: false, error: "CMAC validation failed" }, 403);
     }
 
-    logger.info("NFC login successful", { uidHex, counterValue: parseInt(ctr, 16) });
+    const host = new URL(request.url).host;
+    const pm = config.payment_method || "unknown";
+    let path;
+    if (pm === "twofactor") {
+      path = "/2fa";
+    } else {
+      path = "/";
+    }
+    const ndefUrl = `https://${host}${path}?p=${pHex}&c=${cHex}`;
+
+    logger.info("NFC login successful", { uidHex, counterValue: parseInt(ctr, 16), cardType: pm });
 
     return jsonResponse({
       success: true,
       uidHex,
       counterValue: parseInt(ctr, 16),
+      cardType: pm,
+      k0: config.K0 || null,
+      k1: config.K1 || null,
+      k2: config.K2 || null,
+      k3: config.K3 || null,
+      k4: config.K4 || null,
+      ndef: ndefUrl,
       timestamp: Date.now(),
     });
   } catch (error) {
