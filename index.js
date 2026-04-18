@@ -16,8 +16,6 @@ import { handleTwoFactor } from "./handlers/twoFactorHandler.js";
 import { handleLoginPage, handleLoginVerify } from "./handlers/loginHandler.js";
 import { handleWipePage } from "./handlers/wipePageHandler.js";
 import { handleGetKeys } from "./handlers/getKeysHandler.js";
-import { handleBulkWipeKeys } from "./handlers/bulkWipeHandler.js";
-import { handleBulkWipePage } from "./handlers/bulkWipePageHandler.js";
 import { hexToBytes } from "./cryptoutils.js";
 import { logger } from "./utils/logger.js";
 import { jsonResponse } from "./utils/responses.js";
@@ -50,8 +48,6 @@ router.get("/wipe", (request, env) => {
   if (uid) return handleReset(uid, env, baseUrl);
   return handleWipePage(request);
 });
-router.get("/bulkwipe", (request) => handleBulkWipePage(request));
-router.get("/api/bulk-wipe-keys", (request, env) => handleBulkWipeKeys(request, env));
 router.get("/", handleLnurlw);
 router.all("*", (request) => {
   logger.error("Route not found", { pathname: new URL(request.url).pathname, method: request.method });
