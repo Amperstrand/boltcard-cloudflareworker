@@ -13,6 +13,7 @@ import { handleActivateCardPage as handleActivateForm, handleActivateCardSubmit 
 import { handleReset } from "./handlers/resetHandler.js";
 import { handleActivatePage } from "./handlers/activatePageHandler.js";
 import { handleTwoFactor } from "./handlers/twoFactorHandler.js";
+import { handleLoginPage, handleLoginVerify } from "./handlers/loginHandler.js";
 import { handleWipePage } from "./handlers/wipePageHandler.js";
 import { hexToBytes } from "./cryptoutils.js";
 import { logger } from "./utils/logger.js";
@@ -32,6 +33,8 @@ router.all("/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards", (reque
 );
 router.all("/boltcards/api/v1/lnurl/cb*", (request, env) => handleLnurlpPayment(request, env));
 router.get("/2fa", (request, env) => handleTwoFactor(request, env));
+router.get("/login", (request) => handleLoginPage(request));
+router.post("/login", (request, env) => handleLoginVerify(request, env));
 router.get("/activate", (request) => handleActivatePage(request));
 router.get("/activate/form", () => handleActivateForm());
 router.post("/activate/form", (request, env) => handleActivateCardSubmit(request, env));
