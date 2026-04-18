@@ -63,11 +63,10 @@ async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddre
   await resetReplayProtection(env, normalizedUid);
 
   if (env?.UID_CONFIG) {
-    const existing = await env.UID_CONFIG.get(normalizedUid);
     const keys = await getDeterministicKeys(normalizedUid, env);
 
     let config;
-    if (cardType === "pos" && lightningAddress) {
+    if (cardType === "pos") {
       config = {
         K2: keys.k2,
         payment_method: "lnurlpay",
@@ -77,7 +76,7 @@ async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddre
           max_sendable: maxSendable,
         },
       };
-    } else if (!existing) {
+    } else {
       config = {
         K2: keys.k2,
         payment_method: "fakewallet",

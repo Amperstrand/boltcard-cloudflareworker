@@ -242,8 +242,16 @@ describe("response patterns", () => {
     expect(savedConfig.K2.length).toBe(32);
   });
 
-  test("POST boltcards does not overwrite existing KV config", async () => {
-    const existingConfig = JSON.stringify({ K2: "EXISTINGKEY", payment_method: "clnrest" });
+  test("POST boltcards program withdraw overwrites existing KV mode to fakewallet", async () => {
+    const existingConfig = JSON.stringify({
+      K2: "EXISTINGKEY",
+      payment_method: "lnurlpay",
+      lnurlpay: {
+        lightning_address: "merchant@getalby.com",
+        min_sendable: 2000,
+        max_sendable: 2000,
+      },
+    });
     const kvEnv = makeKvEnv({ "04a39493cc8680": existingConfig });
 
     await makeRequest(
@@ -254,8 +262,9 @@ describe("response patterns", () => {
     );
 
     const savedConfig = JSON.parse(kvEnv.__kvStore["04a39493cc8680"]);
-    expect(savedConfig.payment_method).toBe("clnrest");
-    expect(savedConfig.K2).toBe("EXISTINGKEY");
+    expect(savedConfig.payment_method).toBe("fakewallet");
+    expect(savedConfig.K2).toBeDefined();
+    expect(savedConfig.K2.length).toBe(32);
   });
 
   test("POST boltcards with card_type=pos registers as lnurlpay in KV", async () => {
@@ -289,6 +298,42 @@ describe("response patterns", () => {
     );
 
     expect(response.status).toBe(400);
+  });
+
+  test("POST boltcards can flip the same UID from withdraw to POS and back", async () => {
+    const kvEnv = makeKvEnv();
+    const uid = "04a123fa967380";
+
+    const withdrawResponse = await makeRequest(
+      "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion",
+      "POST",
+      { UID: uid },
+      kvEnv
+    );
+    expect(withdrawResponse.status).toBe(200);
+    let savedConfig = JSON.parse(kvEnv.__kvStore[uid]);
+    expect(savedConfig.payment_method).toBe("fakewallet");
+
+    const posResponse = await makeRequest(
+      "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion&card_type=pos&lightning_address=merchant%40getalby.com&min_sendable=2000&max_sendable=2000",
+      "POST",
+      { UID: uid },
+      kvEnv
+    );
+    expect(posResponse.status).toBe(200);
+    savedConfig = JSON.parse(kvEnv.__kvStore[uid]);
+    expect(savedConfig.payment_method).toBe("lnurlpay");
+    expect(savedConfig.lnurlpay.lightning_address).toBe("merchant@getalby.com");
+
+    const withdrawAgainResponse = await makeRequest(
+      "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion",
+      "POST",
+      { UID: uid },
+      kvEnv
+    );
+    expect(withdrawAgainResponse.status).toBe(200);
+    savedConfig = JSON.parse(kvEnv.__kvStore[uid]);
+    expect(savedConfig.payment_method).toBe("fakewallet");
   });
 
   test("POST boltcards pull-payment endpoint returns keys for KeepVersion LNURLW flow", async () => {
