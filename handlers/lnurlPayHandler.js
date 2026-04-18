@@ -6,6 +6,20 @@ import { jsonResponse } from "../utils/responses.js";
 import { enforceReplayProtection } from "../replayProtection.js";
 import { resolveLightningAddress } from "../utils/lightningAddress.js";
 
+const POS_ADDRESS_POOL = [
+  "test@walletofsatoshi.com",
+  "test@zbd.gg",
+  "test@bitrefill.me",
+];
+
+function pickRandomAddress(config) {
+  const configured = config?.lnurlpay?.lightning_address;
+  if (configured && !configured.includes("coinos")) {
+    return configured;
+  }
+  return POS_ADDRESS_POOL[Math.floor(Math.random() * POS_ADDRESS_POOL.length)];
+}
+
 const errorResponse = (reason, status = 400) =>
   jsonResponse({ status: "ERROR", reason }, status);
 
@@ -17,7 +31,7 @@ export function constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, c
 
   const minSendable = config?.lnurlpay?.min_sendable ?? 1000;
   const maxSendable = config?.lnurlpay?.max_sendable ?? 1000;
-  const destination = config?.lnurlpay?.lightning_address || "unknown";
+  const destination = pickRandomAddress(config);
 
   return {
     tag: "payRequest",
@@ -74,10 +88,10 @@ export async function handleLnurlPayCallback(request, env) {
       return errorResponse("K2 key not available for local CMAC validation");
     }
 
-    const lightningAddress = config.lnurlpay?.lightning_address;
-    if (typeof lightningAddress !== "string" || !lightningAddress) {
-      return errorResponse("Lightning Address not configured for lnurlpay card");
-    }
+  const lightningAddress = pickRandomAddress(config);
+  if (typeof lightningAddress !== "string" || !lightningAddress) {
+    return errorResponse("No Lightning Address available");
+  }
 
     const minSendable = config.lnurlpay?.min_sendable ?? 1000;
     const maxSendable = config.lnurlpay?.max_sendable ?? 1000;
