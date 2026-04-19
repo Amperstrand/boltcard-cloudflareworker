@@ -58,6 +58,7 @@ export class CardReplayDO extends DurableObject {
     }
 
     if (request.method === "POST" && url.pathname === "/reset") {
+      this.sql.exec("DELETE FROM taps");
       this.sql.exec("DELETE FROM replay_state WHERE singleton = 1");
       return Response.json({ reset: true });
     }

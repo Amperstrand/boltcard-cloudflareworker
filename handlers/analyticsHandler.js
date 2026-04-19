@@ -23,14 +23,6 @@ export async function handleAnalyticsData(request, env) {
   });
 }
 
-function formatMsat(msat) {
-  if (!msat || msat === 0) return "0 sats";
-  const sats = msat / 1000;
-  if (sats < 1) return msat + " msat";
-  if (sats < 1000) return sats.toFixed(sats % 1 === 0 ? 0 : 3) + " sats";
-  return (sats / 10000000).toFixed(8) + " BTC";
-}
-
 const analyticsPageHtml = `<!DOCTYPE html>
 <html lang="en" class="dark">
 <head>

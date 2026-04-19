@@ -274,6 +274,11 @@ export async function handleLoginPage(request) {
       return (sats / 1e8).toFixed(8) + ' BTC';
     }
 
+    function esc(s) {
+      if (!s) return '';
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
     function statusBadge(status) {
       var map = {
         completed: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
@@ -314,8 +319,8 @@ export async function handleLoginPage(request) {
           + '</div>'
           + '<div class="flex items-center gap-3">'
           + (t.amount_msat ? '<span class="font-mono text-emerald-400/70 text-[11px]">' + formatMsat(t.amount_msat) + '</span>' : '')
-          + '<span class="font-mono text-gray-500 truncate max-w-[120px]" title="' + (t.bolt11 || '') + '">' + invoice + '</span>'
-          + (ua ? '<span class="text-gray-600 truncate max-w-[100px] hidden md:inline" title="' + (t.user_agent || '') + '">' + ua + '</span>' : '')
+          + '<span class="font-mono text-gray-500 truncate max-w-[120px]" title="' + esc(t.bolt11) + '">' + esc(invoice) + '</span>'
+          + (ua ? '<span class="text-gray-600 truncate max-w-[100px] hidden md:inline" title="' + esc(t.user_agent) + '">' + esc(ua) + '</span>' : '')
           + '</div></div>';
       }
       list.innerHTML = html;

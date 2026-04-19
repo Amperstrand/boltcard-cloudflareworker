@@ -1,5 +1,6 @@
 import { decodeBolt11Amount } from "../utils/bolt11.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
+import { handleRequest } from "../index.js";
 
 describe("decodeBolt11Amount", () => {
   test("returns null for null input", () => {
@@ -121,5 +122,43 @@ describe("analytics mock", () => {
     expect(data.completedMsat).toBe(1000);
     expect(data.failedMsat).toBe(2000);
     expect(data.totalMsat).toBe(3000);
+  });
+});
+
+describe("analytics HTTP routes", () => {
+  const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
+
+  function makeEnv() {
+    return { BOLT_CARD_K1, CARD_REPLAY: makeReplayNamespace() };
+  }
+
+  async function makeRequest(path, env) {
+    return handleRequest(new Request("https://test.local" + path), env);
+  }
+
+  test("GET /analytics returns HTML page", async () => {
+    const resp = await makeRequest("/analytics", makeEnv());
+    expect(resp.status).toBe(200);
+    expect(resp.headers.get("Content-Type")).toContain("text/html");
+    const body = await resp.text();
+    expect(body).toContain("ANALYTICS");
+  });
+
+  test("GET /analytics/data without uid returns 400", async () => {
+    const resp = await makeRequest("/analytics/data", makeEnv());
+    expect(resp.status).toBe(400);
+    const json = await resp.json();
+    expect(json.error).toMatch(/missing uid/i);
+  });
+
+  test("GET /analytics/data with valid uid returns analytics", async () => {
+    const resp = await makeRequest("/analytics/data?uid=04996c6a926980", makeEnv());
+    expect(resp.status).toBe(200);
+    const json = await resp.json();
+    expect(json.totalTaps).toBe(0);
+    expect(json.completedMsat).toBe(0);
+    expect(json).toHaveProperty("completedTaps");
+    expect(json).toHaveProperty("failedTaps");
+    expect(json).toHaveProperty("pendingTaps");
   });
 });

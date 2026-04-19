@@ -23,7 +23,7 @@ import { hexToBytes } from "./cryptoutils.js";
 import { logger } from "./utils/logger.js";
 import { jsonResponse } from "./utils/responses.js";
 import { checkRateLimit } from "./rateLimiter.js";
-import { enforceReplayProtection, checkReplayOnly } from "./replayProtection.js";
+import { checkReplayOnly } from "./replayProtection.js";
 
 const errorResponse = (reason, status = 400) =>
   jsonResponse({ status: "ERROR", reason }, status);
