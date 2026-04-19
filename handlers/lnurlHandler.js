@@ -4,6 +4,7 @@ import { hexToBytes } from "../cryptoutils.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse } from "../utils/responses.js";
 import { recordTap, updateTapStatus } from "../replayProtection.js";
+import { decodeBolt11Amount } from "../utils/bolt11.js";
 
 // Global counter for fakewallet payments
 let fakewalletCounter = 0;
@@ -116,6 +117,7 @@ export async function handleLnurlpPayment(request, env) {
       try {
         const tapResult = await recordTap(env, normalizedUidHex, counterValue, {
           bolt11: invoice,
+          amountMsat: decodeBolt11Amount(invoice),
           userAgent: request.headers.get("User-Agent") || null,
           requestUrl: request.url,
         });

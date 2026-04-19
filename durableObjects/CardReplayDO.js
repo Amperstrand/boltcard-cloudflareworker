@@ -49,6 +49,10 @@ export class CardReplayDO extends DurableObject {
       return this.handleUpdateTapStatus(request);
     }
 
+    if (request.method === "GET" && url.pathname === "/analytics") {
+      return this.handleAnalytics();
+    }
+
     if (request.method === "GET" && url.pathname === "/list-taps") {
       return this.handleListTaps(url);
     }
@@ -111,7 +115,7 @@ export class CardReplayDO extends DurableObject {
   }
 
   handleRecordTap(request) {
-    return request.json().then(({ counterValue, bolt11, userAgent, requestUrl }) => {
+    return request.json().then(({ counterValue, bolt11, amountMsat, userAgent, requestUrl }) => {
       if (!Number.isInteger(counterValue) || counterValue < 0) {
         return Response.json({ accepted: false, reason: "Invalid counter value" }, { status: 400 });
       }
@@ -131,10 +135,11 @@ export class CardReplayDO extends DurableObject {
       if (updated.length === 1) {
         const now = Math.floor(Date.now() / 1000);
         this.sql.exec(
-          `INSERT OR REPLACE INTO taps (counter, bolt11, status, user_agent, request_url, created_at, updated_at)
-           VALUES (?, ?, 'pending', ?, ?, ?, ?)`,
+          `INSERT OR REPLACE INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
+           VALUES (?, ?, 'pending', ?, ?, ?, ?, ?)`,
           counterValue,
           bolt11 || null,
+          amountMsat || null,
           userAgent || null,
           requestUrl || null,
           now,
@@ -188,5 +193,25 @@ export class CardReplayDO extends DurableObject {
     ).toArray();
 
     return Response.json({ taps });
+  }
+
+  handleAnalytics() {
+    const stats = this.sql.exec(
+      `SELECT
+         COUNT(*) as totalTaps,
+         COALESCE(SUM(CASE WHEN status = 'completed' THEN amount_msat ELSE 0 END), 0) as completedMsat,
+         COALESCE(SUM(CASE WHEN status = 'failed' THEN amount_msat ELSE 0 END), 0) as failedMsat,
+         COALESCE(SUM(CASE WHEN status = 'pending' THEN amount_msat ELSE 0 END), 0) as pendingMsat,
+         COALESCE(SUM(amount_msat), 0) as totalMsat,
+         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completedTaps,
+         SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failedTaps,
+         SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pendingTaps
+       FROM taps`
+    ).toArray();
+
+    return Response.json(stats[0] || {
+      totalMsat: 0, completedMsat: 0, failedMsat: 0, pendingMsat: 0,
+      totalTaps: 0, completedTaps: 0, failedTaps: 0, pendingTaps: 0,
+    });
   }
 }

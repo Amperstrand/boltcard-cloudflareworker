@@ -42,7 +42,7 @@ export const makeReplayNamespace = (initialCounters = {}) => {
         }
 
         if (request.method === "POST" && url.pathname === "/record-tap") {
-          const { counterValue, bolt11, userAgent, requestUrl } = await request.json();
+          const { counterValue, bolt11, amountMsat, userAgent, requestUrl } = await request.json();
           const lastCounter = counters.has(idStr) ? counters.get(idStr) : null;
 
           if (lastCounter !== null && counterValue <= lastCounter) {
@@ -65,7 +65,7 @@ export const makeReplayNamespace = (initialCounters = {}) => {
             bolt11: bolt11 || null,
             status: "pending",
             payment_hash: null,
-            amount_msat: null,
+            amount_msat: amountMsat || null,
             user_agent: userAgent || null,
             request_url: requestUrl || null,
             created_at: now,
@@ -100,6 +100,22 @@ export const makeReplayNamespace = (initialCounters = {}) => {
           taps.set(tapKey, tap);
 
           return Response.json({ updated: true });
+        }
+
+        if (request.method === "GET" && url.pathname === "/analytics") {
+          let totalMsat = 0, completedMsat = 0, failedMsat = 0, pendingMsat = 0;
+          let totalTaps = 0, completedTaps = 0, failedTaps = 0, pendingTaps = 0;
+          for (const [key, tap] of taps) {
+            if (key.startsWith(`${idStr}:`)) {
+              totalTaps++;
+              const amt = tap.amount_msat || 0;
+              totalMsat += amt;
+              if (tap.status === 'completed') { completedTaps++; completedMsat += amt; }
+              else if (tap.status === 'failed') { failedTaps++; failedMsat += amt; }
+              else { pendingTaps++; pendingMsat += amt; }
+            }
+          }
+          return Response.json({ totalMsat, completedMsat, failedMsat, pendingMsat, totalTaps, completedTaps, failedTaps, pendingTaps });
         }
 
         if (request.method === "GET" && url.pathname === "/list-taps") {

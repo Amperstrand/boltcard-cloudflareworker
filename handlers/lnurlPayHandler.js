@@ -3,7 +3,7 @@ import { getUidConfig } from "../getUidConfig.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse } from "../utils/responses.js";
-import { enforceReplayProtection } from "../replayProtection.js";
+import { recordTap, updateTapStatus } from "../replayProtection.js";
 import { resolveLightningAddress } from "../utils/lightningAddress.js";
 
 const POS_ADDRESS_POOL = [
@@ -113,17 +113,21 @@ export async function handleLnurlPayCallback(request, env) {
 
     const counterValue = parseInt(ctr, 16);
     try {
-      const replayResult = await enforceReplayProtection(env, uidHex, counterValue);
-      if (!replayResult.accepted) {
+      const tapResult = await recordTap(env, uidHex, counterValue, {
+        amountMsat: amountMsat,
+        userAgent: request.headers.get("User-Agent") || null,
+        requestUrl: request.url,
+      });
+      if (!tapResult.accepted) {
         logger.warn("LNURL-pay callback replay detected", {
           uidHex,
           counterValue,
-          lastCounter: replayResult.lastCounter,
+          lastCounter: tapResult.lastCounter,
         });
-        return errorResponse(replayResult.reason || "Counter replay detected — tap rejected");
+        return errorResponse(tapResult.reason || "Counter replay detected — tap rejected");
       }
     } catch (error) {
-      logger.error("LNURL-pay callback replay protection failed", {
+      logger.error("LNURL-pay callback tap recording failed", {
         uidHex,
         counterValue,
         error: error.message,
@@ -132,6 +136,9 @@ export async function handleLnurlPayCallback(request, env) {
     }
 
     const invoice = await resolveLightningAddress(lightningAddress, amountMsat);
+
+    await updateTapStatus(env, uidHex, counterValue, invoice.pr ? "completed" : "failed").catch(() => {});
+
     return jsonResponse(invoice);
   } catch (error) {
     logger.error("Error handling LNURL-pay callback", { error: error.message });
