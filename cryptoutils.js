@@ -327,7 +327,8 @@ export function buildVerificationData(uidBytes, ctr, k2Bytes) {
  *
  * Per NXP AN12196 §5.5: PICCENCData = E(K1; PICCDataTag || UID || SDMReadCtr || RandomPadding)
  *   - PICCDataTag 0xC7 = UID mirrored (bit7) + counter mirrored (bit6) + 7-byte UID (bits 3..0)
- *   - Uses AES-128-ECB (single block, no IV) with K1 as key
+ *   - Uses AES-128 decryption with K1 as key (single 16-byte block; CBC with zero IV and ECB are
+ *     mathematically identical for single blocks. aes-js uses ECB mode. Spec ref: NXP AN12196 §5.5)
  *   - SDMReadCtr bytes 8-10 are little-endian (LSB at byte 8), per §4
  *
  * Multi-K1: tries each candidate K1 until one produces the 0xC7 header byte.
@@ -356,8 +357,11 @@ export function decryptP(pHex, k1Keys) {
 
     // Look for the expected header byte.
     if (decrypted[0] === 0xc7) {
+      const uidBytes = decrypted.slice(1, 8);
+      const ctrLo = decrypted[8] | decrypted[9] | decrypted[10];
+      if (uidBytes.every(b => b === 0) && ctrLo === 0) continue;
+
       if (bestMatch === null) {
-        const uidBytes = decrypted.slice(1, 8);
         // Counter is stored in reverse order.
         const ctr = new Uint8Array([decrypted[10], decrypted[9], decrypted[8]]);
         bestMatch = { success: true, uidBytes, ctr, usedK1: k1Bytes };
