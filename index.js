@@ -22,7 +22,7 @@ import { hexToBytes } from "./cryptoutils.js";
 import { logger } from "./utils/logger.js";
 import { jsonResponse } from "./utils/responses.js";
 import { checkRateLimit } from "./rateLimiter.js";
-import { enforceReplayProtection } from "./replayProtection.js";
+import { enforceReplayProtection, checkReplayOnly } from "./replayProtection.js";
 
 const errorResponse = (reason, status = 400) =>
   jsonResponse({ status: "ERROR", reason }, status);
@@ -89,7 +89,9 @@ async function handleLnurlw(request, env) {
     return errorResponse("Failed to extract UID from payload");
   }
 
-  logger.trace("Extracted UID and counter", { uidHex, counterValue: parseInt(ctr, 16) });
+  const counterValue = parseInt(ctr, 16);
+
+  logger.trace("Extracted UID and counter", { uidHex, counterValue });
 
   const config = await getUidConfig(uidHex, env);
   logger.trace("Configuration loaded", {
@@ -134,9 +136,8 @@ async function handleLnurlw(request, env) {
   }
 
   if (proxyRelayMode) {
-    const counterValue = parseInt(ctr, 16);
     try {
-      const replayResult = await enforceReplayProtection(env, uidHex, counterValue);
+      const replayResult = await checkReplayOnly(env, uidHex, counterValue);
       if (!replayResult.accepted) {
         logger.warn("Counter replay detected", {
           uidHex,
@@ -163,14 +164,12 @@ async function handleLnurlw(request, env) {
 
   if (config.payment_method === "lnurlpay") {
     const baseUrl = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
-    const counterValue = parseInt(ctr, 16);
     return jsonResponse(constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, config));
   }
 
   if (config.payment_method === "clnrest" || config.payment_method === "fakewallet") {
-    const counterValue = parseInt(ctr, 16);
     try {
-      const replayResult = await enforceReplayProtection(env, uidHex, counterValue);
+      const replayResult = await checkReplayOnly(env, uidHex, counterValue);
       if (!replayResult.accepted) {
         logger.warn("Counter replay detected", {
           uidHex,

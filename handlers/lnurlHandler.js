@@ -3,6 +3,7 @@ import { getUidConfig } from "../getUidConfig.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse } from "../utils/responses.js";
+import { recordTap, updateTapStatus } from "../replayProtection.js";
 
 // Global counter for fakewallet payments
 let fakewalletCounter = 0;
@@ -110,8 +111,30 @@ export async function handleLnurlpPayment(request, env) {
         return jsonResponse({ status: "ERROR", reason: cmac_error || "CMAC validation failed" }, 400);
       }
 
-      // Process the withdrawal payment via CLN REST or fakewallet
+      const counterValue = parseInt(decryption.ctr, 16);
+
+      try {
+        const tapResult = await recordTap(env, normalizedUidHex, counterValue, {
+          bolt11: invoice,
+          userAgent: request.headers.get("User-Agent") || null,
+          requestUrl: request.url,
+        });
+        if (!tapResult.accepted) {
+          logger.warn("Tap replay detected in callback", { uidHex: normalizedUidHex, counterValue, lastCounter: tapResult.lastCounter });
+          return jsonResponse({ status: "ERROR", reason: tapResult.reason || "Counter replay detected — tap rejected" }, 409);
+        }
+      } catch (error) {
+        logger.error("Tap recording failed", { uidHex: normalizedUidHex, counterValue, error: error.message });
+        return jsonResponse({ status: "ERROR", reason: "Tap recording unavailable" }, 500);
+      }
+
       const withdrawalResponse = await processWithdrawalPayment(normalizedUidHex, invoice, env);
+
+      if (withdrawalResponse.status === 200 || withdrawalResponse.status === 201) {
+        await updateTapStatus(env, normalizedUidHex, counterValue, "completed").catch(() => {});
+      } else {
+        await updateTapStatus(env, normalizedUidHex, counterValue, "failed").catch(() => {});
+      }
       
       // If processWithdrawalPayment returns a Response, forward it.
       if (withdrawalResponse instanceof Response) {

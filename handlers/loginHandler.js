@@ -6,6 +6,7 @@ import { jsonResponse } from "../utils/responses.js";
 import { getAllIssuerKeyCandidates, getPerCardKeys } from "../utils/keyLookup.js";
 import { PERCARD_KEYS } from "../utils/generatedKeyData.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
+import { listTaps } from "../replayProtection.js";
 
 export async function handleLoginPage(request) {
   const host = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
@@ -593,6 +594,14 @@ export async function handleLoginVerify(request, env) {
       perCardSource,
     });
 
+    let tapHistory = [];
+    try {
+      const tapData = await listTaps(env, uidHex, 20);
+      tapHistory = tapData.taps || [];
+    } catch (e) {
+      logger.warn("Could not load tap history", { uidHex, error: e.message });
+    }
+
     return jsonResponse({
       success: true,
       uidHex,
@@ -610,6 +619,7 @@ export async function handleLoginVerify(request, env) {
       compromised: !!perCardSource,
       public: !!perCardSource,
       timestamp: Date.now(),
+      tapHistory,
     });
   } catch (error) {
     logger.error("Login verification error", { error: error.message });
