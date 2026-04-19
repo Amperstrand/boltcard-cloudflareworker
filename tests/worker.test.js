@@ -195,27 +195,38 @@ describe("Cloudflare Worker Tests", () => {
     const counterFivePath = "/?p=00F48C4F8E386DED06BCDC78FA92E2FE&c=66B4826EA4C155B4";
     const counterKey = "counter:04996c6a926980";
 
-    test("first tap with no stored counter succeeds", async () => {
+    test("first tap with no stored counter succeeds (read-only check)", async () => {
       const kvEnv = makeKvEnv();
 
       const response = await makeRequest(counterThreePath, "GET", null, kvEnv);
 
       expect(response.status).toBe(200);
-      expect(kvEnv.__replayStore.get("04996c6a926980")).toBe(3);
+      // Step 1 does NOT record the counter (uses checkReplayOnly)
+      expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(false);
     });
 
-    test("replay with same counter is rejected", async () => {
+    test("replay is rejected only if counter was previously recorded", async () => {
+      // Simulate counter=3 already recorded (from a previous Step 2 callback)
       const kvEnv = makeKvEnv();
+      kvEnv.CARD_REPLAY = makeReplayNamespace({ "04996c6a926980": 3 });
+      kvEnv.__replayStore = kvEnv.CARD_REPLAY.__counters;
 
-      const firstResponse = await makeRequest(counterThreePath, "GET", null, kvEnv);
-      expect(firstResponse.status).toBe(200);
-
+      // Same counter=3 in Step 1 -> rejected because stored counter=3
       const replayResponse = await makeRequest(counterThreePath, "GET", null, kvEnv);
-
       expect(replayResponse.status).toBe(400);
       const json = await replayResponse.json();
       expect(json.reason || json.error).toMatch(/replay|counter/i);
-      expect(kvEnv.__replayStore.get("04996c6a926980")).toBe(3);
+    });
+
+    test("replayed Step 1 with no stored counter succeeds (no recording)", async () => {
+      const kvEnv = makeKvEnv();
+      const first = await makeRequest(counterThreePath, "GET", null, kvEnv);
+      expect(first.status).toBe(200);
+
+      // Second call with same counter also succeeds because nothing was recorded
+      const second = await makeRequest(counterThreePath, "GET", null, kvEnv);
+      expect(second.status).toBe(200);
+      expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(false);
     });
 
     test("incrementing counter succeeds", async () => {
@@ -226,7 +237,8 @@ describe("Cloudflare Worker Tests", () => {
       const response = await makeRequest(counterFivePath, "GET", null, kvEnv);
 
       expect(response.status).toBe(200);
-      expect(kvEnv.__replayStore.get("04996c6a926980")).toBe(5);
+      // Counter still NOT recorded by Step 1 (read-only check)
+      expect(kvEnv.__replayStore.get("04996c6a926980")).toBe(3);
     });
 
     test("wipe resets replay state for reprovisioned cards", async () => {
@@ -234,7 +246,8 @@ describe("Cloudflare Worker Tests", () => {
 
       const firstTap = await makeRequest(counterThreePath, "GET", null, kvEnv);
       expect(firstTap.status).toBe(200);
-      expect(kvEnv.__replayStore.get("04996c6a926980")).toBe(3);
+      // Counter NOT recorded by Step 1
+      expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(false);
 
       const wipeResponse = await handleRequest(
         new Request("https://test.local/wipe?uid=04996c6a926980"),
@@ -243,9 +256,10 @@ describe("Cloudflare Worker Tests", () => {
       expect(wipeResponse.status).toBe(200);
       expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(false);
 
+      // After wipe, counter=3 should succeed and still NOT record
       const replayAfterWipe = await makeRequest(counterThreePath, "GET", null, kvEnv);
       expect(replayAfterWipe.status).toBe(200);
-      expect(kvEnv.__replayStore.get("04996c6a926980")).toBe(3);
+      expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(false);
     });
   });
 });
