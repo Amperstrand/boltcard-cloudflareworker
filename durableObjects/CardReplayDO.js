@@ -45,6 +45,10 @@ export class CardReplayDO extends DurableObject {
       return this.handleRecordTap(request);
     }
 
+    if (request.method === "POST" && url.pathname === "/record-read") {
+      return this.handleRecordRead(request);
+    }
+
     if (request.method === "POST" && url.pathname === "/update-tap-status") {
       return this.handleUpdateTapStatus(request);
     }
@@ -162,13 +166,34 @@ export class CardReplayDO extends DurableObject {
     });
   }
 
+  handleRecordRead(request) {
+    return request.json().then(({ counterValue, userAgent, requestUrl }) => {
+      if (!Number.isInteger(counterValue) || counterValue < 0) {
+        return Response.json({ recorded: false }, { status: 400 });
+      }
+
+      const now = Math.floor(Date.now() / 1000);
+      this.sql.exec(
+        `INSERT OR IGNORE INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
+         VALUES (?, NULL, 'read', NULL, ?, ?, ?, ?)`,
+        counterValue,
+        userAgent || null,
+        requestUrl || null,
+        now,
+        now
+      );
+
+      return Response.json({ recorded: true });
+    });
+  }
+
   handleUpdateTapStatus(request) {
     return request.json().then(({ counter, status }) => {
       if (!counter || !status) {
         return Response.json({ error: "Missing counter or status" }, { status: 400 });
       }
 
-      const validStatuses = ["pending", "paying", "completed", "failed", "expired"];
+      const validStatuses = ["read", "pending", "paying", "completed", "failed", "expired"];
       if (!validStatuses.includes(status)) {
         return Response.json({ error: `Invalid status: ${status}` }, { status: 400 });
       }

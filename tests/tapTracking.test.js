@@ -67,7 +67,7 @@ async function makeRequest(path, method = "GET", body = null, requestEnv) {
 }
 
 describe("Tap tracking — Step 1 (initial tap)", () => {
-  test("GET / does not create tap record", async () => {
+  test("GET / records a 'read' tap", async () => {
     const env = makeEnv();
 
     const response = await makeRequest(`/?p=${WITHDRAW_P_COUNTER3}&c=${WITHDRAW_C_COUNTER3}`, "GET", null, env);
@@ -76,10 +76,16 @@ describe("Tap tracking — Step 1 (initial tap)", () => {
     const json = await response.json();
     expect(json.tag).toBe("withdrawRequest");
 
-    expect(env.CARD_REPLAY.__taps.size).toBe(0);
+    expect(env.CARD_REPLAY.__taps.size).toBe(1);
+    const tap = env.CARD_REPLAY.__taps.get(`${TEST_UID}:3`);
+    expect(tap).toBeDefined();
+    expect(tap.status).toBe("read");
+    expect(tap.counter).toBe(3);
+    expect(tap.bolt11).toBeNull();
+    expect(tap.amount_msat).toBeNull();
   });
 
-  test("repeated GET / with same counter still does not record", async () => {
+  test("repeated GET / with same counter does not duplicate tap", async () => {
     const env = makeEnv();
 
     const response1 = await makeRequest(`/?p=${WITHDRAW_P_COUNTER3}&c=${WITHDRAW_C_COUNTER3}`, "GET", null, env);
@@ -88,7 +94,8 @@ describe("Tap tracking — Step 1 (initial tap)", () => {
     const response2 = await makeRequest(`/?p=${WITHDRAW_P_COUNTER3}&c=${WITHDRAW_C_COUNTER3}`, "GET", null, env);
     expect(response2.status).toBe(200);
 
-    expect(env.CARD_REPLAY.__taps.size).toBe(0);
+    // Same counter = same tap key, INSERT OR IGNORE keeps the first
+    expect(env.CARD_REPLAY.__taps.size).toBe(1);
   });
 });
 

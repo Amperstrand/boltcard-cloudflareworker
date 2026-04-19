@@ -281,6 +281,7 @@ export async function handleLoginPage(request) {
 
     function statusBadge(status) {
       var map = {
+        read:      'bg-sky-500/10 text-sky-400 border-sky-500/30',
         completed: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
         failed:    'bg-red-500/10 text-red-400 border-red-500/30',
         pending:   'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',

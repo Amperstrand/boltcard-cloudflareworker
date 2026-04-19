@@ -41,6 +41,26 @@ export const makeReplayNamespace = (initialCounters = {}) => {
           return Response.json({ accepted: true, lastCounter });
         }
 
+        if (request.method === "POST" && url.pathname === "/record-read") {
+          const { counterValue, userAgent, requestUrl } = await request.json();
+          const tapKey = `${idStr}:${counterValue}`;
+          if (!taps.has(tapKey)) {
+            const now = Math.floor(Date.now() / 1000);
+            taps.set(tapKey, {
+              counter: counterValue,
+              bolt11: null,
+              status: "read",
+              payment_hash: null,
+              amount_msat: null,
+              user_agent: userAgent || null,
+              request_url: requestUrl || null,
+              created_at: now,
+              updated_at: now,
+            });
+          }
+          return Response.json({ recorded: true });
+        }
+
         if (request.method === "POST" && url.pathname === "/record-tap") {
           const { counterValue, bolt11, amountMsat, userAgent, requestUrl } = await request.json();
           const lastCounter = counters.has(idStr) ? counters.get(idStr) : null;

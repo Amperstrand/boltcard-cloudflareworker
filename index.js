@@ -23,7 +23,7 @@ import { hexToBytes } from "./cryptoutils.js";
 import { logger } from "./utils/logger.js";
 import { jsonResponse } from "./utils/responses.js";
 import { checkRateLimit } from "./rateLimiter.js";
-import { checkReplayOnly } from "./replayProtection.js";
+import { checkReplayOnly, recordTapRead } from "./replayProtection.js";
 
 const errorResponse = (reason, status = 400) =>
   jsonResponse({ status: "ERROR", reason }, status);
@@ -159,6 +159,10 @@ async function handleLnurlw(request, env) {
     }
 
     logger.trace("LNURLW request accepted", { uidHex, counterValue });
+    recordTapRead(env, uidHex, counterValue, {
+      userAgent: request.headers.get("User-Agent") || null,
+      requestUrl: request.url,
+    });
     return handleProxy(request, uidHex, pHex, cHex, config.proxy.baseurl, {
       cmacValidated: cmac_validated,
       validationDeferred: !hasK2,
@@ -167,6 +171,10 @@ async function handleLnurlw(request, env) {
 
   if (config.payment_method === "lnurlpay") {
     const baseUrl = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
+    recordTapRead(env, uidHex, counterValue, {
+      userAgent: request.headers.get("User-Agent") || null,
+      requestUrl: request.url,
+    });
     return jsonResponse(constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, config));
   }
 
@@ -191,6 +199,10 @@ async function handleLnurlw(request, env) {
     }
 
     logger.trace("LNURLW request accepted", { uidHex, counterValue });
+    recordTapRead(env, uidHex, counterValue, {
+      userAgent: request.headers.get("User-Agent") || null,
+      requestUrl: request.url,
+    });
     const baseUrl = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
     const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated, baseUrl);
     if (responsePayload.status === "ERROR") return errorResponse(responsePayload.reason);

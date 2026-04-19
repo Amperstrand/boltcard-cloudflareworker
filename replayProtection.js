@@ -26,6 +26,20 @@ export async function checkReplayOnly(env, uidHex, counterValue) {
   throw new Error(payload.reason || "Replay protection check failed");
 }
 
+export async function recordTapRead(env, uidHex, counterValue, { userAgent, requestUrl } = {}) {
+  if (!env?.CARD_REPLAY) return;
+
+  const id = env.CARD_REPLAY.idFromName(uidHex.toLowerCase());
+  const stub = env.CARD_REPLAY.get(id);
+  await stub.fetch(
+    new Request("https://card-replay.internal/record-read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ counterValue, userAgent, requestUrl }),
+    })
+  ).catch(() => {});
+}
+
 export async function recordTap(env, uidHex, counterValue, { bolt11, amountMsat, userAgent, requestUrl } = {}) {
   if (!env?.CARD_REPLAY) {
     throw new Error("Replay protection Durable Object binding is not configured");
