@@ -101,6 +101,15 @@ export async function handleLoginPage(request) {
         </div>
       </div>
 
+      <div id="pub-tap-history" class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4 hidden">
+        <div class="flex justify-between items-center mb-3">
+          <p class="text-xs text-gray-500 uppercase tracking-wider">Tap History</p>
+          <span id="pub-tap-count" class="text-xs text-gray-600"></span>
+        </div>
+        <div id="pub-tap-list" class="space-y-0 max-h-96 overflow-y-auto"></div>
+        <p id="pub-tap-empty" class="text-gray-600 text-xs text-center py-4 hidden">No taps recorded yet</p>
+      </div>
+
       <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
         <div class="flex justify-between items-center mb-3">
           <p class="text-xs text-gray-500 uppercase tracking-wider">Keys</p>
@@ -170,6 +179,15 @@ export async function handleLoginPage(request) {
         </div>
       </div>
 
+      <div id="priv-tap-history" class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4 hidden">
+        <div class="flex justify-between items-center mb-3">
+          <p class="text-xs text-gray-500 uppercase tracking-wider">Tap History</p>
+          <span id="priv-tap-count" class="text-xs text-gray-600"></span>
+        </div>
+        <div id="priv-tap-list" class="space-y-0 max-h-96 overflow-y-auto"></div>
+        <p id="priv-tap-empty" class="text-gray-600 text-xs text-center py-4 hidden">No taps recorded yet</p>
+      </div>
+
       <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
         <div class="flex justify-between items-center mb-3">
           <p class="text-xs text-gray-500 uppercase tracking-wider">Keys</p>
@@ -237,6 +255,62 @@ export async function handleLoginPage(request) {
       const m = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
       const s = String(totalSec % 60).padStart(2, '0');
       return h + ':' + m + ':' + s;
+    }
+
+    function relativeTime(unixSeconds) {
+      const diff = Math.floor(Date.now() / 1000) - unixSeconds;
+      if (diff < 60) return 'just now';
+      if (diff < 3600) return Math.floor(diff / 60) + ' min ago';
+      if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+      if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+      return new Date(unixSeconds * 1000).toLocaleDateString();
+    }
+
+    function statusBadge(status) {
+      var map = {
+        completed: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+        failed:    'bg-red-500/10 text-red-400 border-red-500/30',
+        pending:   'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
+        paying:    'bg-blue-500/10 text-blue-400 border-blue-500/30',
+        expired:   'bg-gray-600/10 text-gray-400 border-gray-500/30',
+      };
+      var cls = map[status] || map.pending;
+      return '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ' + cls + '">' + status + '</span>';
+    }
+
+    function renderTapHistory(taps, prefix) {
+      var section = document.getElementById(prefix + '-tap-history');
+      var list = document.getElementById(prefix + '-tap-list');
+      var empty = document.getElementById(prefix + '-tap-count');
+      var countEl = document.getElementById(prefix + '-tap-count');
+      if (!taps || taps.length === 0) {
+        section.classList.remove('hidden');
+        list.innerHTML = '';
+        countEl.textContent = '';
+        document.getElementById(prefix + '-tap-empty').classList.remove('hidden');
+        return;
+      }
+      document.getElementById(prefix + '-tap-empty').classList.add('hidden');
+      countEl.textContent = taps.length + ' taps';
+      var html = '';
+      for (var i = 0; i < taps.length; i++) {
+        var t = taps[i];
+        var time = relativeTime(t.created_at);
+        var invoice = t.bolt11 ? (t.bolt11.length > 20 ? t.bolt11.substring(0, 20) + '...' : t.bolt11) : '\u2014';
+        var ua = t.user_agent ? (t.user_agent.length > 30 ? t.user_agent.substring(0, 30) + '...' : t.user_agent) : '';
+        html += '<div class="flex items-center justify-between text-xs py-1.5 border-b border-gray-700/50 last:border-0">'
+          + '<div class="flex items-center gap-3">'
+          + '<span class="text-gray-500 w-20 shrink-0">' + time + '</span>'
+          + '<span class="font-mono text-gray-400">#' + t.counter + '</span>'
+          + statusBadge(t.status)
+          + '</div>'
+          + '<div class="flex items-center gap-3">'
+          + '<span class="font-mono text-gray-500 truncate max-w-[120px]" title="' + (t.bolt11 || '') + '">' + invoice + '</span>'
+          + (ua ? '<span class="text-gray-600 truncate max-w-[100px] hidden md:inline" title="' + (t.user_agent || '') + '">' + ua + '</span>' : '')
+          + '</div></div>';
+      }
+      list.innerHTML = html;
+      section.classList.remove('hidden');
     }
 
     function startTimer() {
@@ -326,6 +400,7 @@ export async function handleLoginPage(request) {
       document.getElementById('pub-keys').innerHTML = buildKeysRows(result.k0, result.k1, result.k2, result.k3, result.k4);
       document.getElementById('pub-ndef').textContent = result.ndef || '';
       document.getElementById('public-view').classList.remove('hidden');
+      renderTapHistory(result.tapHistory || [], 'pub');
       const pubUid = result.uidHex;
       const pubKeys = [result.k0, result.k1, result.k2, result.k3, result.k4];
       if (pubKeys[0] && pubKeys[1] && pubKeys[2] && pubKeys[3] && pubKeys[4]) {
@@ -367,6 +442,7 @@ export async function handleLoginPage(request) {
       loginTime = Date.now();
       document.getElementById('priv-timer').textContent = '00:00:00';
       document.getElementById('private-view').classList.remove('hidden');
+      renderTapHistory(result.tapHistory || [], 'priv');
       const privKeys = [result.k0, result.k1, result.k2, result.k3, result.k4];
       if (privKeys[0] && privKeys[1] && privKeys[2] && privKeys[3] && privKeys[4]) {
         const qrPrivEl = document.getElementById('qr-priv-wipe');
