@@ -30,7 +30,6 @@ export function getBoltCardK1(env) {
     hexToBytes("0c3b25d92b38ae443229dd59ad34b85d"),
   ];
 }
-export const UID_PRIVACY = false
 
 import { getDeterministicKeys } from "./keygenerator.js";
 

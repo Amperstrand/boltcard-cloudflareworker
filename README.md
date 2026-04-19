@@ -52,7 +52,7 @@ The worker first attempts to fetch the UID configuration from KV. If no entry is
 - 📱 **NFC Card Programming**: Card activation and programming endpoints
 - 🔒 **Replay Protection**: Atomic counter-based replay protection using Durable Objects with SQLite storage — strongly consistent, not eventually consistent
 - 🛡️ **DDoS Rate Limiting**: IP-based fixed-window rate limiting (100 req/min default)
-- 🧪 **Tested**: Comprehensive test suite with 59 passing tests across 4 test suites
+- 🧪 **Tested**: Comprehensive test suite with 129 tests across 9 test suites
 
 ## 🏗️ Architecture
 
@@ -263,10 +263,14 @@ npm test -- --verbose
 ### Test Coverage
 
 - **✅ cryptoutils.test.js**: Cryptographic functions
-- **✅ keygenerator.test.js**: Deterministic key generation  
+- **✅ keygenerator.test.js**: Deterministic key generation
 - **✅ worker.test.js**: API endpoints and request handling
 - **✅ integration.test.js**: End-to-end integration tests
-- **Total**: 119 passing tests across 8 test suites
+- **✅ bulkWipe.test.js**: Bulk card wipe operations
+- **✅ lnurlPay.test.js**: LNURL-pay payment method tests
+- **✅ smoke.test.js**: Smoke tests for core functionality
+- **✅ responsePatterns.test.js**: Response pattern validation
+- **Total**: 129 tests across 9 test suites
 
 ### Test Vectors
 
@@ -410,7 +414,6 @@ npm run lint
 │   ├── handleNfc.js
 │   ├── loginHandler.js        # NFC login + key recovery
 │   ├── lnurlHandler.js
-│   ├── programHandler.js
 │   ├── proxyHandler.js
 │   ├── resetHandler.js
 │   ├── statusHandler.js
@@ -527,10 +530,6 @@ Enable debug logging by setting:
 ```javascript
 const DEBUG = true;  // In relevant files
 ```
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🤝 Support
 
