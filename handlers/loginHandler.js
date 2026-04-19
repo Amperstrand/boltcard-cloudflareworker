@@ -258,12 +258,20 @@ export async function handleLoginPage(request) {
     }
 
     function relativeTime(unixSeconds) {
-      const diff = Math.floor(Date.now() / 1000) - unixSeconds;
+      var diff = Math.floor(Date.now() / 1000) - unixSeconds;
       if (diff < 60) return 'just now';
       if (diff < 3600) return Math.floor(diff / 60) + ' min ago';
       if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
       if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
       return new Date(unixSeconds * 1000).toLocaleDateString();
+    }
+
+    function formatMsat(msat) {
+      if (!msat || msat === 0) return '';
+      var sats = msat / 1000;
+      if (sats < 1) return msat + ' msat';
+      if (sats < 1000) return (sats % 1 === 0 ? sats : sats.toFixed(3)) + ' sats';
+      return (sats / 1e8).toFixed(8) + ' BTC';
     }
 
     function statusBadge(status) {
@@ -305,6 +313,7 @@ export async function handleLoginPage(request) {
           + statusBadge(t.status)
           + '</div>'
           + '<div class="flex items-center gap-3">'
+          + (t.amount_msat ? '<span class="font-mono text-emerald-400/70 text-[11px]">' + formatMsat(t.amount_msat) + '</span>' : '')
           + '<span class="font-mono text-gray-500 truncate max-w-[120px]" title="' + (t.bolt11 || '') + '">' + invoice + '</span>'
           + (ua ? '<span class="text-gray-600 truncate max-w-[100px] hidden md:inline" title="' + (t.user_agent || '') + '">' + ua + '</span>' : '')
           + '</div></div>';
