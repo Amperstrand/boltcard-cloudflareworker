@@ -1,0 +1,6 @@
+uid,k2,payment_method,config_json
+044561fa967380,33268DEA5B5511A1B3DF961198FA46D5,clnrest,"{""proxy"":{""baseurl"":""https://demo.lnbits.com/boltcards/api/v1/scan/tapko6sbthfdgzoejjztjb""},""clnrest"":{""protocol"":""httpsnotusing"",""host"":""https://restk.psbt.me:3010"",""port"":3010,""rune"":""dummy""}}"
+04996c6a926980,B45775776CB224C75BCDE7CA3704E933,clnrest,"{""clnrest"":{""protocol"":""https"",""host"":""cln.example.com"",""port"":3001,""rune"":""abcd1234efgh5678ijkl""}}"
+04a071fa967380,EFCF2DD0528E57FF2E674E76DFC6B3B1,fakewallet,
+04b060fa967380,8378cb4c0660012b6c791e3858c2353b,fakewallet,
+04d070fa967380,,lnurlpay,"{""lnurlpay"":{""lightning_address"":""test@getalby.com"",""min_sendable"":1000,""max_sendable"":1000}}"
