@@ -111,6 +111,22 @@ export async function handleLoginPage(request) {
         <div id="undep-provision-status" class="hidden mt-3 text-center text-sm"></div>
       </div>
 
+      <div id="undep-program-section" class="hidden">
+        <div class="bg-emerald-900/30 border border-emerald-500/40 rounded-lg p-4 mb-4">
+          <p class="text-emerald-300 font-bold text-sm mb-1">Keys generated!</p>
+          <p class="text-emerald-200/70 text-xs mb-3">Use the Bolt Card Programmer app to write these keys to your card.</p>
+          <div class="flex justify-center mb-3">
+            <div id="qr-undep-program" class="qr-container"></div>
+          </div>
+          <a id="undep-program-deeplink" href="#" class="w-full block text-center bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded transition-colors mb-2">
+            OPEN BOLT CARD PROGRAMMER
+          </a>
+          <button onclick="navigator.clipboard.writeText(document.getElementById('undep-program-deeplink').href)" class="w-full text-center text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">
+            COPY DEEPLINK
+          </button>
+        </div>
+      </div>
+
       <p class="text-center text-xs text-gray-600 mt-4">
         <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1"></span>
         NFC active — tap card again to refresh
@@ -226,6 +242,11 @@ export async function handleLoginPage(request) {
         </div>
       </div>
 
+      <div id="priv-awaiting-write-banner" class="hidden bg-blue-900/30 border border-blue-500/40 rounded-lg p-4 mb-4">
+        <p class="text-blue-300 font-bold text-sm mb-1">Keys delivered, awaiting card write</p>
+        <p class="text-blue-200/70 text-xs">Open the Bolt Card Programmer app to finish writing these keys to the card.</p>
+      </div>
+
       <div id="priv-tap-history" class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4 hidden">
         <div class="flex justify-between items-center mb-3">
           <p class="text-xs text-gray-500 uppercase tracking-wider">Tap History</p>
@@ -288,6 +309,7 @@ export async function handleLoginPage(request) {
     let nfcAbortController = null;
     let lastNfcReadTime = 0;
     const API_HOST = "${host}";
+    const PROGRAMMING_ENDPOINT_PATH = '/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion';
 
     if (!('NDEFReader' in window)) {
       document.getElementById('nfc-not-supported').classList.remove('hidden');
@@ -446,6 +468,29 @@ export async function handleLoginPage(request) {
         '<tr><td class="pr-3 text-gray-500">K4</td><td class="font-mono text-xs text-gray-400">' + (k4 || '-') + '</td></tr>';
     }
 
+    function buildProgrammingEndpointUrl() {
+      return API_HOST + PROGRAMMING_ENDPOINT_PATH;
+    }
+
+    function buildProgrammingDeeplink(endpointUrl) {
+      return 'boltcard://program?url=' + encodeURIComponent(endpointUrl);
+    }
+
+    function showUndeployedProgrammingInstructions(endpointUrl) {
+      const deeplink = buildProgrammingDeeplink(endpointUrl || buildProgrammingEndpointUrl());
+      const qrEl = document.getElementById('qr-undep-program');
+      qrEl.innerHTML = '';
+      new QRCode(qrEl, { text: deeplink, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
+      document.getElementById('undep-program-deeplink').href = deeplink;
+      document.getElementById('undep-program-section').classList.remove('hidden');
+      document.getElementById('undep-provision-btn').parentElement.classList.add('hidden');
+    }
+
+    function hideUndeployedProgrammingInstructions() {
+      document.getElementById('undep-program-section').classList.add('hidden');
+      document.getElementById('undep-provision-btn').parentElement.classList.remove('hidden');
+    }
+
     let currentUndeployedUid = null;
 
     async function provisionCard() {
@@ -460,7 +505,7 @@ export async function handleLoginPage(request) {
       status.textContent = 'Writing keys to card...';
 
       try {
-        const endpoint = API_HOST + '/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards';
+        const endpoint = buildProgrammingEndpointUrl();
         const resp = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -473,6 +518,7 @@ export async function handleLoginPage(request) {
           btn.textContent = 'PROVISIONED';
           btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
           btn.classList.add('bg-gray-600');
+          showUndeployedProgrammingInstructions(endpoint);
         } else {
           throw new Error(data.error || 'Provisioning failed');
         }
@@ -499,6 +545,11 @@ export async function handleLoginPage(request) {
       btn.classList.remove('opacity-50', 'bg-gray-600');
       btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
       document.getElementById('undep-provision-status').classList.add('hidden');
+      if (result.awaitingProgramming) {
+        showUndeployedProgrammingInstructions(result.programmingEndpoint);
+      } else {
+        hideUndeployedProgrammingInstructions();
+      }
       document.getElementById('undeployed-view').classList.remove('hidden');
     }
 
@@ -551,6 +602,9 @@ export async function handleLoginPage(request) {
       cmacEl.className = result.cmacValid ? 'font-mono text-emerald-400' : 'font-mono text-red-400';
       document.getElementById('priv-keys').innerHTML = buildKeysRows(result.k0, result.k1, result.k2, result.k3, result.k4);
       document.getElementById('priv-ndef').textContent = result.ndef || '';
+      const awaitingWriteBanner = document.getElementById('priv-awaiting-write-banner');
+      if (result.cardState === 'keys_delivered') awaitingWriteBanner.classList.remove('hidden');
+      else awaitingWriteBanner.classList.add('hidden');
 
       const wipeSection = document.getElementById('priv-wipe-section');
       const wipeDeeplink = document.getElementById('priv-wipe-deeplink');
@@ -873,6 +927,7 @@ export async function handleLoginVerify(request, env) {
 
 async function handleUidOnlyLogin(rawUid, env, request) {
   const uidHex = rawUid.replace(/:/g, "").toLowerCase();
+  const programmingEndpoint = `${new URL(request.url).origin}/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion`;
   if (!/^[0-9a-f]{14}$/.test(uidHex)) {
     return jsonResponse({ success: false, error: "Invalid UID format" }, 400);
   }
@@ -904,6 +959,8 @@ async function handleUidOnlyLogin(rawUid, env, request) {
     cmacValid: false,
     deployed: hasDoConfig,
     cardState: cardState?.state || "new",
+    awaitingProgramming: cardState?.state === "keys_delivered",
+    programmingEndpoint,
     keyVersion,
     k0: keys.k0,
     k1: keys.k1,
