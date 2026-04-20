@@ -6,7 +6,7 @@ import { jsonResponse } from "../utils/responses.js";
 import { getAllIssuerKeyCandidates, getPerCardKeys } from "../utils/keyLookup.js";
 import { PERCARD_KEYS } from "../utils/generatedKeyData.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
-import { listTaps } from "../replayProtection.js";
+import { listTaps, getCardState, getCardConfig } from "../replayProtection.js";
 
 export async function handleLoginPage(request) {
   const host = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
@@ -74,6 +74,42 @@ export async function handleLoginPage(request) {
       </div>
     </div>
 
+    <!-- Session View: Undeployed Card (blank or unprovisioned) -->
+    <div id="undeployed-view" class="max-w-md w-full hidden">
+      <div class="text-center mb-6">
+        <div class="inline-flex items-center gap-2 bg-sky-500/10 border border-sky-500/30 rounded-full px-4 py-1 mb-2">
+          <span class="text-sky-400 text-sm font-semibold">UNPROGRAMMED CARD</span>
+        </div>
+        <p class="text-gray-500 text-xs font-mono mt-2" id="undep-uid-display"></p>
+      </div>
+
+      <div class="bg-sky-900/30 border border-sky-500/40 rounded-lg p-4 mb-4">
+        <p class="text-sky-300 font-bold text-sm mb-1">This card has not been programmed</p>
+        <p class="text-sky-200/70 text-xs mb-2">Keys shown below are what would be written if this card were provisioned as a bolt card.</p>
+      </div>
+
+      <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wider mb-3">Card Details</p>
+        <div class="space-y-2 text-sm">
+          <div class="flex justify-between"><span class="text-gray-500">Key Version</span><span id="undep-version" class="font-mono text-gray-300">1</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">State</span><span id="undep-state" class="font-mono text-gray-300">new</span></div>
+        </div>
+      </div>
+
+      <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
+        <div class="flex justify-between items-center mb-3">
+          <p class="text-xs text-gray-500 uppercase tracking-wider">Preview Keys</p>
+          <button onclick="navigator.clipboard.writeText(JSON.stringify({k0:document.querySelector('#undep-keys tr:nth-child(1) td:last-child').textContent,k1:document.querySelector('#undep-keys tr:nth-child(2) td:last-child').textContent,k2:document.querySelector('#undep-keys tr:nth-child(3) td:last-child').textContent,k3:document.querySelector('#undep-keys tr:nth-child(4) td:last-child').textContent,k4:document.querySelector('#undep-keys tr:nth-child(5) td:last-child').textContent},null,2))" class="text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">COPY ALL</button>
+        </div>
+        <table class="w-full text-sm"><tbody id="undep-keys"></tbody></table>
+      </div>
+
+      <p class="text-center text-xs text-gray-600 mt-4">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1"></span>
+        NFC active — tap card again to refresh
+      </p>
+    </div>
+
     <!-- Session View: Public Card (CSV dump recovery) -->
     <div id="public-view" class="max-w-md w-full hidden">
       <div class="text-center mb-6">
@@ -95,6 +131,8 @@ export async function handleLoginPage(request) {
       <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
         <p class="text-xs text-gray-500 uppercase tracking-wider mb-3">Card Details</p>
         <div class="space-y-2 text-sm">
+          <div class="flex justify-between"><span class="text-gray-500">Key Version</span><span id="pub-version" class="font-mono text-gray-300">-</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">State</span><span id="pub-state" class="font-mono text-gray-300">-</span></div>
           <div class="flex justify-between"><span class="text-gray-500">Counter</span><span id="pub-counter" class="font-mono text-gray-300">0</span></div>
           <div class="flex justify-between"><span class="text-gray-500">Source</span><span id="pub-issuer" class="font-mono text-gray-300 text-xs">-</span></div>
           <div class="flex justify-between"><span class="text-gray-500">CMAC</span><span id="pub-cmac" class="font-mono text-emerald-400">-</span></div>
@@ -173,6 +211,8 @@ export async function handleLoginPage(request) {
       <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
         <p class="text-xs text-gray-500 uppercase tracking-wider mb-3">Card Details</p>
         <div class="space-y-2 text-sm">
+          <div class="flex justify-between"><span class="text-gray-500">Key Version</span><span id="priv-version" class="font-mono text-gray-300">-</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">State</span><span id="priv-state" class="font-mono text-gray-300">-</span></div>
           <div class="flex justify-between"><span class="text-gray-500">Counter</span><span id="priv-counter" class="font-mono text-gray-300">0</span></div>
           <div class="flex justify-between"><span class="text-gray-500">Issuer Key</span><span id="priv-issuer" class="font-mono text-gray-300 text-xs">-</span></div>
           <div class="flex justify-between"><span class="text-gray-500">CMAC</span><span id="priv-cmac" class="font-mono text-emerald-400">-</span></div>
@@ -339,6 +379,7 @@ export async function handleLoginPage(request) {
 
     function hideAllViews() {
       document.getElementById('login-view').classList.add('hidden');
+      document.getElementById('undeployed-view').classList.add('hidden');
       document.getElementById('public-view').classList.add('hidden');
       document.getElementById('private-view').classList.add('hidden');
     }
@@ -398,6 +439,16 @@ export async function handleLoginPage(request) {
         '<tr><td class="pr-3 text-gray-500">K4</td><td class="font-mono text-xs text-gray-400">' + (k4 || '-') + '</td></tr>';
     }
 
+    function showUndeployedCard(result) {
+      clearErrors();
+      hideAllViews();
+      document.getElementById('undep-uid-display').textContent = 'UID: ' + result.uidHex.toUpperCase();
+      document.getElementById('undep-version').textContent = result.keyVersion || 1;
+      document.getElementById('undep-state').textContent = result.cardState || 'new';
+      document.getElementById('undep-keys').innerHTML = buildKeysRows(result.k0, result.k1, result.k2, result.k3, result.k4);
+      document.getElementById('undeployed-view').classList.remove('hidden');
+    }
+
     function showPublicCard(result) {
       clearErrors();
       hideAllViews();
@@ -407,6 +458,8 @@ export async function handleLoginPage(request) {
       document.getElementById('pub-uid-display').textContent = 'UID: ' + result.uidHex.toUpperCase();
       document.getElementById('pub-card-type-badge').textContent = typeLabels[cardType] || cardType.toUpperCase();
       document.getElementById('pub-card-type-badge').className = typeBadgeClass(cardType);
+      document.getElementById('pub-version').textContent = result.keyVersion || '-';
+      document.getElementById('pub-state').textContent = result.cardState || '-';
       document.getElementById('pub-counter').textContent = result.counterValue;
       document.getElementById('pub-issuer').textContent = result.issuerKey || 'recovered';
       const cmacEl = document.getElementById('pub-cmac');
@@ -436,6 +489,8 @@ export async function handleLoginPage(request) {
       document.getElementById('priv-uid-display').textContent = 'UID: ' + result.uidHex.toUpperCase();
       document.getElementById('priv-card-type-badge').textContent = typeLabels[cardType] || cardType.toUpperCase();
       document.getElementById('priv-card-type-badge').className = typeBadgeClass(cardType);
+      document.getElementById('priv-version').textContent = result.keyVersion || '-';
+      document.getElementById('priv-state').textContent = result.cardState || '-';
       document.getElementById('priv-counter').textContent = result.counterValue;
       document.getElementById('priv-issuer').textContent = result.issuerKey || 'current';
       const cmacEl = document.getElementById('priv-cmac');
@@ -476,6 +531,15 @@ export async function handleLoginPage(request) {
       return resp.json();
     }
 
+    async function validateUid(uid) {
+      const resp = await fetch(API_HOST + '/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid }),
+      });
+      return resp.json();
+    }
+
     async function startNfc() {
       const statusEl = document.getElementById('scan-status');
       const indicatorEl = document.getElementById('nfc-indicator');
@@ -495,8 +559,10 @@ export async function handleLoginPage(request) {
 
           clearErrors();
 
+          let foundUrl = false;
           for (const record of event.message.records) {
             if (record.recordType === 'url') {
+              foundUrl = true;
               const rawUrl = new TextDecoder().decode(record.data);
               let url = rawUrl;
               if (url.startsWith('lnurlw://')) url = 'https://' + url.substring(9);
@@ -512,7 +578,9 @@ export async function handleLoginPage(request) {
                 if (p && c) {
                   const result = await validateWithServer(p, c);
                   if (result.success) {
-                    if (result.public) {
+                    if (!result.deployed && !result.public) {
+                      showUndeployedCard(result);
+                    } else if (result.public) {
                       showPublicCard(result);
                     } else {
                       showPrivateCard(result);
@@ -528,6 +596,26 @@ export async function handleLoginPage(request) {
               } catch(e) {
                 showPersistentError('Could not parse card URL: ' + e.message + '. Raw: ' + rawUrl);
                 statusEl.textContent = 'Parse error. Tap to retry.';
+              }
+            }
+          }
+
+          if (!foundUrl && event.serialNumber) {
+            const uid = event.serialNumber.replace(/:/g, '').toLowerCase();
+            if (/^[0-9a-f]{14}$/.test(uid)) {
+              showNdef('uid:' + uid.toUpperCase());
+              statusEl.textContent = 'Card detected! Reading UID...';
+              try {
+                const result = await validateUid(uid);
+                if (result.success) {
+                  showUndeployedCard(result);
+                } else {
+                  showPersistentError(result.error || 'UID lookup failed');
+                  statusEl.textContent = 'Failed. Tap card to retry.';
+                }
+              } catch(e) {
+                showPersistentError('UID lookup error: ' + e.message);
+                statusEl.textContent = 'Error. Tap to retry.';
               }
             }
           }
@@ -563,7 +651,11 @@ export async function handleLoginPage(request) {
 export async function handleLoginVerify(request, env) {
   try {
     const body = await request.json();
-    const { p: pHex, c: cHex } = body;
+    const { p: pHex, c: cHex, uid: rawUid } = body;
+
+    if (rawUid && !pHex && !cHex) {
+      return await handleUidOnlyLogin(rawUid, env, request);
+    }
 
     if (!pHex || !cHex) {
       return jsonResponse({ success: false, error: "Missing p or c" }, 400);
@@ -577,8 +669,8 @@ export async function handleLoginVerify(request, env) {
     let matchedKeys = null;
     let matchedCmacValid = false;
     let perCardSource = null;
+    let keyVersion = 1;
 
-    // Phase 1: Try issuer key derivation
     for (const candidate of candidates) {
       const tryEnv = { ...env, ISSUER_KEY: candidate.hex };
       const decryption = extractUIDAndCounter(pHex, tryEnv);
@@ -602,7 +694,6 @@ export async function handleLoginVerify(request, env) {
       if (cmac_validated) {
         matchedCmacValid = true;
 
-        // Check if per-card keys exist (compromised key set)
         const perCard = getPerCardKeys(uidHex);
         if (perCard) {
           perCardSource = perCard.card_name || "recovered";
@@ -626,7 +717,6 @@ export async function handleLoginVerify(request, env) {
       }
     }
 
-    // Phase 2: If issuer key derivation failed, try per-card K1 directly
     if (!matchedIssuer) {
       for (const entry of getUniquePerCardK1s()) {
         const tryEnv = { ...env, ISSUER_KEY: entry.k1 };
@@ -672,6 +762,11 @@ export async function handleLoginVerify(request, env) {
     const config = await getUidConfig(uidHex, env);
     const pm = config?.payment_method || "unknown";
 
+    const cardState = await getCardState(env, uidHex);
+    const hasDoConfig = (await getCardConfig(env, uidHex)) !== null;
+    const deployed = hasDoConfig || !!perCardSource;
+    keyVersion = cardState?.active_version || cardState?.latest_issued_version || 1;
+
     const host = new URL(request.url).host;
     const path = pm === "twofactor" ? "/2fa" : "/";
     const ndefUrl = `https://${host}${path}?p=${pHex}&c=${cHex}`;
@@ -683,6 +778,8 @@ export async function handleLoginVerify(request, env) {
       issuerKey: matchedIssuer.label,
       cmacValid: matchedCmacValid,
       perCardSource,
+      deployed,
+      keyVersion,
     });
 
     let tapHistory = [];
@@ -709,6 +806,9 @@ export async function handleLoginVerify(request, env) {
       ndef: ndefUrl,
       compromised: !!perCardSource,
       public: !!perCardSource,
+      deployed,
+      cardState: cardState?.state || "new",
+      keyVersion,
       timestamp: Date.now(),
       tapHistory,
     });
@@ -716,6 +816,53 @@ export async function handleLoginVerify(request, env) {
     logger.error("Login verification error", { error: error.message });
     return jsonResponse({ success: false, error: error.message }, 500);
   }
+}
+
+async function handleUidOnlyLogin(rawUid, env, request) {
+  const uidHex = rawUid.replace(/:/g, "").toLowerCase();
+  if (!/^[0-9a-f]{14}$/.test(uidHex)) {
+    return jsonResponse({ success: false, error: "Invalid UID format" }, 400);
+  }
+
+  const cardState = await getCardState(env, uidHex);
+  const hasDoConfig = (await getCardConfig(env, uidHex)) !== null;
+  const config = await getUidConfig(uidHex, env);
+  const pm = config?.payment_method || "fakewallet";
+
+  let keyVersion = 1;
+  let keys;
+  if (hasDoConfig && cardState?.active_version) {
+    keyVersion = cardState.active_version;
+    keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY || env.BOLT_CARD_K1?.split(",")[0], keyVersion);
+  } else {
+    keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY || env.BOLT_CARD_K1?.split(",")[0], 1);
+  }
+
+  const host = new URL(request.url).host;
+  const ndefUrl = `lnurlw://${host}/?p=&c=`;
+
+  logger.info("NFC login (UID-only, undeployed)", { uidHex, deployed: hasDoConfig, keyVersion });
+
+  return jsonResponse({
+    success: true,
+    uidHex,
+    counterValue: null,
+    cardType: pm,
+    cmacValid: false,
+    deployed: hasDoConfig,
+    cardState: cardState?.state || "new",
+    keyVersion,
+    k0: keys.k0,
+    k1: keys.k1,
+    k2: keys.k2,
+    k3: keys.k3,
+    k4: keys.k4,
+    ndef: ndefUrl,
+    compromised: false,
+    public: false,
+    timestamp: Date.now(),
+    tapHistory: [],
+  });
 }
 
 function getUniquePerCardK1s() {
