@@ -61,7 +61,9 @@ async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddre
     return errorResponse("Card is active. Terminate (wipe) the card before reprogramming.", 409);
   }
   if (cardState.state === "keys_delivered") {
-    return errorResponse("Keys already delivered for this activation cycle. Write the card and tap to activate.", 409);
+    // Card provisioned but not yet written — re-deliver same keys (idempotent)
+    const version = cardState.latest_issued_version || 1;
+    return generateKeyResponse(normalizedUid, env, baseUrl, cardType, version);
   }
 
   const delivered = await deliverKeys(env, normalizedUid);

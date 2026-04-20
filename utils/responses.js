@@ -25,6 +25,12 @@ export function buildBoltCardResponse(keys, uid, host, version = 1) {
     K4: keys.k4.toUpperCase(),
     LNURLW_BASE: `lnurlw://${hostPart}`,
     LNURLW: `lnurlw://${hostPart}`,
+    k0: keys.k0.toLowerCase(),
+    k1: keys.k1.toLowerCase(),
+    k2: keys.k2.toLowerCase(),
+    k3: keys.k3.toLowerCase(),
+    k4: keys.k4.toLowerCase(),
+    lnurlw_base: `lnurlw://${hostPart}`,
     PROTOCOL_NAME: "NEW_BOLT_CARD_RESPONSE",
     PROTOCOL_VERSION: "1",
   };
