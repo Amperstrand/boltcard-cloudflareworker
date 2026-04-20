@@ -34,7 +34,7 @@ const router = Router();
 router.get("/api/keys", (request, env) => handleGetKeys(request, env));
 router.post("/api/keys", (request, env) => handleGetKeys(request, env));
 router.get("/status", (request, env) => handleStatus(request, env));
-router.all("/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards", (request, env) =>
+router.all("/api/v1/pull-payments/:pullPaymentId/boltcards", (request, env) =>
   fetchBoltCardKeys(request, env)
 );
 router.all("/boltcards/api/v1/lnurl/cb*", (request, env) => handleLnurlpPayment(request, env));
@@ -47,7 +47,7 @@ router.get("/api/bulk-wipe-keys", (request, env) => handleBulkWipeKeys(request, 
 
 // /experimental/ aliases for operator tools
 router.get("/experimental/nfc", () => handleNfc());
-router.get("/experimental/activate", (request) => handleActivatePage(request));
+router.get("/experimental/activate", (request, env) => handleActivatePage(request, env));
 router.get("/experimental/activate/form", () => handleActivateForm());
 router.post("/experimental/activate/form", (request, env) => handleActivateCardSubmit(request, env));
 router.get("/experimental/wipe", (request, env) => {
@@ -55,7 +55,7 @@ router.get("/experimental/wipe", (request, env) => {
   const uid = url.searchParams.get("uid");
   const baseUrl = `${url.protocol}//${url.host}`;
   if (uid) return handleReset(uid, env, baseUrl);
-  return handleWipePage(request);
+  return handleWipePage(request, env);
 });
 router.get("/experimental/bulkwipe", (request) => handleBulkWipePage(request));
 router.get("/experimental/analytics", (request) => handleAnalyticsPage(request));
@@ -273,7 +273,7 @@ async function handleLnurlw(request, env) {
       requestUrl: request.url,
     });
     const baseUrl = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
-    const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated, baseUrl);
+    const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated, baseUrl, config.payment_method);
     if (responsePayload.status === "ERROR") return errorResponse(responsePayload.reason);
     return jsonResponse(responsePayload);
   }

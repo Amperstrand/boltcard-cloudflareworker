@@ -54,6 +54,7 @@ export async function fetchBoltCardKeys(request, env) {
 
 async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddress, minSendable, maxSendable) {
   const normalizedUid = uid.toLowerCase();
+  const defaultPullPaymentId = env.DEFAULT_PULL_PAYMENT_ID || "fUDXsnySxvb5LYZ1bSLiWzLjVuT";
 
   const cardState = await getCardState(env, normalizedUid);
 
@@ -74,6 +75,10 @@ async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddre
   if (!Number.isInteger(version) || version < 1) {
     throw new Error("Invalid version returned from key delivery");
   }
+
+  await setCardConfig(env, normalizedUid, {
+    pull_payment_id: defaultPullPaymentId,
+  });
 
   await resetReplayProtection(env, normalizedUid);
 
@@ -101,6 +106,8 @@ async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddre
       payment_method: "fakewallet",
     };
   }
+
+  config.pull_payment_id = defaultPullPaymentId;
 
   await setCardConfig(env, normalizedUid, config);
 

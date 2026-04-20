@@ -1,4 +1,4 @@
-export function renderWipePage({ baseUrl }) {
+export function renderWipePage({ baseUrl, resetApiUrl }) {
   return `
     <!DOCTYPE html>
     <html lang="en" class="dark">
@@ -111,6 +111,7 @@ export function renderWipePage({ baseUrl }) {
 
         <script>
           const baseUrl = "${baseUrl}";
+          const resetApiUrl = "${resetApiUrl}";
           let wipeQrCode = null;
           let currentResetLink = "";
 
@@ -201,8 +202,6 @@ export function renderWipePage({ baseUrl }) {
               const response = await fetch(wipeApiUrl);
               const data = await response.json();
               
-              const pullPaymentId = "fUDXsnySxvb5LYZ1bSLiWzLjVuT";
-              const resetApiUrl = \`${baseUrl}/api/v1/pull-payments/\${pullPaymentId}/boltcards?onExisting=KeepVersion\`;
               displayOutput(uid, data, resetApiUrl);
             } catch (error) {
               alert("Error fetching wipe keys: " + error.message);
