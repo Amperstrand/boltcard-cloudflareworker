@@ -12,6 +12,16 @@ const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59a
 const WITHDRAW_P_COUNTER3 = "4E2E289D945A66BB13377A728884E867";
 const WITHDRAW_C_COUNTER3 = "E19CCB1FED8892CE";
 const TEST_UID = "04996c6a926980";
+const TEST_UID_CONFIG = JSON.stringify({
+  K2: "B45775776CB224C75BCDE7CA3704E933",
+  payment_method: "clnrest",
+  clnrest: {
+    protocol: "https",
+    host: "https://cln.example.com",
+    port: 3001,
+    rune: "abcd1234efgh5678ijkl",
+  },
+});
 
 // Real crypto: encrypt a valid p parameter and compute valid c for a given UID + counter
 function generateRealPandC(uidHex, counter, k1Hex) {
@@ -53,6 +63,10 @@ function makeEnv(replayInitial = {}) {
   return {
     BOLT_CARD_K1,
     CARD_REPLAY: makeReplayNamespace(replayInitial),
+    UID_CONFIG: {
+      get: async (uid) => uid === TEST_UID ? TEST_UID_CONFIG : null,
+      put: async () => {},
+    },
   };
 }
 

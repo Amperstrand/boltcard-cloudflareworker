@@ -14,8 +14,43 @@ const env = {
   CARD_REPLAY: makeReplayNamespace(),
 };
 
+const LEGACY_UID_CONFIGS = {
+  "04996c6a926980": JSON.stringify({
+    K2: "B45775776CB224C75BCDE7CA3704E933",
+    payment_method: "clnrest",
+    clnrest: {
+      protocol: "https",
+      host: "https://cln.example.com",
+      port: 3001,
+      rune: "abcd1234efgh5678ijkl",
+    },
+  }),
+  "044561fa967380": JSON.stringify({
+    K2: "33268DEA5B5511A1B3DF961198FA46D5",
+    payment_method: "clnrest",
+    proxy: {
+      baseurl: "https://demo.lnbits.com/boltcards/api/v1/scan/tapko6sbthfdgzoejjztjb",
+    },
+    clnrest: {
+      protocol: "httpsnotusing",
+      host: "https://restk.psbt.me:3010",
+      port: 3010,
+      rune: "dummy",
+    },
+  }),
+  "04d070fa967380": JSON.stringify({
+    K2: "6DA6F8D39F574BDF304FEFFA896D9B99",
+    payment_method: "lnurlpay",
+    lnurlpay: {
+      lightning_address: "test@getalby.com",
+      min_sendable: 1000,
+      max_sendable: 1000,
+    },
+  }),
+};
+
 const makeKvEnv = (initialStore = {}) => {
-  const kvStore = { ...initialStore };
+  const kvStore = { ...LEGACY_UID_CONFIGS, ...initialStore };
   const replay = makeReplayNamespace();
   return {
     ...env,
@@ -28,6 +63,7 @@ const makeKvEnv = (initialStore = {}) => {
     CARD_REPLAY: replay,
     __kvStore: kvStore,
     __replayStore: replay.__counters,
+    __cardConfigs: replay.__cardConfigs,
   };
 };
 
@@ -74,7 +110,7 @@ describe("response patterns", () => {
     const response = await makeRequest("/status");
 
     expect(response.status).toBe(302);
-    expect(response.headers.get("Location")).toBe("https://test.local/activate");
+    expect(response.headers.get("Location")).toBe("https://test.local/login");
   });
 
   test("GET /wipe returns JSON boltcard payload for valid uid", async () => {
@@ -100,7 +136,7 @@ describe("response patterns", () => {
   });
 
   test("GET /activate/form returns HTML", async () => {
-    const response = await makeRequest("/activate/form");
+    const response = await makeRequest("/experimental/activate/form");
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toContain("text/html");
@@ -111,7 +147,7 @@ describe("response patterns", () => {
   });
 
   test("GET /activate returns HTML with NFC console link", async () => {
-    const response = await makeRequest("/activate");
+    const response = await makeRequest("/experimental/activate");
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toContain("text/html");
@@ -123,7 +159,7 @@ describe("response patterns", () => {
   });
 
   test("GET /nfc returns refreshed HTML console", async () => {
-    const response = await makeRequest("/nfc");
+    const response = await makeRequest("/experimental/nfc");
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toContain("text/html");
@@ -168,8 +204,9 @@ describe("response patterns", () => {
     });
   });
 
-  test("POST /activate/form returns JSON error when KV is unavailable", async () => {
-    const response = await makeRequest("/activate/form", "POST", { uid: "04a39493cc8680" }, { ...env });
+  test("POST /activate/form returns JSON error when DO is unavailable", async () => {
+    const { CARD_REPLAY, ...envWithoutReplay } = env;
+    const response = await makeRequest("/activate/form", "POST", { uid: "04a39493cc8680" }, envWithoutReplay);
 
     expect(response.status).toBe(500);
     expect(response.headers.get("Content-Type")).toContain("application/json");
@@ -221,11 +258,11 @@ describe("response patterns", () => {
     expectBoltcardKeys(json);
   });
 
-  test("POST boltcards auto-registers new UID as fakewallet in KV", async () => {
+  test("POST boltcards auto-registers new UID as fakewallet in DO", async () => {
     const kvEnv = makeKvEnv();
 
     const newUid = "04a39493cc8680";
-    expect(kvEnv.__kvStore[newUid]).toBeUndefined();
+    expect(kvEnv.__cardConfigs.get(newUid)).toBeUndefined();
 
     const response = await makeRequest(
       "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion",
@@ -236,13 +273,13 @@ describe("response patterns", () => {
 
     expect(response.status).toBe(200);
 
-    const savedConfig = JSON.parse(kvEnv.__kvStore[newUid]);
+    const savedConfig = kvEnv.__cardConfigs.get(newUid);
     expect(savedConfig.payment_method).toBe("fakewallet");
     expect(savedConfig.K2).toBeDefined();
     expect(savedConfig.K2.length).toBe(32);
   });
 
-  test("POST boltcards program withdraw overwrites existing KV mode to fakewallet", async () => {
+  test("POST boltcards program withdraw overwrites existing DO mode to fakewallet", async () => {
     const existingConfig = JSON.stringify({
       K2: "EXISTINGKEY",
       payment_method: "lnurlpay",
@@ -253,6 +290,7 @@ describe("response patterns", () => {
       },
     });
     const kvEnv = makeKvEnv({ "04a39493cc8680": existingConfig });
+    kvEnv.__cardConfigs.set("04a39493cc8680", JSON.parse(existingConfig));
 
     await makeRequest(
       "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion",
@@ -261,13 +299,13 @@ describe("response patterns", () => {
       kvEnv
     );
 
-    const savedConfig = JSON.parse(kvEnv.__kvStore["04a39493cc8680"]);
+    const savedConfig = kvEnv.__cardConfigs.get("04a39493cc8680");
     expect(savedConfig.payment_method).toBe("fakewallet");
     expect(savedConfig.K2).toBeDefined();
     expect(savedConfig.K2.length).toBe(32);
   });
 
-  test("POST boltcards with card_type=pos registers as lnurlpay in KV", async () => {
+  test("POST boltcards with card_type=pos registers as lnurlpay in DO", async () => {
     const kvEnv = makeKvEnv();
     const posUid = "04a123fa967380";
 
@@ -279,7 +317,7 @@ describe("response patterns", () => {
     );
 
     expect(response.status).toBe(200);
-    const savedConfig = JSON.parse(kvEnv.__kvStore[posUid]);
+    const savedConfig = kvEnv.__cardConfigs.get(posUid);
     expect(savedConfig.payment_method).toBe("lnurlpay");
     expect(savedConfig.lnurlpay.lightning_address).toBe("merchant@getalby.com");
     expect(savedConfig.lnurlpay.min_sendable).toBe(2000);
@@ -311,7 +349,7 @@ describe("response patterns", () => {
       kvEnv
     );
     expect(withdrawResponse.status).toBe(200);
-    let savedConfig = JSON.parse(kvEnv.__kvStore[uid]);
+    let savedConfig = kvEnv.__cardConfigs.get(uid);
     expect(savedConfig.payment_method).toBe("fakewallet");
 
     // Terminate card before reprogramming to a different card type
@@ -324,7 +362,7 @@ describe("response patterns", () => {
       kvEnv
     );
     expect(posResponse.status).toBe(200);
-    savedConfig = JSON.parse(kvEnv.__kvStore[uid]);
+    savedConfig = kvEnv.__cardConfigs.get(uid);
     expect(savedConfig.payment_method).toBe("lnurlpay");
     expect(savedConfig.lnurlpay.lightning_address).toBe("merchant@getalby.com");
 
@@ -338,7 +376,7 @@ describe("response patterns", () => {
       kvEnv
     );
     expect(withdrawAgainResponse.status).toBe(200);
-    savedConfig = JSON.parse(kvEnv.__kvStore[uid]);
+    savedConfig = kvEnv.__cardConfigs.get(uid);
     expect(savedConfig.payment_method).toBe("fakewallet");
   });
 
@@ -468,8 +506,7 @@ describe("response patterns", () => {
     );
     expect(progResponse.status).toBe(200);
 
-    // Verify KV config was written
-    const savedConfig = JSON.parse(kvEnv.__kvStore[zeroUid]);
+    const savedConfig = kvEnv.__cardConfigs.get(zeroUid);
     expect(savedConfig.payment_method).toBe("fakewallet");
     expect(savedConfig.K2).toBeDefined();
 

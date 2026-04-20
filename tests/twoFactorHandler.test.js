@@ -6,8 +6,6 @@ const baseEnv = {
   CARD_REPLAY: makeReplayNamespace(),
 };
 
-// Test vector: decrypts to UID 04996c6a926980 with K1=0c3b25d92b38ae443229dd59ad34b85d
-// Static config has K2=B45775776CB224C75BCDE7CA3704E933 for this UID
 const VALID_P = "4E2E289D945A66BB13377A728884E867";
 const VALID_C = "E19CCB1FED8892CE";
 const TEST_UID = "04996c6a926980";
@@ -53,13 +51,18 @@ describe("GET /2fa", () => {
     expect(response.status).toBe(400);
   });
 
-  test("valid p/c with static config returns 200 HTML with OTP codes", async () => {
-    // Static config has K2 for UID 04996c6a926980
+  test("valid p/c with KV config returns 200 HTML with OTP codes", async () => {
+    const kvEnv = makeKvEnv({
+      [TEST_UID]: JSON.stringify({
+        K2: "B45775776CB224C75BCDE7CA3704E933",
+        payment_method: "twofactor",
+      }),
+    });
     const response = await makeRequest(
       `/2fa?p=${VALID_P}&c=${VALID_C}`,
       "GET",
       null,
-      baseEnv
+      kvEnv
     );
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toContain("text/html");

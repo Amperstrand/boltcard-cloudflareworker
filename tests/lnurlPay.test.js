@@ -5,6 +5,10 @@ import { makeReplayNamespace } from "./replayNamespace.js";
 const baseEnv = {
   BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
   CARD_REPLAY: makeReplayNamespace(),
+  UID_CONFIG: {
+    get: async (uid) => uid === "04d070fa967380" ? POS_UID_CONFIG : null,
+    put: async () => {},
+  },
 };
 
 // Valid test vectors for UID 04d070fa967380 (lnurlpay card), counter=1
@@ -16,6 +20,15 @@ const PAY_COUNTER_2 = "c18ab5683baf7e913d8ddd236477bf50";
 const PAY_CMAC_2 = "e793e09cb10c2333";
 
 const FAKE_INVOICE = "lnbc10n1p3knh2rpp5j3testinvoice";
+const POS_UID_CONFIG = JSON.stringify({
+  K2: "6DA6F8D39F574BDF304FEFFA896D9B99",
+  payment_method: "lnurlpay",
+  lnurlpay: {
+    lightning_address: "test@getalby.com",
+    min_sendable: 1000,
+    max_sendable: 1000,
+  },
+});
 
 async function makeRequest(path, method = "GET", body = null, requestEnv = baseEnv) {
   const url = "https://test.local" + path;
@@ -31,6 +44,10 @@ function makePayEnv(replayInitial = {}) {
   return {
     ...baseEnv,
     CARD_REPLAY: makeReplayNamespace(replayInitial),
+    UID_CONFIG: {
+      get: async (uid) => uid === "04d070fa967380" ? POS_UID_CONFIG : null,
+      put: async () => {},
+    },
   };
 }
 

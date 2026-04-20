@@ -8,6 +8,15 @@ import aesjs from "aes-js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const POS_UID = "04d070fa967380";
+const POS_UID_CONFIG = JSON.stringify({
+  K2: "6DA6F8D39F574BDF304FEFFA896D9B99",
+  payment_method: "lnurlpay",
+  lnurlpay: {
+    lightning_address: "test@getalby.com",
+    min_sendable: 1000,
+    max_sendable: 1000,
+  },
+});
 
 // Real crypto: encrypt a valid p parameter and compute valid c for a given UID + counter
 function generateRealPandC(uidHex, counter, k1Hex) {
@@ -49,6 +58,10 @@ function makeEnv(replayInitial = {}) {
   return {
     BOLT_CARD_K1: BOLT_CARD_K1,
     CARD_REPLAY: makeReplayNamespace(replayInitial),
+    UID_CONFIG: {
+      get: async (uid) => uid === POS_UID ? POS_UID_CONFIG : null,
+      put: async () => {},
+    },
   };
 }
 
@@ -309,7 +322,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
     expect(json.K2).toBeDefined();
     expect(json.LNURLW).toContain("lnurlp://");
 
-    const savedConfig = JSON.parse(kvStore[POS_UID]);
+    const savedConfig = env.CARD_REPLAY.__cardConfigs.get(POS_UID);
     expect(savedConfig.payment_method).toBe("lnurlpay");
     expect(savedConfig.lnurlpay.lightning_address).toBe("test@getalby.com");
   });

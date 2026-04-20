@@ -137,7 +137,7 @@ describe("analytics HTTP routes", () => {
   }
 
   test("GET /analytics returns HTML page", async () => {
-    const resp = await makeRequest("/analytics", makeEnv());
+    const resp = await makeRequest("/experimental/analytics", makeEnv());
     expect(resp.status).toBe(200);
     expect(resp.headers.get("Content-Type")).toContain("text/html");
     const body = await resp.text();

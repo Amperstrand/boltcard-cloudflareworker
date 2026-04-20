@@ -11,10 +11,41 @@ const env = {
   CARD_REPLAY: makeReplayNamespace(),
 };
 
+const LEGACY_UID_CONFIGS = {
+  "04996c6a926980": JSON.stringify({
+    K2: "B45775776CB224C75BCDE7CA3704E933",
+    payment_method: "clnrest",
+    clnrest: {
+      protocol: "https",
+      host: "https://cln.example.com",
+      port: 3001,
+      rune: "abcd1234efgh5678ijkl",
+    },
+  }),
+  "044561fa967380": JSON.stringify({
+    K2: "33268DEA5B5511A1B3DF961198FA46D5",
+    payment_method: "clnrest",
+    proxy: {
+      baseurl: "https://demo.lnbits.com/boltcards/api/v1/scan/tapko6sbthfdgzoejjztjb",
+    },
+    clnrest: {
+      protocol: "httpsnotusing",
+      host: "https://restk.psbt.me:3010",
+      port: 3010,
+      rune: "dummy",
+    },
+  }),
+};
+
+env.UID_CONFIG = {
+  get: async (key) => LEGACY_UID_CONFIGS[key] ?? null,
+  put: async () => {},
+};
+
 const baseEnv = env;
 
 const makeKvEnv = (initialStore = {}) => {
-  const kvStore = { ...initialStore };
+  const kvStore = { ...LEGACY_UID_CONFIGS, ...initialStore };
   const replay = makeReplayNamespace();
   return {
     ...baseEnv,

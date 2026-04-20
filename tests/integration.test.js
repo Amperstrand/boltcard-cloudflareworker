@@ -7,9 +7,36 @@ import { handleRequest } from '../index.js';
 import { logger } from '../utils/logger.js';
 import { makeReplayNamespace } from './replayNamespace.js';
 
+const LEGACY_UID_CONFIGS = {
+  '04996c6a926980': JSON.stringify({
+    K2: 'B45775776CB224C75BCDE7CA3704E933',
+    payment_method: 'clnrest',
+    clnrest: {
+      protocol: 'https',
+      host: 'https://cln.example.com',
+      port: 3001,
+      rune: 'abcd1234efgh5678ijkl'
+    }
+  }),
+  '044561fa967380': JSON.stringify({
+    K2: '33268DEA5B5511A1B3DF961198FA46D5',
+    payment_method: 'clnrest',
+    proxy: {
+      baseurl: 'https://demo.lnbits.com/boltcards/api/v1/scan/tapko6sbthfdgzoejjztjb'
+    },
+    clnrest: {
+      protocol: 'httpsnotusing',
+      host: 'https://restk.psbt.me:3010',
+      port: 3010,
+      rune: 'dummy'
+    }
+  })
+};
+
 const mockEnv = {
+  BOLT_CARD_K1: '55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d',
   UID_CONFIG: {
-    get: async () => null,
+    get: async (key) => LEGACY_UID_CONFIGS[key] ?? null,
     put: async () => {}
   },
   CARD_REPLAY: makeReplayNamespace(),
@@ -48,6 +75,11 @@ describe('End-to-End Payment Flow Integration Tests', () => {
   beforeEach(() => {
     Object.assign(mockEnv, {});
     mockEnv.CARD_REPLAY = makeReplayNamespace();
+    mockEnv.BOLT_CARD_K1 = '55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d';
+    mockEnv.UID_CONFIG = {
+      get: async (key) => LEGACY_UID_CONFIGS[key] ?? null,
+      put: async () => {}
+    };
   });
 
   describe('NFC Request Processing', () => {
@@ -130,7 +162,8 @@ describe('End-to-End Payment Flow Integration Tests', () => {
       
       const response = await handleRequest(request, mockEnv);
       
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Content-Type')).toContain('text/html');
     });
 
     it('should handle unknown routes', async () => {
