@@ -4,6 +4,7 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
   );
   const taps = new Map();
   const cardStates = new Map();
+  const cardConfigs = new Map();
 
   // Pre-activate cards from initialCards: { uid: version }
   // If a UID has counters but no explicit card entry, default to active version 1
@@ -44,6 +45,19 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
             return Response.json(getDefaultState());
           }
           return Response.json(cardStates.get(idStr));
+        }
+
+        if (request.method === "GET" && url.pathname === "/get-config") {
+          if (!cardConfigs.has(idStr)) {
+            return Response.json(null);
+          }
+          return Response.json(cardConfigs.get(idStr));
+        }
+
+        if (request.method === "POST" && url.pathname === "/set-config") {
+          const config = await request.json();
+          cardConfigs.set(idStr, config);
+          return Response.json({ ok: true });
         }
 
         if (request.method === "POST" && url.pathname === "/deliver-keys") {
@@ -261,6 +275,7 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
     __counters: counters,
     __taps: taps,
     __cardStates: cardStates,
+    __cardConfigs: cardConfigs,
     __activate(uid, version = 1) {
       cardStates.set(uid.toLowerCase(), {
         state: "active",
