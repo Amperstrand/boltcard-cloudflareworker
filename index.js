@@ -14,6 +14,7 @@ import { handleReset } from "./handlers/resetHandler.js";
 import { handleActivatePage } from "./handlers/activatePageHandler.js";
 import { handleTwoFactor } from "./handlers/twoFactorHandler.js";
 import { handleLoginPage, handleLoginVerify } from "./handlers/loginHandler.js";
+import { handlePosPage } from "./handlers/posHandler.js";
 import { handleWipePage } from "./handlers/wipePageHandler.js";
 import { handleGetKeys } from "./handlers/getKeysHandler.js";
 import { handleBulkWipeKeys } from "./handlers/bulkWipeHandler.js";
@@ -41,6 +42,7 @@ router.all("/boltcards/api/v1/lnurl/cb*", (request, env) => handleLnurlpPayment(
 router.get("/2fa", (request, env) => handleTwoFactor(request, env));
 router.get("/login", (request) => handleLoginPage(request));
 router.post("/login", (request, env) => handleLoginVerify(request, env));
+router.get("/pos", (request) => handlePosPage(request));
 router.post("/activate/form", (request, env) => handleActivateCardSubmit(request, env));
 router.get("/lnurlp/cb", (request, env) => handleLnurlPayCallback(request, env));
 router.get("/api/bulk-wipe-keys", (request, env) => handleBulkWipeKeys(request, env));
