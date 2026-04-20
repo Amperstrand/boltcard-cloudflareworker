@@ -114,7 +114,8 @@ export async function handleLoginPage(request) {
       <div id="undep-program-section" class="hidden">
         <div class="bg-emerald-900/30 border border-emerald-500/40 rounded-lg p-4 mb-4">
           <p class="text-emerald-300 font-bold text-sm mb-1">Keys generated!</p>
-          <p class="text-emerald-200/70 text-xs mb-3">Use the Bolt Card Programmer app to write these keys to your card.</p>
+          <p class="text-emerald-200/70 text-xs mb-1">Use the Bolt Card Programmer app to write these keys to your card.</p>
+          <p id="undep-keys-delivered-time" class="text-gray-500 text-xs mb-3"></p>
           <div class="flex justify-center mb-3">
             <div id="qr-undep-program" class="qr-container"></div>
           </div>
@@ -242,9 +243,19 @@ export async function handleLoginPage(request) {
         </div>
       </div>
 
-      <div id="priv-awaiting-write-banner" class="hidden bg-blue-900/30 border border-blue-500/40 rounded-lg p-4 mb-4">
-        <p class="text-blue-300 font-bold text-sm mb-1">Keys delivered, awaiting card write</p>
-        <p class="text-blue-200/70 text-xs">Open the Bolt Card Programmer app to finish writing these keys to the card.</p>
+      <div id="priv-awaiting-programming" class="hidden bg-emerald-900/30 border border-emerald-500/40 rounded-lg p-4 mb-4">
+        <p class="text-emerald-300 font-bold text-sm mb-1">Keys generated!</p>
+        <p class="text-emerald-200/70 text-xs mb-1">Use the Bolt Card Programmer app to write these keys to your card.</p>
+        <p id="priv-keys-delivered-time" class="text-gray-500 text-xs mb-3"></p>
+        <div class="flex justify-center mb-3">
+          <div id="qr-priv-program" class="qr-container"></div>
+        </div>
+        <a id="priv-program-deeplink" href="#" class="w-full block text-center bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded transition-colors mb-2">
+          OPEN BOLT CARD PROGRAMMER
+        </a>
+        <button onclick="navigator.clipboard.writeText(document.getElementById('priv-program-deeplink').href)" class="w-full text-center text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">
+          COPY DEEPLINK
+        </button>
       </div>
 
       <div id="priv-tap-history" class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4 hidden">
@@ -270,6 +281,26 @@ export async function handleLoginPage(request) {
           <button onclick="navigator.clipboard.writeText(document.getElementById('priv-ndef').textContent)" class="text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">COPY</button>
         </div>
         <p id="priv-ndef" class="font-mono text-xs text-gray-400 break-all"></p>
+      </div>
+
+      <div id="priv-terminated-banner" class="hidden bg-red-900/30 border border-red-500/40 rounded-lg p-4 mb-4">
+        <p class="text-red-300 font-bold text-sm mb-1">Card has been wiped</p>
+        <p class="text-red-200/70 text-xs mb-3">Previous version: <span id="priv-term-version" class="font-mono">1</span>. Re-provision to generate new keys.</p>
+        <button id="priv-reprovision-btn" onclick="reprovisionPrivateCard()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded transition-colors text-sm">
+          RE-PROVISION CARD
+        </button>
+        <div id="priv-reprovision-status" class="hidden mt-3 text-center text-sm"></div>
+        <div id="priv-reprovision-program" class="hidden mt-3">
+          <div class="flex justify-center mb-3">
+            <div id="qr-priv-reprovision" class="qr-container"></div>
+          </div>
+          <a id="priv-reprovision-deeplink" href="#" class="w-full block text-center bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded transition-colors text-sm mb-2">
+            OPEN BOLT CARD PROGRAMMER
+          </a>
+          <button onclick="navigator.clipboard.writeText(document.getElementById('priv-reprovision-deeplink').href)" class="text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">
+            COPY DEEPLINK
+          </button>
+        </div>
       </div>
 
       <div id="priv-wipe-section" class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4 hidden">
@@ -299,6 +330,59 @@ export async function handleLoginPage(request) {
       <p class="text-center text-xs text-gray-600 mt-4">
         <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1"></span>
         NFC active — tap card again to refresh session
+      </p>
+    </div>
+
+    <!-- Session View: Terminated Card (wiped, ready for re-provision) -->
+    <div id="terminated-view" class="max-w-md w-full hidden">
+      <div class="text-center mb-6">
+        <div class="inline-flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-full px-4 py-1 mb-2">
+          <span class="text-red-400 text-sm font-semibold">CARD WIPED</span>
+        </div>
+        <p class="text-gray-500 text-xs font-mono mt-2" id="term-uid-display"></p>
+      </div>
+
+      <div class="bg-red-900/30 border border-red-500/40 rounded-lg p-4 mb-4">
+        <p class="text-red-300 font-bold text-sm mb-1">This card has been wiped</p>
+        <p class="text-red-200/70 text-xs mb-1">It was previously active at key version <span id="term-prev-version" class="font-mono">1</span>.</p>
+        <p class="text-red-200/70 text-xs">Re-provisioning will generate new keys at version <span id="term-next-version" class="font-mono">2</span>.</p>
+      </div>
+
+      <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wider mb-3">Card Details</p>
+        <div class="space-y-2 text-sm">
+          <div class="flex justify-between"><span class="text-gray-500">Previous Version</span><span id="term-version" class="font-mono text-gray-300">1</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">State</span><span class="font-mono text-red-400">terminated</span></div>
+        </div>
+      </div>
+
+      <div class="bg-gray-800 border border-emerald-500/30 rounded-lg p-4 mb-4">
+        <button id="term-provision-btn" onclick="reprovisionCard()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded transition-colors">
+          RE-PROVISION AS WITHDRAW CARD
+        </button>
+        <div id="term-provision-status" class="hidden mt-3 text-center text-sm"></div>
+      </div>
+
+      <div id="term-program-section" class="hidden">
+        <div class="bg-emerald-900/30 border border-emerald-500/40 rounded-lg p-4 mb-4">
+          <p class="text-emerald-300 font-bold text-sm mb-1">New keys generated!</p>
+          <p class="text-emerald-200/70 text-xs mb-1">Use the Bolt Card Programmer app to write these keys to your card.</p>
+          <p id="term-keys-delivered-time" class="text-gray-500 text-xs mb-3"></p>
+          <div class="flex justify-center mb-3">
+            <div id="qr-term-program" class="qr-container"></div>
+          </div>
+          <a id="term-program-deeplink" href="#" class="w-full block text-center bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded transition-colors mb-2">
+            OPEN BOLT CARD PROGRAMMER
+          </a>
+          <button onclick="navigator.clipboard.writeText(document.getElementById('term-program-deeplink').href)" class="w-full text-center text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">
+            COPY DEEPLINK
+          </button>
+        </div>
+      </div>
+
+      <p class="text-center text-xs text-gray-600 mt-4">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1"></span>
+        NFC active — tap card again to refresh
       </p>
     </div>
   </body>
@@ -411,6 +495,7 @@ export async function handleLoginPage(request) {
       document.getElementById('undeployed-view').classList.add('hidden');
       document.getElementById('public-view').classList.add('hidden');
       document.getElementById('private-view').classList.add('hidden');
+      document.getElementById('terminated-view').classList.add('hidden');
     }
 
     function showPersistentError(msg) {
@@ -476,12 +561,17 @@ export async function handleLoginPage(request) {
       return 'boltcard://program?url=' + encodeURIComponent(endpointUrl);
     }
 
-    function showUndeployedProgrammingInstructions(endpointUrl) {
+    function showUndeployedProgrammingInstructions(endpointUrl, deliveredAt) {
       const deeplink = buildProgrammingDeeplink(endpointUrl || buildProgrammingEndpointUrl());
       const qrEl = document.getElementById('qr-undep-program');
       qrEl.innerHTML = '';
       new QRCode(qrEl, { text: deeplink, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
       document.getElementById('undep-program-deeplink').href = deeplink;
+      if (deliveredAt) {
+        document.getElementById('undep-keys-delivered-time').textContent = 'Keys generated ' + relativeTime(Math.floor(deliveredAt / 1000)) + '.';
+      } else {
+        document.getElementById('undep-keys-delivered-time').textContent = '';
+      }
       document.getElementById('undep-program-section').classList.remove('hidden');
       document.getElementById('undep-provision-btn').parentElement.classList.add('hidden');
     }
@@ -492,6 +582,7 @@ export async function handleLoginPage(request) {
     }
 
     let currentUndeployedUid = null;
+    let currentTerminatedUid = null;
 
     async function provisionCard() {
       if (!currentUndeployedUid) return;
@@ -518,13 +609,17 @@ export async function handleLoginPage(request) {
           btn.textContent = 'PROVISIONED';
           btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
           btn.classList.add('bg-gray-600');
-          showUndeployedProgrammingInstructions(endpoint);
+          showUndeployedProgrammingInstructions(endpoint, Date.now());
         } else {
           throw new Error(data.error || 'Provisioning failed');
         }
       } catch (e) {
         status.className = 'mt-3 text-center text-sm text-red-400';
-        status.textContent = 'Error: ' + e.message;
+        if (e.message.includes('active') || e.message.includes('Terminate')) {
+          status.textContent = 'This card is already active and working. Wipe it first if you want to re-provision.';
+        } else {
+          status.textContent = 'Error: ' + e.message;
+        }
         btn.disabled = false;
         btn.textContent = 'PROVISION AS WITHDRAW CARD';
         btn.classList.remove('opacity-50');
@@ -546,7 +641,7 @@ export async function handleLoginPage(request) {
       btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
       document.getElementById('undep-provision-status').classList.add('hidden');
       if (result.awaitingProgramming) {
-        showUndeployedProgrammingInstructions(result.programmingEndpoint);
+        showUndeployedProgrammingInstructions(result.programmingEndpoint, result.keysDeliveredAt);
       } else {
         hideUndeployedProgrammingInstructions();
       }
@@ -602,11 +697,42 @@ export async function handleLoginPage(request) {
       cmacEl.className = result.cmacValid ? 'font-mono text-emerald-400' : 'font-mono text-red-400';
       document.getElementById('priv-keys').innerHTML = buildKeysRows(result.k0, result.k1, result.k2, result.k3, result.k4);
       document.getElementById('priv-ndef').textContent = result.ndef || '';
-      const awaitingWriteBanner = document.getElementById('priv-awaiting-write-banner');
-      if (result.cardState === 'keys_delivered') awaitingWriteBanner.classList.remove('hidden');
-      else awaitingWriteBanner.classList.add('hidden');
-
+      const privProgrammingSection = document.getElementById('priv-awaiting-programming');
+      const terminatedBanner = document.getElementById('priv-terminated-banner');
       const wipeSection = document.getElementById('priv-wipe-section');
+      const reprovisionBtn = document.getElementById('priv-reprovision-btn');
+      reprovisionBtn.disabled = false;
+      reprovisionBtn.textContent = 'RE-PROVISION CARD';
+      reprovisionBtn.classList.remove('opacity-50', 'bg-gray-600');
+      reprovisionBtn.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
+      document.getElementById('priv-reprovision-status').classList.add('hidden');
+      document.getElementById('priv-reprovision-program').classList.add('hidden');
+      if (result.cardState === 'keys_delivered' && result.programmingEndpoint) {
+        const privProgramEndpoint = result.programmingEndpoint;
+        const privDeeplink = 'boltcard://program?url=' + encodeURIComponent(privProgramEndpoint);
+        const privQrEl = document.getElementById('qr-priv-program');
+        privQrEl.innerHTML = '';
+        new QRCode(privQrEl, { text: privDeeplink, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
+        document.getElementById('priv-program-deeplink').href = privDeeplink;
+        if (result.keysDeliveredAt) {
+          document.getElementById('priv-keys-delivered-time').textContent = 'Keys generated ' + relativeTime(Math.floor(result.keysDeliveredAt / 1000)) + '.';
+        } else {
+          document.getElementById('priv-keys-delivered-time').textContent = '';
+        }
+        privProgrammingSection.classList.remove('hidden');
+        wipeSection.classList.add('hidden');
+      } else {
+        privProgrammingSection.classList.add('hidden');
+      }
+
+      if (result.cardState === 'terminated') {
+        document.getElementById('priv-term-version').textContent = result.keyVersion || 1;
+        terminatedBanner.classList.remove('hidden');
+        wipeSection.classList.add('hidden');
+      } else {
+        terminatedBanner.classList.add('hidden');
+      }
+
       const wipeDeeplink = document.getElementById('priv-wipe-deeplink');
       const wipeFallback = document.getElementById('priv-wipe-fallback');
       const privUid = result.uidHex;
@@ -614,7 +740,9 @@ export async function handleLoginPage(request) {
       document.getElementById('priv-wipe-link').href = 'boltcard://reset?url=' + encodeURIComponent(endpointUrl);
       wipeDeeplink.classList.remove('hidden');
       wipeFallback.classList.add('hidden');
-      wipeSection.classList.remove('hidden');
+      if (result.cardState !== 'keys_delivered' && result.cardState !== 'terminated') {
+        wipeSection.classList.remove('hidden');
+      }
 
       loginTime = Date.now();
       document.getElementById('priv-timer').textContent = '00:00:00';
@@ -627,6 +755,115 @@ export async function handleLoginPage(request) {
         new QRCode(qrPrivEl, { text: wipeJson('priv'), width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
       }
       startTimer();
+    }
+
+    function showTerminatedCard(result) {
+      clearErrors();
+      hideAllViews();
+      currentTerminatedUid = result.uidHex;
+      const prevVersion = result.keyVersion || 1;
+      const nextVersion = prevVersion + 1;
+      document.getElementById('term-uid-display').textContent = 'UID: ' + result.uidHex.toUpperCase();
+      document.getElementById('term-prev-version').textContent = prevVersion;
+      document.getElementById('term-next-version').textContent = nextVersion;
+      document.getElementById('term-version').textContent = prevVersion;
+      const btn = document.getElementById('term-provision-btn');
+      btn.disabled = false;
+      btn.textContent = 'RE-PROVISION AS WITHDRAW CARD (v' + nextVersion + ')';
+      btn.classList.remove('opacity-50', 'bg-gray-600');
+      btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
+      document.getElementById('term-provision-status').classList.add('hidden');
+      document.getElementById('term-program-section').classList.add('hidden');
+      document.getElementById('terminated-view').classList.remove('hidden');
+    }
+
+    async function reprovisionCard() {
+      if (!currentTerminatedUid) return;
+      const btn = document.getElementById('term-provision-btn');
+      const status = document.getElementById('term-provision-status');
+      btn.disabled = true;
+      btn.textContent = 'PROVISIONING...';
+      btn.classList.add('opacity-50');
+      status.classList.remove('hidden');
+      status.className = 'mt-3 text-center text-sm text-gray-400';
+      status.textContent = 'Generating new keys...';
+
+      try {
+        const endpoint = buildProgrammingEndpointUrl();
+        const resp = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ UID: currentTerminatedUid }),
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          status.className = 'mt-3 text-center text-sm text-emerald-400';
+          status.textContent = 'Card re-provisioned at version ' + (data.Version || 2) + '!';
+          btn.textContent = 'PROVISIONED';
+          btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
+          btn.classList.add('bg-gray-600');
+          const deeplink = buildProgrammingDeeplink(endpoint);
+          const qrEl = document.getElementById('qr-term-program');
+          qrEl.innerHTML = '';
+          new QRCode(qrEl, { text: deeplink, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
+          document.getElementById('term-program-deeplink').href = deeplink;
+          document.getElementById('term-keys-delivered-time').textContent = 'Keys generated just now.';
+          document.getElementById('term-program-section').classList.remove('hidden');
+        } else {
+          throw new Error(data.error || 'Provisioning failed');
+        }
+      } catch (e) {
+        status.className = 'mt-3 text-center text-sm text-red-400';
+        status.textContent = 'Error: ' + e.message;
+        btn.disabled = false;
+        const prevVersion = document.getElementById('term-version').textContent;
+        btn.textContent = 'RE-PROVISION AS WITHDRAW CARD (v' + (parseInt(prevVersion) + 1) + ')';
+        btn.classList.remove('opacity-50');
+      }
+    }
+
+    async function reprovisionPrivateCard() {
+      const uid = document.getElementById('priv-uid-display').textContent.replace('UID: ', '').toLowerCase();
+      if (!uid) return;
+      const btn = document.getElementById('priv-reprovision-btn');
+      const status = document.getElementById('priv-reprovision-status');
+      btn.disabled = true;
+      btn.textContent = 'PROVISIONING...';
+      btn.classList.add('opacity-50');
+      status.classList.remove('hidden');
+      status.className = 'mt-3 text-center text-sm text-gray-400';
+      status.textContent = 'Generating new keys...';
+
+      try {
+        const endpoint = buildProgrammingEndpointUrl();
+        const resp = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ UID: uid }),
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          status.className = 'mt-3 text-center text-sm text-emerald-400';
+          status.textContent = 'Re-provisioned at version ' + (data.Version || 2) + '!';
+          btn.textContent = 'PROVISIONED';
+          btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
+          btn.classList.add('bg-gray-600');
+          const deeplink = buildProgrammingDeeplink(endpoint);
+          const qrEl = document.getElementById('qr-priv-reprovision');
+          qrEl.innerHTML = '';
+          new QRCode(qrEl, { text: deeplink, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
+          document.getElementById('priv-reprovision-deeplink').href = deeplink;
+          document.getElementById('priv-reprovision-program').classList.remove('hidden');
+        } else {
+          throw new Error(data.error || 'Provisioning failed');
+        }
+      } catch (e) {
+        status.className = 'mt-3 text-center text-sm text-red-400';
+        status.textContent = 'Error: ' + e.message;
+        btn.disabled = false;
+        btn.textContent = 'RE-PROVISION CARD';
+        btn.classList.remove('opacity-50');
+      }
     }
 
     async function validateWithServer(p, c) {
@@ -715,7 +952,15 @@ export async function handleLoginPage(request) {
               try {
                 const result = await validateUid(uid);
                 if (result.success) {
-                  showUndeployedCard(result);
+                  if (result.deployed) {
+                    if (result.cardState === 'terminated') {
+                      showTerminatedCard(result);
+                    } else {
+                      showPrivateCard(result);
+                    }
+                  } else {
+                    showUndeployedCard(result);
+                  }
                 } else {
                   showPersistentError(result.error || 'UID lookup failed');
                   statusEl.textContent = 'Failed. Tap card to retry.';
@@ -915,6 +1160,10 @@ export async function handleLoginVerify(request, env) {
       public: !!perCardSource,
       deployed,
       cardState: cardState?.state || "new",
+      programmingEndpoint: cardState?.state === "keys_delivered"
+        ? `${new URL(request.url).origin}/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion`
+        : undefined,
+      keysDeliveredAt: cardState?.keys_delivered_at || null,
       keyVersion,
       timestamp: Date.now(),
       tapHistory,
@@ -960,6 +1209,7 @@ async function handleUidOnlyLogin(rawUid, env, request) {
     deployed: hasDoConfig,
     cardState: cardState?.state || "new",
     awaitingProgramming: cardState?.state === "keys_delivered",
+    keysDeliveredAt: cardState?.keys_delivered_at || null,
     programmingEndpoint,
     keyVersion,
     k0: keys.k0,
