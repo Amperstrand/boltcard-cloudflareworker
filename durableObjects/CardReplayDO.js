@@ -35,9 +35,13 @@ export class CardReplayDO extends DurableObject {
           active_version INTEGER,
           activated_at INTEGER,
           terminated_at INTEGER,
-          keys_delivered_at INTEGER
+          keys_delivered_at INTEGER,
+          wipe_keys_fetched_at INTEGER
         )
       `);
+      try {
+        this.sql.exec(`ALTER TABLE card_state ADD COLUMN wipe_keys_fetched_at INTEGER`);
+      } catch {}
       this.sql.exec(`
         CREATE TABLE IF NOT EXISTS card_config (
           singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
@@ -95,6 +99,10 @@ export class CardReplayDO extends DurableObject {
 
     if (request.method === "POST" && url.pathname === "/terminate") {
       return this.handleTerminate();
+    }
+
+    if (request.method === "POST" && url.pathname === "/request-wipe") {
+      return this.handleRequestWipe();
     }
 
     if (request.method === "GET" && url.pathname === "/get-config") {
@@ -263,7 +271,7 @@ export class CardReplayDO extends DurableObject {
     ).toArray();
 
     const stateRows = this.sql.exec(
-      `SELECT state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at
+      `SELECT state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at
        FROM card_state WHERE singleton = 1`
     ).toArray();
     const cardState = stateRows[0] || null;
@@ -313,6 +321,20 @@ export class CardReplayDO extends DurableObject {
           version: null,
         });
       }
+      if (cardState.wipe_keys_fetched_at) {
+        events.push({
+          counter: null,
+          bolt11: null,
+          status: 'wipe_requested',
+          payment_hash: null,
+          amount_msat: null,
+          user_agent: null,
+          request_url: null,
+          created_at: cardState.wipe_keys_fetched_at,
+          updated_at: cardState.wipe_keys_fetched_at,
+          version: cardState.active_version,
+        });
+      }
     }
 
     const merged = [...taps, ...events].sort((a, b) => {
@@ -346,7 +368,7 @@ export class CardReplayDO extends DurableObject {
 
   handleGetCardState() {
     const rows = this.sql.exec(
-      `SELECT state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at
+      `SELECT state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at
        FROM card_state WHERE singleton = 1`
     ).toArray();
     if (rows.length === 0) {
@@ -357,6 +379,7 @@ export class CardReplayDO extends DurableObject {
         activated_at: null,
         terminated_at: null,
         keys_delivered_at: null,
+        wipe_keys_fetched_at: null,
       });
     }
     return Response.json(rows[0]);
@@ -372,17 +395,19 @@ export class CardReplayDO extends DurableObject {
          active_version,
          activated_at,
          terminated_at,
-         keys_delivered_at
+         keys_delivered_at,
+         wipe_keys_fetched_at
        )
-       VALUES (1, 'keys_delivered', 1, NULL, NULL, NULL, ?)
+       VALUES (1, 'keys_delivered', 1, NULL, NULL, NULL, ?, NULL)
        ON CONFLICT(singleton) DO UPDATE SET
          state = 'keys_delivered',
          latest_issued_version = card_state.latest_issued_version + 1,
          active_version = NULL,
          activated_at = NULL,
          terminated_at = NULL,
-         keys_delivered_at = excluded.keys_delivered_at
-       RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at`,
+         keys_delivered_at = excluded.keys_delivered_at,
+         wipe_keys_fetched_at = NULL
+       RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at`,
       now
     );
     const cardState = rows.toArray()[0];
@@ -403,21 +428,39 @@ export class CardReplayDO extends DurableObject {
            active_version,
            activated_at,
            terminated_at,
-           keys_delivered_at
+           keys_delivered_at,
+           wipe_keys_fetched_at
          )
-         VALUES (1, 'active', ?, ?, ?, NULL, NULL)
+         VALUES (1, 'active', ?, ?, ?, NULL, NULL, NULL)
          ON CONFLICT(singleton) DO UPDATE SET
-           state = 'active',
-           active_version = excluded.active_version,
-           activated_at = excluded.activated_at,
-           terminated_at = NULL
-         RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at`,
+            state = 'active',
+            active_version = excluded.active_version,
+            activated_at = excluded.activated_at,
+            terminated_at = NULL
+         RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at`,
         active_version,
         active_version,
         now
       );
       return Response.json(rows.toArray()[0]);
     });
+  }
+
+  handleRequestWipe() {
+    const now = Math.floor(Date.now() / 1000);
+    const rows = this.sql.exec(
+      `UPDATE card_state SET
+         state = 'wipe_requested',
+         wipe_keys_fetched_at = ?
+       WHERE singleton = 1
+       RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at`,
+      now
+    );
+    const result = rows.toArray();
+    if (result.length === 0) {
+      return Response.json({ state: "new" }, { status: 404 });
+    }
+    return Response.json(result[0]);
   }
 
   handleTerminate() {
@@ -428,7 +471,7 @@ export class CardReplayDO extends DurableObject {
        ON CONFLICT(singleton) DO UPDATE SET
          state = 'terminated',
          terminated_at = excluded.terminated_at
-       RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at`,
+       RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at`,
       now
     );
     this.sql.exec("DELETE FROM taps");

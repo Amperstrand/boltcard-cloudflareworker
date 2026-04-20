@@ -3,7 +3,7 @@ import { decodeAndValidate } from "../boltCardHelper.js";
 import { extractUIDAndCounter } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
-import { resetReplayProtection, getCardState, deliverKeys, terminateCard, setCardConfig } from "../replayProtection.js";
+import { resetReplayProtection, getCardState, deliverKeys, setCardConfig, requestWipe } from "../replayProtection.js";
 import { jsonResponse, buildBoltCardResponse } from "../utils/responses.js";
 
 const errorResponse = (error, status = 400) => jsonResponse({ error }, status);
@@ -123,7 +123,7 @@ async function handleResetFlow(lnurlw, env, baseUrl) {
 
     const cardState = await getCardState(env, uidHex);
 
-    if (cardState.state !== "active" && cardState.state !== "terminated" && cardState.state !== "new") {
+    if (cardState.state !== "active" && cardState.state !== "terminated" && cardState.state !== "new" && cardState.state !== "wipe_requested") {
       return errorResponse("Card must be active or terminated to retrieve wipe keys");
     }
 
@@ -145,7 +145,7 @@ async function handleResetFlow(lnurlw, env, baseUrl) {
     }
 
     if (cardState.state === "active") {
-      await terminateCard(env, uidHex);
+      await requestWipe(env, uidHex);
     }
 
     return generateKeyResponse(uidHex, env, baseUrl, "withdraw", wipeVersion);

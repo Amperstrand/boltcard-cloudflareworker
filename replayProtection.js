@@ -5,6 +5,7 @@ const legacyCardState = {
   activated_at: null,
   terminated_at: null,
   keys_delivered_at: null,
+  wipe_keys_fetched_at: null,
 };
 
 export async function checkReplayOnly(env, uidHex, counterValue) {
@@ -150,7 +151,7 @@ export async function getAnalytics(env, uidHex) {
 
 export async function getCardState(env, uidHex) {
   if (!env?.CARD_REPLAY) {
-    return { state: "new", latest_issued_version: 0, active_version: null, activated_at: null, terminated_at: null, keys_delivered_at: null };
+    return { state: "new", latest_issued_version: 0, active_version: null, activated_at: null, terminated_at: null, keys_delivered_at: null, wipe_keys_fetched_at: null };
   }
 
   const id = env.CARD_REPLAY.idFromName(uidHex.toLowerCase());
@@ -164,7 +165,7 @@ export async function getCardState(env, uidHex) {
   }
 
   if (!response.ok) {
-    return { state: "new", latest_issued_version: 0, active_version: null, activated_at: null, terminated_at: null, keys_delivered_at: null };
+    return { state: "new", latest_issued_version: 0, active_version: null, activated_at: null, terminated_at: null, keys_delivered_at: null, wipe_keys_fetched_at: null };
   }
 
   return response.json();
@@ -244,6 +245,32 @@ export async function terminateCard(env, uidHex) {
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
     throw new Error(payload.error || "Card termination failed");
+  }
+
+  return response.json();
+}
+
+export async function requestWipe(env, uidHex) {
+  if (!env?.CARD_REPLAY) {
+    throw new Error("Replay protection Durable Object binding is not configured");
+  }
+
+  const id = env.CARD_REPLAY.idFromName(uidHex.toLowerCase());
+  const stub = env.CARD_REPLAY.get(id);
+  const response = await stub.fetch(
+    new Request("https://card-replay.internal/request-wipe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    })
+  );
+
+  if (response.status === 404) {
+    return { state: "new" };
+  }
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || "Wipe request failed");
   }
 
   return response.json();

@@ -69,9 +69,13 @@ handleLoginVerify                              [handlers/loginHandler.js]
     v
 Response determines view:
     |
-    |-- deployed=true, cardState=active (UID-only) -> wiped detection view
-    |-- deployed=true  -> private view (keys, version, state, tap history, wipe)
     |-- deployed=false -> undeployed view (preview keys, provision button)
+    |-- deployed=true, cardState=keys_delivered -> private + programming QR
+    |-- deployed=true, cardState=active -> private card (wipe keys behind button)
+    |-- deployed=true, cardState=wipe_requested -> private + "pending wipe" status
+    |-- deployed=true, cardState=terminated -> terminated view (re-provision)
+    |-- UID-only, cardState=active -> "card appears wiped" detection
+    |-- UID-only, cardState=wipe_requested -> auto-confirm wipe -> terminated
     |-- compromised   -> public view (recovered keys from CSV dump)
 ```
 
@@ -105,16 +109,32 @@ Frontend: terminated view → re-provision at version N+1
 ### Card Lifecycle State Machine
 
 ```
-new -> keys_delivered -> active -> terminated -> (re-provision) -> keys_delivered
-                         \-> (physical wipe detected) -> terminated -> re-provision at version N+1
- ^                                                                            |
- +----------------------------------------------------------------------------+
+new ──→ keys_delivered ──→ active ──→ wipe_requested ──→ terminated ──→ (re-provision)
+ ^                                                                       │
+ │                          wipe confirmed via                           │
+ │                          blank NDEF + UID                             │
+ └───────────────────────────────────────────────────────────────────────┘
 ```
 
-- **new**: Never programmed. Legacy cards (pre-lifecycle) treated as `new`.
-- **keys_delivered**: Programming endpoint called, keys generated. Card needs physical write.
-- **active**: First tap after programming activates the card.
-- **terminated**: Card wiped. Can be re-provisioned at version N+1.
+States:
+- **new**: Never programmed. No DO state exists.
+- **keys_delivered**: Programming endpoint called, keys generated. Awaiting physical write via Bolt Card Programmer.
+- **active**: Card written and first tap verified (CMAC validated). Card is live.
+- **wipe_requested**: Operator fetched wipe keys. Card is expected to be physically wiped soon. Confirmed when card seen with blank NDEF + same UID.
+- **terminated**: Wipe confirmed. Card can be re-provisioned at version N+1.
+
+Key transitions:
+| From | To | Trigger | Logged |
+|------|----|---------|--------|
+| new | keys_delivered | `POST /api/v1/pull-payments/.../boltcards {UID}` | ✅ provisioned (keys_delivered_at) |
+| keys_delivered | active | First tap with valid CMAC | ✅ activated (activated_at) |
+| active | wipe_requested | Operator clicks "GET WIPE KEYS" | ✅ wipe_requested (wipe_keys_fetched_at) |
+| active | wipe_requested | `boltcard://reset` deeplink from programmer app | ✅ wipe_requested (wipe_keys_fetched_at) |
+| wipe_requested | terminated | Card detected with blank NDEF + same UID (auto-confirm) | ✅ terminated (terminated_at) |
+| active | terminated | "Card appears wiped" confirmation on NFC login | ✅ terminated (terminated_at) |
+| terminated | keys_delivered | Re-provision button clicked | ✅ provisioned (keys_delivered_at, version N+1) |
+
+Audit trail: Every key retrieval (provisioning or wiping) and every state transition is timestamped and visible in the tap history timeline.
 
 ### Key Derivation (keygenerator.js)
 
@@ -166,10 +186,10 @@ Each UID gets its own DO instance (`idFromName(uidHex.toLowerCase())`).
 |-------|---------|-------------|
 | `replay_state` | Counter-based replay protection | `last_counter` |
 | `taps` | Tap history with payment status | `counter, bolt11, status, amount_msat, created_at` |
-| `card_state` | Lifecycle state machine | `state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at` |
+| `card_state` | Lifecycle state machine | `state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at` |
 | `card_config` | Card configuration | `K2, payment_method, config_json, updated_at` |
 
-**Endpoints:** `/check`, `/check-readonly`, `/record-tap`, `/record-read`, `/update-tap-status`, `/reset`, `/analytics`, `/list-taps`, `/card-state`, `/deliver-keys`, `/activate`, `/terminate`, `/get-config`, `/set-config`
+**Endpoints:** `/check`, `/check-readonly`, `/record-tap`, `/record-read`, `/update-tap-status`, `/reset`, `/analytics`, `/list-taps`, `/card-state`, `/deliver-keys`, `/activate`, `/terminate`, `/request-wipe`, `/get-config`, `/set-config`
 
 ### Config Resolution (getUidConfig.js)
 

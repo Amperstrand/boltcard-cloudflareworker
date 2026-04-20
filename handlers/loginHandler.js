@@ -6,7 +6,7 @@ import { jsonResponse } from "../utils/responses.js";
 import { getAllIssuerKeyCandidates, getPerCardKeys } from "../utils/keyLookup.js";
 import { PERCARD_KEYS } from "../utils/generatedKeyData.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
-import { listTaps, getCardState, getCardConfig, terminateCard } from "../replayProtection.js";
+import { listTaps, getCardState, getCardConfig, terminateCard, requestWipe } from "../replayProtection.js";
 
 export async function handleLoginPage(request) {
   const host = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
@@ -319,21 +319,31 @@ export async function handleLoginPage(request) {
           <p class="text-xs text-gray-500 uppercase tracking-wider">Card Actions</p>
           <span id="priv-wipe-version" class="text-xs text-gray-600 font-mono"></span>
         </div>
-        <div class="flex justify-center mb-3">
-          <div id="qr-priv-wipe" class="qr-container"></div>
-        </div>
-        <div id="priv-wipe-deeplink" class="flex gap-2">
-          <a id="priv-wipe-link" href="#" class="flex-1 text-center bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-3 rounded transition-colors text-sm">
-            Wipe This Card
+        <button id="priv-fetch-wipe-btn" onclick="fetchWipeKeys()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded transition-colors text-sm">
+          GET WIPE KEYS
+        </button>
+        <div id="priv-wipe-status" class="hidden mt-3 text-center text-sm"></div>
+        <div id="priv-wipe-result" class="hidden mt-4">
+          <div class="bg-red-900/30 border border-red-500/40 rounded-lg p-3 mb-3">
+            <p class="text-red-300 font-bold text-xs mb-1">Wipe keys retrieved — card is now pending wipe</p>
+            <p class="text-red-200/70 text-xs">Use the Bolt Card Programmer app to wipe this card, or scan the QR below.</p>
+          </div>
+          <div class="flex justify-center mb-3">
+            <div id="qr-priv-wipe" class="qr-container"></div>
+          </div>
+          <a id="priv-wipe-link" href="#" class="w-full block text-center bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-3 rounded transition-colors text-sm mb-2">
+            WIPE CARD (App Deeplink)
           </a>
-          <button onclick="navigator.clipboard.writeText(document.getElementById('priv-wipe-link').href)" class="bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold py-2 px-3 rounded transition-colors text-xs">
-            COPY
+          <button onclick="navigator.clipboard.writeText(document.getElementById('priv-wipe-link').href)" class="w-full text-center text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">
+            COPY DEEPLINK
           </button>
-        </div>
-        <div id="priv-wipe-fallback" class="hidden">
-          <a href="/experimental/bulkwipe" class="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 text-sm font-semibold transition-colors">
-            Go to Bulk Wipe Tool →
-          </a>
+          <div class="mt-3">
+            <div class="flex justify-between items-center mb-1">
+              <p class="text-xs text-gray-500">Wipe JSON (for key reset screen)</p>
+              <button onclick="navigator.clipboard.writeText(document.getElementById('priv-wipe-json').textContent)" class="text-xs text-gray-600 hover:text-amber-500 font-bold transition-colors">COPY</button>
+            </div>
+            <pre id="priv-wipe-json" class="font-mono text-[10px] text-gray-500 bg-gray-900 rounded p-2 overflow-x-auto"></pre>
+          </div>
         </div>
       </div>
 
@@ -493,6 +503,7 @@ export async function handleLoginPage(request) {
         read:        'bg-sky-500/10 text-sky-400 border-sky-500/30',
         provisioned: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
         activated:   'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+        wipe_requested: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
         terminated:  'bg-red-500/10 text-red-400 border-red-500/30',
         completed:   'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
         failed:      'bg-red-500/10 text-red-400 border-red-500/30',
@@ -806,28 +817,33 @@ export async function handleLoginPage(request) {
         terminatedBanner.classList.add('hidden');
       }
 
-      const wipeDeeplink = document.getElementById('priv-wipe-deeplink');
-      const wipeFallback = document.getElementById('priv-wipe-fallback');
-      const privUid = result.uidHex;
-      const endpointUrl = API_HOST + '/api/keys?uid=' + privUid + '&format=boltcard';
-      document.getElementById('priv-wipe-link').href = 'boltcard://reset?url=' + encodeURIComponent(endpointUrl);
-      document.getElementById('priv-wipe-version').textContent = 'wipe keys v' + (result.keyVersion || 1);
-      wipeDeeplink.classList.remove('hidden');
-      wipeFallback.classList.add('hidden');
-      if (result.cardState !== 'keys_delivered' && result.cardState !== 'terminated') {
+      document.getElementById('priv-wipe-version').textContent = 'v' + (result.keyVersion || 1);
+      document.getElementById('priv-fetch-wipe-btn').disabled = false;
+      document.getElementById('priv-fetch-wipe-btn').textContent = 'GET WIPE KEYS';
+      document.getElementById('priv-fetch-wipe-btn').classList.remove('opacity-50', 'bg-gray-600');
+      document.getElementById('priv-fetch-wipe-btn').classList.add('bg-red-600', 'hover:bg-red-500');
+      document.getElementById('priv-wipe-status').classList.add('hidden');
+      document.getElementById('priv-wipe-result').classList.add('hidden');
+      if (result.cardState === 'active') {
         wipeSection.classList.remove('hidden');
+      } else if (result.cardState === 'wipe_requested') {
+        wipeSection.classList.remove('hidden');
+        document.getElementById('priv-fetch-wipe-btn').textContent = 'WIPE KEYS ALREADY RETRIEVED';
+        document.getElementById('priv-fetch-wipe-btn').disabled = true;
+        document.getElementById('priv-fetch-wipe-btn').classList.remove('bg-red-600', 'hover:bg-red-500');
+        document.getElementById('priv-fetch-wipe-btn').classList.add('bg-gray-600');
+        const statusEl = document.getElementById('priv-wipe-status');
+        statusEl.classList.remove('hidden');
+        statusEl.className = 'mt-3 text-center text-sm text-amber-400';
+        statusEl.textContent = 'Card is pending physical wipe. Tap card with blank NDEF to confirm.';
+      } else {
+        wipeSection.classList.add('hidden');
       }
 
       loginTime = Date.now();
       document.getElementById('priv-timer').textContent = '00:00:00';
       document.getElementById('private-view').classList.remove('hidden');
       renderTapHistory(result.tapHistory || [], 'priv');
-      const privKeys = [result.k0, result.k1, result.k2, result.k3, result.k4];
-      if (privKeys[0] && privKeys[1] && privKeys[2] && privKeys[3] && privKeys[4]) {
-        const qrPrivEl = document.getElementById('qr-priv-wipe');
-        qrPrivEl.innerHTML = '';
-        new QRCode(qrPrivEl, { text: wipeJson('priv'), width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
-      }
       startTimer();
     }
 
@@ -910,6 +926,74 @@ export async function handleLoginPage(request) {
         btn.disabled = false;
         btn.textContent = 'YES, THIS CARD HAS BEEN WIPED';
         btn.classList.remove('opacity-50');
+      }
+    }
+
+    async function fetchWipeKeys() {
+      const uid = document.getElementById('priv-uid-display').textContent.replace('UID: ', '').toLowerCase();
+      if (!uid) return;
+      const btn = document.getElementById('priv-fetch-wipe-btn');
+      const status = document.getElementById('priv-wipe-status');
+      btn.disabled = true;
+      btn.textContent = 'FETCHING...';
+      btn.classList.add('opacity-50');
+      status.classList.remove('hidden');
+      status.className = 'mt-3 text-center text-sm text-gray-400';
+      status.textContent = 'Retrieving wipe keys...';
+
+      try {
+        const resp = await fetch(API_HOST + '/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid: uid, action: 'request-wipe' }),
+        });
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+          btn.textContent = 'WIPE KEYS RETRIEVED';
+          btn.classList.remove('bg-red-600', 'hover:bg-red-500');
+          btn.classList.add('bg-gray-600');
+          status.className = 'mt-3 text-center text-sm text-emerald-400';
+          status.textContent = 'Card is now pending wipe (v' + data.keyVersion + ')';
+          const qrEl = document.getElementById('qr-priv-wipe');
+          qrEl.innerHTML = '';
+          new QRCode(qrEl, { text: data.wipeJson, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
+          document.getElementById('priv-wipe-link').href = data.wipeDeeplink;
+          document.getElementById('priv-wipe-json').textContent = data.wipeJson;
+          document.getElementById('priv-wipe-result').classList.remove('hidden');
+        } else {
+          throw new Error(data.error || 'Failed to fetch wipe keys');
+        }
+      } catch (e) {
+        status.className = 'mt-3 text-center text-sm text-red-400';
+        status.textContent = 'Error: ' + e.message;
+        btn.disabled = false;
+        btn.textContent = 'GET WIPE KEYS';
+        btn.classList.remove('opacity-50');
+      }
+    }
+
+    async function autoConfirmWipe(result) {
+      clearErrors();
+      hideAllViews();
+      showNdef('No NDEF record found. UID: ' + result.uidHex.toUpperCase());
+      try {
+        const resp = await fetch(API_HOST + '/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid: result.uidHex, action: 'terminate' }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+          showTerminatedCard({
+            uidHex: result.uidHex,
+            keyVersion: data.keyVersion || (result.keyVersion + 1),
+            cardState: 'terminated',
+          });
+        } else {
+          showPersistentError('Failed to confirm wipe: ' + (data.error || 'unknown'));
+        }
+      } catch (e) {
+        showPersistentError('Wipe confirmation error: ' + e.message);
       }
     }
 
@@ -1091,6 +1175,8 @@ export async function handleLoginPage(request) {
                   if (result.deployed) {
                     if (result.cardState === 'terminated') {
                       showTerminatedCard(result);
+                    } else if (result.cardState === 'wipe_requested') {
+                      autoConfirmWipe(result);
                     } else if (result.cardState === 'active') {
                       showWipedCard(result);
                     } else {
@@ -1144,6 +1230,9 @@ export async function handleLoginVerify(request, env) {
     const { p: pHex, c: cHex, uid: rawUid } = body;
 
     if (rawUid && !pHex && !cHex) {
+      if (body.action === "request-wipe") {
+        return await handleRequestWipeAction(rawUid, env, request);
+      }
       if (body.action === "terminate") {
         return await handleTerminateAction(rawUid, env, request);
       }
@@ -1387,8 +1476,8 @@ async function handleTerminateAction(rawUid, env, request) {
   }
 
   const cardState = await getCardState(env, uidHex);
-  if (cardState.state !== "active") {
-    return jsonResponse({ success: false, error: `Card is in '${cardState.state}' state, cannot terminate. Only active cards can be terminated.` }, 400);
+  if (cardState.state !== "active" && cardState.state !== "wipe_requested") {
+    return jsonResponse({ success: false, error: `Card is in '${cardState.state}' state, cannot terminate. Only active or wipe_requested cards can be terminated.` }, 400);
   }
 
   await terminateCard(env, uidHex);
@@ -1404,6 +1493,50 @@ async function handleTerminateAction(rawUid, env, request) {
     cardState: newState.state,
     keyVersion: newState.latest_issued_version || (cardState.active_version || 1),
     programmingEndpoint,
+  });
+}
+
+async function handleRequestWipeAction(rawUid, env, request) {
+  const uidHex = rawUid.replace(/:/g, "").toLowerCase();
+  if (!/^[0-9a-f]{14}$/.test(uidHex)) {
+    return jsonResponse({ success: false, error: "Invalid UID format" }, 400);
+  }
+
+  const cardState = await getCardState(env, uidHex);
+  if (cardState.state !== "active") {
+    return jsonResponse({ success: false, error: `Card is in '${cardState.state}' state. Only active cards can request wipe keys.` }, 400);
+  }
+
+  const version = cardState.active_version || 1;
+  const keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY || env.BOLT_CARD_K1?.split(",")[0], version);
+
+  await requestWipe(env, uidHex);
+
+  const host = new URL(request.url).host;
+  const endpointUrl = `https://${host}/api/keys?uid=${uidHex}&format=boltcard`;
+
+  logger.info("Wipe keys fetched", { uidHex, version });
+
+  return jsonResponse({
+    success: true,
+    uidHex,
+    cardState: "wipe_requested",
+    keyVersion: version,
+    k0: keys.k0,
+    k1: keys.k1,
+    k2: keys.k2,
+    k3: keys.k3,
+    k4: keys.k4,
+    wipeDeeplink: `boltcard://reset?url=${encodeURIComponent(endpointUrl)}`,
+    wipeJson: JSON.stringify({
+      version: version,
+      action: "wipe",
+      k0: keys.k0.toLowerCase(),
+      k1: keys.k1.toLowerCase(),
+      k2: keys.k2.toLowerCase(),
+      k3: keys.k3.toLowerCase(),
+      k4: keys.k4.toLowerCase(),
+    }, null, 2),
   });
 }
 
