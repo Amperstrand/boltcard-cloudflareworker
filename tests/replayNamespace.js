@@ -5,6 +5,7 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
   const taps = new Map();
   const cardStates = new Map();
   const cardConfigs = new Map();
+  const transactions = new Map();
 
   // Pre-activate cards from initialCards: { uid: version }
   // If a UID has counters but no explicit card entry, default to active version 1
@@ -21,6 +22,8 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
       activated_at: Math.floor(Date.now() / 1000),
       terminated_at: null,
       keys_delivered_at: null,
+      wipe_keys_fetched_at: null,
+      balance: 0,
     });
   }
 
@@ -31,6 +34,8 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
     activated_at: null,
     terminated_at: null,
     keys_delivered_at: null,
+    wipe_keys_fetched_at: null,
+    balance: 0,
   });
 
   return {
@@ -60,6 +65,70 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
           return Response.json({ ok: true });
         }
 
+        if (request.method === "GET" && url.pathname === "/balance") {
+          const state = cardStates.get(idStr) || getDefaultState();
+          return Response.json({ balance: state.balance ?? 0 });
+        }
+
+        if (request.method === "GET" && url.pathname === "/transactions") {
+          const requestedLimit = parseInt(url.searchParams.get("limit") || "50", 10);
+          const limit = Number.isFinite(requestedLimit)
+            ? Math.max(1, Math.min(requestedLimit, 200))
+            : 50;
+          const txs = (transactions.get(idStr) || []).slice().sort((a, b) => b.id - a.id).slice(0, limit);
+          return Response.json({ transactions: txs });
+        }
+
+        if (request.method === "POST" && url.pathname === "/debit") {
+          const { counter, amount, note } = await request.json();
+          if (!Number.isInteger(amount) || amount <= 0) {
+            return Response.json({ ok: false, reason: "Amount must be a positive integer" }, { status: 400 });
+          }
+
+          const current = cardStates.get(idStr) || getDefaultState();
+          const newBalance = (current.balance ?? 0) - amount;
+          const now = Math.floor(Date.now() / 1000);
+          cardStates.set(idStr, { ...current, balance: newBalance });
+
+          const existing = transactions.get(idStr) || [];
+          const transaction = {
+            id: existing.length + 1,
+            counter: Number.isInteger(counter) ? counter : null,
+            amount: -amount,
+            balance_after: newBalance,
+            created_at: now,
+            note: note || null,
+          };
+          transactions.set(idStr, [...existing, transaction]);
+
+          return Response.json({ ok: true, balance: newBalance, transaction });
+        }
+
+        if (request.method === "POST" && url.pathname === "/credit") {
+          const { amount, note } = await request.json();
+          if (!Number.isInteger(amount) || amount <= 0) {
+            return Response.json({ ok: false, reason: "Amount must be a positive integer" }, { status: 400 });
+          }
+
+          const current = cardStates.get(idStr) || getDefaultState();
+          const newBalance = (current.balance ?? 0) + amount;
+          const now = Math.floor(Date.now() / 1000);
+          cardStates.set(idStr, { ...current, balance: newBalance });
+
+          const existing = transactions.get(idStr) || [];
+          const transaction = {
+            id: existing.length + 1,
+            counter: null,
+            amount,
+            balance_after: newBalance,
+            created_at: now,
+            note: note || null,
+          };
+          transactions.set(idStr, [...existing, transaction]);
+
+          return Response.json({ ok: true, balance: newBalance, transaction });
+        }
+
         if (request.method === "POST" && url.pathname === "/deliver-keys") {
           const current = cardStates.get(idStr) || getDefaultState();
           const now = Math.floor(Date.now() / 1000);
@@ -71,6 +140,8 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
             active_version: null,
             activated_at: null,
             terminated_at: null,
+            wipe_keys_fetched_at: current.wipe_keys_fetched_at ?? null,
+            balance: current.balance ?? 0,
           };
           cardStates.set(idStr, newState);
           return Response.json(newState);
@@ -85,6 +156,8 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
             state: "active",
             active_version,
             activated_at: now,
+            wipe_keys_fetched_at: null,
+            balance: current.balance ?? 0,
           };
           cardStates.set(idStr, newState);
           return Response.json(newState);
@@ -97,6 +170,7 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
             ...current,
             state: "terminated",
             terminated_at: now,
+            balance: current.balance ?? 0,
           };
           cardStates.set(idStr, newState);
           counters.delete(idStr);
@@ -276,6 +350,7 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
     __taps: taps,
     __cardStates: cardStates,
     __cardConfigs: cardConfigs,
+    __transactions: transactions,
     __activate(uid, version = 1) {
       cardStates.set(uid.toLowerCase(), {
         state: "active",
@@ -284,6 +359,8 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
         activated_at: Math.floor(Date.now() / 1000),
         terminated_at: null,
         keys_delivered_at: null,
+        wipe_keys_fetched_at: null,
+        balance: 0,
       });
     },
   };

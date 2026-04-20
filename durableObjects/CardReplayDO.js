@@ -44,13 +44,33 @@ export class CardReplayDO extends DurableObject {
       } catch (e) {
         // Column already exists — expected on subsequent initializations
       }
+      try {
+        this.sql.exec(`ALTER TABLE card_state ADD COLUMN balance INTEGER NOT NULL DEFAULT 0`);
+      } catch (e) {
+        // Column already exists — expected on subsequent initializations
+      }
       this.sql.exec(`
         CREATE TABLE IF NOT EXISTS card_config (
           singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
           K2 TEXT,
           payment_method TEXT NOT NULL DEFAULT 'fakewallet',
           config_json TEXT,
+          pull_payment_id TEXT,
           updated_at INTEGER
+        )
+      `);
+      try {
+        this.sql.exec(`ALTER TABLE card_config ADD COLUMN pull_payment_id TEXT`);
+      } catch (e) {
+      }
+      this.sql.exec(`
+        CREATE TABLE IF NOT EXISTS transactions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          counter INTEGER,
+          amount INTEGER NOT NULL,
+          balance_after INTEGER NOT NULL,
+          created_at INTEGER NOT NULL,
+          note TEXT
         )
       `);
     });
@@ -113,6 +133,22 @@ export class CardReplayDO extends DurableObject {
 
     if (request.method === "POST" && url.pathname === "/set-config") {
       return this.handleSetConfig(request);
+    }
+
+    if (request.method === "POST" && url.pathname === "/debit") {
+      return this.handleDebit(request);
+    }
+
+    if (request.method === "POST" && url.pathname === "/credit") {
+      return this.handleCredit(request);
+    }
+
+    if (request.method === "GET" && url.pathname === "/balance") {
+      return this.handleGetBalance();
+    }
+
+    if (request.method === "GET" && url.pathname === "/transactions") {
+      return this.handleListTransactions(url);
     }
 
     if (request.method === "POST" && url.pathname === "/reset") {
@@ -370,7 +406,7 @@ export class CardReplayDO extends DurableObject {
 
   handleGetCardState() {
     const rows = this.sql.exec(
-      `SELECT state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at
+      `SELECT state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance
        FROM card_state WHERE singleton = 1`
     ).toArray();
     if (rows.length === 0) {
@@ -382,6 +418,7 @@ export class CardReplayDO extends DurableObject {
         terminated_at: null,
         keys_delivered_at: null,
         wipe_keys_fetched_at: null,
+        balance: 0,
       });
     }
     return Response.json(rows[0]);
@@ -395,12 +432,13 @@ export class CardReplayDO extends DurableObject {
          state,
          latest_issued_version,
          active_version,
-         activated_at,
-         terminated_at,
-         keys_delivered_at,
-         wipe_keys_fetched_at
-       )
-       VALUES (1, 'keys_delivered', 1, NULL, NULL, NULL, ?, NULL)
+          activated_at,
+          terminated_at,
+          keys_delivered_at,
+          wipe_keys_fetched_at,
+          balance
+        )
+       VALUES (1, 'keys_delivered', 1, NULL, NULL, NULL, ?, NULL, 0)
        ON CONFLICT(singleton) DO UPDATE SET
          state = 'keys_delivered',
          latest_issued_version = card_state.latest_issued_version + 1,
@@ -408,8 +446,8 @@ export class CardReplayDO extends DurableObject {
          activated_at = NULL,
          terminated_at = NULL,
          keys_delivered_at = excluded.keys_delivered_at,
-         wipe_keys_fetched_at = NULL
-       RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at`,
+          wipe_keys_fetched_at = NULL
+       RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance`,
       now
     );
     const cardState = rows.toArray()[0];
@@ -431,15 +469,16 @@ export class CardReplayDO extends DurableObject {
            activated_at,
            terminated_at,
            keys_delivered_at,
-           wipe_keys_fetched_at
+           wipe_keys_fetched_at,
+           balance
          )
-         VALUES (1, 'active', ?, ?, ?, NULL, NULL, NULL)
+         VALUES (1, 'active', ?, ?, ?, NULL, NULL, NULL, 0)
          ON CONFLICT(singleton) DO UPDATE SET
-            state = 'active',
-            active_version = excluded.active_version,
-            activated_at = excluded.activated_at,
-            terminated_at = NULL
-         RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at`,
+             state = 'active',
+             active_version = excluded.active_version,
+             activated_at = excluded.activated_at,
+             terminated_at = NULL
+         RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance`,
         active_version,
         active_version,
         now
@@ -451,11 +490,11 @@ export class CardReplayDO extends DurableObject {
   handleRequestWipe() {
     const now = Math.floor(Date.now() / 1000);
     const rows = this.sql.exec(
-      `UPDATE card_state SET
-         state = 'wipe_requested',
-         wipe_keys_fetched_at = ?
-       WHERE singleton = 1
-       RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at`,
+       `UPDATE card_state SET
+          state = 'wipe_requested',
+          wipe_keys_fetched_at = ?
+        WHERE singleton = 1
+        RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance`,
       now
     );
     const result = rows.toArray();
@@ -468,12 +507,12 @@ export class CardReplayDO extends DurableObject {
   handleTerminate() {
     const now = Math.floor(Date.now() / 1000);
     const rows = this.sql.exec(
-      `INSERT INTO card_state (singleton, state, latest_issued_version, terminated_at)
-       VALUES (1, 'terminated', 0, ?)
+      `INSERT INTO card_state (singleton, state, latest_issued_version, terminated_at, balance)
+       VALUES (1, 'terminated', 0, ?, 0)
        ON CONFLICT(singleton) DO UPDATE SET
-         state = 'terminated',
-         terminated_at = excluded.terminated_at
-       RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at`,
+          state = 'terminated',
+          terminated_at = excluded.terminated_at
+       RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance`,
       now
     );
     this.sql.exec("DELETE FROM taps");
@@ -483,7 +522,7 @@ export class CardReplayDO extends DurableObject {
 
   handleGetConfig() {
     const rows = this.sql.exec(
-      `SELECT K2, payment_method, config_json, updated_at FROM card_config WHERE singleton = 1`
+      `SELECT K2, payment_method, config_json, pull_payment_id, updated_at FROM card_config WHERE singleton = 1`
     ).toArray();
     if (rows.length === 0) {
       return Response.json(null);
@@ -491,6 +530,7 @@ export class CardReplayDO extends DurableObject {
     const row = rows[0];
     let config = { payment_method: row.payment_method };
     if (row.K2) config.K2 = row.K2;
+    if (row.pull_payment_id) config.pull_payment_id = row.pull_payment_id;
     if (row.config_json) {
       try {
         const extra = JSON.parse(row.config_json);
@@ -504,24 +544,121 @@ export class CardReplayDO extends DurableObject {
 
   handleSetConfig(request) {
     return request.json().then((config) => {
-      const { K2, payment_method, ...rest } = config;
+      const { K2, payment_method, pull_payment_id, ...rest } = config;
       const method = payment_method || "fakewallet";
       const k2 = K2 || null;
+      const pullPaymentId = pull_payment_id || null;
       const configJson = Object.keys(rest).length > 0 ? JSON.stringify(rest) : null;
       const now = Math.floor(Date.now() / 1000);
 
       this.sql.exec(
-        `INSERT INTO card_config (singleton, K2, payment_method, config_json, updated_at)
-         VALUES (1, ?, ?, ?, ?)
+        `INSERT INTO card_config (singleton, K2, payment_method, config_json, pull_payment_id, updated_at)
+         VALUES (1, ?, ?, ?, ?, ?)
          ON CONFLICT(singleton) DO UPDATE SET
            K2 = excluded.K2,
            payment_method = excluded.payment_method,
            config_json = excluded.config_json,
+           pull_payment_id = excluded.pull_payment_id,
            updated_at = excluded.updated_at`,
-        k2, method, configJson, now
+        k2, method, configJson, pullPaymentId, now
       );
 
       return Response.json({ ok: true });
     });
+  }
+
+  handleDebit(request) {
+    return request.json().then(({ counter, amount, note }) => {
+      if (!Number.isInteger(amount) || amount <= 0) {
+        return Response.json({ ok: false, reason: "Amount must be a positive integer" }, { status: 400 });
+      }
+
+      const currentBalance = this.getCurrentBalance();
+      const newBalance = currentBalance - amount;
+      const createdAt = Math.floor(Date.now() / 1000);
+
+      this.ensureCardStateRow(currentBalance);
+      this.sql.exec(
+        `UPDATE card_state SET balance = ? WHERE singleton = 1`,
+        newBalance
+      );
+
+      const rows = this.sql.exec(
+        `INSERT INTO transactions (counter, amount, balance_after, created_at, note)
+         VALUES (?, ?, ?, ?, ?)
+         RETURNING id, amount, balance_after, created_at`,
+        Number.isInteger(counter) ? counter : null,
+        -amount,
+        newBalance,
+        createdAt,
+        note || null
+      ).toArray();
+
+      return Response.json({ ok: true, balance: newBalance, transaction: rows[0] });
+    });
+  }
+
+  handleCredit(request) {
+    return request.json().then(({ amount, note }) => {
+      if (!Number.isInteger(amount) || amount <= 0) {
+        return Response.json({ ok: false, reason: "Amount must be a positive integer" }, { status: 400 });
+      }
+
+      const currentBalance = this.getCurrentBalance();
+      const newBalance = currentBalance + amount;
+      const createdAt = Math.floor(Date.now() / 1000);
+
+      this.ensureCardStateRow(currentBalance);
+      this.sql.exec(
+        `UPDATE card_state SET balance = ? WHERE singleton = 1`,
+        newBalance
+      );
+
+      const rows = this.sql.exec(
+        `INSERT INTO transactions (counter, amount, balance_after, created_at, note)
+         VALUES (NULL, ?, ?, ?, ?)
+         RETURNING id, amount, balance_after, created_at`,
+        amount,
+        newBalance,
+        createdAt,
+        note || null
+      ).toArray();
+
+      return Response.json({ ok: true, balance: newBalance, transaction: rows[0] });
+    });
+  }
+
+  handleGetBalance() {
+    return Response.json({ balance: this.getCurrentBalance() });
+  }
+
+  handleListTransactions(url) {
+    const requestedLimit = parseInt(url.searchParams.get("limit") || "50", 10);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.max(1, Math.min(requestedLimit, 200))
+      : 50;
+
+    const transactions = this.sql.exec(
+      `SELECT * FROM transactions ORDER BY id DESC LIMIT ?`,
+      limit
+    ).toArray();
+
+    return Response.json({ transactions });
+  }
+
+  getCurrentBalance() {
+    const rows = this.sql.exec(
+      `SELECT balance FROM card_state WHERE singleton = 1`
+    ).toArray();
+    return rows[0]?.balance ?? 0;
+  }
+
+  ensureCardStateRow(balance = 0) {
+    this.sql.exec(
+      `INSERT INTO card_state (singleton, balance)
+       VALUES (1, ?)
+       ON CONFLICT(singleton) DO NOTHING`,
+      balance
+    );
   }
 }

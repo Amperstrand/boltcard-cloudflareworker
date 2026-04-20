@@ -8,6 +8,7 @@ const legacyCardState = {
   terminated_at: null,
   keys_delivered_at: null,
   wipe_keys_fetched_at: null,
+  balance: 0,
 };
 
 export async function checkReplayOnly(env, uidHex, counterValue) {
@@ -153,7 +154,7 @@ export async function getAnalytics(env, uidHex) {
 
 export async function getCardState(env, uidHex) {
   if (!env?.CARD_REPLAY) {
-    return { state: "new", latest_issued_version: 0, active_version: null, activated_at: null, terminated_at: null, keys_delivered_at: null, wipe_keys_fetched_at: null };
+    return { state: "new", latest_issued_version: 0, active_version: null, activated_at: null, terminated_at: null, keys_delivered_at: null, wipe_keys_fetched_at: null, balance: 0 };
   }
 
   const id = env.CARD_REPLAY.idFromName(uidHex.toLowerCase());
@@ -167,7 +168,7 @@ export async function getCardState(env, uidHex) {
   }
 
   if (!response.ok) {
-    return { state: "new", latest_issued_version: 0, active_version: null, activated_at: null, terminated_at: null, keys_delivered_at: null, wipe_keys_fetched_at: null };
+    return { state: "new", latest_issued_version: 0, active_version: null, activated_at: null, terminated_at: null, keys_delivered_at: null, wipe_keys_fetched_at: null, balance: 0 };
   }
 
   return response.json();
@@ -310,4 +311,48 @@ export async function setCardConfig(env, uidHex, config) {
       body: JSON.stringify(config),
     })
   );
+}
+
+export async function debitCard(env, uidHex, counter, amount, note) {
+  if (!env?.CARD_REPLAY) return { ok: false, reason: "DO not available" };
+  const id = env.CARD_REPLAY.idFromName(uidHex.toLowerCase());
+  const stub = env.CARD_REPLAY.get(id);
+  const resp = await stub.fetch(
+    new Request("https://card-replay.internal/debit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ counter, amount, note }),
+    })
+  );
+  return resp.json();
+}
+
+export async function creditCard(env, uidHex, amount, note) {
+  if (!env?.CARD_REPLAY) return { ok: false, reason: "DO not available" };
+  const id = env.CARD_REPLAY.idFromName(uidHex.toLowerCase());
+  const stub = env.CARD_REPLAY.get(id);
+  const resp = await stub.fetch(
+    new Request("https://card-replay.internal/credit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount, note }),
+    })
+  );
+  return resp.json();
+}
+
+export async function getBalance(env, uidHex) {
+  if (!env?.CARD_REPLAY) return { balance: 0 };
+  const id = env.CARD_REPLAY.idFromName(uidHex.toLowerCase());
+  const stub = env.CARD_REPLAY.get(id);
+  const resp = await stub.fetch(new Request("https://card-replay.internal/balance"));
+  return resp.json();
+}
+
+export async function listTransactions(env, uidHex, limit = 50) {
+  if (!env?.CARD_REPLAY) return { transactions: [] };
+  const id = env.CARD_REPLAY.idFromName(uidHex.toLowerCase());
+  const stub = env.CARD_REPLAY.get(id);
+  const resp = await stub.fetch(new Request(`https://card-replay.internal/transactions?limit=${limit}`));
+  return resp.json();
 }
