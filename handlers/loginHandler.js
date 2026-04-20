@@ -128,10 +128,9 @@ export async function handleLoginPage(request) {
         </div>
       </div>
 
-      <p class="text-center text-xs text-gray-600 mt-4">
-        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1"></span>
-        NFC active — tap card again to refresh
-      </p>
+      <button onclick="rescanCard()" class="w-full mt-4 bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold py-3 px-4 rounded transition-colors text-sm">
+        📱 TAP CARD TO SCAN AGAIN
+      </button>
     </div>
 
     <!-- Session View: Public Card (CSV dump recovery) -->
@@ -205,10 +204,9 @@ export async function handleLoginPage(request) {
         <p id="public-error-msg" class="text-red-300 text-sm"></p>
       </div>
 
-      <p class="text-center text-xs text-gray-600 mt-4">
-        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1"></span>
-        NFC active — tap card again to refresh
-      </p>
+      <button onclick="rescanCard()" class="w-full mt-4 bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold py-3 px-4 rounded transition-colors text-sm">
+        📱 TAP CARD TO SCAN AGAIN
+      </button>
     </div>
 
     <!-- Session View: Private Card (provisioned by us) -->
@@ -351,10 +349,9 @@ export async function handleLoginPage(request) {
         <p id="private-error-msg" class="text-red-300 text-sm"></p>
       </div>
 
-      <p class="text-center text-xs text-gray-600 mt-4">
-        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1"></span>
-        NFC active — tap card again to refresh session
-      </p>
+      <button onclick="rescanCard()" class="w-full mt-4 bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold py-3 px-4 rounded transition-colors text-sm">
+        📱 TAP CARD TO SCAN AGAIN
+      </button>
     </div>
 
     <!-- Session View: Terminated Card (wiped, ready for re-provision) -->
@@ -404,10 +401,9 @@ export async function handleLoginPage(request) {
         </div>
       </div>
 
-      <p class="text-center text-xs text-gray-600 mt-4">
-        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1"></span>
-        NFC active — tap card again to refresh
-      </p>
+      <button onclick="rescanCard()" class="w-full mt-4 bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold py-3 px-4 rounded transition-colors text-sm">
+        📱 TAP CARD TO SCAN AGAIN
+      </button>
     </div>
 
     <!-- Session View: Wiped Card Detection (active in system, no NDEF found) -->
@@ -446,10 +442,9 @@ export async function handleLoginPage(request) {
         <div id="wiped-confirm-status" class="hidden mt-3 text-center text-sm"></div>
       </div>
 
-      <p class="text-center text-xs text-gray-600 mt-4">
-        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1"></span>
-        NFC active — tap card again to refresh
-      </p>
+      <button onclick="rescanCard()" class="w-full mt-4 bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold py-3 px-4 rounded transition-colors text-sm">
+        📱 TAP CARD TO SCAN AGAIN
+      </button>
     </div>
   </body>
 
@@ -1104,6 +1099,14 @@ export async function handleLoginPage(request) {
       return resp.json();
     }
 
+    function rescanCard() {
+      hideAllViews();
+      document.getElementById('login-view').classList.remove('hidden');
+      document.getElementById('scan-status').textContent = 'Scanning... tap your card';
+      lastNfcReadTime = 0;
+      startNfc();
+    }
+
     function scheduleNfcRestart() {
       setTimeout(() => {
         startNfc().catch(() => {});
@@ -1217,11 +1220,13 @@ export async function handleLoginPage(request) {
             }
           } finally {
             if (!abortController.signal.aborted) {
-              // If a card view was shown, delay restart so the user can lift the
-              // card off the reader.  An immediate restart would re-read the same
-              // card and waste another NTAG 424 SDMReadCtr tick.
               const cardShown = document.getElementById('login-view').classList.contains('hidden');
-              setTimeout(() => startNfc().catch(() => {}), cardShown ? 5000 : 0);
+              if (cardShown) {
+                abortController.abort();
+                nfcAbortController = null;
+              } else {
+                scheduleNfcRestart();
+              }
             }
           }
         };
