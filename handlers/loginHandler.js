@@ -1052,7 +1052,7 @@ export async function handleLoginPage(request) {
           if (!foundUrl && event.serialNumber) {
             const uid = event.serialNumber.replace(/:/g, '').toLowerCase();
             if (/^[0-9a-f]{14}$/.test(uid)) {
-              showNdef('uid:' + uid.toUpperCase());
+              showNdef('No NDEF record found. UID: ' + uid.toUpperCase());
               statusEl.textContent = 'Card detected! Reading UID...';
               try {
                 const result = await validateUid(uid);
@@ -1306,7 +1306,7 @@ async function handleUidOnlyLogin(rawUid, env, request) {
   }
 
   const host = new URL(request.url).host;
-  const ndefUrl = `lnurlw://${host}/?p=&c=`;
+  const ndefUrl = null;
 
   logger.info("NFC login (UID-only, undeployed)", { uidHex, deployed: hasDoConfig, keyVersion });
 
