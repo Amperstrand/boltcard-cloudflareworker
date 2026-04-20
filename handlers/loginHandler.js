@@ -6,7 +6,7 @@ import { jsonResponse } from "../utils/responses.js";
 import { getAllIssuerKeyCandidates, getPerCardKeys } from "../utils/keyLookup.js";
 import { PERCARD_KEYS } from "../utils/generatedKeyData.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
-import { listTaps, getCardState, getCardConfig, terminateCard, requestWipe } from "../replayProtection.js";
+import { listTaps, getCardState, getCardConfig, terminateCard, requestWipe, recordTapRead } from "../replayProtection.js";
 
 export async function handleLoginPage(request) {
   const host = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
@@ -1104,105 +1104,139 @@ export async function handleLoginPage(request) {
       return resp.json();
     }
 
+    function scheduleNfcRestart() {
+      setTimeout(() => {
+        startNfc().catch(() => {});
+      }, 0);
+    }
+
     async function startNfc() {
       const statusEl = document.getElementById('scan-status');
       const indicatorEl = document.getElementById('nfc-indicator');
 
+      if (nfcAbortController) {
+        nfcAbortController.abort();
+      }
+
+      const abortController = new AbortController();
+      nfcAbortController = abortController;
+
       try {
         const ndef = new NDEFReader();
-        nfcAbortController = new AbortController();
-        await ndef.scan({ signal: nfcAbortController.signal });
+        await ndef.scan({ signal: abortController.signal });
+
+        if (nfcAbortController !== abortController || abortController.signal.aborted) {
+          return;
+        }
 
         statusEl.textContent = 'Scanning... tap your card';
         indicatorEl.classList.remove('hidden');
 
         ndef.onreading = async (event) => {
-          const now = Date.now();
-          if (now - lastNfcReadTime < 3000) return;
-          lastNfcReadTime = now;
+          try {
+            const now = Date.now();
+            // Chrome Web NFC can perform a tag-detect read plus an NDEF read for one tap;
+            // each physical read increments the NTAG 424 SDMReadCtr, so +2 per tap is expected.
+            // Keep the 3s debounce so we do not process that monotonic hardware counter twice.
+            if (now - lastNfcReadTime < 3000) return;
+            lastNfcReadTime = now;
 
-          clearErrors();
+            clearErrors();
 
-          let foundUrl = false;
-          for (const record of event.message.records) {
-            if (record.recordType === 'url') {
-              foundUrl = true;
-              const rawUrl = new TextDecoder().decode(record.data);
-              let url = rawUrl;
-              if (url.startsWith('lnurlw://')) url = 'https://' + url.substring(9);
-              else if (url.startsWith('lnurlp://')) url = 'https://' + url.substring(9);
+            let foundUrl = false;
+            for (const record of event.message.records) {
+              if (record.recordType === 'url') {
+                foundUrl = true;
+                const rawUrl = new TextDecoder().decode(record.data);
+                let url = rawUrl;
+                if (url.startsWith('lnurlw://')) url = 'https://' + url.substring(9);
+                else if (url.startsWith('lnurlp://')) url = 'https://' + url.substring(9);
 
-              showNdef(rawUrl);
-              statusEl.textContent = 'Card detected! Verifying...';
+                showNdef(rawUrl);
+                statusEl.textContent = 'Card detected! Verifying...';
 
-              try {
-                const urlObj = new URL(url);
-                const p = urlObj.searchParams.get('p');
-                const c = urlObj.searchParams.get('c');
-                if (p && c) {
-                  const result = await validateWithServer(p, c);
-                  if (result.success) {
-                    if (!result.deployed && !result.public) {
-                      showUndeployedCard(result);
-                    } else if (result.public) {
-                      showPublicCard(result);
+                try {
+                  const urlObj = new URL(url);
+                  const p = urlObj.searchParams.get('p');
+                  const c = urlObj.searchParams.get('c');
+                  if (p && c) {
+                    const result = await validateWithServer(p, c);
+                    if (result.success) {
+                      if (!result.deployed && !result.public) {
+                        showUndeployedCard(result);
+                      } else if (result.public) {
+                        showPublicCard(result);
+                      } else {
+                        showPrivateCard(result);
+                      }
                     } else {
-                      showPrivateCard(result);
+                      showPersistentError(result.error || 'Authentication failed');
+                      statusEl.textContent = 'Failed. Tap card to retry.';
                     }
                   } else {
-                    showPersistentError(result.error || 'Authentication failed');
-                    statusEl.textContent = 'Failed. Tap card to retry.';
+                    showPersistentError('Card URL missing p/c parameters. Raw: ' + rawUrl);
+                    statusEl.textContent = 'Invalid card. Tap to retry.';
                   }
-                } else {
-                  showPersistentError('Card URL missing p/c parameters. Raw: ' + rawUrl);
-                  statusEl.textContent = 'Invalid card. Tap to retry.';
+                } catch(e) {
+                  showPersistentError('Could not parse card URL: ' + e.message + '. Raw: ' + rawUrl);
+                  statusEl.textContent = 'Parse error. Tap to retry.';
                 }
-              } catch(e) {
-                showPersistentError('Could not parse card URL: ' + e.message + '. Raw: ' + rawUrl);
-                statusEl.textContent = 'Parse error. Tap to retry.';
               }
             }
-          }
 
-          if (!foundUrl && event.serialNumber) {
-            const uid = event.serialNumber.replace(/:/g, '').toLowerCase();
-            if (/^[0-9a-f]{14}$/.test(uid)) {
-              showNdef('No NDEF record found. UID: ' + uid.toUpperCase());
-              statusEl.textContent = 'Card detected! Reading UID...';
-              try {
-                const result = await validateUid(uid);
-                if (result.success) {
-                  if (result.deployed) {
-                    if (result.cardState === 'terminated') {
-                      showTerminatedCard(result);
-                    } else if (result.cardState === 'wipe_requested') {
-                      autoConfirmWipe(result);
-                    } else if (result.cardState === 'active') {
-                      showWipedCard(result);
+            if (!foundUrl && event.serialNumber) {
+              const uid = event.serialNumber.replace(/:/g, '').toLowerCase();
+              if (/^[0-9a-f]{14}$/.test(uid)) {
+                showNdef('No NDEF record found. UID: ' + uid.toUpperCase());
+                statusEl.textContent = 'Card detected! Reading UID...';
+                try {
+                  const result = await validateUid(uid);
+                  if (result.success) {
+                    if (result.deployed) {
+                      if (result.cardState === 'terminated') {
+                        showTerminatedCard(result);
+                      } else if (result.cardState === 'wipe_requested') {
+                        autoConfirmWipe(result);
+                      } else if (result.cardState === 'active') {
+                        showWipedCard(result);
+                      } else {
+                        showPrivateCard(result);
+                      }
                     } else {
-                      showPrivateCard(result);
+                      showUndeployedCard(result);
                     }
                   } else {
-                    showUndeployedCard(result);
+                    showPersistentError(result.error || 'UID lookup failed');
+                    statusEl.textContent = 'Failed. Tap card to retry.';
                   }
-                } else {
-                  showPersistentError(result.error || 'UID lookup failed');
-                  statusEl.textContent = 'Failed. Tap card to retry.';
+                } catch(e) {
+                  showPersistentError('UID lookup error: ' + e.message);
+                  statusEl.textContent = 'Error. Tap to retry.';
                 }
-              } catch(e) {
-                showPersistentError('UID lookup error: ' + e.message);
-                statusEl.textContent = 'Error. Tap to retry.';
               }
+            }
+          } finally {
+            if (!abortController.signal.aborted) {
+              scheduleNfcRestart();
             }
           }
         };
 
         ndef.onreadingerror = () => {
+          if (abortController.signal.aborted) {
+            return;
+          }
           statusEl.textContent = 'Read error. Tap card again.';
+          scheduleNfcRestart();
         };
       } catch (error) {
-        nfcAbortController = null;
-        indicatorEl.classList.add('hidden');
+        if (nfcAbortController === abortController) {
+          nfcAbortController = null;
+          indicatorEl.classList.add('hidden');
+        }
+        if (error.name === 'AbortError') {
+          return;
+        }
         if (error.name === 'NotAllowedError') {
           statusEl.textContent = 'NFC permission denied';
           showPersistentError('NFC permission was denied. Refresh the page and allow NFC access.');
@@ -1382,6 +1416,11 @@ export async function handleLoginVerify(request, env) {
       logger.warn("Could not load tap history", { uidHex, error: e.message });
     }
 
+    recordTapRead(env, uidHex, counterValue, {
+      userAgent: request.headers.get("user-agent"),
+      requestUrl: request.url,
+    }).catch(() => {});
+
     return jsonResponse({
       success: true,
       uidHex,
@@ -1444,6 +1483,19 @@ async function handleUidOnlyLogin(rawUid, env, request) {
 
   logger.info("NFC login (UID-only, undeployed)", { uidHex, deployed: hasDoConfig, keyVersion });
 
+  let tapHistory = [];
+  try {
+    const tapData = await listTaps(env, uidHex, 20);
+    tapHistory = tapData.taps || [];
+  } catch (e) {
+    logger.warn("Could not load tap history", { uidHex, error: e.message });
+  }
+
+  recordTapRead(env, uidHex, null, {
+    userAgent: request.headers.get("user-agent"),
+    requestUrl: request.url,
+  }).catch(() => {});
+
   return jsonResponse({
     success: true,
     uidHex,
@@ -1465,7 +1517,7 @@ async function handleUidOnlyLogin(rawUid, env, request) {
     compromised: false,
     public: false,
     timestamp: Date.now(),
-    tapHistory: [],
+    tapHistory,
   });
 }
 
