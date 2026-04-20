@@ -31,7 +31,6 @@ const errorResponse = (reason, status = 400) =>
 
 const router = Router();
 
-router.get("/nfc", () => handleNfc());
 router.get("/api/keys", (request, env) => handleGetKeys(request, env));
 router.post("/api/keys", (request, env) => handleGetKeys(request, env));
 router.get("/status", (request, env) => handleStatus(request, env));
@@ -42,22 +41,47 @@ router.all("/boltcards/api/v1/lnurl/cb*", (request, env) => handleLnurlpPayment(
 router.get("/2fa", (request, env) => handleTwoFactor(request, env));
 router.get("/login", (request) => handleLoginPage(request));
 router.post("/login", (request, env) => handleLoginVerify(request, env));
-router.get("/activate", (request) => handleActivatePage(request));
-router.get("/activate/form", () => handleActivateForm());
 router.post("/activate/form", (request, env) => handleActivateCardSubmit(request, env));
 router.get("/lnurlp/cb", (request, env) => handleLnurlPayCallback(request, env));
-router.get("/wipe", (request, env) => {
+router.get("/api/bulk-wipe-keys", (request, env) => handleBulkWipeKeys(request, env));
+
+// /experimental/ aliases for operator tools
+router.get("/experimental/nfc", () => handleNfc());
+router.get("/experimental/activate", (request) => handleActivatePage(request));
+router.get("/experimental/activate/form", () => handleActivateForm());
+router.post("/experimental/activate/form", (request, env) => handleActivateCardSubmit(request, env));
+router.get("/experimental/wipe", (request, env) => {
   const url = new URL(request.url);
   const uid = url.searchParams.get("uid");
   const baseUrl = `${url.protocol}//${url.host}`;
   if (uid) return handleReset(uid, env, baseUrl);
   return handleWipePage(request);
 });
-router.get("/bulkwipe", (request) => handleBulkWipePage(request));
-router.get("/analytics", (request) => handleAnalyticsPage(request));
+router.get("/experimental/bulkwipe", (request) => handleBulkWipePage(request));
+router.get("/experimental/analytics", (request) => handleAnalyticsPage(request));
+router.get("/experimental/analytics/data", (request, env) => handleAnalyticsData(request, env));
+
+// 301 redirects from old paths to /experimental/
+router.get("/nfc", () => Response.redirect("/experimental/nfc", 301));
+router.get("/activate", () => Response.redirect("/experimental/activate", 301));
+router.get("/activate/form", () => Response.redirect("/experimental/activate/form", 301));
+router.post("/activate/form", (request, env) => handleActivateCardSubmit(request, env));
+router.get("/wipe", (request, env) => {
+  const url = new URL(request.url);
+  const uid = url.searchParams.get("uid");
+  if (uid) return handleReset(uid, env, `${url.protocol}//${url.host}`);
+  return Response.redirect("/experimental/wipe", 301);
+});
+router.get("/bulkwipe", () => Response.redirect("/experimental/bulkwipe", 301));
+router.get("/analytics", () => Response.redirect("/experimental/analytics", 301));
 router.get("/analytics/data", (request, env) => handleAnalyticsData(request, env));
-router.get("/api/bulk-wipe-keys", (request, env) => handleBulkWipeKeys(request, env));
-router.get("/", handleLnurlw);
+router.get("/", (request, env) => {
+  const { searchParams } = new URL(request.url);
+  if (searchParams.has("p") && searchParams.has("c")) {
+    return handleLnurlw(request, env);
+  }
+  return handleLoginPage(request);
+});
 router.all("*", (request) => {
   logger.error("Route not found", { pathname: new URL(request.url).pathname, method: request.method });
   return new Response("Not found", { status: 404 });

@@ -22,5 +22,5 @@ export async function handleStatus(request, env) {
   }
 
   const origin = new URL(request.url).origin;
-  return Response.redirect(`${origin}/activate`, 302);
+  return Response.redirect(`${origin}/login`, 302);
 }
