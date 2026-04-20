@@ -3,7 +3,7 @@ import { decodeAndValidate } from "../boltCardHelper.js";
 import { extractUIDAndCounter } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
-import { resetReplayProtection, getCardState, deliverKeys, terminateCard } from "../replayProtection.js";
+import { resetReplayProtection, getCardState, deliverKeys, terminateCard, setCardConfig } from "../replayProtection.js";
 import { jsonResponse, buildBoltCardResponse } from "../utils/responses.js";
 
 const errorResponse = (error, status = 400) => jsonResponse({ error }, status);
@@ -77,35 +77,30 @@ async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddre
 
   const keys = await getDeterministicKeys(normalizedUid, env, version);
 
-  if (env?.UID_CONFIG) {
-    let config;
-    if (cardType === "pos") {
-      config = {
-        K2: keys.k2,
-        version,
-        payment_method: "lnurlpay",
-        lnurlpay: {
-          lightning_address: lightningAddress,
-          min_sendable: minSendable,
-          max_sendable: maxSendable,
-        },
-      };
-    } else if (cardType === "2fa") {
-      config = {
-        K2: keys.k2,
-        version,
-        payment_method: "twofactor",
-      };
-    } else {
-      config = {
-        K2: keys.k2,
-        version,
-        payment_method: "fakewallet",
-      };
-    }
-
-    await env.UID_CONFIG.put(normalizedUid, JSON.stringify(config));
+  let config;
+  if (cardType === "pos") {
+    config = {
+      K2: keys.k2,
+      payment_method: "lnurlpay",
+      lnurlpay: {
+        lightning_address: lightningAddress,
+        min_sendable: minSendable,
+        max_sendable: maxSendable,
+      },
+    };
+  } else if (cardType === "2fa") {
+    config = {
+      K2: keys.k2,
+      payment_method: "twofactor",
+    };
+  } else {
+    config = {
+      K2: keys.k2,
+      payment_method: "fakewallet",
+    };
   }
+
+  await setCardConfig(env, normalizedUid, config);
 
   return generateKeyResponse(normalizedUid, env, baseUrl, cardType, version);
 }

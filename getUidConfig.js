@@ -1,6 +1,8 @@
 // getUidConfig.js
 import { computeAesCmac, hexToBytes } from './cryptoutils.js';
 import { logger } from './utils/logger.js';
+import { getDeterministicKeys } from "./keygenerator.js";
+import { getCardConfig } from "./replayProtection.js";
 
 // BOLT_CARD_K1 from environment/secrets (secure for production)
 // Falls back to development keys for local testing
@@ -31,8 +33,6 @@ export function getBoltCardK1(env) {
   ];
 }
 
-import { getDeterministicKeys } from "./keygenerator.js";
-
 async function withDeterministicK2IfMissing(uidHex, config, env, source, version = 1) {
   if (!config || config.K2) {
     return config;
@@ -55,64 +55,30 @@ async function withDeterministicK2IfMissing(uidHex, config, env, source, version
   return config;
 }
 
-// Static UID configuration. This is our fallback if no KV store entry is found.
-export const staticUidConfig = {
-  "044561fa967380": {
-    K2: "33268DEA5B5511A1B3DF961198FA46D5",
-    payment_method: "clnrest",
-    proxy: {
-      baseurl:
-        "https://demo.lnbits.com/boltcards/api/v1/scan/tapko6sbthfdgzoejjztjb" 
-    },
-    clnrest: {
-      protocol: "httpsnotusing",
-      host: "https://restk.psbt.me:3010",
-      port: 3010,
-      rune: "dummy"
-    }
-},
-
-  "04996c6a926980": {
-    K2: "B45775776CB224C75BCDE7CA3704E933",
-    payment_method: "clnrest",
-    clnrest: {
-      protocol: "https",
-      host: "cln.example.com",
-      port: 3001,
-      rune: "abcd1234efgh5678ijkl"
-    }
-  },
-
-  "04a071fa967380": {
-    K2: "EFCF2DD0528E57FF2E674E76DFC6B3B1",
-    payment_method: "fakewallet"
-  },
-  
-  // Add the missing UID that's being used in the requests
-  "04b060fa967380": {
-    K2: "8378cb4c0660012b6c791e3858c2353b",
-    payment_method: "fakewallet"
-  },
-
-  "04d070fa967380": {
-    payment_method: "lnurlpay",
-    lnurlpay: {
-      lightning_address: "test@getalby.com",
-      min_sendable: 1000,
-      max_sendable: 1000
-    }
-  }
-};
-
-/**
- * Get configuration for a card UID from KV storage or generate it
- */
 export async function getUidConfig(uidHex, env, version = 1) {
-  // Normalize the UID to lowercase for consistency
   const normalizedUid = uidHex.toLowerCase();
   logger.trace("Looking up UID config", { uidHex: normalizedUid });
-  
-  // Step 1: Try to get from KV
+
+  // Step 1: Try to get from DO
+  try {
+    const doConfig = await getCardConfig(env, normalizedUid);
+    if (doConfig) {
+      logger.trace("Found UID config in DO", {
+        uidHex: normalizedUid,
+        paymentMethod: doConfig.payment_method,
+        hasK2: typeof doConfig.K2 === "string" && doConfig.K2.length > 0,
+      });
+      return withDeterministicK2IfMissing(normalizedUid, doConfig, env, "do", version);
+    }
+    logger.trace("No UID config found in DO", { uidHex: normalizedUid });
+  } catch (error) {
+    logger.error("Error retrieving UID config from DO", {
+      uidHex: normalizedUid,
+      error: error.message,
+    });
+  }
+
+  // Step 2: Try to get from KV
   if (env && env.UID_CONFIG) {
     try {
       const configStr = await env.UID_CONFIG.get(normalizedUid);
@@ -123,15 +89,6 @@ export async function getUidConfig(uidHex, env, version = 1) {
           paymentMethod: config.payment_method,
           hasK2: typeof config.K2 === "string" && config.K2.length > 0,
         });
-        
-        // Validation - ensure required fields exist
-        if (!config.K2) {
-          logger.warn("UID config is missing K2 key", { uidHex: normalizedUid });
-        }
-        if (!config.payment_method) {
-          logger.warn("UID config is missing payment_method", { uidHex: normalizedUid });
-        }
-        
         return config;
       }
       logger.trace("No UID config found in KV", { uidHex: normalizedUid });
@@ -141,14 +98,6 @@ export async function getUidConfig(uidHex, env, version = 1) {
         error: error.message,
       });
     }
-  } else {
-    logger.warn("KV storage not available for UID config lookup");
-  }
-
-  // Step 2: Check static configuration
-  if (staticUidConfig.hasOwnProperty(normalizedUid)) {
-    logger.trace("Using static UID config", { uidHex: normalizedUid });
-    return withDeterministicK2IfMissing(normalizedUid, staticUidConfig[normalizedUid], env, "static", version);
   }
 
   // Step 3: Generate deterministic keys as fallback

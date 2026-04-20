@@ -1,5 +1,5 @@
 import { getDeterministicKeys } from "../keygenerator.js";
-import { resetReplayProtection } from "../replayProtection.js";
+import { resetReplayProtection, setCardConfig } from "../replayProtection.js";
 import { logger } from "../utils/logger.js";
 import { htmlResponse, jsonResponse } from "../utils/responses.js";
 
@@ -238,25 +238,8 @@ export function handleActivateCardPage() {
  */
 export async function handleActivateCardSubmit(request, env) {
   try {
-    // Test KV write access first
-    logger.trace("Testing KV write access before activation");
-    const testResult = await testKvAccess(env);
-    if (!testResult.success) {
-      logger.error("KV write test failed", { error: testResult.error });
-      return jsonResponse(
-        {
-          status: "ERROR", 
-          reason: `KV access test failed: ${testResult.error}` 
-        },
-        500
-      );
-    }
-    logger.trace("KV write test succeeded");
-    
-    // Parse the JSON request body
     const data = await request.json();
     
-    // Validate the UID
     const uid = data.uid?.toLowerCase();
     if (!uid || !/^[0-9a-f]{14}$/.test(uid)) {
       return jsonResponse(
@@ -268,7 +251,6 @@ export async function handleActivateCardSubmit(request, env) {
       );
     }
     
-    // Generate deterministic keys for the UID
     const keys = await getDeterministicKeys(uid, env);
     if (!keys || !keys.k2) {
       return jsonResponse({ status: "ERROR", reason: "Failed to generate keys for the UID." }, 500);
@@ -277,119 +259,25 @@ export async function handleActivateCardSubmit(request, env) {
     logger.debug("Generated deterministic keys for activation", { uid });
     await resetReplayProtection(env, uid);
     
-    // Create configuration with fakewallet payment method
     const config = {
       K2: keys.k2,
       payment_method: "fakewallet"
     };
     
-    logger.trace("Preparing to save activated card config", {
-      uid,
-      paymentMethod: config.payment_method,
-      hasUidConfigBinding: Boolean(env?.UID_CONFIG),
-    });
-    
-    // Store in Cloudflare KV storage
-    if (env && env.UID_CONFIG) {
-      try {
-        logger.trace("Writing activated card config to KV", { uid });
-        await env.UID_CONFIG.put(uid, JSON.stringify(config));
-        logger.debug("Activated card config written to KV", { uid });
-        
-        // Verify the config was saved correctly
-        const savedConfig = await env.UID_CONFIG.get(uid);
-        logger.trace("Verified KV write for activated card", {
-          uid,
-          verified: savedConfig === JSON.stringify(config),
-        });
-        
-        return jsonResponse(
-          {
-            status: "SUCCESS", 
-            message: `Card with UID ${uid} has been activated with fakewallet payment method.`,
-            uid: uid,
-            config: config
-          },
-          201
-        );
-      } catch (error) {
-        logger.error("Failed to save activated card config", { uid, error: error.message });
-        return jsonResponse(
-          {
-            status: "ERROR", 
-            reason: `Failed to save card configuration: ${error.message}` 
-          },
-          500
-        );
-      }
-    } else {
-      logger.error("KV storage is not available for activation", {
-        hasEnv: Boolean(env),
-        hasUidConfigBinding: Boolean(env?.UID_CONFIG),
-      });
-      return jsonResponse(
-        {
-          status: "ERROR", 
-          reason: "KV storage is not available. Cannot activate card." 
-        },
-        500
-      );
-    }
+    await setCardConfig(env, uid, config);
+    logger.debug("Activated card config written to DO", { uid });
+
+    return jsonResponse(
+      {
+        status: "SUCCESS", 
+        message: `Card with UID ${uid} has been activated with fakewallet payment method.`,
+        uid: uid,
+        config: config
+      },
+      201
+    );
   } catch (error) {
     logger.error("Error activating card", { error: error.message });
     return jsonResponse({ status: "ERROR", reason: `Server error: ${error.message}` }, 500);
-  }
-}
-
-/**
- * Test KV access to diagnose writing issues
- */
-async function testKvAccess(env) {
-  try {
-    logger.trace("Checking KV environment for activation", {
-      hasEnv: !!env,
-      hasUidConfig: !!(env && env.UID_CONFIG),
-      // Check if the KV object has expected methods
-      isKvObject: !!(env && env.UID_CONFIG && typeof env.UID_CONFIG.put === 'function')
-    });
-    
-    // First check if UID_CONFIG exists in env
-    if (!env || !env.UID_CONFIG) {
-      // Try accessing global UID_CONFIG as a fallback (older Workers runtime)
-      if (typeof UID_CONFIG !== 'undefined') {
-        logger.warn("Using global UID_CONFIG fallback binding");
-        env = { UID_CONFIG };
-      } else {
-        return { 
-          success: false, 
-          error: "UID_CONFIG binding not found in environment" 
-        };
-      }
-    }
-    
-    // Try a simple write and read
-    const testKey = "kvtest_" + new Date().getTime();
-    const testValue = "test_value_" + new Date().getTime();
-    
-    await env.UID_CONFIG.put(testKey, testValue);
-    logger.trace("KV test write completed", { testKey });
-    
-    const readValue = await env.UID_CONFIG.get(testKey);
-    logger.trace("KV test read completed", { testKey, readMatched: readValue === testValue });
-    
-    if (readValue !== testValue) {
-      return {
-        success: false,
-        error: `Write verification failed: expected "${testValue}" but got "${readValue}"`
-      };
-    }
-    
-    return { success: true };
-  } catch (error) {
-    logger.error("KV test error during activation", { error: error.message });
-    return { 
-      success: false, 
-      error: error.message
-    };
   }
 }
