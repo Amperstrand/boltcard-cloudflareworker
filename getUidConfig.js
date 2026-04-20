@@ -33,13 +33,13 @@ export function getBoltCardK1(env) {
 
 import { getDeterministicKeys } from "./keygenerator.js";
 
-async function withDeterministicK2IfMissing(uidHex, config, env, source) {
+async function withDeterministicK2IfMissing(uidHex, config, env, source, version = 1) {
   if (!config || config.K2) {
     return config;
   }
 
   try {
-    const keys = await getDeterministicKeys(uidHex, env);
+    const keys = await getDeterministicKeys(uidHex, env, version);
     if (keys?.k2) {
       logger.debug("Resolved deterministic K2 for UID config", { uidHex, source });
       return { ...config, K2: keys.k2 };
@@ -107,7 +107,7 @@ export const staticUidConfig = {
 /**
  * Get configuration for a card UID from KV storage or generate it
  */
-export async function getUidConfig(uidHex, env) {
+export async function getUidConfig(uidHex, env, version = 1) {
   // Normalize the UID to lowercase for consistency
   const normalizedUid = uidHex.toLowerCase();
   logger.trace("Looking up UID config", { uidHex: normalizedUid });
@@ -148,13 +148,13 @@ export async function getUidConfig(uidHex, env) {
   // Step 2: Check static configuration
   if (staticUidConfig.hasOwnProperty(normalizedUid)) {
     logger.trace("Using static UID config", { uidHex: normalizedUid });
-    return withDeterministicK2IfMissing(normalizedUid, staticUidConfig[normalizedUid], env, "static");
+    return withDeterministicK2IfMissing(normalizedUid, staticUidConfig[normalizedUid], env, "static", version);
   }
 
   // Step 3: Generate deterministic keys as fallback
   try {
     logger.debug("Generating deterministic fallback config", { uidHex: normalizedUid });
-    const keys = await getDeterministicKeys(normalizedUid, env);
+    const keys = await getDeterministicKeys(normalizedUid, env, version);
     if (keys && keys.k2) {
       const defaultConfig = { 
         payment_method: "fakewallet", 

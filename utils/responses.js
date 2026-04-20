@@ -12,11 +12,12 @@ export function htmlResponse(html, status = 200) {
   });
 }
 
-export function buildBoltCardResponse(keys, uid, host) {
+export function buildBoltCardResponse(keys, uid, host, version = 1) {
   const hostPart = host.replace(/^https?:\/\//, "") + "/";
   return {
     CARD_NAME: `UID ${uid.toUpperCase()}`,
     ID: "1",
+    Version: version,
     K0: keys.k0.toUpperCase(),
     K1: keys.k1.toUpperCase(),
     K2: keys.k2.toUpperCase(),

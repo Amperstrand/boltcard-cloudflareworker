@@ -20,10 +20,11 @@ import { handleBulkWipeKeys } from "./handlers/bulkWipeHandler.js";
 import { handleBulkWipePage } from "./handlers/bulkWipePageHandler.js";
 import { handleAnalyticsPage, handleAnalyticsData } from "./handlers/analyticsHandler.js";
 import { hexToBytes } from "./cryptoutils.js";
+import { getDeterministicKeys } from "./keygenerator.js";
 import { logger } from "./utils/logger.js";
 import { jsonResponse } from "./utils/responses.js";
 import { checkRateLimit } from "./rateLimiter.js";
-import { checkReplayOnly, recordTapRead } from "./replayProtection.js";
+import { checkReplayOnly, recordTapRead, getCardState, activateCard } from "./replayProtection.js";
 
 const errorResponse = (reason, status = 400) =>
   jsonResponse({ status: "ERROR", reason }, status);
@@ -62,6 +63,22 @@ router.all("*", (request) => {
   return new Response("Not found", { status: 404 });
 });
 
+async function detectCardVersion(uidHex, ctr, cHex, env, latestVersion) {
+  const uidBytes = hexToBytes(uidHex);
+  const ctrBytes = hexToBytes(ctr);
+  const minVersion = Math.max(1, latestVersion - 10);
+
+  for (let v = latestVersion; v >= minVersion; v--) {
+    const keys = await getDeterministicKeys(uidHex, env, v);
+    const k2Bytes = hexToBytes(keys.k2);
+    const result = validate_cmac(uidBytes, ctrBytes, cHex, k2Bytes);
+    if (result.cmac_validated) {
+      return v;
+    }
+  }
+  return null;
+}
+
 async function handleLnurlw(request, env) {
   const { searchParams } = new URL(request.url);
   const pHex = searchParams.get("p");
@@ -96,7 +113,29 @@ async function handleLnurlw(request, env) {
 
   logger.trace("Extracted UID and counter", { uidHex, counterValue });
 
-  const config = await getUidConfig(uidHex, env);
+  // Card lifecycle state check
+  const cardState = await getCardState(env, uidHex);
+
+  if (cardState.state === "terminated") {
+    return errorResponse("Card has been terminated. Re-activate to use.", 403);
+  }
+
+  let activeVersion;
+
+  if (cardState.state === "keys_delivered") {
+    activeVersion = await detectCardVersion(uidHex, ctr, cHex, env, cardState.latest_issued_version);
+    if (activeVersion === null) {
+      return errorResponse("Unable to verify card. Version mismatch.", 403);
+    }
+    await activateCard(env, uidHex, activeVersion);
+  } else if (cardState.state === "active") {
+    activeVersion = cardState.active_version || 1;
+  } else {
+    // state === "new" — legacy card created before lifecycle feature
+    activeVersion = 1;
+  }
+
+  const config = await getUidConfig(uidHex, env, activeVersion);
   logger.trace("Configuration loaded", {
     uidHex,
     hasConfig: Boolean(config),

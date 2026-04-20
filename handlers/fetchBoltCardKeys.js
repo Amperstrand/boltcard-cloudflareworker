@@ -3,17 +3,11 @@ import { decodeAndValidate } from "../boltCardHelper.js";
 import { extractUIDAndCounter } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
-import { resetReplayProtection } from "../replayProtection.js";
+import { resetReplayProtection, getCardState, deliverKeys, terminateCard } from "../replayProtection.js";
 import { jsonResponse, buildBoltCardResponse } from "../utils/responses.js";
-
-// Ref: NXP AN12196 §8 (personalization flow), §5.8 (SUN verification)
-// Ref: docs/ntag424_llm_context.md §15 (provisioning recipe)
 
 const errorResponse = (error, status = 400) => jsonResponse({ error }, status);
 
-// NFC programmer app endpoint — handles both card programming (UpdateVersion)
-// and card reset/wipe (KeepVersion) flows.
-// Ref: NXP AN12196 §8.1 example personalization sequence
 export async function fetchBoltCardKeys(request, env) {
   if (request.method !== "POST") {
     return errorResponse("Only POST allowed", 405);
@@ -45,7 +39,7 @@ export async function fetchBoltCardKeys(request, env) {
     }
 
     if (onExisting === "KeepVersion" && uid && !lnurlw) {
-      return generateKeyResponse(uid, env, baseUrl);
+      return errorResponse("KeepVersion with UID requires card tap (LNURLW)");
     }
 
     if (onExisting === "UpdateVersion" && !uid) {
@@ -60,15 +54,35 @@ export async function fetchBoltCardKeys(request, env) {
 
 async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddress, minSendable, maxSendable) {
   const normalizedUid = uid.toLowerCase();
+
+  const cardState = await getCardState(env, normalizedUid);
+
+  if (cardState.state === "active") {
+    return errorResponse("Card is active. Terminate (wipe) the card before reprogramming.", 409);
+  }
+  if (cardState.state === "keys_delivered") {
+    return errorResponse("Keys already delivered for this activation cycle. Write the card and tap to activate.", 409);
+  }
+
+  const delivered = await deliverKeys(env, normalizedUid);
+  const version = typeof delivered === "number"
+    ? delivered
+    : delivered?.version ?? delivered?.latest_issued_version ?? delivered?.active_version;
+
+  if (!Number.isInteger(version) || version < 1) {
+    throw new Error("Invalid version returned from key delivery");
+  }
+
   await resetReplayProtection(env, normalizedUid);
 
-  if (env?.UID_CONFIG) {
-    const keys = await getDeterministicKeys(normalizedUid, env);
+  const keys = await getDeterministicKeys(normalizedUid, env, version);
 
+  if (env?.UID_CONFIG) {
     let config;
     if (cardType === "pos") {
       config = {
         K2: keys.k2,
+        version,
         payment_method: "lnurlpay",
         lnurlpay: {
           lightning_address: lightningAddress,
@@ -79,21 +93,21 @@ async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddre
     } else if (cardType === "2fa") {
       config = {
         K2: keys.k2,
+        version,
         payment_method: "twofactor",
       };
     } else {
       config = {
         K2: keys.k2,
+        version,
         payment_method: "fakewallet",
       };
     }
 
-    if (config) {
-      await env.UID_CONFIG.put(normalizedUid, JSON.stringify(config));
-    }
+    await env.UID_CONFIG.put(normalizedUid, JSON.stringify(config));
   }
 
-  return generateKeyResponse(normalizedUid, env, baseUrl, cardType);
+  return generateKeyResponse(normalizedUid, env, baseUrl, cardType, version);
 }
 
 async function handleResetFlow(lnurlw, env, baseUrl) {
@@ -106,14 +120,18 @@ async function handleResetFlow(lnurlw, env, baseUrl) {
       return errorResponse("Invalid LNURLW format: missing 'p' or 'c'");
     }
 
-    // Step 1: Decrypt PICCENCData to recover UID and SDMReadCtr
-    // (NXP AN12196 §5.8 step 3)
     const decryption = extractUIDAndCounter(pHex, env);
     if (!decryption.success) return errorResponse(decryption.error);
-    const { uidHex, ctr } = decryption;
+    const { uidHex } = decryption;
 
-    // Step 2: Look up card config (KV → static → deterministic keys)
-    const config = await getUidConfig(uidHex, env);
+    const cardState = await getCardState(env, uidHex);
+
+    if (cardState.state !== "active" && cardState.state !== "terminated" && cardState.state !== "new") {
+      return errorResponse("Card must be active or terminated to retrieve wipe keys");
+    }
+
+    const wipeVersion = cardState.active_version || 1;
+    const config = await getUidConfig(uidHex, env, wipeVersion);
 
     if (!config) {
       return errorResponse("UID not found in config");
@@ -123,32 +141,29 @@ async function handleResetFlow(lnurlw, env, baseUrl) {
       return errorResponse("K2 key not available for CMAC validation during reset flow");
     }
 
-    // Step 3: Validate CMAC with the card's K2 key
-    // (NXP AN12196 §5.8 steps 4-8)
     const k2Bytes = hexToBytes(config.K2);
     const validation = decodeAndValidate(pHex, cHex, env, k2Bytes);
     if (!validation.cmac_validated) {
       return errorResponse(validation.cmac_error || "CMAC validation failed");
     }
 
-    await resetReplayProtection(env, uidHex);
-    return generateKeyResponse(uidHex, env, baseUrl);
+    if (cardState.state === "active") {
+      await terminateCard(env, uidHex);
+    }
+
+    return generateKeyResponse(uidHex, env, baseUrl, "withdraw", wipeVersion);
   } catch (err) {
     return errorResponse("Error in generating keys: " + err.message, 500);
   }
 }
 
-// Generates the new_bolt_card_response payload expected by the NFC programmer app.
-// Contains all 5 AES keys (K0-K4) and the LNURLW base URL for the NDEF template.
-async function generateKeyResponse(uid, env, baseUrl, cardType = "withdraw") {
-  const version = 1;
+async function generateKeyResponse(uid, env, baseUrl, cardType = "withdraw", version = 1) {
   const keys = await getDeterministicKeys(uid, env, version);
   const host = baseUrl || "https://boltcardpoc.psbt.me";
   const hostPart = host.replace(/^https?:\/\//, "");
 
-  const response = buildBoltCardResponse(keys, uid, host);
+  const response = buildBoltCardResponse(keys, uid, host, version);
 
-  // Override LNURLW_BASE and LNURLW for card types that don't use lnurlw:// scheme
   if (cardType === "2fa") {
     response.LNURLW_BASE = `https://${hostPart}/2fa`;
     response.LNURLW = `https://${hostPart}/2fa`;
