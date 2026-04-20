@@ -243,6 +243,17 @@ export async function handleLoginPage(request) {
         </div>
       </div>
 
+      <div id="priv-debug-section" class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
+        <details>
+          <summary class="text-xs text-gray-500 uppercase tracking-wider cursor-pointer">Debug Info</summary>
+          <div class="mt-3 space-y-1 text-xs">
+            <div class="flex justify-between"><span class="text-gray-500">Issuer Key</span><span id="priv-debug-issuer" class="font-mono text-gray-400">-</span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Matched Version</span><span id="priv-debug-version" class="font-mono text-gray-400">-</span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Versions Scanned</span><span id="priv-debug-versions" class="font-mono text-gray-400 text-right max-w-[200px] truncate">-</span></div>
+          </div>
+        </details>
+      </div>
+
       <div id="priv-awaiting-programming" class="hidden bg-emerald-900/30 border border-emerald-500/40 rounded-lg p-4 mb-4">
         <p class="text-emerald-300 font-bold text-sm mb-1">Keys generated!</p>
         <p class="text-emerald-200/70 text-xs mb-1">Use the Bolt Card Programmer app to write these keys to your card.</p>
@@ -304,7 +315,10 @@ export async function handleLoginPage(request) {
       </div>
 
       <div id="priv-wipe-section" class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4 hidden">
-        <p class="text-xs text-gray-500 uppercase tracking-wider mb-3">Card Actions</p>
+        <div class="flex justify-between items-center mb-3">
+          <p class="text-xs text-gray-500 uppercase tracking-wider">Card Actions</p>
+          <span id="priv-wipe-version" class="text-xs text-gray-600 font-mono"></span>
+        </div>
         <div class="flex justify-center mb-3">
           <div id="qr-priv-wipe" class="qr-container"></div>
         </div>
@@ -738,6 +752,18 @@ export async function handleLoginPage(request) {
       const cmacEl = document.getElementById('priv-cmac');
       cmacEl.textContent = result.cmacValid ? 'VERIFIED' : 'FAILED';
       cmacEl.className = result.cmacValid ? 'font-mono text-emerald-400' : 'font-mono text-red-400';
+      document.getElementById('priv-debug-issuer').textContent = '-';
+      document.getElementById('priv-debug-version').textContent = '-';
+      document.getElementById('priv-debug-versions').textContent = '-';
+      if (result.debug) {
+        document.getElementById('priv-debug-issuer').textContent = result.debug.issuerKey || '-';
+        document.getElementById('priv-debug-version').textContent = result.debug.matchedVersion || '-';
+        if (result.debug.versionsTried && result.debug.versionsTried.length > 0) {
+          document.getElementById('priv-debug-versions').textContent = result.debug.versionsTried.map(function(v) {
+            return 'v' + v.version + ':' + (v.cmac ? 'OK' : 'FAIL');
+          }).join(', ');
+        }
+      }
       document.getElementById('priv-keys').innerHTML = buildKeysRows(result.k0, result.k1, result.k2, result.k3, result.k4);
       document.getElementById('priv-ndef').textContent = result.ndef || '';
       const privProgrammingSection = document.getElementById('priv-awaiting-programming');
@@ -781,6 +807,7 @@ export async function handleLoginPage(request) {
       const privUid = result.uidHex;
       const endpointUrl = API_HOST + '/api/keys?uid=' + privUid + '&format=boltcard';
       document.getElementById('priv-wipe-link').href = 'boltcard://reset?url=' + encodeURIComponent(endpointUrl);
+      document.getElementById('priv-wipe-version').textContent = 'wipe keys v' + (result.keyVersion || 1);
       wipeDeeplink.classList.remove('hidden');
       wipeFallback.classList.add('hidden');
       if (result.cardState !== 'keys_delivered' && result.cardState !== 'terminated') {
@@ -1132,6 +1159,8 @@ export async function handleLoginVerify(request, env) {
     let matchedCmacValid = false;
     let perCardSource = null;
     let keyVersion = 1;
+    let matchedVersion = null;
+    let debugInfo = { versionScan: [] };
 
     for (const candidate of candidates) {
       const tryEnv = { ...env, ISSUER_KEY: candidate.hex };
@@ -1139,44 +1168,52 @@ export async function handleLoginVerify(request, env) {
       if (!decryption.success) continue;
 
       const { uidHex, ctr } = decryption;
-      const keys = deriveKeysFromHex(uidHex, candidate.hex);
-
-      const { cmac_validated } = validate_cmac(
-        hexToBytes(uidHex),
-        hexToBytes(ctr),
-        cHex,
-        hexToBytes(keys.k2),
-      );
 
       matchedIssuer = candidate;
       matchedUid = uidHex;
       matchedCtr = ctr;
-      matchedKeys = keys;
 
-      if (cmac_validated) {
-        matchedCmacValid = true;
+      const cardState = await getCardState(env, uidHex);
+      const latestVersion = cardState?.latest_issued_version || cardState?.active_version || 1;
+      const minVersion = Math.max(1, latestVersion - 10);
+      const uidBytes = hexToBytes(uidHex);
+      const ctrBytes = hexToBytes(ctr);
+      const versionDebug = [];
 
-        const perCard = getPerCardKeys(uidHex);
-        if (perCard) {
-          perCardSource = perCard.card_name || "recovered";
-          matchedKeys = {
-            k0: perCard.k0,
-            k1: perCard.k1,
-            k2: perCard.k2,
-            k3: perCard.k1,
-            k4: perCard.k2,
-          };
-          const { cmac_validated: pcCmac } = validate_cmac(
-            hexToBytes(uidHex),
-            hexToBytes(ctr),
-            cHex,
-            hexToBytes(perCard.k2),
-          );
-          matchedCmacValid = pcCmac;
+      for (let v = latestVersion; v >= minVersion; v--) {
+        const keys = deriveKeysFromHex(uidHex, candidate.hex, v);
+        const { cmac_validated } = validate_cmac(uidBytes, ctrBytes, cHex, hexToBytes(keys.k2));
+        versionDebug.push({ version: v, cmac: cmac_validated });
+        if (cmac_validated) {
+          matchedCmacValid = true;
+          matchedVersion = v;
+          matchedKeys = keys;
+
+          const perCard = getPerCardKeys(uidHex);
+          if (perCard) {
+            perCardSource = perCard.card_name || "recovered";
+            matchedKeys = {
+              k0: perCard.k0,
+              k1: perCard.k1,
+              k2: perCard.k2,
+              k3: perCard.k1,
+              k4: perCard.k2,
+            };
+            const { cmac_validated: pcCmac } = validate_cmac(uidBytes, ctrBytes, cHex, hexToBytes(perCard.k2));
+            matchedCmacValid = pcCmac;
+          }
+
+          break;
         }
-
-        break;
       }
+
+      if (!matchedKeys) {
+        matchedKeys = deriveKeysFromHex(uidHex, candidate.hex, latestVersion);
+        matchedVersion = latestVersion;
+      }
+
+      debugInfo.versionScan = versionDebug;
+      break;
     }
 
     if (!matchedIssuer) {
@@ -1275,6 +1312,11 @@ export async function handleLoginVerify(request, env) {
         : undefined,
       keysDeliveredAt: cardState?.keys_delivered_at || null,
       keyVersion,
+      debug: {
+        versionsTried: debugInfo.versionScan,
+        matchedVersion: matchedVersion,
+        issuerKey: matchedIssuer?.label || null,
+      },
       timestamp: Date.now(),
       tapHistory,
     });
@@ -1305,7 +1347,6 @@ async function handleUidOnlyLogin(rawUid, env, request) {
     keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY || env.BOLT_CARD_K1?.split(",")[0], 1);
   }
 
-  const host = new URL(request.url).host;
   const ndefUrl = null;
 
   logger.info("NFC login (UID-only, undeployed)", { uidHex, deployed: hasDoConfig, keyVersion });

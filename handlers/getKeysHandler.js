@@ -1,6 +1,7 @@
 import { getDeterministicKeys } from "../keygenerator.js";
 import { getPerCardKeys, getAllIssuerKeyCandidates } from "../utils/keyLookup.js";
 import { jsonResponse, buildBoltCardResponse } from "../utils/responses.js";
+import { getCardState } from "../replayProtection.js";
 
 async function findFirstKeyset(normalizedUid, env) {
   const perCard = getPerCardKeys(normalizedUid);
@@ -13,9 +14,17 @@ async function findFirstKeyset(normalizedUid, env) {
     };
   }
 
+  const cardState = await getCardState(env, normalizedUid);
+  const activeVersion = cardState?.active_version || cardState?.latest_issued_version;
+  const versions = activeVersion && activeVersion > 1
+    ? [activeVersion, activeVersion - 1, 1, 0]
+    : [1, 0];
+  const seenVersions = new Set();
+  const uniqueVersions = versions.filter(v => { if (seenVersions.has(v)) return false; seenVersions.add(v); return true; });
+
   const issuerCandidates = getAllIssuerKeyCandidates(env);
   for (const candidate of issuerCandidates) {
-    for (const version of [1, 0]) {
+    for (const version of uniqueVersions) {
       try {
         const tempEnv = { ...env, ISSUER_KEY: candidate.hex };
         const keys = await getDeterministicKeys(normalizedUid, tempEnv, version);
@@ -23,7 +32,7 @@ async function findFirstKeyset(normalizedUid, env) {
           return {
             k0: keys.k0, k1: keys.k1, k2: keys.k2,
             k3: keys.k3, k4: keys.k4,
-            source: "deterministic", label: candidate.label,
+            source: "deterministic", label: candidate.label, version,
           };
         }
       } catch (e) {
@@ -93,8 +102,16 @@ export async function handleGetKeys(request, env) {
   }
 
   const issuerCandidates = getAllIssuerKeyCandidates(env);
+  const cardStateDetail = await getCardState(env, normalizedUid);
+  const activeVersionDetail = cardStateDetail?.active_version || cardStateDetail?.latest_issued_version;
+  const detailVersions = activeVersionDetail && activeVersionDetail > 1
+    ? [activeVersionDetail, activeVersionDetail - 1, 1, 0]
+    : [1, 0];
+  const seenDetail = new Set();
+  const uniqueDetailVersions = detailVersions.filter(v => { if (seenDetail.has(v)) return false; seenDetail.add(v); return true; });
+
   for (const candidate of issuerCandidates) {
-    for (const version of [1, 0]) {
+    for (const version of uniqueDetailVersions) {
       try {
         const tempEnv = { ...env, ISSUER_KEY: candidate.hex };
         const k = await getDeterministicKeys(normalizedUid, tempEnv, version);
