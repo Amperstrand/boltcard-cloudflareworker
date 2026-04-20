@@ -1,7 +1,6 @@
 import { handleRequest } from "../index.js";
-import { jest } from "@jest/globals";
 import { makeReplayNamespace } from "./replayNamespace.js";
-import { hexToBytes, bytesToHex, computeAesCmac } from "../cryptoutils.js";
+import { hexToBytes, bytesToHex } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { buildVerificationData } from "../cryptoutils.js";
 import aesjs from "aes-js";
@@ -126,7 +125,6 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
 
   test("callback records tap with bolt11 and metadata", async () => {
     const env = makeEnv();
-    const kvStore = {};
     env.UID_CONFIG = {
       get: async (uid) => {
         if (uid === TEST_UID) {
@@ -170,7 +168,6 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
 
   test("callback rejects replayed counter", async () => {
     const env = makeEnv();
-    const kvStore = {};
     env.UID_CONFIG = {
       get: async (uid) => {
         if (uid === TEST_UID) {
@@ -203,7 +200,7 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
     expect(json.reason).toMatch(/replay|counter/i);
   });
 
-  test("callback records tap status as failed on payment failure", async () => {
+  test("callback debits fakewallet balance and marks tap completed", async () => {
     const env = makeEnv();
     env.UID_CONFIG = {
       get: async (uid) => {
@@ -218,6 +215,14 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
       put: async () => {},
     };
 
+    const id = env.CARD_REPLAY.idFromName(TEST_UID);
+    const stub = env.CARD_REPLAY.get(id);
+    await stub.fetch(new Request("https://internal/credit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount: 5000, note: "Initial funding" }),
+    }));
+
     const { pHex, ctrHex } = generateRealPandC(TEST_UID, 10, BOLT_CARD_K1.split(",")[0]);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
@@ -228,18 +233,31 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
       env
     );
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.status).toBe("OK");
+    expect(json.balance).toBeLessThan(5000);
 
     const tapKey = `${TEST_UID}:10`;
     expect(env.CARD_REPLAY.__taps.has(tapKey)).toBe(true);
     const tap = env.CARD_REPLAY.__taps.get(tapKey);
-    expect(tap.status).toBe("failed");
+    expect(tap.status).toBe("completed");
     expect(tap.bolt11).toBe("lnbc10n1testinvoice");
+
+    const balanceResp = await stub.fetch(new Request("https://internal/balance"));
+    const balanceJson = await balanceResp.json();
+    expect(balanceJson.balance).toBe(json.balance);
+
+    const txResp = await stub.fetch(new Request("https://internal/transactions"));
+    const txJson = await txResp.json();
+    expect(txJson.transactions).toHaveLength(2);
+    expect(txJson.transactions[0].counter).toBe(10);
+    expect(txJson.transactions[0].amount).toBeLessThan(0);
+    expect(txJson.transactions[0].balance_after).toBe(json.balance);
   });
 
   test("recorded tap can be updated to different statuses", async () => {
     const env = makeEnv();
-    const kvStore = {};
     env.UID_CONFIG = {
       get: async (uid) => {
         if (uid === TEST_UID) {
@@ -378,7 +396,6 @@ describe("Tap tracking — login response", () => {
 
   test("POST /login tapHistory shows recorded taps", async () => {
     const env = makeEnv();
-    const kvStore = {};
 
     const keys = await getDeterministicKeys(TEST_UID, env);
     env.UID_CONFIG = {
@@ -403,7 +420,7 @@ describe("Tap tracking — login response", () => {
       null,
       env
     );
-    expect([200, 400]).toContain(callbackResp.status);
+    expect(callbackResp.status).toBe(200);
 
     const loginResp = await makeRequest(
       "/login",
@@ -418,7 +435,7 @@ describe("Tap tracking — login response", () => {
     expect(loginJson.tapHistory).toHaveLength(1);
     expect(loginJson.tapHistory[0].counter).toBe(15);
     expect(loginJson.tapHistory[0].bolt11).toBe("lnbc10n1testinvoice");
-    expect(["completed", "failed"]).toContain(loginJson.tapHistory[0].status);
+    expect(loginJson.tapHistory[0].status).toBe("completed");
   });
 
   test("POST /login tapHistory is empty when no taps recorded", async () => {

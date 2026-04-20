@@ -3,12 +3,8 @@ import { getUidConfig } from "../getUidConfig.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse } from "../utils/responses.js";
-import { recordTap, updateTapStatus } from "../replayProtection.js";
+import { recordTap, updateTapStatus, debitCard } from "../replayProtection.js";
 import { decodeBolt11Amount } from "../utils/bolt11.js";
-
-// Per-isolate counter for fakewallet test mode (alternates success/failure).
-// Resets on isolate eviction — not suitable for production payment logic.
-let fakewalletCounter = 0;
 
 export async function handleLnurlpPayment(request, env) {
   try {
@@ -131,7 +127,7 @@ export async function handleLnurlpPayment(request, env) {
         return jsonResponse({ status: "ERROR", reason: "Tap recording unavailable" }, 500);
       }
 
-      const withdrawalResponse = await processWithdrawalPayment(normalizedUidHex, invoice, env);
+      const withdrawalResponse = await processWithdrawalPayment(normalizedUidHex, invoice, env, counterValue);
 
       if (withdrawalResponse.status === 200 || withdrawalResponse.status === 201) {
         await updateTapStatus(env, normalizedUidHex, counterValue, "completed").catch(e => logger.warn("Failed to update tap status to completed", { uidHex: normalizedUidHex, error: e.message }));
@@ -153,7 +149,7 @@ export async function handleLnurlpPayment(request, env) {
   }
 }
 
-export async function processWithdrawalPayment(uid, pr, env) {
+export async function processWithdrawalPayment(uid, pr, env, counterValue) {
   if (!uid) {
     logger.error("Received undefined UID in processWithdrawalPayment");
     return jsonResponse({ status: "ERROR", reason: "Invalid UID" }, 400);
@@ -174,16 +170,15 @@ export async function processWithdrawalPayment(uid, pr, env) {
     return jsonResponse({ status: "ERROR", reason: "UID configuration not found" }, 400);
   }
 
-  // Handle fakewallet payment method with alternating failure/success
   if (config.payment_method === "fakewallet") {
-    fakewalletCounter++;
-    if (fakewalletCounter % 2 === 0) {
-      logger.info("Fakewallet simulated failure", { uid });
-      return jsonResponse({ status: "ERROR", reason: "Simulated fakewallet failure" }, 400);
-    } else {
-      logger.info("Fakewallet simulated success", { uid });
-      return jsonResponse({ status: "OK", message: "Payment processed successfully by fakewallet" }, 200);
+    const amount = decodeBolt11Amount(pr) || 0;
+    const result = await debitCard(env, uid, counterValue, amount, `Payment: ${amount} units`);
+    if (result.ok) {
+      logger.info("Fakewallet payment processed", { uid, amount, balance: result.balance });
+      return jsonResponse({ status: "OK", message: "Payment processed", balance: result.balance }, 200);
     }
+    logger.error("Fakewallet debit failed", { uid, amount, reason: result.reason });
+    return jsonResponse({ status: "ERROR", reason: result.reason || "Debit failed" }, 500);
   }
 
   // Handle CLN REST payment method
