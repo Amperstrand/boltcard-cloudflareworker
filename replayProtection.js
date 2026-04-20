@@ -248,3 +248,37 @@ export async function terminateCard(env, uidHex) {
 
   return response.json();
 }
+
+export async function getCardConfig(env, uidHex) {
+  if (!env?.CARD_REPLAY) {
+    return null;
+  }
+
+  const id = env.CARD_REPLAY.idFromName(uidHex.toLowerCase());
+  const stub = env.CARD_REPLAY.get(id);
+  const response = await stub.fetch(
+    new Request("https://card-replay.internal/get-config")
+  );
+
+  if (!response.ok) {
+    return null;
+  }
+
+  return response.json();
+}
+
+export async function setCardConfig(env, uidHex, config) {
+  if (!env?.CARD_REPLAY) {
+    return;
+  }
+
+  const id = env.CARD_REPLAY.idFromName(uidHex.toLowerCase());
+  const stub = env.CARD_REPLAY.get(id);
+  await stub.fetch(
+    new Request("https://card-replay.internal/set-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+    })
+  );
+}

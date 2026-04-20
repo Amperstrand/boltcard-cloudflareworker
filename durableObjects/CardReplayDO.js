@@ -38,6 +38,15 @@ export class CardReplayDO extends DurableObject {
           keys_delivered_at INTEGER
         )
       `);
+      this.sql.exec(`
+        CREATE TABLE IF NOT EXISTS card_config (
+          singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+          K2 TEXT,
+          payment_method TEXT NOT NULL DEFAULT 'fakewallet',
+          config_json TEXT,
+          updated_at INTEGER
+        )
+      `);
     });
   }
 
@@ -86,6 +95,14 @@ export class CardReplayDO extends DurableObject {
 
     if (request.method === "POST" && url.pathname === "/terminate") {
       return this.handleTerminate();
+    }
+
+    if (request.method === "GET" && url.pathname === "/get-config") {
+      return this.handleGetConfig();
+    }
+
+    if (request.method === "POST" && url.pathname === "/set-config") {
+      return this.handleSetConfig(request);
     }
 
     if (request.method === "POST" && url.pathname === "/reset") {
@@ -358,5 +375,47 @@ export class CardReplayDO extends DurableObject {
     this.sql.exec("DELETE FROM taps");
     this.sql.exec("DELETE FROM replay_state WHERE singleton = 1");
     return Response.json(rows.toArray()[0]);
+  }
+
+  handleGetConfig() {
+    const rows = this.sql.exec(
+      `SELECT K2, payment_method, config_json, updated_at FROM card_config WHERE singleton = 1`
+    ).toArray();
+    if (rows.length === 0) {
+      return Response.json(null);
+    }
+    const row = rows[0];
+    let config = { payment_method: row.payment_method };
+    if (row.K2) config.K2 = row.K2;
+    if (row.config_json) {
+      try {
+        const extra = JSON.parse(row.config_json);
+        config = { ...config, ...extra };
+      } catch {}
+    }
+    return Response.json(config);
+  }
+
+  handleSetConfig(request) {
+    return request.json().then((config) => {
+      const { K2, payment_method, ...rest } = config;
+      const method = payment_method || "fakewallet";
+      const k2 = K2 || null;
+      const configJson = Object.keys(rest).length > 0 ? JSON.stringify(rest) : null;
+      const now = Math.floor(Date.now() / 1000);
+
+      this.sql.exec(
+        `INSERT INTO card_config (singleton, K2, payment_method, config_json, updated_at)
+         VALUES (1, ?, ?, ?, ?)
+         ON CONFLICT(singleton) DO UPDATE SET
+           K2 = excluded.K2,
+           payment_method = excluded.payment_method,
+           config_json = excluded.config_json,
+           updated_at = excluded.updated_at`,
+        k2, method, configJson, now
+      );
+
+      return Response.json({ ok: true });
+    });
   }
 }
