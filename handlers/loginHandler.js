@@ -7,12 +7,23 @@ import { htmlResponse, jsonResponse } from "../utils/responses.js";
 import { getAllIssuerKeyCandidates, getPerCardKeys } from "../utils/keyLookup.js";
 import { PERCARD_KEYS } from "../utils/generatedKeyData.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
-import { listTaps, getCardState, getCardConfig, terminateCard, requestWipe, recordTapRead } from "../replayProtection.js";
+import { listTaps, getCardState, getCardConfig, terminateCard, requestWipe, recordTapRead, getBalance, creditCard } from "../replayProtection.js";
 import { validateUid, getRequestOrigin } from "../utils/validation.js";
+
+const DEFAULT_PULL_PAYMENT_ID = "fUDXsnySxvb5LYZ1bSLiWzLjVuT";
+
+function resolvePullPaymentId(env, cardConfig) {
+  return cardConfig?.pull_payment_id || env.DEFAULT_PULL_PAYMENT_ID || DEFAULT_PULL_PAYMENT_ID;
+}
+
+function buildProgrammingEndpoint(requestOrigin, pullPaymentId) {
+  return `${requestOrigin}/api/v1/pull-payments/${pullPaymentId}/boltcards?onExisting=UpdateVersion`;
+}
 
 export async function handleLoginPage(request) {
   const host = getRequestOrigin(request);
-  return htmlResponse(renderLoginPage({ host }));
+  const defaultProgrammingEndpoint = `${host}/api/v1/pull-payments/${DEFAULT_PULL_PAYMENT_ID}/boltcards?onExisting=UpdateVersion`;
+  return htmlResponse(renderLoginPage({ host, defaultProgrammingEndpoint }));
 }
 
 export async function handleLoginVerify(request, env) {
@@ -27,6 +38,9 @@ export async function handleLoginVerify(request, env) {
       }
       if (body.action === "terminate") {
         return await handleTerminateAction(rawUid, env, request);
+      }
+      if (body.action === "top-up") {
+        return handleTopUpAction(body.uid, body.amount, env, request);
       }
       return await handleUidOnlyLogin(rawUid, env, request);
     }
@@ -147,9 +161,12 @@ export async function handleLoginVerify(request, env) {
     const pm = config?.payment_method || "unknown";
 
     const cardState = await getCardState(env, uidHex);
-    const hasDoConfig = (await getCardConfig(env, uidHex)) !== null;
+    const cardConfig = await getCardConfig(env, uidHex);
+    const hasDoConfig = cardConfig !== null;
     const deployed = hasDoConfig || !!perCardSource;
     keyVersion = cardState?.active_version || cardState?.latest_issued_version || 1;
+    const pullPaymentId = resolvePullPaymentId(env, cardConfig);
+    const programmingEndpoint = buildProgrammingEndpoint(requestOrigin, pullPaymentId);
 
     const host = new URL(request.url).host;
     const path = pm === "twofactor" ? "/2fa" : "/";
@@ -172,6 +189,13 @@ export async function handleLoginVerify(request, env) {
       tapHistory = tapData.taps || [];
     } catch (e) {
       logger.warn("Could not load tap history", { uidHex, error: e.message });
+    }
+
+    let balanceData = { balance: 0 };
+    try {
+      balanceData = await getBalance(env, uidHex);
+    } catch (e) {
+      logger.warn("Could not fetch balance", { uidHex, error: e.message });
     }
 
     recordTapRead(env, uidHex, counterValue, {
@@ -197,9 +221,8 @@ export async function handleLoginVerify(request, env) {
       public: !!perCardSource,
       deployed,
       cardState: cardState?.state || "new",
-      programmingEndpoint: cardState?.state === "keys_delivered"
-        ? `${requestOrigin}/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion`
-        : undefined,
+      balance: balanceData.balance,
+      programmingEndpoint: cardState?.state === "keys_delivered" ? programmingEndpoint : undefined,
       keysDeliveredAt: cardState?.keys_delivered_at || null,
       keyVersion,
       debug: {
@@ -219,15 +242,17 @@ export async function handleLoginVerify(request, env) {
 async function handleUidOnlyLogin(rawUid, env, request) {
   const requestOrigin = getRequestOrigin(request);
   const uidHex = validateUid(rawUid.replace(/:/g, ""));
-  const programmingEndpoint = `${requestOrigin}/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion`;
   if (!uidHex) {
     return jsonResponse({ success: false, error: "Invalid UID format" }, 400);
   }
 
   const cardState = await getCardState(env, uidHex);
-  const hasDoConfig = (await getCardConfig(env, uidHex)) !== null;
+  const cardConfig = await getCardConfig(env, uidHex);
+  const hasDoConfig = cardConfig !== null;
   const config = await getUidConfig(uidHex, env);
   const pm = config?.payment_method || "fakewallet";
+  const pullPaymentId = resolvePullPaymentId(env, cardConfig);
+  const programmingEndpoint = buildProgrammingEndpoint(requestOrigin, pullPaymentId);
 
   let keyVersion = 1;
   let keys;
@@ -250,6 +275,13 @@ async function handleUidOnlyLogin(rawUid, env, request) {
     logger.warn("Could not load tap history", { uidHex, error: e.message });
   }
 
+  let balanceData = { balance: 0 };
+  try {
+    balanceData = await getBalance(env, uidHex);
+  } catch (e) {
+    logger.warn("Could not fetch balance", { uidHex, error: e.message });
+  }
+
   recordTapRead(env, uidHex, null, {
     userAgent: request.headers.get("user-agent"),
     requestUrl: request.url,
@@ -264,6 +296,7 @@ async function handleUidOnlyLogin(rawUid, env, request) {
     deployed: hasDoConfig,
     cardState: cardState?.state || "new",
     awaitingProgramming: cardState?.state === "keys_delivered",
+    balance: balanceData.balance,
     keysDeliveredAt: cardState?.keys_delivered_at || null,
     programmingEndpoint,
     keyVersion,
@@ -295,7 +328,9 @@ async function handleTerminateAction(rawUid, env, request) {
   await terminateCard(env, uidHex);
 
   const newState = await getCardState(env, uidHex);
-  const programmingEndpoint = `${requestOrigin}/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion`;
+  const cardConfig = await getCardConfig(env, uidHex);
+  const pullPaymentId = resolvePullPaymentId(env, cardConfig);
+  const programmingEndpoint = buildProgrammingEndpoint(requestOrigin, pullPaymentId);
 
   logger.info("Card terminated via wipe confirmation", { uidHex, previousVersion: cardState.active_version, newVersion: newState.latest_issued_version });
 
@@ -326,6 +361,9 @@ async function handleRequestWipeAction(rawUid, env, request) {
   await requestWipe(env, uidHex);
 
   const endpointUrl = `${requestOrigin}/api/keys?uid=${uidHex}&format=boltcard`;
+  const cardConfig = await getCardConfig(env, uidHex);
+  const pullPaymentId = resolvePullPaymentId(env, cardConfig);
+  const programmingEndpoint = buildProgrammingEndpoint(requestOrigin, pullPaymentId);
 
   logger.info("Wipe keys fetched", { uidHex, version });
 
@@ -337,10 +375,11 @@ async function handleRequestWipeAction(rawUid, env, request) {
     k0: keys.k0,
     k1: keys.k1,
     k2: keys.k2,
-    k3: keys.k3,
-    k4: keys.k4,
-    wipeDeeplink: `boltcard://reset?url=${encodeURIComponent(endpointUrl)}`,
-    wipeJson: JSON.stringify({
+      k3: keys.k3,
+      k4: keys.k4,
+      programmingEndpoint,
+      wipeDeeplink: `boltcard://reset?url=${encodeURIComponent(endpointUrl)}`,
+      wipeJson: JSON.stringify({
       version: version,
       action: "wipe",
       k0: keys.k0.toLowerCase(),
@@ -350,6 +389,28 @@ async function handleRequestWipeAction(rawUid, env, request) {
       k4: keys.k4.toLowerCase(),
     }, null, 2),
   });
+}
+
+async function handleTopUpAction(rawUid, rawAmount, env, request) {
+  void request;
+  const uidHex = validateUid(rawUid);
+  if (!uidHex) return jsonResponse({ success: false, error: "Invalid UID format" }, 400);
+
+  const amount = parseInt(rawAmount, 10);
+  if (!Number.isInteger(amount) || amount <= 0) {
+    return jsonResponse({ success: false, error: "Amount must be a positive integer" }, 400);
+  }
+
+  try {
+    const result = await creditCard(env, uidHex, amount, "Manual top-up via login page");
+    if (result.ok) {
+      return jsonResponse({ success: true, balance: result.balance, message: `Credited ${amount} units` });
+    }
+    return jsonResponse({ success: false, error: result.reason || "Top-up failed" }, 500);
+  } catch (e) {
+    logger.error("Top-up failed", { uidHex, amount, error: e.message });
+    return jsonResponse({ success: false, error: "Top-up failed: " + e.message }, 500);
+  }
 }
 
 function getUniquePerCardK1s() {

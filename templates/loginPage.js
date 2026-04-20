@@ -1,4 +1,4 @@
-export function renderLoginPage({ host }) {
+export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
   return `<!DOCTYPE html>
 <html lang="en" class="dark">
   <head>
@@ -220,9 +220,21 @@ export function renderLoginPage({ host }) {
           <div class="flex justify-between"><span class="text-gray-500">Key Version</span><span id="priv-version" class="font-mono text-gray-300">-</span></div>
           <div class="flex justify-between"><span class="text-gray-500">State</span><span id="priv-state" class="font-mono text-gray-300">-</span></div>
           <div class="flex justify-between"><span class="text-gray-500">Counter</span><span id="priv-counter" class="font-mono text-gray-300">0</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">Balance</span><span id="priv-balance" class="font-mono text-emerald-400">0</span></div>
           <div class="flex justify-between"><span class="text-gray-500">Issuer Key</span><span id="priv-issuer" class="font-mono text-gray-300 text-xs">-</span></div>
           <div class="flex justify-between"><span class="text-gray-500">CMAC</span><span id="priv-cmac" class="font-mono text-emerald-400">-</span></div>
         </div>
+      </div>
+
+      <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wider mb-3">Top Up Balance</p>
+        <div class="flex gap-2">
+          <input type="number" id="topup-amount" placeholder="Amount" min="1" class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-gray-200 text-sm focus:border-emerald-500 focus:outline-none" />
+          <button onclick="topUpBalance()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded transition-colors text-sm">
+            TOP UP
+          </button>
+        </div>
+        <p id="topup-status" class="text-xs mt-2 hidden"></p>
       </div>
 
       <div id="priv-debug-section" class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
@@ -436,7 +448,9 @@ export function renderLoginPage({ host }) {
     let nfcAbortController = null;
     let lastNfcReadTime = 0;
     const API_HOST = "${host}";
-    const PROGRAMMING_ENDPOINT_PATH = '/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion';
+    const DEFAULT_PROGRAMMING_ENDPOINT = "${defaultProgrammingEndpoint}";
+    let currentUid = null;
+    let currentProgrammingEndpoint = DEFAULT_PROGRAMMING_ENDPOINT;
 
     if (!('NDEFReader' in window)) {
       document.getElementById('nfc-not-supported').classList.remove('hidden');
@@ -602,8 +616,12 @@ export function renderLoginPage({ host }) {
         '<tr><td class="pr-3 text-gray-500">K4</td><td class="font-mono text-xs text-gray-400">' + (k4 || '-') + '</td></tr>';
     }
 
+    function setCurrentProgrammingEndpoint(endpointUrl) {
+      currentProgrammingEndpoint = endpointUrl || DEFAULT_PROGRAMMING_ENDPOINT;
+    }
+
     function buildProgrammingEndpointUrl() {
-      return API_HOST + PROGRAMMING_ENDPOINT_PATH;
+      return currentProgrammingEndpoint || DEFAULT_PROGRAMMING_ENDPOINT;
     }
 
     function buildProgrammingDeeplink(endpointUrl) {
@@ -679,6 +697,7 @@ export function renderLoginPage({ host }) {
       clearErrors();
       hideAllViews();
       currentUndeployedUid = result.uidHex;
+      setCurrentProgrammingEndpoint(result.programmingEndpoint);
       document.getElementById('undep-uid-display').textContent = 'UID: ' + result.uidHex.toUpperCase();
       document.getElementById('undep-version').textContent = result.keyVersion || 1;
       document.getElementById('undep-state').textContent = result.cardState || 'new';
@@ -731,6 +750,8 @@ export function renderLoginPage({ host }) {
     function showPrivateCard(result) {
       clearErrors();
       hideAllViews();
+      currentUid = result.uidHex;
+      setCurrentProgrammingEndpoint(result.programmingEndpoint);
       const cardType = result.cardType || 'unknown';
       const typeLabels = { fakewallet: 'WITHDRAW', lnurlpay: 'POS', twofactor: '2FA' };
 
@@ -740,7 +761,12 @@ export function renderLoginPage({ host }) {
       document.getElementById('priv-version').textContent = result.keyVersion || '-';
       document.getElementById('priv-state').textContent = result.cardState || '-';
       document.getElementById('priv-counter').textContent = result.counterValue;
+      if (result.balance !== undefined) {
+        document.getElementById('priv-balance').textContent = result.balance;
+      }
       document.getElementById('priv-issuer').textContent = result.issuerKey || 'current';
+      document.getElementById('topup-amount').value = '';
+      document.getElementById('topup-status').classList.add('hidden');
       const cmacEl = document.getElementById('priv-cmac');
       cmacEl.textContent = result.cmacValid ? 'VERIFIED' : 'FAILED';
       cmacEl.className = result.cmacValid ? 'font-mono text-emerald-400' : 'font-mono text-red-400';
@@ -828,6 +854,7 @@ export function renderLoginPage({ host }) {
       clearErrors();
       hideAllViews();
       currentTerminatedUid = result.uidHex;
+      setCurrentProgrammingEndpoint(result.programmingEndpoint);
       const prevVersion = result.keyVersion || 1;
       const nextVersion = prevVersion + 1;
       document.getElementById('term-uid-display').textContent = 'UID: ' + result.uidHex.toUpperCase();
@@ -848,6 +875,7 @@ export function renderLoginPage({ host }) {
       clearErrors();
       hideAllViews();
       currentTerminatedUid = result.uidHex;
+      setCurrentProgrammingEndpoint(result.programmingEndpoint);
       const version = result.keyVersion || 1;
       document.getElementById('wiped-uid-display').textContent = 'UID: ' + result.uidHex.toUpperCase();
       document.getElementById('wiped-version').textContent = version;
@@ -892,6 +920,7 @@ export function renderLoginPage({ host }) {
               uidHex: uid,
               keyVersion: data.keyVersion || 2,
               cardState: 'terminated',
+              programmingEndpoint: data.programmingEndpoint,
             });
           }, 1500);
         } else {
@@ -949,6 +978,42 @@ export function renderLoginPage({ host }) {
       }
     }
 
+    async function topUpBalance() {
+      const amountInput = document.getElementById('topup-amount');
+      const statusEl = document.getElementById('topup-status');
+      const amount = parseInt(amountInput.value, 10);
+      if (!amount || amount <= 0) {
+        statusEl.textContent = 'Enter a positive amount';
+        statusEl.className = 'text-xs mt-2 text-red-400';
+        statusEl.classList.remove('hidden');
+        return;
+      }
+      statusEl.textContent = 'Processing...';
+      statusEl.className = 'text-xs mt-2 text-gray-400';
+      statusEl.classList.remove('hidden');
+
+      try {
+        const resp = await fetch(API_HOST + '/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid: currentUid, action: 'top-up', amount }),
+        });
+        const result = await resp.json();
+        if (result.success) {
+          document.getElementById('priv-balance').textContent = result.balance;
+          amountInput.value = '';
+          statusEl.textContent = result.message;
+          statusEl.className = 'text-xs mt-2 text-emerald-400';
+        } else {
+          statusEl.textContent = result.error || 'Top-up failed';
+          statusEl.className = 'text-xs mt-2 text-red-400';
+        }
+      } catch(e) {
+        statusEl.textContent = 'Error: ' + e.message;
+        statusEl.className = 'text-xs mt-2 text-red-400';
+      }
+    }
+
     async function autoConfirmWipe(result) {
       clearErrors();
       hideAllViews();
@@ -960,12 +1025,13 @@ export function renderLoginPage({ host }) {
           body: JSON.stringify({ uid: result.uidHex, action: 'terminate' }),
         });
         const data = await resp.json();
-        if (data.success) {
-          showTerminatedCard({
-            uidHex: result.uidHex,
-            keyVersion: data.keyVersion || (result.keyVersion + 1),
-            cardState: 'terminated',
-          });
+          if (data.success) {
+            showTerminatedCard({
+              uidHex: result.uidHex,
+              keyVersion: data.keyVersion || (result.keyVersion + 1),
+              cardState: 'terminated',
+              programmingEndpoint: data.programmingEndpoint,
+            });
         } else {
           showPersistentError('Failed to confirm wipe: ' + (data.error || 'unknown'));
         }
