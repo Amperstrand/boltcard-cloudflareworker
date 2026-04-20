@@ -11,8 +11,6 @@
     "wrangler": "^4.59.3"
   },
   "dependencies": {
-    "@jridgewell/sourcemap-codec": "^1.5.0",
-    "@rollup/plugin-inject": "^5.0.5",
     "aes-js": "^3.1.2",
     "itty-router": "^5.0.23"
   },
