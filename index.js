@@ -287,17 +287,23 @@ export { CardReplayDO } from "./durableObjects/CardReplayDO.js";
 export default {
   async fetch(request, env, ctx) {
     logger.logRequest(request);
+    void ctx;
 
-    const { allowed, remaining, resetAt } = await checkRateLimit(request, env);
-    if (!allowed) {
-      const response = jsonResponse({ status: "ERROR", reason: "Rate limit exceeded" }, 429);
-      response.headers.set("Retry-After", String(Math.ceil((resetAt - Date.now()) / 1000)));
-      response.headers.set("X-RateLimit-Remaining", "0");
+    try {
+      const { allowed, remaining, resetAt } = await checkRateLimit(request, env);
+      if (!allowed) {
+        const response = jsonResponse({ status: "ERROR", reason: "Rate limit exceeded" }, 429);
+        response.headers.set("Retry-After", String(Math.ceil((resetAt - Date.now()) / 1000)));
+        response.headers.set("X-RateLimit-Remaining", "0");
+        return response;
+      }
+
+      const response = await router.fetch(request, env);
+      response.headers.set("X-RateLimit-Remaining", String(remaining));
       return response;
+    } catch (error) {
+      logger.error("Unhandled request error", { error: error.message, url: request.url });
+      return jsonResponse({ status: "ERROR", reason: "Internal server error" }, 500);
     }
-
-    const response = await router.fetch(request, env);
-    response.headers.set("X-RateLimit-Remaining", String(remaining));
-    return response;
   },
 };
