@@ -1217,7 +1217,11 @@ export async function handleLoginPage(request) {
             }
           } finally {
             if (!abortController.signal.aborted) {
-              scheduleNfcRestart();
+              // If a card view was shown, delay restart so the user can lift the
+              // card off the reader.  An immediate restart would re-read the same
+              // card and waste another NTAG 424 SDMReadCtr tick.
+              const cardShown = document.getElementById('login-view').classList.contains('hidden');
+              setTimeout(() => startNfc().catch(() => {}), cardShown ? 5000 : 0);
             }
           }
         };
