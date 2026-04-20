@@ -3,6 +3,7 @@ import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { deriveOtpSecret, generateTOTP, generateHOTP } from "../utils/otp.js";
 import { logger } from "../utils/logger.js";
+import { getRequestOrigin } from "../utils/validation.js";
 
 const TOTP_DOMAIN_TAG = "2d003f80";
 const HOTP_DOMAIN_TAG = "2d003f81";
@@ -47,7 +48,7 @@ export async function handleTwoFactor(request, env) {
 
   logger.info("2FA codes generated", { uidHex, counterValue });
 
-  const baseUrl = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
+  const baseUrl = getRequestOrigin(request);
 
   return renderTwoFactorPage(uidHex, totp, hotp, counterValue, pHex, cHex, baseUrl);
 }

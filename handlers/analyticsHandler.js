@@ -1,7 +1,13 @@
 import { getAnalytics } from "../replayProtection.js";
 import { htmlResponse } from "../utils/responses.js";
+import { validateUid } from "../utils/validation.js";
 
-export async function handleAnalyticsPage(request) {
+const BROWSER_VALIDATE_UID_HELPER = `
+    const UID_REGEX = /^[0-9a-f]{14}$/;
+    ${validateUid.toString()}
+`;
+
+export async function handleAnalyticsPage() {
   return htmlResponse(analyticsPageHtml);
 }
 
@@ -126,6 +132,8 @@ const analyticsPageHtml = `<!DOCTYPE html>
   </div>
 
   <script>
+${BROWSER_VALIDATE_UID_HELPER}
+
     function formatMsat(msat) {
       if (!msat || msat === 0) return '0 sats';
       var sats = msat / 1000;
@@ -136,24 +144,25 @@ const analyticsPageHtml = `<!DOCTYPE html>
 
     async function loadAnalytics() {
       var uid = document.getElementById('uid-input').value.trim().toLowerCase();
+      var normalizedUid = validateUid(uid);
       var errEl = document.getElementById('lookup-error');
       errEl.classList.add('hidden');
 
-      if (!uid || !/^[0-9a-f]{14}$/.test(uid)) {
+      if (!normalizedUid) {
         errEl.textContent = 'Invalid UID — must be 14 hex characters';
         errEl.classList.remove('hidden');
         return;
       }
 
       try {
-        var resp = await fetch('/analytics/data?uid=' + uid);
+        var resp = await fetch('/analytics/data?uid=' + normalizedUid);
         if (!resp.ok) {
           errEl.textContent = 'Failed to load analytics (HTTP ' + resp.status + ')';
           errEl.classList.remove('hidden');
           return;
         }
         var data = await resp.json();
-        renderAnalytics(uid, data);
+        renderAnalytics(normalizedUid, data);
       } catch (e) {
         errEl.textContent = 'Error: ' + e.message;
         errEl.classList.remove('hidden');

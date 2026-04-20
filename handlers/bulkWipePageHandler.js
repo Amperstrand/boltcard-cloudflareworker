@@ -1,4 +1,10 @@
 import { ISSUER_KEYS_BY_DOMAIN } from '../utils/generatedKeyData.js';
+import { validateUid } from '../utils/validation.js';
+
+const BROWSER_VALIDATE_UID_HELPER = `
+          const UID_REGEX = /^[0-9a-f]{14}$/;
+          ${validateUid.toString()}
+`;
 
 export function handleBulkWipePage(request) {
   const url = new URL(request.url);
@@ -91,6 +97,8 @@ ${keyOptionsHtml}                <option value="custom">Custom key...</option>
         </div>
 
         <script>
+${BROWSER_VALIDATE_UID_HELPER}
+
           const baseUrl = "${baseUrl}";
 
           // Toggle custom key section
@@ -159,7 +167,7 @@ ${keyOptionsHtml}                <option value="custom">Custom key...</option>
             }
 
             // Validate UIDs
-            const invalidUids = uids.filter(u => !/^[0-9a-f]{14}$/.test(u));
+            const invalidUids = uids.filter(u => !validateUid(u));
             if (invalidUids.length > 0) {
               showError('Invalid UID format (must be 14 hex chars): ' + invalidUids.join(', '));
               return;

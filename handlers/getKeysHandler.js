@@ -2,6 +2,7 @@ import { getDeterministicKeys } from "../keygenerator.js";
 import { getPerCardKeys, getAllIssuerKeyCandidates } from "../utils/keyLookup.js";
 import { jsonResponse, buildBoltCardResponse } from "../utils/responses.js";
 import { getCardState } from "../replayProtection.js";
+import { validateUid } from "../utils/validation.js";
 
 async function findFirstKeyset(normalizedUid, env) {
   const perCard = getPerCardKeys(normalizedUid);
@@ -59,40 +60,40 @@ export async function handleGetKeys(request, env) {
     let uid = uidParam;
     if (!uid && body.UID) uid = body.UID;
     if (!uid && body.uid) uid = body.uid;
+    const validatedUid = validateUid(uid);
 
-    if (!uid || !/^[0-9a-fA-F]{14}$/.test(uid)) {
+    if (!validatedUid) {
       return jsonResponse({ error: "Invalid or missing UID (must be 14 hex chars)" }, 400);
     }
 
-    const normalizedUid = uid.toLowerCase();
-    const keys = await findFirstKeyset(normalizedUid, env);
+    const keys = await findFirstKeyset(validatedUid, env);
     if (!keys) {
-      return jsonResponse({ error: "No keys found for UID", uid: normalizedUid }, 404);
+      return jsonResponse({ error: "No keys found for UID", uid: validatedUid }, 404);
     }
 
-    return jsonResponse(buildBoltCardResponse(keys, normalizedUid, baseUrl));
+    return jsonResponse(buildBoltCardResponse(keys, validatedUid, baseUrl));
   }
 
   if (!uidParam) {
     return jsonResponse({ error: "Missing required parameter: uid" }, 400);
   }
 
-  const normalizedUid = uidParam.toLowerCase();
-  if (!/^[0-9a-f]{14}$/i.test(normalizedUid)) {
+  const validatedUid = validateUid(uidParam);
+  if (!validatedUid) {
     return jsonResponse({ error: "Invalid UID: must be exactly 14 hex characters (7 bytes)" }, 400);
   }
 
   if (url.searchParams.get("format") === "boltcard") {
-    const keys = await findFirstKeyset(normalizedUid, env);
+    const keys = await findFirstKeyset(validatedUid, env);
     if (!keys) {
-      return jsonResponse({ error: "No keys found for UID", uid: normalizedUid }, 404);
+      return jsonResponse({ error: "No keys found for UID", uid: validatedUid }, 404);
     }
-    return jsonResponse(buildBoltCardResponse(keys, normalizedUid, baseUrl));
+    return jsonResponse(buildBoltCardResponse(keys, validatedUid, baseUrl));
   }
 
   const keysets = [];
 
-  const perCard = getPerCardKeys(normalizedUid);
+  const perCard = getPerCardKeys(validatedUid);
   if (perCard) {
     keysets.push({
       k0: perCard.k0, k1: perCard.k1, k2: perCard.k2,
@@ -102,7 +103,7 @@ export async function handleGetKeys(request, env) {
   }
 
   const issuerCandidates = getAllIssuerKeyCandidates(env);
-  const cardStateDetail = await getCardState(env, normalizedUid);
+  const cardStateDetail = await getCardState(env, validatedUid);
   const activeVersionDetail = cardStateDetail?.active_version || cardStateDetail?.latest_issued_version;
   const detailVersions = activeVersionDetail && activeVersionDetail > 1
     ? [activeVersionDetail, activeVersionDetail - 1, 1, 0]
@@ -114,7 +115,7 @@ export async function handleGetKeys(request, env) {
     for (const version of uniqueDetailVersions) {
       try {
         const tempEnv = { ...env, ISSUER_KEY: candidate.hex };
-        const k = await getDeterministicKeys(normalizedUid, tempEnv, version);
+        const k = await getDeterministicKeys(validatedUid, tempEnv, version);
         keysets.push({
           k0: k.k0, k1: k.k1, k2: k.k2, k3: k.k3, k4: k.k4,
           version, source: "deterministic", label: candidate.label, card_key: k.cardKey,
@@ -126,8 +127,8 @@ export async function handleGetKeys(request, env) {
   }
 
   if (keysets.length === 0) {
-    return jsonResponse({ error: "No keys found for this UID", uid: normalizedUid }, 404);
+    return jsonResponse({ error: "No keys found for this UID", uid: validatedUid }, 404);
   }
 
-  return jsonResponse({ uid: normalizedUid, keysets });
+  return jsonResponse({ uid: validatedUid, keysets });
 }

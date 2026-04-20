@@ -2,6 +2,12 @@ import { getDeterministicKeys } from "../keygenerator.js";
 import { resetReplayProtection, setCardConfig } from "../replayProtection.js";
 import { logger } from "../utils/logger.js";
 import { htmlResponse, jsonResponse } from "../utils/responses.js";
+import { validateUid } from "../utils/validation.js";
+
+const BROWSER_VALIDATE_UID_HELPER = `
+        const UID_REGEX = /^[0-9a-f]{14}$/;
+        ${validateUid.toString()}
+`;
 
 /**
  * Serves the card activation page
@@ -121,6 +127,8 @@ export function handleActivateCardPage() {
       </div>
 
       <script>
+        ${BROWSER_VALIDATE_UID_HELPER}
+
         // NFC Scanning functionality
         document.getElementById('scan-nfc').addEventListener('click', async function() {
           const nfcStatus = document.getElementById('nfc-status');
@@ -144,20 +152,21 @@ export function handleActivateCardPage() {
               if (event.serialNumber) {
                 // Clean up the UID format - remove colons and convert to lowercase
                 const formattedUid = event.serialNumber.replace(/:/g, '').toLowerCase();
+                const validatedUid = validateUid(formattedUid);
                 
                 // Verify the UID is correct length after cleaning
-                if (!/^[0-9a-f]{14}$/.test(formattedUid)) {
+                if (!validatedUid) {
                   nfcStatus.className = 'error';
                   nfcStatus.textContent = 'Invalid UID format after processing. Expected 14 hex characters.';
                   return;
                 }
                 
                 // Update the input field with the formatted UID
-                uidInput.value = formattedUid;
+                uidInput.value = validatedUid;
                 
                 // Update status
                 nfcStatus.className = 'success';
-                nfcStatus.textContent = 'Successfully scanned card UID: ' + formattedUid;
+                nfcStatus.textContent = 'Successfully scanned card UID: ' + validatedUid;
               } else {
                 nfcStatus.className = 'error';
                 nfcStatus.textContent = 'Could not read UID from card. Please try again.';
@@ -186,13 +195,16 @@ export function handleActivateCardPage() {
             // Strip colons and convert to lowercase for the UID field
             data[key] = key === 'uid' ? value.replace(/:/g, '').toLowerCase() : value;
           });
+          const validatedUid = validateUid(data.uid);
           
           // Validate UID format after stripping colons
-          if (!/^[0-9a-f]{14}$/.test(data.uid)) {
+          if (!validatedUid) {
             result.className = 'error';
             result.textContent = 'Error: UID must be exactly 7 bytes (14 hex characters)';
             return;
           }
+
+          data.uid = validatedUid;
 
           try {
             const response = await fetch('/activate', {
@@ -240,8 +252,8 @@ export async function handleActivateCardSubmit(request, env) {
   try {
     const data = await request.json();
     
-    const uid = data.uid?.toLowerCase();
-    if (!uid || !/^[0-9a-f]{14}$/.test(uid)) {
+    const uid = validateUid(data.uid);
+    if (!uid) {
       return jsonResponse(
         {
           status: "ERROR", 

@@ -7,9 +7,10 @@ import { getAllIssuerKeyCandidates, getPerCardKeys } from "../utils/keyLookup.js
 import { PERCARD_KEYS } from "../utils/generatedKeyData.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
 import { listTaps, getCardState, getCardConfig, terminateCard, requestWipe, recordTapRead } from "../replayProtection.js";
+import { validateUid, getRequestOrigin } from "../utils/validation.js";
 
 export async function handleLoginPage(request) {
-  const host = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
+  const host = getRequestOrigin(request);
 
   const html = `<!DOCTYPE html>
 <html lang="en" class="dark">
@@ -1271,6 +1272,7 @@ export async function handleLoginVerify(request, env) {
   try {
     const body = await request.json();
     const { p: pHex, c: cHex, uid: rawUid } = body;
+    const requestOrigin = getRequestOrigin(request);
 
     if (rawUid && !pHex && !cHex) {
       if (body.action === "request-wipe") {
@@ -1449,7 +1451,7 @@ export async function handleLoginVerify(request, env) {
       deployed,
       cardState: cardState?.state || "new",
       programmingEndpoint: cardState?.state === "keys_delivered"
-        ? `${new URL(request.url).origin}/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion`
+        ? `${requestOrigin}/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion`
         : undefined,
       keysDeliveredAt: cardState?.keys_delivered_at || null,
       keyVersion,
@@ -1468,9 +1470,10 @@ export async function handleLoginVerify(request, env) {
 }
 
 async function handleUidOnlyLogin(rawUid, env, request) {
-  const uidHex = rawUid.replace(/:/g, "").toLowerCase();
-  const programmingEndpoint = `${new URL(request.url).origin}/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion`;
-  if (!/^[0-9a-f]{14}$/.test(uidHex)) {
+  const requestOrigin = getRequestOrigin(request);
+  const uidHex = validateUid(rawUid.replace(/:/g, ""));
+  const programmingEndpoint = `${requestOrigin}/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion`;
+  if (!uidHex) {
     return jsonResponse({ success: false, error: "Invalid UID format" }, 400);
   }
 
@@ -1531,8 +1534,9 @@ async function handleUidOnlyLogin(rawUid, env, request) {
 }
 
 async function handleTerminateAction(rawUid, env, request) {
-  const uidHex = rawUid.replace(/:/g, "").toLowerCase();
-  if (!/^[0-9a-f]{14}$/.test(uidHex)) {
+  const requestOrigin = getRequestOrigin(request);
+  const uidHex = validateUid(rawUid.replace(/:/g, ""));
+  if (!uidHex) {
     return jsonResponse({ success: false, error: "Invalid UID format" }, 400);
   }
 
@@ -1544,7 +1548,7 @@ async function handleTerminateAction(rawUid, env, request) {
   await terminateCard(env, uidHex);
 
   const newState = await getCardState(env, uidHex);
-  const programmingEndpoint = `${new URL(request.url).origin}/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion`;
+  const programmingEndpoint = `${requestOrigin}/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion`;
 
   logger.info("Card terminated via wipe confirmation", { uidHex, previousVersion: cardState.active_version, newVersion: newState.latest_issued_version });
 
@@ -1558,8 +1562,9 @@ async function handleTerminateAction(rawUid, env, request) {
 }
 
 async function handleRequestWipeAction(rawUid, env, request) {
-  const uidHex = rawUid.replace(/:/g, "").toLowerCase();
-  if (!/^[0-9a-f]{14}$/.test(uidHex)) {
+  const requestOrigin = getRequestOrigin(request);
+  const uidHex = validateUid(rawUid.replace(/:/g, ""));
+  if (!uidHex) {
     return jsonResponse({ success: false, error: "Invalid UID format" }, 400);
   }
 
@@ -1573,8 +1578,7 @@ async function handleRequestWipeAction(rawUid, env, request) {
 
   await requestWipe(env, uidHex);
 
-  const host = new URL(request.url).host;
-  const endpointUrl = `https://${host}/api/keys?uid=${uidHex}&format=boltcard`;
+  const endpointUrl = `${requestOrigin}/api/keys?uid=${uidHex}&format=boltcard`;
 
   logger.info("Wipe keys fetched", { uidHex, version });
 
