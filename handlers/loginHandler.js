@@ -6,7 +6,7 @@ import { jsonResponse } from "../utils/responses.js";
 import { getAllIssuerKeyCandidates, getPerCardKeys } from "../utils/keyLookup.js";
 import { PERCARD_KEYS } from "../utils/generatedKeyData.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
-import { listTaps, getCardState, getCardConfig } from "../replayProtection.js";
+import { listTaps, getCardState, getCardConfig, terminateCard } from "../replayProtection.js";
 
 export async function handleLoginPage(request) {
   const host = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
@@ -385,6 +385,48 @@ export async function handleLoginPage(request) {
         NFC active — tap card again to refresh
       </p>
     </div>
+
+    <!-- Session View: Wiped Card Detection (active in system, no NDEF found) -->
+    <div id="wiped-detection-view" class="max-w-md w-full hidden">
+      <div class="text-center mb-6">
+        <div class="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-full px-4 py-1 mb-2">
+          <span class="text-amber-400 text-sm font-semibold">CARD APPEARS WIPED</span>
+        </div>
+        <p class="text-gray-500 text-xs font-mono mt-2" id="wiped-uid-display"></p>
+      </div>
+
+      <div class="bg-amber-900/30 border border-amber-500/40 rounded-lg p-4 mb-4">
+        <p class="text-amber-300 font-bold text-sm mb-1">No NDEF record found on this card</p>
+        <p class="text-amber-200/70 text-xs mb-1">This card is registered as <span class="text-amber-300 font-semibold">active</span> (version <span id="wiped-version" class="font-mono">1</span>) but has no NDEF data.</p>
+        <p class="text-amber-200/70 text-xs">This usually means the card has been physically wiped or factory reset.</p>
+      </div>
+
+      <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wider mb-3">Card Details</p>
+        <div class="space-y-2 text-sm">
+          <div class="flex justify-between"><span class="text-gray-500">Key Version</span><span id="wiped-key-version" class="font-mono text-gray-300">1</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">State in System</span><span class="font-mono text-amber-400">active</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">NDEF Found</span><span class="font-mono text-red-400">No</span></div>
+        </div>
+      </div>
+
+      <div class="bg-gray-800 border border-red-500/30 rounded-lg p-4 mb-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wider mb-3">Confirm Card Wipe</p>
+        <p class="text-gray-400 text-xs mb-3">Confirming will mark this card as terminated and prepare it for re-provisioning at version <span id="wiped-next-version" class="font-mono text-emerald-400">2</span>.</p>
+        <button id="wiped-confirm-btn" onclick="confirmWipedCard()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-4 rounded transition-colors mb-2">
+          YES, THIS CARD HAS BEEN WIPED
+        </button>
+        <button onclick="hideAllViews(); document.getElementById('login-view').classList.remove('hidden');" class="w-full bg-gray-700 hover:bg-gray-600 text-gray-300 font-bold py-2 px-4 rounded transition-colors text-sm">
+          CANCEL
+        </button>
+        <div id="wiped-confirm-status" class="hidden mt-3 text-center text-sm"></div>
+      </div>
+
+      <p class="text-center text-xs text-gray-600 mt-4">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1"></span>
+        NFC active — tap card again to refresh
+      </p>
+    </div>
   </body>
 
   <script>
@@ -496,6 +538,7 @@ export async function handleLoginPage(request) {
       document.getElementById('public-view').classList.add('hidden');
       document.getElementById('private-view').classList.add('hidden');
       document.getElementById('terminated-view').classList.add('hidden');
+      document.getElementById('wiped-detection-view').classList.add('hidden');
     }
 
     function showPersistentError(msg) {
@@ -777,6 +820,68 @@ export async function handleLoginPage(request) {
       document.getElementById('terminated-view').classList.remove('hidden');
     }
 
+    function showWipedCard(result) {
+      clearErrors();
+      hideAllViews();
+      currentTerminatedUid = result.uidHex;
+      const version = result.keyVersion || 1;
+      document.getElementById('wiped-uid-display').textContent = 'UID: ' + result.uidHex.toUpperCase();
+      document.getElementById('wiped-version').textContent = version;
+      document.getElementById('wiped-key-version').textContent = version;
+      document.getElementById('wiped-next-version').textContent = version + 1;
+      const btn = document.getElementById('wiped-confirm-btn');
+      btn.disabled = false;
+      btn.textContent = 'YES, THIS CARD HAS BEEN WIPED';
+      btn.classList.remove('opacity-50', 'bg-gray-600');
+      btn.classList.add('bg-red-600', 'hover:bg-red-500');
+      document.getElementById('wiped-confirm-status').classList.add('hidden');
+      document.getElementById('wiped-detection-view').classList.remove('hidden');
+    }
+
+    async function confirmWipedCard() {
+      const uid = currentTerminatedUid;
+      if (!uid) return;
+      const btn = document.getElementById('wiped-confirm-btn');
+      const status = document.getElementById('wiped-confirm-status');
+      btn.disabled = true;
+      btn.textContent = 'TERMINATING...';
+      btn.classList.add('opacity-50');
+      status.classList.remove('hidden');
+      status.className = 'mt-3 text-center text-sm text-gray-400';
+      status.textContent = 'Terminating card...';
+
+      try {
+        const resp = await fetch(API_HOST + '/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid: uid, action: 'terminate' }),
+        });
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+          status.className = 'mt-3 text-center text-sm text-emerald-400';
+          status.textContent = 'Card terminated. Ready for re-provision at version ' + (data.keyVersion || 2) + '.';
+          btn.textContent = 'TERMINATED';
+          btn.classList.remove('bg-red-600', 'hover:bg-red-500');
+          btn.classList.add('bg-gray-600');
+          setTimeout(function() {
+            showTerminatedCard({
+              uidHex: uid,
+              keyVersion: data.keyVersion || 2,
+              cardState: 'terminated',
+            });
+          }, 1500);
+        } else {
+          throw new Error(data.error || 'Termination failed');
+        }
+      } catch (e) {
+        status.className = 'mt-3 text-center text-sm text-red-400';
+        status.textContent = 'Error: ' + e.message;
+        btn.disabled = false;
+        btn.textContent = 'YES, THIS CARD HAS BEEN WIPED';
+        btn.classList.remove('opacity-50');
+      }
+    }
+
     async function reprovisionCard() {
       if (!currentTerminatedUid) return;
       const btn = document.getElementById('term-provision-btn');
@@ -955,6 +1060,8 @@ export async function handleLoginPage(request) {
                   if (result.deployed) {
                     if (result.cardState === 'terminated') {
                       showTerminatedCard(result);
+                    } else if (result.cardState === 'active') {
+                      showWipedCard(result);
                     } else {
                       showPrivateCard(result);
                     }
@@ -1006,6 +1113,9 @@ export async function handleLoginVerify(request, env) {
     const { p: pHex, c: cHex, uid: rawUid } = body;
 
     if (rawUid && !pHex && !cHex) {
+      if (body.action === "terminate") {
+        return await handleTerminateAction(rawUid, env, request);
+      }
       return await handleUidOnlyLogin(rawUid, env, request);
     }
 
@@ -1222,6 +1332,33 @@ async function handleUidOnlyLogin(rawUid, env, request) {
     public: false,
     timestamp: Date.now(),
     tapHistory: [],
+  });
+}
+
+async function handleTerminateAction(rawUid, env, request) {
+  const uidHex = rawUid.replace(/:/g, "").toLowerCase();
+  if (!/^[0-9a-f]{14}$/.test(uidHex)) {
+    return jsonResponse({ success: false, error: "Invalid UID format" }, 400);
+  }
+
+  const cardState = await getCardState(env, uidHex);
+  if (cardState.state !== "active") {
+    return jsonResponse({ success: false, error: `Card is in '${cardState.state}' state, cannot terminate. Only active cards can be terminated.` }, 400);
+  }
+
+  await terminateCard(env, uidHex);
+
+  const newState = await getCardState(env, uidHex);
+  const programmingEndpoint = `${new URL(request.url).origin}/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion`;
+
+  logger.info("Card terminated via wipe confirmation", { uidHex, previousVersion: cardState.active_version, newVersion: newState.latest_issued_version });
+
+  return jsonResponse({
+    success: true,
+    uidHex,
+    cardState: newState.state,
+    keyVersion: newState.latest_issued_version || (cardState.active_version || 1),
+    programmingEndpoint,
   });
 }
 

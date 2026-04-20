@@ -69,15 +69,44 @@ handleLoginVerify                              [handlers/loginHandler.js]
     v
 Response determines view:
     |
+    |-- deployed=true, cardState=active (UID-only) -> wiped detection view
     |-- deployed=true  -> private view (keys, version, state, tap history, wipe)
     |-- deployed=false -> undeployed view (preview keys, provision button)
     |-- compromised   -> public view (recovered keys from CSV dump)
+```
+
+### Wipe Detection (UID-only tap on active card)
+
+When a card is tapped and only the UID is read (no NDEF URL record), but the card is registered as "active" in the system, it means the NDEF was erased — the card was physically wiped or factory reset outside our system.
+
+```
+NFC Tap (no NDEF, UID only)
+    |
+    v
+POST /login {uid}
+    |
+    v
+handleUidOnlyLogin → cardState="active", deployed=true
+    |
+    v
+Frontend: "Card appears wiped" view
+    |
+    | User confirms "YES, THIS CARD HAS BEEN WIPED"
+    v
+POST /login {uid, action: "terminate"}
+    |
+    v
+handleTerminateAction → terminateCard() → state="terminated"
+    |
+    v
+Frontend: terminated view → re-provision at version N+1
 ```
 
 ### Card Lifecycle State Machine
 
 ```
 new -> keys_delivered -> active -> terminated -> (re-provision) -> keys_delivered
+                         \-> (physical wipe detected) -> terminated -> re-provision at version N+1
  ^                                                                            |
  +----------------------------------------------------------------------------+
 ```
