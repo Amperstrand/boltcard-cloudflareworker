@@ -262,7 +262,66 @@ export class CardReplayDO extends DurableObject {
       limit
     ).toArray();
 
-    return Response.json({ taps });
+    const stateRows = this.sql.exec(
+      `SELECT state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at
+       FROM card_state WHERE singleton = 1`
+    ).toArray();
+    const cardState = stateRows[0] || null;
+
+    const events = [];
+
+    if (cardState) {
+      if (cardState.keys_delivered_at) {
+        events.push({
+          counter: null,
+          bolt11: null,
+          status: 'provisioned',
+          payment_hash: null,
+          amount_msat: null,
+          user_agent: null,
+          request_url: null,
+          created_at: cardState.keys_delivered_at,
+          updated_at: cardState.keys_delivered_at,
+          version: cardState.latest_issued_version,
+        });
+      }
+      if (cardState.activated_at) {
+        events.push({
+          counter: null,
+          bolt11: null,
+          status: 'activated',
+          payment_hash: null,
+          amount_msat: null,
+          user_agent: null,
+          request_url: null,
+          created_at: cardState.activated_at,
+          updated_at: cardState.activated_at,
+          version: cardState.active_version,
+        });
+      }
+      if (cardState.terminated_at) {
+        events.push({
+          counter: null,
+          bolt11: null,
+          status: 'terminated',
+          payment_hash: null,
+          amount_msat: null,
+          user_agent: null,
+          request_url: null,
+          created_at: cardState.terminated_at,
+          updated_at: cardState.terminated_at,
+          version: null,
+        });
+      }
+    }
+
+    const merged = [...taps, ...events].sort((a, b) => {
+      const timeDiff = (b.created_at || 0) - (a.created_at || 0);
+      if (timeDiff !== 0) return timeDiff;
+      return (b.counter || 0) - (a.counter || 0);
+    });
+
+    return Response.json({ taps: merged.slice(0, limit) });
   }
 
   handleAnalytics() {

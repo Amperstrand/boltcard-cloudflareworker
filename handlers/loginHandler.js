@@ -490,12 +490,15 @@ export async function handleLoginPage(request) {
 
     function statusBadge(status) {
       var map = {
-        read:      'bg-sky-500/10 text-sky-400 border-sky-500/30',
-        completed: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-        failed:    'bg-red-500/10 text-red-400 border-red-500/30',
-        pending:   'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
-        paying:    'bg-blue-500/10 text-blue-400 border-blue-500/30',
-        expired:   'bg-gray-600/10 text-gray-400 border-gray-500/30',
+        read:        'bg-sky-500/10 text-sky-400 border-sky-500/30',
+        provisioned: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+        activated:   'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+        terminated:  'bg-red-500/10 text-red-400 border-red-500/30',
+        completed:   'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+        failed:      'bg-red-500/10 text-red-400 border-red-500/30',
+        pending:     'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
+        paying:      'bg-blue-500/10 text-blue-400 border-blue-500/30',
+        expired:     'bg-gray-600/10 text-gray-400 border-gray-500/30',
       };
       var cls = map[status] || map.pending;
       return '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ' + cls + '">' + status + '</span>';
@@ -524,12 +527,13 @@ export async function handleLoginPage(request) {
         html += '<div class="flex items-center justify-between text-xs py-1.5 border-b border-gray-700/50 last:border-0">'
           + '<div class="flex items-center gap-3">'
           + '<span class="text-gray-500 w-20 shrink-0">' + time + '</span>'
-          + '<span class="font-mono text-gray-400">#' + t.counter + '</span>'
+          + (t.counter != null ? '<span class="font-mono text-gray-400">#' + t.counter + '</span>' : '<span class="font-mono text-gray-500">—</span>')
           + statusBadge(t.status)
           + '</div>'
           + '<div class="flex items-center gap-3">'
           + (t.amount_msat ? '<span class="font-mono text-emerald-400/70 text-[11px]">' + formatMsat(t.amount_msat) + '</span>' : '')
-          + '<span class="font-mono text-gray-500 truncate max-w-[120px]" title="' + esc(t.bolt11) + '">' + esc(invoice) + '</span>'
+          + (t.version ? '<span class="font-mono text-purple-400/70 text-[11px]">v' + t.version + '</span>' : '')
+          + (t.bolt11 ? '<span class="font-mono text-gray-500 truncate max-w-[120px]" title="' + esc(t.bolt11) + '">' + esc(invoice) + '</span>' : '')
           + (ua ? '<span class="text-gray-600 truncate max-w-[100px] hidden md:inline" title="' + esc(t.user_agent) + '">' + esc(ua) + '</span>' : '')
           + '</div></div>';
       }
