@@ -137,7 +137,7 @@ export async function handleLnurlPayCallback(request, env) {
 
     const invoice = await resolveLightningAddress(lightningAddress, amountMsat);
 
-    await updateTapStatus(env, uidHex, counterValue, invoice.pr ? "completed" : "failed").catch(() => {});
+    await updateTapStatus(env, uidHex, counterValue, invoice.pr ? "completed" : "failed").catch(e => logger.warn("Failed to update tap status", { uidHex, error: e.message }));
 
     return jsonResponse(invoice);
   } catch (error) {

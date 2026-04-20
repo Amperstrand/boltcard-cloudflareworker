@@ -1,3 +1,5 @@
+import { logger } from "./utils/logger.js";
+
 const legacyCardState = {
   state: "legacy",
   latest_issued_version: 0,
@@ -47,7 +49,7 @@ export async function recordTapRead(env, uidHex, counterValue, { userAgent, requ
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ counterValue, userAgent, requestUrl }),
     })
-  ).catch(() => {});
+  ).catch(e => logger.warn("Failed to record tap read", { uidHex, counterValue, error: e.message }));
 }
 
 export async function recordTap(env, uidHex, counterValue, { bolt11, amountMsat, userAgent, requestUrl } = {}) {

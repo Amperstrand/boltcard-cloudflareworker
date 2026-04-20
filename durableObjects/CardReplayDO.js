@@ -41,7 +41,9 @@ export class CardReplayDO extends DurableObject {
       `);
       try {
         this.sql.exec(`ALTER TABLE card_state ADD COLUMN wipe_keys_fetched_at INTEGER`);
-      } catch {}
+      } catch (e) {
+        // Column already exists — expected on subsequent initializations
+      }
       this.sql.exec(`
         CREATE TABLE IF NOT EXISTS card_config (
           singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
@@ -493,7 +495,9 @@ export class CardReplayDO extends DurableObject {
       try {
         const extra = JSON.parse(row.config_json);
         config = { ...config, ...extra };
-      } catch {}
+      } catch (e) {
+        console.warn("Failed to parse card_config.config_json", { error: e.message });
+      }
     }
     return Response.json(config);
   }

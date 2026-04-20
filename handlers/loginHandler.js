@@ -1423,7 +1423,7 @@ export async function handleLoginVerify(request, env) {
     recordTapRead(env, uidHex, counterValue, {
       userAgent: request.headers.get("user-agent"),
       requestUrl: request.url,
-    }).catch(() => {});
+    }).catch(e => logger.warn("Failed to record login tap", { uidHex, counterValue, error: e.message }));
 
     return jsonResponse({
       success: true,
@@ -1498,7 +1498,7 @@ async function handleUidOnlyLogin(rawUid, env, request) {
   recordTapRead(env, uidHex, null, {
     userAgent: request.headers.get("user-agent"),
     requestUrl: request.url,
-  }).catch(() => {});
+  }).catch(e => logger.warn("Failed to record UID-only login tap", { uidHex, error: e.message }));
 
   return jsonResponse({
     success: true,

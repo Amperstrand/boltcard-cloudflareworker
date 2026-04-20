@@ -6,7 +6,8 @@ import { jsonResponse } from "../utils/responses.js";
 import { recordTap, updateTapStatus } from "../replayProtection.js";
 import { decodeBolt11Amount } from "../utils/bolt11.js";
 
-// Global counter for fakewallet payments
+// Per-isolate counter for fakewallet test mode (alternates success/failure).
+// Resets on isolate eviction — not suitable for production payment logic.
 let fakewalletCounter = 0;
 
 export async function handleLnurlpPayment(request, env) {
@@ -133,9 +134,9 @@ export async function handleLnurlpPayment(request, env) {
       const withdrawalResponse = await processWithdrawalPayment(normalizedUidHex, invoice, env);
 
       if (withdrawalResponse.status === 200 || withdrawalResponse.status === 201) {
-        await updateTapStatus(env, normalizedUidHex, counterValue, "completed").catch(() => {});
+        await updateTapStatus(env, normalizedUidHex, counterValue, "completed").catch(e => logger.warn("Failed to update tap status to completed", { uidHex: normalizedUidHex, error: e.message }));
       } else {
-        await updateTapStatus(env, normalizedUidHex, counterValue, "failed").catch(() => {});
+        await updateTapStatus(env, normalizedUidHex, counterValue, "failed").catch(e => logger.warn("Failed to update tap status to failed", { uidHex: normalizedUidHex, error: e.message }));
       }
       
       // If processWithdrawalPayment returns a Response, forward it.
