@@ -1,8 +1,36 @@
-export const makeReplayNamespace = (initialCounters = {}) => {
+export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => {
   const counters = new Map(
     Object.entries(initialCounters).map(([uid, value]) => [uid.toLowerCase(), value])
   );
   const taps = new Map();
+  const cardStates = new Map();
+
+  // Pre-activate cards from initialCards: { uid: version }
+  // If a UID has counters but no explicit card entry, default to active version 1
+  const allUids = new Set([
+    ...counters.keys(),
+    ...Object.keys(initialCards).map(u => u.toLowerCase()),
+  ]);
+  for (const uid of allUids) {
+    const version = initialCards[uid] ?? 1;
+    cardStates.set(uid, {
+      state: "active",
+      latest_issued_version: version,
+      active_version: version,
+      activated_at: Math.floor(Date.now() / 1000),
+      terminated_at: null,
+      keys_delivered_at: null,
+    });
+  }
+
+  const getDefaultState = () => ({
+    state: "new",
+    latest_issued_version: 0,
+    active_version: null,
+    activated_at: null,
+    terminated_at: null,
+    keys_delivered_at: null,
+  });
 
   return {
     idFromName: (name) => name.toLowerCase(),
@@ -11,9 +39,63 @@ export const makeReplayNamespace = (initialCounters = {}) => {
         const url = new URL(request.url);
         const idStr = String(id).toLowerCase();
 
+        if (request.method === "GET" && url.pathname === "/card-state") {
+          if (!cardStates.has(idStr)) {
+            return Response.json(getDefaultState());
+          }
+          return Response.json(cardStates.get(idStr));
+        }
+
+        if (request.method === "POST" && url.pathname === "/deliver-keys") {
+          const current = cardStates.get(idStr) || getDefaultState();
+          const now = Math.floor(Date.now() / 1000);
+          const newState = {
+            ...current,
+            state: "keys_delivered",
+            latest_issued_version: current.latest_issued_version + 1,
+            keys_delivered_at: now,
+            active_version: null,
+            activated_at: null,
+            terminated_at: null,
+          };
+          cardStates.set(idStr, newState);
+          return Response.json(newState);
+        }
+
+        if (request.method === "POST" && url.pathname === "/activate") {
+          const { active_version } = await request.json();
+          const current = cardStates.get(idStr) || getDefaultState();
+          const now = Math.floor(Date.now() / 1000);
+          const newState = {
+            ...current,
+            state: "active",
+            active_version,
+            activated_at: now,
+          };
+          cardStates.set(idStr, newState);
+          return Response.json(newState);
+        }
+
+        if (request.method === "POST" && url.pathname === "/terminate") {
+          const current = cardStates.get(idStr) || getDefaultState();
+          const now = Math.floor(Date.now() / 1000);
+          const newState = {
+            ...current,
+            state: "terminated",
+            terminated_at: now,
+          };
+          cardStates.set(idStr, newState);
+          counters.delete(idStr);
+          for (const [key] of taps) {
+            if (key.startsWith(`${idStr}:`)) {
+              taps.delete(key);
+            }
+          }
+          return Response.json(newState);
+        }
+
         if (request.method === "POST" && url.pathname === "/reset") {
           counters.delete(idStr);
-          // Also clear all taps for this id
           for (const [key] of taps) {
             if (key.startsWith(`${idStr}:`)) {
               taps.delete(key);
@@ -37,7 +119,6 @@ export const makeReplayNamespace = (initialCounters = {}) => {
             );
           }
 
-          // Read-only: don't record the counter
           return Response.json({ accepted: true, lastCounter });
         }
 
@@ -76,7 +157,6 @@ export const makeReplayNamespace = (initialCounters = {}) => {
             );
           }
 
-          // Record the counter and tap metadata atomically
           counters.set(idStr, counterValue);
           const tapKey = `${idStr}:${counterValue}`;
           const now = Math.floor(Date.now() / 1000);
@@ -102,7 +182,7 @@ export const makeReplayNamespace = (initialCounters = {}) => {
             return Response.json({ error: "Missing counter or status" }, { status: 400 });
           }
 
-          const validStatuses = ["pending", "paying", "completed", "failed", "expired"];
+          const validStatuses = ["read", "pending", "paying", "completed", "failed", "expired"];
           if (!validStatuses.includes(status)) {
             return Response.json({ error: `Invalid status: ${status}` }, { status: 400 });
           }
@@ -143,7 +223,6 @@ export const makeReplayNamespace = (initialCounters = {}) => {
           const tapList = [];
           let count = 0;
 
-          // Get all taps for this id, sorted by counter DESC
           for (const [key, tap] of taps) {
             if (key.startsWith(`${idStr}:`)) {
               tapList.push(tap);
@@ -181,5 +260,16 @@ export const makeReplayNamespace = (initialCounters = {}) => {
     }),
     __counters: counters,
     __taps: taps,
+    __cardStates: cardStates,
+    __activate(uid, version = 1) {
+      cardStates.set(uid.toLowerCase(), {
+        state: "active",
+        latest_issued_version: version,
+        active_version: version,
+        activated_at: Math.floor(Date.now() / 1000),
+        terminated_at: null,
+        keys_delivered_at: null,
+      });
+    },
   };
 };

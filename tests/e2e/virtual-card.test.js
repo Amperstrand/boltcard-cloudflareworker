@@ -96,8 +96,9 @@ async function provisionCard(uid, env, extra = "") {
   );
   expect(resp.status).toBe(200);
   const json = await resp.json();
-  const keys = await getDeterministicKeys(uid, env);
-  return { json, keys };
+  const version = json.Version || 1;
+  const keys = await getDeterministicKeys(uid, env, version);
+  return { json, keys, version };
 }
 
 // ── E2E: LNURL-withdraw (fakewallet) ────────────────────────────────────────
@@ -239,13 +240,28 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     );
     expect(env.CARD_REPLAY.__counters.get(UID)).toBe(5);
 
-    // Wipe
+    // Mark card as active so wipe endpoint accepts it
+    env.CARD_REPLAY.__cardStates.get(UID.toLowerCase()).state = "active";
+    env.CARD_REPLAY.__cardStates.get(UID.toLowerCase()).active_version = 1;
+
+    // Wipe — card becomes terminated, counter reset
     const wipeResp = await makeRequest(`/wipe?uid=${UID}`, "GET", null, env);
     expect(wipeResp.status).toBe(200);
     expect(env.CARD_REPLAY.__counters.has(UID)).toBe(false);
 
-    // Counter=1 accepted after wipe
-    const tap1 = virtualCardTap(UID, 1, k1Hex, keys.k2);
+    // Terminated card cannot be tapped
+    const blockedTap = virtualCardTap(UID, 1, k1Hex, keys.k2);
+    const blockedResp = await makeRequest(`/?p=${blockedTap.pHex}&c=${blockedTap.cHex}`, "GET", null, env);
+    expect(blockedResp.status).toBe(403);
+
+    // Re-provision (terminated → keys_delivered, version 2)
+    const reprov = await provisionCard(UID, env);
+    expect(reprov.version).toBe(2);
+
+    env.CARD_REPLAY.__cardStates.get(UID.toLowerCase()).state = "active";
+    env.CARD_REPLAY.__cardStates.get(UID.toLowerCase()).active_version = 2;
+
+    const tap1 = virtualCardTap(UID, 1, k1Hex, reprov.keys.k2);
     const after = await makeRequest(`/?p=${tap1.pHex}&c=${tap1.cHex}`, "GET", null, env);
     expect(after.status).toBe(200);
   });

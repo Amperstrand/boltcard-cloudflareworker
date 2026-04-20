@@ -314,6 +314,9 @@ describe("response patterns", () => {
     let savedConfig = JSON.parse(kvEnv.__kvStore[uid]);
     expect(savedConfig.payment_method).toBe("fakewallet");
 
+    // Terminate card before reprogramming to a different card type
+    kvEnv.CARD_REPLAY.__cardStates.get(uid.toLowerCase()).state = "terminated";
+
     const posResponse = await makeRequest(
       "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion&card_type=pos&lightning_address=merchant%40getalby.com&min_sendable=2000&max_sendable=2000",
       "POST",
@@ -324,6 +327,9 @@ describe("response patterns", () => {
     savedConfig = JSON.parse(kvEnv.__kvStore[uid]);
     expect(savedConfig.payment_method).toBe("lnurlpay");
     expect(savedConfig.lnurlpay.lightning_address).toBe("merchant@getalby.com");
+
+    // Terminate again before reprogramming back to withdraw
+    kvEnv.CARD_REPLAY.__cardStates.get(uid.toLowerCase()).state = "terminated";
 
     const withdrawAgainResponse = await makeRequest(
       "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion",
