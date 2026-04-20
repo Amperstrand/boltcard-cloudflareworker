@@ -79,8 +79,9 @@ export async function handleLnurlpPayment(request, env) {
       });
 
       const invoice = params.get("pr");
-      if (!invoice) {
-        return jsonResponse({ status: "ERROR", reason: "Missing invoice parameter in query string" }, 400);
+      const explicitAmount = params.get("amount");
+      if (!invoice && !explicitAmount) {
+        return jsonResponse({ status: "ERROR", reason: "Missing pr or amount parameter" }, 400);
       }
 
       // Step 1: Decrypt PICCENCData to recover UID and SDMReadCtr
@@ -113,8 +114,8 @@ export async function handleLnurlpPayment(request, env) {
 
       try {
         const tapResult = await recordTap(env, normalizedUidHex, counterValue, {
-          bolt11: invoice,
-          amountMsat: decodeBolt11Amount(invoice),
+          bolt11: invoice || "fakewallet",
+          amountMsat: explicitAmount != null ? parseInt(explicitAmount, 10) : decodeBolt11Amount(invoice),
           userAgent: request.headers.get("User-Agent") || null,
           requestUrl: request.url,
         });
@@ -127,7 +128,7 @@ export async function handleLnurlpPayment(request, env) {
         return jsonResponse({ status: "ERROR", reason: "Tap recording unavailable" }, 500);
       }
 
-      const withdrawalResponse = await processWithdrawalPayment(normalizedUidHex, invoice, env, counterValue);
+      const withdrawalResponse = await processWithdrawalPayment(normalizedUidHex, invoice || "fakewallet", env, counterValue, explicitAmount ? parseInt(explicitAmount, 10) : undefined);
 
       if (withdrawalResponse.status === 200 || withdrawalResponse.status === 201) {
         await updateTapStatus(env, normalizedUidHex, counterValue, "completed").catch(e => logger.warn("Failed to update tap status to completed", { uidHex: normalizedUidHex, error: e.message }));
@@ -149,7 +150,7 @@ export async function handleLnurlpPayment(request, env) {
   }
 }
 
-export async function processWithdrawalPayment(uid, pr, env, counterValue) {
+export async function processWithdrawalPayment(uid, pr, env, counterValue, explicitAmount) {
   if (!uid) {
     logger.error("Received undefined UID in processWithdrawalPayment");
     return jsonResponse({ status: "ERROR", reason: "Invalid UID" }, 400);
@@ -171,7 +172,7 @@ export async function processWithdrawalPayment(uid, pr, env, counterValue) {
   }
 
   if (config.payment_method === "fakewallet") {
-    const amount = decodeBolt11Amount(pr) || 0;
+    const amount = explicitAmount != null ? explicitAmount : (decodeBolt11Amount(pr) || 0);
     const result = await debitCard(env, uid, counterValue, amount, `Payment: ${amount} units`);
     if (result.ok) {
       logger.info("Fakewallet payment processed", { uid, amount, balance: result.balance });
