@@ -1,3 +1,12 @@
+const legacyCardState = {
+  state: "legacy",
+  latest_issued_version: 0,
+  active_version: null,
+  activated_at: null,
+  terminated_at: null,
+  keys_delivered_at: null,
+};
+
 export async function checkReplayOnly(env, uidHex, counterValue) {
   if (!env?.CARD_REPLAY) {
     throw new Error("Replay protection Durable Object binding is not configured");
@@ -134,6 +143,107 @@ export async function getAnalytics(env, uidHex) {
 
   if (!response.ok) {
     return { totalMsat: 0, completedMsat: 0, failedMsat: 0, totalTaps: 0, completedTaps: 0, failedTaps: 0, pendingTaps: 0 };
+  }
+
+  return response.json();
+}
+
+export async function getCardState(env, uidHex) {
+  if (!env?.CARD_REPLAY) {
+    return { state: "new", latest_issued_version: 0, active_version: null, activated_at: null, terminated_at: null, keys_delivered_at: null };
+  }
+
+  const id = env.CARD_REPLAY.idFromName(uidHex.toLowerCase());
+  const stub = env.CARD_REPLAY.get(id);
+  const response = await stub.fetch(
+    new Request("https://card-replay.internal/card-state")
+  );
+
+  if (response.status === 404) {
+    return legacyCardState;
+  }
+
+  if (!response.ok) {
+    return { state: "new", latest_issued_version: 0, active_version: null, activated_at: null, terminated_at: null, keys_delivered_at: null };
+  }
+
+  return response.json();
+}
+
+export async function deliverKeys(env, uidHex) {
+  if (!env?.CARD_REPLAY) {
+    throw new Error("Replay protection Durable Object binding is not configured");
+  }
+
+  const id = env.CARD_REPLAY.idFromName(uidHex.toLowerCase());
+  const stub = env.CARD_REPLAY.get(id);
+  const response = await stub.fetch(
+    new Request("https://card-replay.internal/deliver-keys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    })
+  );
+
+  if (response.status === 404) {
+    return { ...legacyCardState, state: "keys_delivered", latest_issued_version: 1, version: 1 };
+  }
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || "Key delivery failed");
+  }
+
+  return response.json();
+}
+
+export async function activateCard(env, uidHex, activeVersion) {
+  if (!env?.CARD_REPLAY) {
+    throw new Error("Replay protection Durable Object binding is not configured");
+  }
+
+  const id = env.CARD_REPLAY.idFromName(uidHex.toLowerCase());
+  const stub = env.CARD_REPLAY.get(id);
+  const response = await stub.fetch(
+    new Request("https://card-replay.internal/activate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active_version: activeVersion }),
+    })
+  );
+
+  if (response.status === 404) {
+    return { ...legacyCardState, state: "active", active_version: activeVersion };
+  }
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || "Card activation failed");
+  }
+
+  return response.json();
+}
+
+export async function terminateCard(env, uidHex) {
+  if (!env?.CARD_REPLAY) {
+    throw new Error("Replay protection Durable Object binding is not configured");
+  }
+
+  const id = env.CARD_REPLAY.idFromName(uidHex.toLowerCase());
+  const stub = env.CARD_REPLAY.get(id);
+  const response = await stub.fetch(
+    new Request("https://card-replay.internal/terminate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    })
+  );
+
+  if (response.status === 404) {
+    return { ...legacyCardState, state: "terminated" };
+  }
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || "Card termination failed");
   }
 
   return response.json();

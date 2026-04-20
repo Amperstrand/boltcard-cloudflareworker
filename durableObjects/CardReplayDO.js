@@ -27,6 +27,17 @@ export class CardReplayDO extends DurableObject {
           updated_at INTEGER NOT NULL
         )
       `);
+      this.sql.exec(`
+        CREATE TABLE IF NOT EXISTS card_state (
+          singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+          state TEXT NOT NULL DEFAULT 'new',
+          latest_issued_version INTEGER NOT NULL DEFAULT 0,
+          active_version INTEGER,
+          activated_at INTEGER,
+          terminated_at INTEGER,
+          keys_delivered_at INTEGER
+        )
+      `);
     });
   }
 
@@ -59,6 +70,22 @@ export class CardReplayDO extends DurableObject {
 
     if (request.method === "GET" && url.pathname === "/list-taps") {
       return this.handleListTaps(url);
+    }
+
+    if (request.method === "GET" && url.pathname === "/card-state") {
+      return this.handleGetCardState();
+    }
+
+    if (request.method === "POST" && url.pathname === "/deliver-keys") {
+      return this.handleDeliverKeys();
+    }
+
+    if (request.method === "POST" && url.pathname === "/activate") {
+      return this.handleActivate(request);
+    }
+
+    if (request.method === "POST" && url.pathname === "/terminate") {
+      return this.handleTerminate();
     }
 
     if (request.method === "POST" && url.pathname === "/reset") {
@@ -239,5 +266,97 @@ export class CardReplayDO extends DurableObject {
       totalMsat: 0, completedMsat: 0, failedMsat: 0, pendingMsat: 0,
       totalTaps: 0, completedTaps: 0, failedTaps: 0, pendingTaps: 0,
     });
+  }
+
+  handleGetCardState() {
+    const rows = this.sql.exec(
+      `SELECT state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at
+       FROM card_state WHERE singleton = 1`
+    ).toArray();
+    if (rows.length === 0) {
+      return Response.json({
+        state: "new",
+        latest_issued_version: 0,
+        active_version: null,
+        activated_at: null,
+        terminated_at: null,
+        keys_delivered_at: null,
+      });
+    }
+    return Response.json(rows[0]);
+  }
+
+  handleDeliverKeys() {
+    const now = Math.floor(Date.now() / 1000);
+    const rows = this.sql.exec(
+      `INSERT INTO card_state (
+         singleton,
+         state,
+         latest_issued_version,
+         active_version,
+         activated_at,
+         terminated_at,
+         keys_delivered_at
+       )
+       VALUES (1, 'keys_delivered', 1, NULL, NULL, NULL, ?)
+       ON CONFLICT(singleton) DO UPDATE SET
+         state = 'keys_delivered',
+         latest_issued_version = card_state.latest_issued_version + 1,
+         active_version = NULL,
+         activated_at = NULL,
+         terminated_at = NULL,
+         keys_delivered_at = excluded.keys_delivered_at
+       RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at`,
+      now
+    );
+    const cardState = rows.toArray()[0];
+    return Response.json({ ...cardState, version: cardState.latest_issued_version });
+  }
+
+  handleActivate(request) {
+    return request.json().then(({ active_version }) => {
+      if (!Number.isInteger(active_version) || active_version < 1) {
+        return Response.json({ error: "Invalid active_version" }, { status: 400 });
+      }
+      const now = Math.floor(Date.now() / 1000);
+      const rows = this.sql.exec(
+        `INSERT INTO card_state (
+           singleton,
+           state,
+           latest_issued_version,
+           active_version,
+           activated_at,
+           terminated_at,
+           keys_delivered_at
+         )
+         VALUES (1, 'active', ?, ?, ?, NULL, NULL)
+         ON CONFLICT(singleton) DO UPDATE SET
+           state = 'active',
+           active_version = excluded.active_version,
+           activated_at = excluded.activated_at,
+           terminated_at = NULL
+         RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at`,
+        active_version,
+        active_version,
+        now
+      );
+      return Response.json(rows.toArray()[0]);
+    });
+  }
+
+  handleTerminate() {
+    const now = Math.floor(Date.now() / 1000);
+    const rows = this.sql.exec(
+      `INSERT INTO card_state (singleton, state, latest_issued_version, terminated_at)
+       VALUES (1, 'terminated', 0, ?)
+       ON CONFLICT(singleton) DO UPDATE SET
+         state = 'terminated',
+         terminated_at = excluded.terminated_at
+       RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at`,
+      now
+    );
+    this.sql.exec("DELETE FROM taps");
+    this.sql.exec("DELETE FROM replay_state WHERE singleton = 1");
+    return Response.json(rows.toArray()[0]);
   }
 }
