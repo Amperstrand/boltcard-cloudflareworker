@@ -189,6 +189,12 @@ The note’s high-level flow:
 4. NFC counter increments once per session
 5. backend verifies or decrypts the mirrored values
 
+### Web NFC / browser-read caveat
+
+In practice, Chrome Web NFC on Android may cause the NTAG 424 DNA `SDMReadCtr` to increment by **2 per physical tap** on URL/NDEF flows. The browser stack often performs one read to detect/select the tag and a second read to fetch the NDEF payload; both are real hardware read operations and both increment the counter on-chip.
+
+Treat this as expected hardware behavior, not a server-side bug. The increment happens inside the tag and cannot be prevented or rolled back by backend logic.
+
 Important implementation consequences:
 
 - mirroring only happens in the **non-authenticated** state
@@ -196,6 +202,17 @@ Important implementation consequences:
 - mirrors are individually configurable by offset and length
 - mirrors must not overlap
 - CMAC is usually appended near the end of the URL/query string
+- `SDMReadCtr` is a monotonic hardware counter; backend replay policy must tolerate gaps but never regressions
+
+### `SDMReadCtr` behavior to model explicitly
+
+- `SDMReadCtr` increments on every successful NDEF/SDM read operation.
+- The counter is monotonic and effectively non-resettable in normal provisioning flows.
+- The only condition that resets `SDMReadCtr` to zero is **enabling SDM via `ChangeFileSettings`** (NXP NT4H2421Gx datasheet §9.3.1: *"The SDMReadCtr is reset to 000000h when enabling SDM with ChangeFileSettings"*). This is a provisioning-time operation, not something that happens during normal card use.
+- Changing keys (`ChangeKey`), changing key versions, `SetConfiguration`, and personalization steps do **not** reset it. (NXP AN12196 §3.3: `ChangeKey` only resets authentication failure counters — TotFailCtr, SeqFailCtr, SpentTimeCtr — not `SDMReadCtr`.)
+- Re-provisioning logic should therefore handle counter drift by rotating/advancing backend key versions rather than expecting the card counter to restart at zero.
+- Verification systems should allow forward jumps/gaps (for example browser dual-reads or other extra reads) while still rejecting stale/replayed counters.
+- If your backend supports version rotation during reprovisioning, scanning candidate versions from current `N` down to `N-10` is a practical way to tolerate counter gaps while still matching older valid keysets.
 
 ---
 
