@@ -374,8 +374,10 @@ describe("E2E: Virtual card — concurrent taps", () => {
 
     // Both taps exist in history
     expect(env.CARD_REPLAY.__taps.get(`${UID}:1`)).toBeDefined();
-    // counter=2 not yet recorded (only Step 1)
-    expect(env.CARD_REPLAY.__taps.get(`${UID}:2`)).toBeUndefined();
+    // counter=2 recorded as a "read" tap by Step 1 (awaited recordTapRead)
+    const tap2Record = env.CARD_REPLAY.__taps.get(`${UID}:2`);
+    expect(tap2Record).toBeDefined();
+    expect(tap2Record.status).toBe("read");
   });
 });
 

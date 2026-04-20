@@ -75,6 +75,7 @@ router.get("/wipe", (request, env) => {
 router.get("/bulkwipe", () => Response.redirect("/experimental/bulkwipe", 301));
 router.get("/analytics", () => Response.redirect("/experimental/analytics", 301));
 router.get("/analytics/data", (request, env) => handleAnalyticsData(request, env));
+router.get("/favicon.ico", () => new Response(null, { status: 204 }));
 router.get("/", (request, env) => {
   const { searchParams } = new URL(request.url);
   if (searchParams.has("p") && searchParams.has("c")) {
@@ -83,7 +84,14 @@ router.get("/", (request, env) => {
   return handleLoginPage(request);
 });
 router.all("*", (request) => {
-  logger.error("Route not found", { pathname: new URL(request.url).pathname, method: request.method });
+  const pathname = new URL(request.url).pathname;
+  const noisePaths = ["/favicon.ico", "/robots.txt", "/.well-known/", "/apple-touch-icon"];
+  const isNoise = noisePaths.some(p => pathname.startsWith(p));
+  if (isNoise) {
+    logger.debug("Request for well-known static path", { pathname, method: request.method });
+  } else {
+    logger.warn("Route not found", { pathname, method: request.method });
+  }
   return new Response("Not found", { status: 404 });
 });
 
@@ -124,8 +132,6 @@ async function handleLnurlw(request, env) {
     return errorResponse(decryption.error);
   }
 
-  logger.trace("Decryption succeeded", { success: decryption.success });
-
   const { uidHex, ctr } = decryption;
 
   if (!uidHex) {
@@ -135,7 +141,7 @@ async function handleLnurlw(request, env) {
 
   const counterValue = parseInt(ctr, 16);
 
-  logger.trace("Extracted UID and counter", { uidHex, counterValue });
+  logger.info("LNURLW decrypted", { uidHex, counterValue });
 
   // Card lifecycle state check
   const cardState = await getCardState(env, uidHex);
@@ -160,11 +166,11 @@ async function handleLnurlw(request, env) {
   }
 
   const config = await getUidConfig(uidHex, env, activeVersion);
-  logger.trace("Configuration loaded", {
+  logger.info("Card config loaded", {
     uidHex,
-    hasConfig: Boolean(config),
     paymentMethod: config?.payment_method,
-    hasK2: typeof config?.K2 === "string" && config.K2.length > 0,
+    cardState: cardState.state,
+    activeVersion,
   });
 
   if (!config) {
@@ -187,7 +193,7 @@ async function handleLnurlw(request, env) {
     ));
   } else if (proxyRelayMode) {
     cmac_error = "CMAC validation deferred to downstream backend";
-    logger.info("Proxy relay mode: skipping CMAC validation locally", { uidHex });
+    logger.info("Proxy relay mode: CMAC deferred", { uidHex });
   } else {
     logger.error("K2 missing for payment method requiring local verification", {
       uidHex,
@@ -221,8 +227,8 @@ async function handleLnurlw(request, env) {
       return errorResponse("Replay protection unavailable", 500);
     }
 
-    logger.trace("LNURLW request accepted", { uidHex, counterValue });
-    recordTapRead(env, uidHex, counterValue, {
+    logger.info("LNURLW request accepted", { uidHex, counterValue });
+    await recordTapRead(env, uidHex, counterValue, {
       userAgent: request.headers.get("User-Agent") || null,
       requestUrl: request.url,
     });
@@ -234,7 +240,7 @@ async function handleLnurlw(request, env) {
 
   if (config.payment_method === "lnurlpay") {
     const baseUrl = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
-    recordTapRead(env, uidHex, counterValue, {
+    await recordTapRead(env, uidHex, counterValue, {
       userAgent: request.headers.get("User-Agent") || null,
       requestUrl: request.url,
     });
@@ -261,8 +267,8 @@ async function handleLnurlw(request, env) {
       return errorResponse("Replay protection unavailable", 500);
     }
 
-    logger.trace("LNURLW request accepted", { uidHex, counterValue });
-    recordTapRead(env, uidHex, counterValue, {
+    logger.info("LNURLW request accepted", { uidHex, counterValue });
+    await recordTapRead(env, uidHex, counterValue, {
       userAgent: request.headers.get("User-Agent") || null,
       requestUrl: request.url,
     });
@@ -286,7 +292,17 @@ export { CardReplayDO } from "./durableObjects/CardReplayDO.js";
 
 export default {
   async fetch(request, env, ctx) {
-    logger.logRequest(request);
+    const requestId = crypto.randomUUID().slice(0, 8);
+    const startTime = Date.now();
+    const url = new URL(request.url);
+
+    logger.info("Request started", {
+      requestId,
+      method: request.method,
+      pathname: url.pathname,
+      ip: request.headers.get("CF-Connecting-IP") || null,
+    });
+
     void ctx;
 
     try {
@@ -295,14 +311,17 @@ export default {
         const response = jsonResponse({ status: "ERROR", reason: "Rate limit exceeded" }, 429);
         response.headers.set("Retry-After", String(Math.ceil((resetAt - Date.now()) / 1000)));
         response.headers.set("X-RateLimit-Remaining", "0");
+        logger.info("Request completed", { requestId, status: 429, duration: Date.now() - startTime, pathname: url.pathname });
         return response;
       }
 
       const response = await router.fetch(request, env);
       response.headers.set("X-RateLimit-Remaining", String(remaining));
+      response.headers.set("X-Request-Id", requestId);
+      logger.info("Request completed", { requestId, status: response.status, duration: Date.now() - startTime, pathname: url.pathname });
       return response;
     } catch (error) {
-      logger.error("Unhandled request error", { error: error.message, url: request.url });
+      logger.error("Unhandled request error", { requestId, error: error.message, url: request.url, duration: Date.now() - startTime });
       return jsonResponse({ status: "ERROR", reason: "Internal server error" }, 500);
     }
   },

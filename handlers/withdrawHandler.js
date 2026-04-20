@@ -1,5 +1,8 @@
+import { logger } from "../utils/logger.js";
+
 export const constructWithdrawResponse = (uidHex, pHex, cHex, ctr, cmac_validated, baseUrl) => {
   if (!cmac_validated) {
+    logger.warn("Withdraw response rejected: CMAC validation failed", { uidHex });
     return {
       status: "ERROR",
       reason: "CMAC validation failed or was not performed.",
@@ -8,6 +11,8 @@ export const constructWithdrawResponse = (uidHex, pHex, cHex, ctr, cmac_validate
 
   const counterValue = parseInt(ctr, 16);
   const host = baseUrl || "https://boltcardpoc.psbt.me";
+
+  logger.info("Withdraw response constructed", { uidHex, counterValue });
 
   return {
     tag: "withdrawRequest",
