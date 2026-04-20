@@ -33,13 +33,25 @@ const LEGACY_UID_CONFIGS = {
   })
 };
 
+const DO_CARD_CONFIGS = {
+  '04996c6a926980': JSON.parse(LEGACY_UID_CONFIGS['04996c6a926980']),
+  '044561fa967380': JSON.parse(LEGACY_UID_CONFIGS['044561fa967380'])
+};
+
+const seedDoConfigs = (replay, configs = DO_CARD_CONFIGS) => {
+  Object.entries(configs).forEach(([uid, config]) => {
+    replay.__cardConfigs.set(uid.toLowerCase(), config);
+  });
+  return replay;
+};
+
 const mockEnv = {
   BOLT_CARD_K1: '55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d',
   UID_CONFIG: {
     get: async (key) => LEGACY_UID_CONFIGS[key] ?? null,
     put: async () => {}
   },
-  CARD_REPLAY: makeReplayNamespace(),
+  CARD_REPLAY: seedDoConfigs(makeReplayNamespace()),
 };
 
 const TEST_DATA = [
@@ -74,7 +86,7 @@ const TEST_DATA = [
 describe('End-to-End Payment Flow Integration Tests', () => {
   beforeEach(() => {
     Object.assign(mockEnv, {});
-    mockEnv.CARD_REPLAY = makeReplayNamespace();
+    mockEnv.CARD_REPLAY = seedDoConfigs(makeReplayNamespace());
     mockEnv.BOLT_CARD_K1 = '55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d';
     mockEnv.UID_CONFIG = {
       get: async (key) => LEGACY_UID_CONFIGS[key] ?? null,

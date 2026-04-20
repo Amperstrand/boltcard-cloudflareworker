@@ -104,6 +104,13 @@ export async function handleLoginPage(request) {
         <table class="w-full text-sm"><tbody id="undep-keys"></tbody></table>
       </div>
 
+      <div class="bg-gray-800 border border-emerald-500/30 rounded-lg p-4 mb-4">
+        <button id="undep-provision-btn" onclick="provisionCard()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded transition-colors">
+          PROVISION AS WITHDRAW CARD
+        </button>
+        <div id="undep-provision-status" class="hidden mt-3 text-center text-sm"></div>
+      </div>
+
       <p class="text-center text-xs text-gray-600 mt-4">
         <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1"></span>
         NFC active — tap card again to refresh
@@ -123,7 +130,7 @@ export async function handleLoginPage(request) {
       <div class="bg-amber-900/30 border border-amber-500/40 rounded-lg p-4 mb-4">
         <p class="text-amber-300 font-bold text-sm mb-1">Public card</p>
         <p class="text-amber-200/70 text-xs mb-2">This card's keys are from a public dump.</p>
-        <a href="/bulkwipe" class="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 text-sm font-semibold transition-colors">
+        <a href="/experimental/bulkwipe" class="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 text-sm font-semibold transition-colors">
           Go to Bulk Wipe Tool →
         </a>
       </div>
@@ -258,7 +265,7 @@ export async function handleLoginPage(request) {
           </button>
         </div>
         <div id="priv-wipe-fallback" class="hidden">
-          <a href="/bulkwipe" class="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 text-sm font-semibold transition-colors">
+          <a href="/experimental/bulkwipe" class="inline-flex items-center gap-1 text-amber-400 hover:text-amber-300 text-sm font-semibold transition-colors">
             Go to Bulk Wipe Tool →
           </a>
         </div>
@@ -439,13 +446,59 @@ export async function handleLoginPage(request) {
         '<tr><td class="pr-3 text-gray-500">K4</td><td class="font-mono text-xs text-gray-400">' + (k4 || '-') + '</td></tr>';
     }
 
+    let currentUndeployedUid = null;
+
+    async function provisionCard() {
+      if (!currentUndeployedUid) return;
+      const btn = document.getElementById('undep-provision-btn');
+      const status = document.getElementById('undep-provision-status');
+      btn.disabled = true;
+      btn.textContent = 'PROVISIONING...';
+      btn.classList.add('opacity-50');
+      status.classList.remove('hidden');
+      status.className = 'mt-3 text-center text-sm text-gray-400';
+      status.textContent = 'Writing keys to card...';
+
+      try {
+        const endpoint = API_HOST + '/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards';
+        const resp = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ UID: currentUndeployedUid }),
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          status.className = 'mt-3 text-center text-sm text-emerald-400';
+          status.textContent = 'Card provisioned! Version ' + (data.Version || 1) + '. Tap again to activate.';
+          btn.textContent = 'PROVISIONED';
+          btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
+          btn.classList.add('bg-gray-600');
+        } else {
+          throw new Error(data.error || 'Provisioning failed');
+        }
+      } catch (e) {
+        status.className = 'mt-3 text-center text-sm text-red-400';
+        status.textContent = 'Error: ' + e.message;
+        btn.disabled = false;
+        btn.textContent = 'PROVISION AS WITHDRAW CARD';
+        btn.classList.remove('opacity-50');
+      }
+    }
+
     function showUndeployedCard(result) {
       clearErrors();
       hideAllViews();
+      currentUndeployedUid = result.uidHex;
       document.getElementById('undep-uid-display').textContent = 'UID: ' + result.uidHex.toUpperCase();
       document.getElementById('undep-version').textContent = result.keyVersion || 1;
       document.getElementById('undep-state').textContent = result.cardState || 'new';
       document.getElementById('undep-keys').innerHTML = buildKeysRows(result.k0, result.k1, result.k2, result.k3, result.k4);
+      const btn = document.getElementById('undep-provision-btn');
+      btn.disabled = false;
+      btn.textContent = 'PROVISION AS WITHDRAW CARD';
+      btn.classList.remove('opacity-50', 'bg-gray-600');
+      btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
+      document.getElementById('undep-provision-status').classList.add('hidden');
       document.getElementById('undeployed-view').classList.remove('hidden');
     }
 

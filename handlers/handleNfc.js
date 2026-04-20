@@ -27,7 +27,7 @@ export default async function handleNfc() {
 
               <div class="flex flex-wrap items-center gap-3">
                 <a
-                  href="/activate"
+                  href="/experimental/activate"
                   class="rounded-xl border border-gray-700 bg-gray-950 px-4 py-2 text-sm font-semibold text-gray-200 transition hover:border-cyan-500/50 hover:text-cyan-300"
                 >
                   Back to operator home

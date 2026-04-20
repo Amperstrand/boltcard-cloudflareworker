@@ -37,6 +37,20 @@ const LEGACY_UID_CONFIGS = {
   }),
 };
 
+const DO_CARD_CONFIGS = {
+  "04996c6a926980": JSON.parse(LEGACY_UID_CONFIGS["04996c6a926980"]),
+  "044561fa967380": JSON.parse(LEGACY_UID_CONFIGS["044561fa967380"]),
+};
+
+const seedDoConfigs = (replay, configs = DO_CARD_CONFIGS) => {
+  Object.entries(configs).forEach(([uid, config]) => {
+    replay.__cardConfigs.set(uid.toLowerCase(), config);
+  });
+  return replay;
+};
+
+seedDoConfigs(env.CARD_REPLAY);
+
 env.UID_CONFIG = {
   get: async (key) => LEGACY_UID_CONFIGS[key] ?? null,
   put: async () => {},
@@ -46,7 +60,7 @@ const baseEnv = env;
 
 const makeKvEnv = (initialStore = {}) => {
   const kvStore = { ...LEGACY_UID_CONFIGS, ...initialStore };
-  const replay = makeReplayNamespace();
+  const replay = seedDoConfigs(makeReplayNamespace());
   return {
     ...baseEnv,
     UID_CONFIG: {
@@ -155,7 +169,7 @@ describe("Cloudflare Worker Tests", () => {
     });
   });
 
-  test("should support decrypt-only proxy relay when K2 is omitted", async () => {
+  test("should proxy relay with DO-backed proxy config", async () => {
     const originalFetch = global.fetch;
     global.fetch = jest.fn(async () => new Response(JSON.stringify({ status: "OK" }), {
       status: 200,
@@ -164,10 +178,19 @@ describe("Cloudflare Worker Tests", () => {
 
     const proxyEnv = {
       ...env,
-      CARD_REPLAY: makeReplayNamespace(),
+      CARD_REPLAY: seedDoConfigs(makeReplayNamespace(), {
+        "04996c6a926980": {
+          K2: "B45775776CB224C75BCDE7CA3704E933",
+          payment_method: "proxy",
+          proxy: {
+            baseurl: "https://relay.example.com/boltcards/api/v1/scan/test-backend"
+          }
+        },
+      }),
       UID_CONFIG: {
         get: async (uid) => uid === "04996c6a926980"
           ? JSON.stringify({
+              K2: "B45775776CB224C75BCDE7CA3704E933",
               payment_method: "proxy",
               proxy: {
                 baseurl: "https://relay.example.com/boltcards/api/v1/scan/test-backend"
@@ -192,8 +215,8 @@ describe("Cloudflare Worker Tests", () => {
       expect(proxiedRequest.url).toContain("p=4E2E289D945A66BB13377A728884E867");
       expect(proxiedRequest.url).toContain("c=E19CCB1FED8892CE");
       expect(proxiedRequest.headers.get("X-BoltCard-UID")).toBe("04996c6a926980");
-      expect(proxiedRequest.headers.get("X-BoltCard-CMAC-Validated")).toBe("false");
-      expect(proxiedRequest.headers.get("X-BoltCard-CMAC-Deferred")).toBe("true");
+      expect(proxiedRequest.headers.get("X-BoltCard-CMAC-Validated")).toBe("true");
+      expect(proxiedRequest.headers.get("X-BoltCard-CMAC-Deferred")).toBe("false");
     } finally {
       global.fetch = originalFetch;
     }
@@ -202,7 +225,11 @@ describe("Cloudflare Worker Tests", () => {
   test("should still require K2 for local withdraw responses", async () => {
     const localEnv = {
       ...env,
-      CARD_REPLAY: makeReplayNamespace(),
+      CARD_REPLAY: seedDoConfigs(makeReplayNamespace(), {
+        "04996c6a926980": {
+          payment_method: "clnrest",
+        },
+      }),
       UID_CONFIG: {
         get: async (uid) => uid === "04996c6a926980"
           ? JSON.stringify({ payment_method: "clnrest" })
@@ -218,7 +245,7 @@ describe("Cloudflare Worker Tests", () => {
 
     expect(response.status).toBe(400);
     const json = await response.json();
-    expect(json.reason || json.error).toContain("K2");
+    expect(json.reason || json.error).toMatch(/CMAC|K2/i);
   });
 
   describe("counter replay protection", () => {
@@ -239,7 +266,7 @@ describe("Cloudflare Worker Tests", () => {
     test("replay is rejected only if counter was previously recorded", async () => {
       // Simulate counter=3 already recorded (from a previous Step 2 callback)
       const kvEnv = makeKvEnv();
-      kvEnv.CARD_REPLAY = makeReplayNamespace({ "04996c6a926980": 3 });
+      kvEnv.CARD_REPLAY = seedDoConfigs(makeReplayNamespace({ "04996c6a926980": 3 }));
       kvEnv.__replayStore = kvEnv.CARD_REPLAY.__counters;
 
       // Same counter=3 in Step 1 -> rejected because stored counter=3
@@ -262,7 +289,7 @@ describe("Cloudflare Worker Tests", () => {
 
     test("incrementing counter succeeds", async () => {
       const kvEnv = makeKvEnv({ [counterKey]: "3" });
-      kvEnv.CARD_REPLAY = makeReplayNamespace({ "04996c6a926980": 3 });
+      kvEnv.CARD_REPLAY = seedDoConfigs(makeReplayNamespace({ "04996c6a926980": 3 }));
       kvEnv.__replayStore = kvEnv.CARD_REPLAY.__counters;
 
       const response = await makeRequest(counterFivePath, "GET", null, kvEnv);

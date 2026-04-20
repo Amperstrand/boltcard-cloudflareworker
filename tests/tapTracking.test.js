@@ -22,6 +22,7 @@ const TEST_UID_CONFIG = JSON.stringify({
     rune: "abcd1234efgh5678ijkl",
   },
 });
+const TEST_UID_CONFIG_OBJECT = JSON.parse(TEST_UID_CONFIG);
 
 // Real crypto: encrypt a valid p parameter and compute valid c for a given UID + counter
 function generateRealPandC(uidHex, counter, k1Hex) {
@@ -83,6 +84,7 @@ async function makeRequest(path, method = "GET", body = null, requestEnv) {
 describe("Tap tracking — Step 1 (initial tap)", () => {
   test("GET / records a 'read' tap", async () => {
     const env = makeEnv();
+    env.CARD_REPLAY.__cardConfigs.set(TEST_UID, TEST_UID_CONFIG_OBJECT);
 
     const response = await makeRequest(`/?p=${WITHDRAW_P_COUNTER3}&c=${WITHDRAW_C_COUNTER3}`, "GET", null, env);
 
@@ -101,6 +103,7 @@ describe("Tap tracking — Step 1 (initial tap)", () => {
 
   test("repeated GET / with same counter does not duplicate tap", async () => {
     const env = makeEnv();
+    env.CARD_REPLAY.__cardConfigs.set(TEST_UID, TEST_UID_CONFIG_OBJECT);
 
     const response1 = await makeRequest(`/?p=${WITHDRAW_P_COUNTER3}&c=${WITHDRAW_C_COUNTER3}`, "GET", null, env);
     expect(response1.status).toBe(200);

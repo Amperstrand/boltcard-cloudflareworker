@@ -49,9 +49,22 @@ const LEGACY_UID_CONFIGS = {
   }),
 };
 
+const DO_CARD_CONFIGS = {
+  "04996c6a926980": JSON.parse(LEGACY_UID_CONFIGS["04996c6a926980"]),
+  "044561fa967380": JSON.parse(LEGACY_UID_CONFIGS["044561fa967380"]),
+  "04d070fa967380": JSON.parse(LEGACY_UID_CONFIGS["04d070fa967380"]),
+};
+
+const seedDoConfigs = (replay, configs = DO_CARD_CONFIGS) => {
+  Object.entries(configs).forEach(([uid, config]) => {
+    replay.__cardConfigs.set(uid.toLowerCase(), config);
+  });
+  return replay;
+};
+
 const makeKvEnv = (initialStore = {}) => {
   const kvStore = { ...LEGACY_UID_CONFIGS, ...initialStore };
-  const replay = makeReplayNamespace();
+  const replay = seedDoConfigs(makeReplayNamespace());
   return {
     ...env,
     UID_CONFIG: {
@@ -154,7 +167,7 @@ describe("response patterns", () => {
 
     const html = await response.text();
     expect(html).toContain("CARD ACTIVATION");
-    expect(html).toContain('href="/nfc"');
+    expect(html).toContain('href="/experimental/nfc"');
     expect(html).toContain("OPEN NFC TEST CONSOLE");
   });
 
@@ -583,10 +596,19 @@ describe("response patterns", () => {
 
     const proxyEnv = {
       ...env,
-      CARD_REPLAY: makeReplayNamespace(),
+      CARD_REPLAY: seedDoConfigs(makeReplayNamespace(), {
+        "04996c6a926980": {
+          K2: "B45775776CB224C75BCDE7CA3704E933",
+          payment_method: "proxy",
+          proxy: {
+            baseurl: "https://relay.example.com/boltcards/api/v1/scan/test-backend",
+          },
+        },
+      }),
       UID_CONFIG: {
         get: async (uid) => uid === "04996c6a926980"
           ? JSON.stringify({
+              K2: "B45775776CB224C75BCDE7CA3704E933",
               payment_method: "proxy",
               proxy: {
                 baseurl: "https://relay.example.com/boltcards/api/v1/scan/test-backend",

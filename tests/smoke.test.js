@@ -8,7 +8,7 @@ import aesjs from "aes-js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const POS_UID = "04d070fa967380";
-const POS_UID_CONFIG = JSON.stringify({
+const POS_UID_CONFIG_OBJECT = {
   K2: "6DA6F8D39F574BDF304FEFFA896D9B99",
   payment_method: "lnurlpay",
   lnurlpay: {
@@ -16,7 +16,8 @@ const POS_UID_CONFIG = JSON.stringify({
     min_sendable: 1000,
     max_sendable: 1000,
   },
-});
+};
+const POS_UID_CONFIG = JSON.stringify(POS_UID_CONFIG_OBJECT);
 
 // Real crypto: encrypt a valid p parameter and compute valid c for a given UID + counter
 function generateRealPandC(uidHex, counter, k1Hex) {
@@ -55,9 +56,11 @@ function computeRealC(uidHex, ctrHex, k2Hex) {
 }
 
 function makeEnv(replayInitial = {}) {
+  const replay = makeReplayNamespace(replayInitial);
+  replay.__cardConfigs.set(POS_UID, POS_UID_CONFIG_OBJECT);
   return {
     BOLT_CARD_K1: BOLT_CARD_K1,
-    CARD_REPLAY: makeReplayNamespace(replayInitial),
+    CARD_REPLAY: replay,
     UID_CONFIG: {
       get: async (uid) => uid === POS_UID ? POS_UID_CONFIG : null,
       put: async () => {},

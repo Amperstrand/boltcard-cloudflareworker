@@ -23,6 +23,9 @@ async function makeRequest(path, method = "GET", body = null, requestEnv = baseE
 function makeKvEnv(uidConfig) {
   const replay = makeReplayNamespace();
   const kvStore = { ...uidConfig };
+  Object.entries(kvStore).forEach(([uid, config]) => {
+    replay.__cardConfigs.set(uid.toLowerCase(), JSON.parse(config));
+  });
   return {
     ...baseEnv,
     UID_CONFIG: {

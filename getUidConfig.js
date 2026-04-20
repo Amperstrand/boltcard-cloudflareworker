@@ -78,29 +78,7 @@ export async function getUidConfig(uidHex, env, version = 1) {
     });
   }
 
-  // Step 2: Try to get from KV
-  if (env && env.UID_CONFIG) {
-    try {
-      const configStr = await env.UID_CONFIG.get(normalizedUid);
-      if (configStr) {
-        const config = JSON.parse(configStr);
-        logger.trace("Found UID config in KV", {
-          uidHex: normalizedUid,
-          paymentMethod: config.payment_method,
-          hasK2: typeof config.K2 === "string" && config.K2.length > 0,
-        });
-        return config;
-      }
-      logger.trace("No UID config found in KV", { uidHex: normalizedUid });
-    } catch (error) {
-      logger.error("Error retrieving UID config from KV", {
-        uidHex: normalizedUid,
-        error: error.message,
-      });
-    }
-  }
-
-  // Step 3: Generate deterministic keys as fallback
+  // Step 2: Generate deterministic keys as fallback
   try {
     logger.debug("Generating deterministic fallback config", { uidHex: normalizedUid });
     const keys = await getDeterministicKeys(normalizedUid, env, version);
