@@ -6,84 +6,80 @@ export function renderPosPage({ host }) {
   return renderTailwindPage({
     title: "Boltcard POS",
     metaRobots: "noindex,nofollow",
-    bodyClass: "min-h-screen bg-gray-900 p-4 font-sans antialiased flex items-center justify-center",
+    bodyClass: "min-h-screen bg-gray-900 font-sans antialiased",
     styles: [
       "body { background-color: #111827; color: #f3f4f6; }",
-      ".amount-glow { text-shadow: 0 0 30px rgba(16, 185, 129, 0.16); }",
-      "#tap-overlay { transition: opacity 0.2s ease, visibility 0.2s ease; }",
+      "#tap-overlay { transition: opacity 0.15s ease, visibility 0.15s ease; }",
       "#tap-overlay.visible { opacity: 1; visibility: visible; }",
-      "#tap-overlay:not(.visible) { opacity: 0; visibility: hidden; }",
-      "@keyframes pulse-ring { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(2.2); opacity: 0; } }",
+      "#tap-overlay:not(.visible) { opacity: 0; visibility: hidden; pointer-events: none; }",
+      "@keyframes pulse-ring { 0% { transform: scale(0.85); opacity: 0.8; } 100% { transform: scale(2); opacity: 0; } }",
       ".pulse-ring { animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }",
-      "@keyframes nfc-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }",
+      "@keyframes nfc-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }",
       ".nfc-icon-bounce { animation: nfc-bounce 1.2s ease-in-out infinite; }",
     ].join("\n"),
     content: rawHtml`
-    <div id="tap-overlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-900/98 backdrop-blur-sm">
-      <div class="text-center px-6">
-        <div id="overlay-amount" class="amount-glow text-7xl font-bold tracking-tight text-white leading-none mb-3">0</div>
-        <div class="text-sm uppercase tracking-[0.35em] text-gray-500 mb-10">units</div>
-        <div id="overlay-nfc-icon" class="nfc-icon-bounce inline-flex items-center justify-center w-24 h-24 rounded-full border-2 border-emerald-500/40 mb-6 relative">
-          <svg class="w-12 h-12 text-emerald-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z"/></svg>
+    <div id="tap-overlay" class="fixed inset-0 z-50 flex flex-col bg-gray-900">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+        <span class="text-sm font-semibold text-emerald-500 tracking-widest">POS</span>
+        <button id="overlay-cancel" type="button" class="text-sm font-semibold text-gray-500 hover:text-white transition-colors px-2 py-1">CANCEL</button>
+      </div>
+      <div class="flex-1 flex flex-col items-center justify-center px-6">
+        <div id="overlay-amount" class="text-5xl font-bold tracking-tight text-white leading-none mb-2">0</div>
+        <div id="overlay-nfc-icon" class="nfc-icon-bounce inline-flex items-center justify-center w-20 h-20 rounded-full border-2 border-emerald-500/40 my-6 relative">
+          <svg class="w-10 h-10 text-emerald-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z"/></svg>
           <div class="pulse-ring absolute inset-0 rounded-full border-2 border-emerald-500/30"></div>
         </div>
-        <div id="overlay-status" class="text-xl font-bold text-emerald-400 mb-2">TAP CARD TO PAY</div>
-        <div id="overlay-help" class="text-sm text-gray-400">Hold the boltcard against the back of your device</div>
+        <div id="overlay-status" class="text-lg font-bold text-emerald-400">TAP CARD TO PAY</div>
+        <div id="overlay-help" class="text-sm text-gray-500 mt-2">Hold the boltcard against the back of your device</div>
       </div>
     </div>
 
-    <div class="w-full max-w-sm">
-      <div class="text-center mb-6">
-        <h1 class="text-3xl font-bold text-emerald-500 tracking-tight mb-2">BOLTCARD POS</h1>
-        <p class="text-sm text-gray-500">Tap to receive a fakewallet payment</p>
+    <div class="flex flex-col h-screen">
+      <div class="flex items-center justify-between px-4 py-2">
+        <span class="text-sm font-semibold text-emerald-500 tracking-widest">POS</span>
+        <div class="flex items-center gap-3">
+          <span class="text-xs text-gray-600">fakewallet</span>
+        <span id="status-pill" class="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-400">
+          <span class="inline-block h-1.5 w-1.5 rounded-full bg-current"></span>
+          <span id="status-pill-text">NFC Ready</span>
+        </span>
       </div>
 
-      <div class="bg-gray-800 border border-gray-700 shadow-xl rounded-2xl p-5">
-        <div class="border-b border-gray-700 pb-5 mb-5 text-center">
-          <div id="amount-display" class="amount-glow text-6xl font-bold tracking-tight text-white leading-none min-h-[4.5rem] flex items-end justify-center">0</div>
-          <div class="mt-2 text-sm uppercase tracking-[0.35em] text-gray-500">units</div>
+      <div class="flex-1 flex flex-col justify-end px-4 pb-4">
+        <div class="text-center py-3">
+          <div id="amount-display" class="text-5xl font-bold tracking-tight text-white leading-none">0</div>
         </div>
 
-        <div id="keypad" class="grid grid-cols-3 gap-3 mb-5">
-          <button type="button" data-key="1" class="keypad-btn rounded-xl bg-gray-900 hover:bg-gray-700 border border-gray-700 text-white text-2xl font-semibold py-4 transition-colors">1</button>
-          <button type="button" data-key="2" class="keypad-btn rounded-xl bg-gray-900 hover:bg-gray-700 border border-gray-700 text-white text-2xl font-semibold py-4 transition-colors">2</button>
-          <button type="button" data-key="3" class="keypad-btn rounded-xl bg-gray-900 hover:bg-gray-700 border border-gray-700 text-white text-2xl font-semibold py-4 transition-colors">3</button>
-          <button type="button" data-key="4" class="keypad-btn rounded-xl bg-gray-900 hover:bg-gray-700 border border-gray-700 text-white text-2xl font-semibold py-4 transition-colors">4</button>
-          <button type="button" data-key="5" class="keypad-btn rounded-xl bg-gray-900 hover:bg-gray-700 border border-gray-700 text-white text-2xl font-semibold py-4 transition-colors">5</button>
-          <button type="button" data-key="6" class="keypad-btn rounded-xl bg-gray-900 hover:bg-gray-700 border border-gray-700 text-white text-2xl font-semibold py-4 transition-colors">6</button>
-          <button type="button" data-key="7" class="keypad-btn rounded-xl bg-gray-900 hover:bg-gray-700 border border-gray-700 text-white text-2xl font-semibold py-4 transition-colors">7</button>
-          <button type="button" data-key="8" class="keypad-btn rounded-xl bg-gray-900 hover:bg-gray-700 border border-gray-700 text-white text-2xl font-semibold py-4 transition-colors">8</button>
-          <button type="button" data-key="9" class="keypad-btn rounded-xl bg-gray-900 hover:bg-gray-700 border border-gray-700 text-white text-2xl font-semibold py-4 transition-colors">9</button>
-          <button type="button" data-key="." class="keypad-btn rounded-xl bg-gray-900 hover:bg-gray-700 border border-gray-700 text-white text-2xl font-semibold py-4 transition-colors">.</button>
-          <button type="button" data-key="0" class="keypad-btn rounded-xl bg-gray-900 hover:bg-gray-700 border border-gray-700 text-white text-2xl font-semibold py-4 transition-colors">0</button>
-          <button type="button" data-key="backspace" class="keypad-btn rounded-xl bg-gray-900 hover:bg-gray-700 border border-gray-700 text-white text-2xl font-semibold py-4 transition-colors">⌫</button>
+        <div id="keypad" class="grid grid-cols-3 gap-2 mb-3">
+          <button type="button" data-key="1" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">1</button>
+          <button type="button" data-key="2" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">2</button>
+          <button type="button" data-key="3" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">3</button>
+          <button type="button" data-key="4" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">4</button>
+          <button type="button" data-key="5" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">5</button>
+          <button type="button" data-key="6" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">6</button>
+          <button type="button" data-key="7" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">7</button>
+          <button type="button" data-key="8" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">8</button>
+          <button type="button" data-key="9" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">9</button>
+          <button type="button" data-key="." class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">.</button>
+          <button type="button" data-key="0" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">0</button>
+          <button type="button" data-key="backspace" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">⌫</button>
         </div>
 
-        <button id="charge-btn" type="button" class="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-bold py-4 px-4 rounded-xl transition-colors shadow-[0_0_20px_rgba(16,185,129,0.18)] mb-4">
-          CHARGE
-        </button>
-
-        <div class="rounded-xl border border-gray-700 bg-gray-900/70 p-4 mb-4">
-          <div class="flex items-center justify-between gap-3">
-            <span class="text-xs uppercase tracking-[0.25em] text-gray-500">NFC</span>
-            <span id="status-pill" class="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">
-              <span class="inline-block h-2 w-2 rounded-full bg-current"></span>
-              <span id="status-pill-text">Ready</span>
-            </span>
-          </div>
-        </div>
-
-        <div id="result-box" class="hidden rounded-xl border p-4 mb-4">
-          <div class="flex items-start gap-3">
-            <div id="result-icon" class="text-2xl leading-none">✓</div>
+        <div id="result-box" class="hidden rounded-xl border p-3 mb-3">
+          <div class="flex items-start gap-2">
+            <div id="result-icon" class="text-xl leading-none">✓</div>
             <div>
               <p id="result-title" class="font-bold text-sm"></p>
-              <p id="result-message" class="text-sm mt-1"></p>
+              <p id="result-message" class="text-xs mt-0.5"></p>
             </div>
           </div>
         </div>
 
-        <button id="new-sale-btn" type="button" class="hidden w-full bg-gray-700 hover:bg-gray-600 text-gray-200 font-bold py-3 px-4 rounded-xl transition-colors">
+        <button id="charge-btn" type="button" class="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-400 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-bold py-3.5 px-4 rounded-xl transition-colors">
+          CHARGE
+        </button>
+
+        <button id="new-sale-btn" type="button" class="hidden w-full bg-gray-700 hover:bg-gray-600 text-gray-200 font-bold py-3 px-4 rounded-xl transition-colors mt-2">
           NEW SALE
         </button>
       </div>
@@ -99,12 +95,9 @@ export function renderPosPage({ host }) {
       let chargeAmount = '0';
 
       const amountDisplay = document.getElementById('amount-display');
-      const keypad = document.getElementById('keypad');
       const keypadButtons = Array.from(document.querySelectorAll('.keypad-btn'));
       const chargeButton = document.getElementById('charge-btn');
       const newSaleButton = document.getElementById('new-sale-btn');
-      const statusText = document.getElementById('status-text');
-      const statusHelp = document.getElementById('status-help');
       const statusPill = document.getElementById('status-pill');
       const statusPillText = document.getElementById('status-pill-text');
       const resultBox = document.getElementById('result-box');
@@ -116,6 +109,7 @@ export function renderPosPage({ host }) {
       const overlayStatus = document.getElementById('overlay-status');
       const overlayHelp = document.getElementById('overlay-help');
       const overlayNfcIcon = document.getElementById('overlay-nfc-icon');
+      const overlayCancel = document.getElementById('overlay-cancel');
 
       keypad.addEventListener('click', function(event) {
         const button = event.target.closest('[data-key]');
@@ -125,6 +119,7 @@ export function renderPosPage({ host }) {
 
       chargeButton.addEventListener('click', startChargeFlow);
       newSaleButton.addEventListener('click', resetSale);
+      overlayCancel.addEventListener('click', cancelCharge);
       window.addEventListener('beforeunload', stopScanning);
 
       updateView();
@@ -136,7 +131,6 @@ export function renderPosPage({ host }) {
         if (firstDecimal !== -1) {
           next = next.slice(0, firstDecimal + 1) + next.slice(firstDecimal + 1).replace(/\./g, '');
         }
-
         let parts = next.split('.');
         let whole = parts[0] || '0';
         let fraction = parts[1] || '';
@@ -171,7 +165,7 @@ export function renderPosPage({ host }) {
           processing: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
           error: 'border-red-500/30 bg-red-500/10 text-red-400',
         };
-        statusPill.className = 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold border ' + (toneMap[tone] || toneMap.ready);
+        statusPill.className = 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold border ' + (toneMap[tone] || toneMap.ready);
         statusPillText.textContent = title;
       }
 
@@ -181,23 +175,22 @@ export function renderPosPage({ host }) {
         resultMessage.textContent = message;
 
         if (kind === 'success') {
-          resultBox.className = 'rounded-xl border p-4 mb-4 border-emerald-500/40 bg-emerald-900/20';
+          resultBox.className = 'rounded-xl border p-3 mb-3 border-emerald-500/40 bg-emerald-900/20';
           resultIcon.textContent = '✓';
-          resultIcon.className = 'text-2xl leading-none text-emerald-400';
+          resultIcon.className = 'text-xl leading-none text-emerald-400';
           resultTitle.className = 'font-bold text-sm text-emerald-300';
-          resultMessage.className = 'text-sm mt-1 text-emerald-100/90';
+          resultMessage.className = 'text-xs mt-0.5 text-emerald-100/90';
         } else {
-          resultBox.className = 'rounded-xl border p-4 mb-4 border-red-500/40 bg-red-900/20';
+          resultBox.className = 'rounded-xl border p-3 mb-3 border-red-500/40 bg-red-900/20';
           resultIcon.textContent = '✗';
-          resultIcon.className = 'text-2xl leading-none text-red-400';
+          resultIcon.className = 'text-xl leading-none text-red-400';
           resultTitle.className = 'font-bold text-sm text-red-300';
-          resultMessage.className = 'text-sm mt-1 text-red-100/90';
+          resultMessage.className = 'text-xs mt-0.5 text-red-100/90';
         }
       }
 
       function clearResult() {
-        resultBox.className = 'hidden rounded-xl border p-4 mb-4';
-        resultBox.classList.add('hidden');
+        resultBox.className = 'hidden rounded-xl border p-3 mb-3';
       }
 
       function updateView() {
@@ -213,14 +206,16 @@ export function renderPosPage({ host }) {
 
         if (appState === 'charging' || appState === 'scanning') {
           overlayStatus.textContent = 'TAP CARD TO PAY';
-          overlayStatus.className = 'text-xl font-bold text-emerald-400 mb-2';
+          overlayStatus.className = 'text-lg font-bold text-emerald-400';
           overlayHelp.textContent = 'Hold the boltcard against the back of your device';
           overlayNfcIcon.classList.remove('hidden');
+          overlayCancel.classList.remove('hidden');
         } else if (appState === 'processing') {
           overlayStatus.textContent = 'PROCESSING...';
-          overlayStatus.className = 'text-xl font-bold text-amber-400 mb-2';
+          overlayStatus.className = 'text-lg font-bold text-amber-400';
           overlayHelp.textContent = 'Verifying card and submitting payment';
           overlayNfcIcon.classList.add('hidden');
+          overlayCancel.classList.add('hidden');
         }
 
         const editingLocked = overlayActive;
@@ -235,18 +230,18 @@ export function renderPosPage({ host }) {
 
         if (!browserSupportsNfc()) {
           chargeButton.disabled = true;
-          setStatus('error', 'Unavailable');
+          setStatus('error', 'No NFC');
           return;
         }
 
         if (appState === 'idle') {
-          setStatus('ready', 'Ready');
+          setStatus('ready', 'NFC Ready');
         } else if (appState === 'charging' || appState === 'scanning') {
-          setStatus('scanning', 'Scanning...');
+          setStatus('scanning', 'Scanning');
         } else if (appState === 'processing') {
-          setStatus('processing', 'Processing');
+          setStatus('processing', 'Working');
         } else if (appState === 'success') {
-          setStatus('ready', 'Complete');
+          setStatus('ready', 'Done');
         } else if (appState === 'failed') {
           setStatus('error', 'Failed');
         }
@@ -262,7 +257,7 @@ export function renderPosPage({ host }) {
           if (amountInput === '') amountInput = '0';
         } else if (key === '.') {
           if (!amountInput.includes('.')) {
-            amountInput += amountInput === '0' ? '.' : '.';
+            amountInput += '.';
           }
         } else if (/^[0-9]$/.test(key)) {
           if (amountInput === '0') {
@@ -285,6 +280,10 @@ export function renderPosPage({ host }) {
         setState('idle');
       }
 
+      function cancelCharge() {
+        handleRecoverableError('Charge cancelled');
+      }
+
       function stopScanning() {
         if (currentReader) {
           currentReader.onreading = null;
@@ -299,12 +298,10 @@ export function renderPosPage({ host }) {
 
       function extractTapUrl(message) {
         return (async function() {
-          let nfcUrl = null;
           for (const record of message.records) {
-            nfcUrl = await extractNdefUrl(message.records, ['lnurlw://', 'https://']);
-            break;
+            return await extractNdefUrl(message.records, ['lnurlw://', 'https://']);
           }
-          return nfcUrl;
+          return null;
         })();
       }
 
@@ -416,7 +413,7 @@ export function renderPosPage({ host }) {
             setState('processing');
             await processPayment(nfcUrl);
             setState('success');
-            showResult('success', 'Payment approved', 'Payment of ' + formatAmount(chargeAmount) + ' units received!');
+            showResult('success', 'Payment approved', formatAmount(chargeAmount) + ' received');
           } catch (error) {
             const message = error && error.message ? error.message : 'Payment failed';
             stopScanning();
