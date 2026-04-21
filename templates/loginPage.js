@@ -470,12 +470,9 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
       return new Date(unixSeconds * 1000).toLocaleDateString();
     }
 
-    function formatMsat(msat) {
-      if (!msat || msat === 0) return '';
-      var sats = msat / 1000;
-      if (sats < 1) return msat + ' msat';
-      if (sats < 1000) return (sats % 1 === 0 ? sats : sats.toFixed(3)) + ' sats';
-      return (sats / 1e8).toFixed(8) + ' BTC';
+    function formatUnits(value) {
+      if (!value || value === 0) return '';
+      return Number(value).toLocaleString();
     }
 
     function esc(s) {
@@ -507,7 +504,6 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
     function renderTapHistory(taps, prefix) {
       var section = document.getElementById(prefix + '-tap-history');
       var list = document.getElementById(prefix + '-tap-list');
-      var empty = document.getElementById(prefix + '-tap-count');
       var countEl = document.getElementById(prefix + '-tap-count');
       if (!taps || taps.length === 0) {
         section.classList.remove('hidden');
@@ -524,27 +520,33 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
         var time = relativeTime(t.created_at);
         var isTopup = t.status === 'topup';
         var isPayment = t.status === 'payment';
-        var amountStr = '';
-        if (isTopup) {
-          amountStr = '<span class="font-mono text-emerald-400 font-semibold">+' + formatMsat(t.amount_msat) + '</span>';
-        } else if (isPayment) {
-          amountStr = '<span class="font-mono text-orange-400 font-semibold">-' + formatMsat(t.amount_msat) + '</span>';
+
+        var amountHtml = '';
+        if (isTopup && t.amount_msat) {
+          amountHtml = '<span class="font-mono text-emerald-400 font-bold">+' + formatUnits(t.amount_msat) + '</span>';
+        } else if (isPayment && t.amount_msat) {
+          amountHtml = '<span class="font-mono text-orange-400 font-bold">-' + formatUnits(t.amount_msat) + '</span>';
         } else if (t.amount_msat) {
-          amountStr = '<span class="font-mono text-gray-400">' + formatMsat(t.amount_msat) + '</span>';
+          amountHtml = '<span class="font-mono text-gray-400">' + formatUnits(t.amount_msat) + '</span>';
         }
+
         var detailParts = [];
-        if (t.counter != null) detailParts.push('<span class="font-mono text-gray-500">#' + t.counter + '</span>');
-        if (t.note) detailParts.push('<span class="text-gray-500">' + esc(t.note) + '</span>');
-        if (t.balance_after != null && (isTopup || isPayment)) detailParts.push('<span class="font-mono text-gray-500">bal: ' + t.balance_after + '</span>');
-        html += '<div class="flex items-center justify-between py-2 border-b border-gray-700/50 last:border-0">'
-          + '<div class="flex items-center gap-2 min-w-0 flex-1">'
-          + '<span class="text-gray-500 text-[11px] shrink-0 w-14">' + time + '</span>'
+        if (t.counter != null) detailParts.push('#' + t.counter);
+        if (t.note) detailParts.push(esc(t.note));
+        if (t.balance_after != null && (isTopup || isPayment)) detailParts.push('bal: ' + t.balance_after);
+
+        html += '<div class="py-2 border-b border-gray-700/50 last:border-0">'
+          + '<div class="flex items-center justify-between">'
+          + '<div class="flex items-center gap-2">'
+          + '<span class="text-gray-500 text-xs shrink-0">' + time + '</span>'
           + statusBadge(t.status)
-          + (detailParts.length > 0 ? '<span class="text-gray-600 text-[11px] truncate">' + detailParts.join(' ') + '</span>' : '')
           + '</div>'
-          + '<div class="shrink-0 ml-2 text-xs">'
-          + amountStr
-          + '</div></div>';
+          + amountHtml
+          + '</div>'
+          + (detailParts.length > 0
+            ? '<div class="text-gray-500 text-[11px] mt-0.5 pl-1">' + detailParts.join(' · ') + '</div>'
+            : '')
+          + '</div>';
       }
       list.innerHTML = html;
       section.classList.remove('hidden');
