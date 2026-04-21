@@ -1,22 +1,18 @@
 import { rawHtml } from "../utils/rawTemplate.js";
+import { renderTailwindPage } from "./pageShell.js";
+import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 
 export function renderWipePage({ baseUrl, resetApiUrl }) {
-  return rawHtml`
-    <!DOCTYPE html>
-    <html lang="en" class="dark">
-      <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>BoltCard Wipe Utility</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-        <style>
-          body { background-color: #111827; color: #f3f4f6; }
-          .qr-container { display: inline-block; padding: 10px; background: white; border-radius: 8px; margin-top: 10px; }
-          .hidden { display: none !important; }
-        </style>
-      </head>
-      <body class="min-h-screen p-4 md:p-8 font-sans antialiased flex flex-col items-center">
+  return renderTailwindPage({
+    title: "BoltCard Wipe Utility",
+    bodyClass: "min-h-screen p-4 md:p-8 font-sans antialiased flex flex-col items-center",
+    headScripts: '<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>',
+    styles: [
+      'body { background-color: #111827; color: #f3f4f6; }',
+      '.qr-container { display: inline-block; padding: 10px; background: white; border-radius: 8px; margin-top: 10px; }',
+      '.hidden { display: none !important; }',
+    ].join('\n'),
+    content: rawHtml`
         <div class="max-w-4xl w-full space-y-8">
           
           <div class="flex items-center justify-between border-b border-gray-700 pb-4">
@@ -112,6 +108,7 @@ export function renderWipePage({ baseUrl, resetApiUrl }) {
         </div>
 
         <script>
+          ${BROWSER_NFC_HELPERS}
           const baseUrl = "${baseUrl}";
           const resetApiUrl = "${resetApiUrl}";
           let wipeQrCode = null;
@@ -124,7 +121,7 @@ export function renderWipePage({ baseUrl, resetApiUrl }) {
             const results = document.getElementById('scan-results');
             
             try {
-              if (!("NDEFReader" in window)) {
+              if (!browserSupportsNfc()) {
                 alert("Web NFC is not supported on this device/browser. Use Chrome on Android.");
                 return;
               }
@@ -137,34 +134,31 @@ export function renderWipePage({ baseUrl, resetApiUrl }) {
               results.classList.add('hidden');
 
               ndef.onreading = event => {
-                const serialNumber = event.serialNumber ? event.serialNumber.replace(/:/g, '').toLowerCase() : '';
+                const serialNumber = normalizeNfcSerial(event.serialNumber);
                 document.getElementById('scan-uid').innerText = serialNumber || "Unknown";
                 
                 let pParam = "Not found";
                 let cParam = "Not found";
 
-                for (const record of event.message.records) {
-                  if (record.recordType === "url") {
-                    const decoder = new TextDecoder();
-                    const urlString = decoder.decode(record.data);
-                    
+                extractNdefUrl(event.message.records, ["lnurlw://", "https://"]).then(urlString => {
+                  if (urlString) {
                     try {
-                      const url = new URL(urlString.startsWith("lnurlw://") ? urlString.replace("lnurlw://", "https://") : urlString);
+                      const url = new URL(normalizeBrowserNfcUrl(urlString));
                       pParam = url.searchParams.get("p") || pParam;
                       cParam = url.searchParams.get("c") || cParam;
                     } catch(e) {
                       // URL parse failed — keep existing pParam/cParam values
                     }
                   }
-                }
 
-                document.getElementById('scan-p').innerText = pParam;
-                document.getElementById('scan-c').innerText = cParam;
-                
-                status.classList.add('hidden');
-                results.classList.remove('hidden');
-                btn.classList.remove('hidden');
-                btn.innerText = "SCAN AGAIN";
+                  document.getElementById('scan-p').innerText = pParam;
+                  document.getElementById('scan-c').innerText = cParam;
+                  
+                  status.classList.add('hidden');
+                  results.classList.remove('hidden');
+                  btn.classList.remove('hidden');
+                  btn.innerText = "SCAN AGAIN";
+                });
               };
               
               ndef.onreadingerror = () => {
@@ -245,7 +239,6 @@ export function renderWipePage({ baseUrl, resetApiUrl }) {
             });
           }
         </script>
-      </body>
-    </html>
-  `;
+`,
+  });
 }

@@ -1,19 +1,13 @@
 import { rawHtml } from "../utils/rawTemplate.js";
+import { renderTailwindPage } from "./pageShell.js";
+import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 
 export function renderNfcPage() {
-  return rawHtml`
-    <!DOCTYPE html>
-    <html lang="en" class="dark">
-      <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>BoltCard NFC Console</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <style>
-          body { background-color: #030712; color: #f3f4f6; }
-        </style>
-      </head>
-      <body class="min-h-screen bg-gray-950 text-gray-100 font-sans antialiased">
+  return renderTailwindPage({
+    title: "BoltCard NFC Console",
+    bodyClass: "min-h-screen bg-gray-950 text-gray-100 font-sans antialiased",
+    styles: "body { background-color: #030712; color: #f3f4f6; }",
+    content: rawHtml`
         <div class="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 p-4 md:p-8">
           <section class="rounded-2xl border border-gray-800 bg-gray-900/80 p-6 shadow-2xl shadow-black/30">
             <div class="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
@@ -156,6 +150,7 @@ export function renderNfcPage() {
 
         <script type="module">
           import QrScanner from "https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner.min.js";
+          ${BROWSER_NFC_HELPERS}
 
           let lastScannedUrl = "";
           let callbackUrl = "";
@@ -258,16 +253,13 @@ export function renderNfcPage() {
                 clearError();
                 hidePaymentStatus();
 
-                const decoder = new TextDecoder();
-                let nfcData = decoder.decode(event.message.records[0].data);
-                if (nfcData.startsWith("lnurlw://")) {
-                  nfcData = "https://" + nfcData.substring(9);
-                }
+                let nfcData = await extractNdefUrl(event.message.records, ["lnurlw://", "https://"]);
+                nfcData = normalizeBrowserNfcUrl(nfcData);
 
                 ndefBox.textContent = nfcData;
 
                 if (event.serialNumber) {
-                  uidBox.textContent = event.serialNumber.replace(/:/g, "").toLowerCase();
+                  uidBox.textContent = normalizeNfcSerial(event.serialNumber);
                 } else {
                   uidBox.textContent = "No UID available";
                 }
@@ -416,7 +408,6 @@ export function renderNfcPage() {
           updatePayButtonState();
           window.addEventListener("load", startNfc);
         </script>
-      </body>
-    </html>
-  `;
+`,
+  });
 }

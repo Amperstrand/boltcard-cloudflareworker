@@ -1,5 +1,6 @@
 import { validateUid } from "../utils/validation.js";
 import { rawHtml } from "../utils/rawTemplate.js";
+import { renderTailwindPage } from "./pageShell.js";
 
 const BROWSER_VALIDATE_UID_HELPER = rawHtml`
     const UID_REGEX = /^[0-9a-f]{14}$/;
@@ -7,19 +8,11 @@ const BROWSER_VALIDATE_UID_HELPER = rawHtml`
 `;
 
 export function renderAnalyticsPage() {
-  return rawHtml`<!DOCTYPE html>
-<html lang="en" class="dark">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bolt Card Analytics</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body { background-color: #111827; color: #f3f4f6; }
-  </style>
-</head>
-<body class="min-h-screen p-4 md:p-8 font-sans antialiased">
-
+  return renderTailwindPage({
+    title: "Bolt Card Analytics",
+    bodyClass: "min-h-screen p-4 md:p-8 font-sans antialiased",
+    styles: "body { background-color: #111827; color: #f3f4f6; }",
+    content: rawHtml`
   <div class="max-w-2xl mx-auto">
     <div class="text-center mb-8">
       <h1 class="text-3xl font-bold text-emerald-500 tracking-tight mb-2">ANALYTICS</h1>
@@ -177,6 +170,6 @@ ${BROWSER_VALIDATE_UID_HELPER}
       loadAnalytics();
     }
   </script>
-</body>
-</html>`;
+</div>`,
+  });
 }

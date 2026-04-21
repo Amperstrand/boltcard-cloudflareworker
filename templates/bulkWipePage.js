@@ -1,5 +1,6 @@
 import { validateUid } from "../utils/validation.js";
 import { rawHtml } from "../utils/rawTemplate.js";
+import { renderTailwindPage } from "./pageShell.js";
 
 const BROWSER_VALIDATE_UID_HELPER = rawHtml`
           const UID_REGEX = /^[0-9a-f]{14}$/;
@@ -7,22 +8,16 @@ const BROWSER_VALIDATE_UID_HELPER = rawHtml`
 `;
 
 export function renderBulkWipePage({ baseUrl, keyOptionsHtml }) {
-  return rawHtml`
-    <!DOCTYPE html>
-    <html lang="en" class="dark">
-      <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Bulk Card Wipe</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-        <style>
-          body { background-color: #111827; color: #f3f4f6; }
-          .qr-container { display: inline-block; padding: 10px; background: white; border-radius: 8px; margin-top: 10px; }
-          .hidden { display: none !important; }
-        </style>
-      </head>
-      <body class="min-h-screen p-4 md:p-8 font-sans antialiased flex flex-col items-center">
+  return renderTailwindPage({
+    title: "Bulk Card Wipe",
+    bodyClass: "min-h-screen p-4 md:p-8 font-sans antialiased flex flex-col items-center",
+    headScripts: '<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>',
+    styles: [
+      'body { background-color: #111827; color: #f3f4f6; }',
+      '.qr-container { display: inline-block; padding: 10px; background: white; border-radius: 8px; margin-top: 10px; }',
+      '.hidden { display: none !important; }',
+    ].join('\n'),
+    content: rawHtml`
         <div class="max-w-4xl w-full space-y-8">
 
           <div class="flex items-center justify-between border-b border-gray-700 pb-4">
@@ -260,7 +255,6 @@ ${BROWSER_VALIDATE_UID_HELPER}
             }
           });
         </script>
-      </body>
-    </html>
-  `;
+`,
+  });
 }

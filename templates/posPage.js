@@ -1,20 +1,17 @@
 import { rawHtml } from "../utils/rawTemplate.js";
+import { renderTailwindPage } from "./pageShell.js";
+import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 
 export function renderPosPage({ host }) {
-  return rawHtml`<!DOCTYPE html>
-<html lang="en" class="dark">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="robots" content="noindex,nofollow" />
-    <title>Boltcard POS</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-      body { background-color: #111827; color: #f3f4f6; }
-      .amount-glow { text-shadow: 0 0 30px rgba(16, 185, 129, 0.16); }
-    </style>
-  </head>
-  <body class="min-h-screen bg-gray-900 p-4 font-sans antialiased flex items-center justify-center">
+  return renderTailwindPage({
+    title: "Boltcard POS",
+    metaRobots: "noindex,nofollow",
+    bodyClass: "min-h-screen bg-gray-900 p-4 font-sans antialiased flex items-center justify-center",
+    styles: [
+      "body { background-color: #111827; color: #f3f4f6; }",
+      ".amount-glow { text-shadow: 0 0 30px rgba(16, 185, 129, 0.16); }",
+    ].join("\n"),
+    content: rawHtml`
     <div class="w-full max-w-sm">
       <div class="text-center mb-6">
         <h1 class="text-3xl font-bold text-emerald-500 tracking-tight mb-2">BOLTCARD POS</h1>
@@ -75,8 +72,8 @@ export function renderPosPage({ host }) {
     </div>
 
     <script>
+      ${BROWSER_NFC_HELPERS}
       const API_HOST = "${host}";
-      const decoder = new TextDecoder();
       let amountInput = '0';
       let appState = 'idle';
       let currentReader = null;
@@ -194,7 +191,7 @@ export function renderPosPage({ host }) {
         chargeButton.disabled = editingLocked || amountIsZero(amountInput);
         newSaleButton.classList.toggle('hidden', !(appState === 'success' || appState === 'failed'));
 
-        if (!('NDEFReader' in window)) {
+        if (!browserSupportsNfc()) {
           chargeButton.disabled = true;
           setStatus('error', 'Unavailable', 'NFC not available on this device/browser. Use Chrome on Android.');
           statusHelp.textContent = 'Web NFC is required to scan a boltcard tap.';
@@ -268,15 +265,8 @@ export function renderPosPage({ host }) {
         return (async function() {
           let nfcUrl = null;
           for (const record of message.records) {
-            if (record.recordType === 'url' || record.recordType === 'text') {
-              const text = record.recordType === 'url'
-                ? await new Response(record.data).text()
-                : decoder.decode(record.data);
-              if (text.toLowerCase().startsWith('lnurlw://') || text.toLowerCase().startsWith('https://')) {
-                nfcUrl = text;
-                break;
-              }
-            }
+            nfcUrl = await extractNdefUrl(message.records, ['lnurlw://', 'https://']);
+            break;
           }
           return nfcUrl;
         })();
@@ -355,7 +345,7 @@ export function renderPosPage({ host }) {
       }
 
       async function startChargeFlow() {
-        if (!('NDEFReader' in window)) {
+        if (!browserSupportsNfc()) {
           handleRecoverableError('NFC not available on this device/browser. Use Chrome on Android.');
           return;
         }
@@ -409,6 +399,6 @@ export function renderPosPage({ host }) {
         }
       }
     </script>
-  </body>
-</html>`;
+`,
+  });
 }

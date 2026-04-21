@@ -1,5 +1,7 @@
 import { validateUid } from "../utils/validation.js";
 import { rawHtml } from "../utils/rawTemplate.js";
+import { renderTailwindPage } from "./pageShell.js";
+import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 
 const BROWSER_VALIDATE_UID_HELPER = rawHtml`
         const UID_REGEX = /^[0-9a-f]{14}$/;
@@ -7,21 +9,15 @@ const BROWSER_VALIDATE_UID_HELPER = rawHtml`
 `;
 
 export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, programUrl, resetUrl }) {
-  return rawHtml`
-    <!DOCTYPE html>
-    <html lang="en" class="dark">
-      <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>BoltCard Activate</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-        <style>
-          body { background-color: #111827; color: #f3f4f6; }
-          .qr-container { display: inline-block; padding: 10px; background: white; border-radius: 8px; margin-top: 10px; }
-        </style>
-      </head>
-      <body class="min-h-screen p-4 md:p-8 font-sans antialiased flex flex-col items-center">
+  return renderTailwindPage({
+    title: "BoltCard Activate",
+    bodyClass: "min-h-screen p-4 md:p-8 font-sans antialiased flex flex-col items-center",
+    headScripts: '<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>',
+    styles: [
+      'body { background-color: #111827; color: #f3f4f6; }',
+      '.qr-container { display: inline-block; padding: 10px; background: white; border-radius: 8px; margin-top: 10px; }',
+    ].join('\n'),
+    content: rawHtml`
         <div class="max-w-4xl w-full bg-gray-800 border border-gray-700 shadow-xl rounded-lg p-6 md:p-8">
           
           <div class="flex items-center justify-between border-b border-gray-700 pb-4 mb-6">
@@ -275,9 +271,8 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
             }, 2000);
           }
         </script>
-      </body>
-    </html>
-  `;
+`,
+  });
 }
 
 export function renderActivateCardPage() {
@@ -395,6 +390,7 @@ export function renderActivateCardPage() {
 
       <script>
         ${BROWSER_VALIDATE_UID_HELPER}
+        ${BROWSER_NFC_HELPERS}
 
         // NFC Scanning functionality
         document.getElementById('scan-nfc').addEventListener('click', async function() {
@@ -407,7 +403,7 @@ export function renderActivateCardPage() {
           nfcStatus.textContent = 'Please tap your card on the device...';
           
           try {
-            if (!('NDEFReader' in window)) {
+            if (!browserSupportsNfc()) {
               throw new Error('NFC is not supported in this browser or device.');
             }
             
@@ -418,7 +414,7 @@ export function renderActivateCardPage() {
               // The serialNumber contains the UID of the card
               if (event.serialNumber) {
                 // Clean up the UID format - remove colons and convert to lowercase
-                const formattedUid = event.serialNumber.replace(/:/g, '').toLowerCase();
+                const formattedUid = normalizeNfcSerial(event.serialNumber);
                 const validatedUid = validateUid(formattedUid);
                 
                 // Verify the UID is correct length after cleaning
