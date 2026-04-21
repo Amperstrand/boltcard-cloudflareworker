@@ -4,6 +4,12 @@ import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 
 export function renderIdentityPage({ host }) {
   const pageTitle = "Boltcard Identity";
+  const emojiOptions = ["👤", "😀", "😎", "🤖", "🧠", "🚀", "🦊", "🦄", "🐸", "🦉", "⚡", "🔥"];
+  const emojiButtons = emojiOptions.map((emoji) => `
+    <button type="button" data-emoji="${emoji}" class="identity-emoji-btn h-11 w-11 rounded-xl border border-gray-700 bg-gray-950/80 text-2xl transition hover:border-pink-400/60 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-pink-500/30">
+      ${emoji}
+    </button>
+  `).join("");
   
   const content = rawHtml`
     <div class="min-h-screen bg-gray-950 text-gray-100 flex flex-col font-mono items-center relative overflow-hidden">
@@ -13,17 +19,20 @@ export function renderIdentityPage({ host }) {
       
       <div class="z-10 w-full max-w-md p-6 flex flex-col flex-grow">
         <!-- Header -->
-        <header class="flex justify-between items-center mb-8 pt-4">
-          <div>
-            <h1 class="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-              <span class="text-blue-500">🛡️</span> IDENTITY
-            </h1>
-            <p class="text-xs text-gray-500 uppercase tracking-widest mt-1">NFC Access Control</p>
-          </div>
-          <div id="nfc-status" class="w-10 h-10 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center transition-all duration-300">
-            <span class="text-gray-500">⚡</span>
-          </div>
-        </header>
+          <header class="flex justify-between items-center mb-8 pt-4 gap-3">
+            <div>
+              <h1 class="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+                <span class="text-blue-500">🛡️</span> IDENTITY
+              </h1>
+              <p class="text-xs text-gray-500 uppercase tracking-widest mt-1">NFC Access Control + Profile Demo</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <a href="/debug" class="hidden sm:inline-flex items-center gap-2 rounded-lg border border-gray-800 bg-gray-900 px-3 py-2 text-xs font-semibold text-gray-300 transition hover:border-gray-600 hover:text-white">Debug</a>
+              <div id="nfc-status" class="w-10 h-10 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center transition-all duration-300">
+                <span class="text-gray-500">⚡</span>
+              </div>
+            </div>
+          </header>
 
         <!-- Main Panel -->
         <main class="flex-grow flex flex-col justify-center items-center relative">
@@ -90,7 +99,29 @@ export function renderIdentityPage({ host }) {
                   <span id="profile-time" class="text-sm font-mono text-gray-400">00:00:00</span>
                 </div>
               </div>
-              
+
+              <div class="w-full mt-4 rounded-xl border border-pink-500/20 bg-pink-500/5 p-4 text-left">
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <p class="text-xs text-pink-300 uppercase tracking-[0.2em]">Avatar placeholder</p>
+                    <h3 class="mt-1 text-sm font-semibold text-white">Choose the emoji that represents this card</h3>
+                    <p class="mt-1 text-xs leading-5 text-gray-400">This is a lightweight stand-in for a future profile photo. It stays attached to this bolt card.</p>
+                  </div>
+                  <a id="identity-open-2fa" href="#" class="inline-flex items-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20">
+                    Open 2FA demo
+                  </a>
+                </div>
+                <div id="emoji-picker" class="mt-4 grid grid-cols-6 gap-2">
+                  ${emojiButtons}
+                </div>
+                <div class="mt-3 flex items-center justify-between gap-3">
+                  <p id="emoji-save-status" class="text-xs text-gray-500">Pick an emoji to save it to this card profile.</p>
+                  <button id="emoji-save-button" type="button" class="rounded-lg bg-pink-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-pink-500 disabled:cursor-not-allowed disabled:bg-gray-700 disabled:text-gray-400">
+                    Save avatar
+                  </button>
+                </div>
+              </div>
+               
               <button id="btn-reset" class="mt-6 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-sm font-medium transition-colors border border-gray-700 w-full">
                 Verify Another Card
               </button>
@@ -130,9 +161,14 @@ export function renderIdentityPage({ host }) {
 
         <!-- Footer -->
         <footer class="mt-8 text-center pb-4">
-          <a href="/debug" class="text-sm text-gray-500 hover:text-gray-300 transition-colors inline-flex items-center gap-1">
-            Back to debug tools <span>&rarr;</span>
-          </a>
+          <div class="flex items-center justify-center gap-4 text-sm">
+            <a href="/debug" class="text-gray-500 hover:text-gray-300 transition-colors inline-flex items-center gap-1">
+              Debug tools <span>&rarr;</span>
+            </a>
+            <a href="/2fa" class="text-gray-500 hover:text-cyan-300 transition-colors inline-flex items-center gap-1">
+              2FA demo <span>&rarr;</span>
+            </a>
+          </div>
         </footer>
       </div>
     </div>
@@ -162,15 +198,84 @@ export function renderIdentityPage({ host }) {
           clearance: document.getElementById('profile-clearance'),
           uid: document.getElementById('profile-uid'),
           time: document.getElementById('profile-time'),
-          reason: document.getElementById('error-reason')
+          reason: document.getElementById('error-reason'),
+          openTwoFactor: document.getElementById('identity-open-2fa'),
+          emojiSaveButton: document.getElementById('emoji-save-button'),
+          emojiSaveStatus: document.getElementById('emoji-save-status'),
+          emojiButtons: Array.from(document.querySelectorAll('.identity-emoji-btn')),
         };
-
-        const AVATARS = ['👩‍💻', '👨‍🚀', '🦸‍♀️', '🥷', '🧙‍♂️', '🕵️‍♀️', '🧛‍♂️', '🤖'];
-        const DEPTS = ['Engineering', 'Security', 'Operations', 'Command'];
-        const ROLES = ['Administrator', 'Specialist', 'Technician', 'Director'];
 
         let appState = 'idle';
         let abortController = null;
+        let currentVerification = null;
+        let selectedEmoji = null;
+
+        function setEmojiSelection(emoji) {
+          selectedEmoji = emoji;
+          profile.emojiButtons.forEach((button) => {
+            const active = button.dataset.emoji === emoji;
+            button.classList.toggle('border-pink-400', active);
+            button.classList.toggle('bg-pink-500/10', active);
+            button.classList.toggle('scale-105', active);
+          });
+          profile.emojiSaveButton.disabled = !emoji;
+        }
+
+        function setSaveStatus(message, tone = 'muted') {
+          const toneClass = tone === 'success'
+            ? 'text-emerald-300'
+            : tone === 'error'
+              ? 'text-red-300'
+              : 'text-gray-500';
+          profile.emojiSaveStatus.className = 'text-xs ' + toneClass;
+          profile.emojiSaveStatus.textContent = message;
+        }
+
+        function hydrateVerifiedProfile(result, verificationParams) {
+          const profileData = result.profile || {};
+          profile.avatar.textContent = profileData.emoji || '👤';
+          profile.name.textContent = profileData.name || 'Operator';
+          profile.role.textContent = profileData.role || 'Role';
+          profile.dept.textContent = profileData.dept || 'Engineering';
+          profile.clearance.textContent = profileData.level || 'Level 1';
+          profile.uid.textContent = result.maskedUid;
+          profile.time.textContent = new Date().toLocaleTimeString([], { hour12: false });
+          currentVerification = verificationParams;
+          profile.openTwoFactor.href = '/2fa?p=' + encodeURIComponent(verificationParams.p) + '&c=' + encodeURIComponent(verificationParams.c);
+          setEmojiSelection(profileData.emoji || null);
+          setSaveStatus('Pick an emoji to save it to this card profile.');
+        }
+
+        async function saveEmojiSelection() {
+          if (!currentVerification || !selectedEmoji) {
+            return;
+          }
+
+          profile.emojiSaveButton.disabled = true;
+          setSaveStatus('Saving avatar choice...', 'muted');
+
+          try {
+            const response = await fetch('/api/identity/profile', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                p: currentVerification.p,
+                c: currentVerification.c,
+                emoji: selectedEmoji,
+              }),
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+              throw new Error(data.reason || data.error || 'Unable to save avatar');
+            }
+            hydrateVerifiedProfile({ ...data, maskedUid: data.maskedUid || profile.uid.textContent }, currentVerification);
+            setSaveStatus('Saved. This emoji will show the next time this card is verified.', 'success');
+          } catch (error) {
+            setSaveStatus(error.message || 'Unable to save avatar.', 'error');
+          } finally {
+            profile.emojiSaveButton.disabled = !selectedEmoji;
+          }
+        }
 
         function setState(newState) {
           appState = newState;
@@ -212,23 +317,6 @@ export function renderIdentityPage({ host }) {
           }
         }
 
-        function generateDeterministicProfile(uidHex) {
-          const hex = (uidHex || "00000000").padEnd(8, '0');
-          
-          const p0 = parseInt(hex.substring(0, 2), 16) || 0;
-          const p1 = parseInt(hex.substring(2, 4), 16) || 0;
-          const p2 = parseInt(hex.substring(4, 6), 16) || 0;
-          const p3 = parseInt(hex.substring(6, 8), 16) || 0;
-
-          return {
-            avatar: AVATARS[p0 % AVATARS.length],
-            name: 'Operator-' + hex.substring(0, 4).toUpperCase(),
-            role: ROLES[p3 % ROLES.length],
-            dept: DEPTS[p1 % DEPTS.length],
-            level: 'Level ' + ((p2 % 5) + 1)
-          };
-        }
-
         async function processNdefUrl(url) {
           setState('scanning');
           try {
@@ -244,17 +332,7 @@ export function renderIdentityPage({ host }) {
             const data = await response.json();
 
             if (data.verified) {
-              const pData = generateDeterministicProfile(data.uid);
-              profile.avatar.textContent = pData.avatar;
-              profile.name.textContent = pData.name;
-              profile.role.textContent = pData.role;
-              profile.dept.textContent = pData.dept;
-              profile.clearance.textContent = pData.level;
-              profile.uid.textContent = data.maskedUid;
-              
-              const now = new Date();
-              profile.time.textContent = now.toLocaleTimeString([], { hour12: false });
-              
+              hydrateVerifiedProfile(data, { p, c });
               setState('verified');
             } else {
               profile.reason.textContent = data.reason || 'Verification failed';
@@ -327,6 +405,13 @@ export function renderIdentityPage({ host }) {
             startScan().catch(e => console.log('Auto-scan on reset failed', e));
           }
         });
+
+        profile.emojiButtons.forEach((button) => {
+          button.addEventListener('click', () => setEmojiSelection(button.dataset.emoji));
+        });
+
+        profile.emojiSaveButton.addEventListener('click', saveEmojiSelection);
+        profile.emojiSaveButton.disabled = true;
       });
     </script>
   `;

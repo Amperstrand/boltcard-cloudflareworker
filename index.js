@@ -9,7 +9,7 @@ import { constructWithdrawResponse } from "./handlers/withdrawHandler.js";
 import { constructPayRequest, handleLnurlPayCallback } from "./handlers/lnurlPayHandler.js";
 import handleNfc from "./handlers/handleNfc.js";
 import { handleDebugPage } from "./handlers/debugHandler.js";
-import { handleIdentityPage, handleIdentityVerify } from "./handlers/identityHandler.js";
+import { handleIdentityPage, handleIdentityProfileUpdate, handleIdentityVerify } from "./handlers/identityHandler.js";
 import { getUidConfig } from "./getUidConfig.js";
 import { handleActivateCardPage as handleActivateForm, handleActivateCardSubmit } from "./handlers/activateCardHandler.js";
 import { handleReset } from "./handlers/resetHandler.js";
@@ -60,6 +60,7 @@ router.post("/activate/form", (request, env) => handleActivateCardSubmit(request
 router.get("/lnurlp/cb", (request, env) => handleLnurlPayCallback(request, env));
 router.get("/api/bulk-wipe-keys", (request, env) => handleBulkWipeKeys(request, env));
 router.get("/api/verify-identity", (request, env) => handleIdentityVerify(request, env));
+router.post("/api/identity/profile", (request, env) => handleIdentityProfileUpdate(request, env));
 router.get("/debug", (request) => handleDebugPage(request));
 router.get("/identity", (request) => handleIdentityPage(request));
 

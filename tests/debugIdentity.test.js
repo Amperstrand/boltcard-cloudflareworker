@@ -38,12 +38,13 @@ function computeRealC(uidHex, ctrHex, k2Hex) {
 }
 
 function makeEnv(uidConfig = null) {
+  const store = uidConfig ? { [TEST_UID]: JSON.stringify(uidConfig) } : {};
   return {
     BOLT_CARD_K1,
     CARD_REPLAY: makeReplayNamespace(),
     UID_CONFIG: {
-      get: async (uid) => uidConfig && uid === TEST_UID ? JSON.stringify(uidConfig) : null,
-      put: async () => {},
+      get: async (uid) => store[uid] ?? null,
+      put: async (uid, value) => { store[uid] = value; },
     },
   };
 }
@@ -93,6 +94,8 @@ describe("Identity Page", () => {
     expect(html).toContain("ACCESS DENIED");
     expect(html).toContain("NDEFReader");
     expect(html).toContain("/api/verify-identity");
+    expect(html).toContain("Save avatar");
+    expect(html).toContain("Open 2FA demo");
   });
 });
 
@@ -117,6 +120,50 @@ describe("Identity Verify API", () => {
     expect(json.uid).toBe(TEST_UID);
     expect(json.maskedUid).toContain("0499");
     expect(json.maskedUid).toContain("6980");
+    expect(json.profile).toMatchObject({
+      emoji: expect.any(String),
+      name: expect.stringMatching(/^Operator-/),
+      role: expect.any(String),
+      dept: expect.any(String),
+      level: expect.stringMatching(/^Level /),
+    });
+  });
+
+  test("saves a selected emoji avatar for a verified card", async () => {
+    const env = makeEnv({ payment_method: "fakewallet", K2: keys.k2 });
+    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]);
+    const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
+
+    const response = await handleRequest(new Request("https://test.local/api/identity/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ p: pHex, c: cHex, emoji: "🚀" }),
+    }), env);
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.success).toBe(true);
+    expect(json.profile.emoji).toBe("🚀");
+
+    const verifyResp = await makeRequest(`/api/verify-identity?p=${pHex}&c=${cHex}`, env);
+    const verifyJson = await verifyResp.json();
+    expect(verifyJson.profile.emoji).toBe("🚀");
+  });
+
+  test("rejects unsupported emoji selection", async () => {
+    const env = makeEnv({ payment_method: "fakewallet", K2: keys.k2 });
+    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]);
+    const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
+
+    const response = await handleRequest(new Request("https://test.local/api/identity/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ p: pHex, c: cHex, emoji: "❌" }),
+    }), env);
+
+    expect(response.status).toBe(400);
+    const json = await response.json();
+    expect(json.status).toBe("ERROR");
   });
 
   test("returns unverified for unknown card", async () => {
