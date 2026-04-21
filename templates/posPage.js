@@ -10,8 +10,28 @@ export function renderPosPage({ host }) {
     styles: [
       "body { background-color: #111827; color: #f3f4f6; }",
       ".amount-glow { text-shadow: 0 0 30px rgba(16, 185, 129, 0.16); }",
+      "#tap-overlay { transition: opacity 0.2s ease, visibility 0.2s ease; }",
+      "#tap-overlay.visible { opacity: 1; visibility: visible; }",
+      "#tap-overlay:not(.visible) { opacity: 0; visibility: hidden; }",
+      "@keyframes pulse-ring { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(2.2); opacity: 0; } }",
+      ".pulse-ring { animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }",
+      "@keyframes nfc-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }",
+      ".nfc-icon-bounce { animation: nfc-bounce 1.2s ease-in-out infinite; }",
     ].join("\n"),
     content: rawHtml`
+    <div id="tap-overlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-900/98 backdrop-blur-sm">
+      <div class="text-center px-6">
+        <div id="overlay-amount" class="amount-glow text-7xl font-bold tracking-tight text-white leading-none mb-3">0</div>
+        <div class="text-sm uppercase tracking-[0.35em] text-gray-500 mb-10">units</div>
+        <div id="overlay-nfc-icon" class="nfc-icon-bounce inline-flex items-center justify-center w-24 h-24 rounded-full border-2 border-emerald-500/40 mb-6 relative">
+          <svg class="w-12 h-12 text-emerald-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z"/></svg>
+          <div class="pulse-ring absolute inset-0 rounded-full border-2 border-emerald-500/30"></div>
+        </div>
+        <div id="overlay-status" class="text-xl font-bold text-emerald-400 mb-2">TAP CARD TO PAY</div>
+        <div id="overlay-help" class="text-sm text-gray-400">Hold the boltcard against the back of your device</div>
+      </div>
+    </div>
+
     <div class="w-full max-w-sm">
       <div class="text-center mb-6">
         <h1 class="text-3xl font-bold text-emerald-500 tracking-tight mb-2">BOLTCARD POS</h1>
@@ -51,8 +71,6 @@ export function renderPosPage({ host }) {
               <span id="status-pill-text">Ready</span>
             </span>
           </div>
-          <p id="status-text" class="mt-3 text-sm text-gray-300">Ready to scan</p>
-          <p id="status-help" class="mt-1 text-xs text-gray-500">Enter an amount, then tap CHARGE and present the card.</p>
         </div>
 
         <div id="result-box" class="hidden rounded-xl border p-4 mb-4">
@@ -93,6 +111,11 @@ export function renderPosPage({ host }) {
       const resultIcon = document.getElementById('result-icon');
       const resultTitle = document.getElementById('result-title');
       const resultMessage = document.getElementById('result-message');
+      const tapOverlay = document.getElementById('tap-overlay');
+      const overlayAmount = document.getElementById('overlay-amount');
+      const overlayStatus = document.getElementById('overlay-status');
+      const overlayHelp = document.getElementById('overlay-help');
+      const overlayNfcIcon = document.getElementById('overlay-nfc-icon');
 
       keypad.addEventListener('click', function(event) {
         const button = event.target.closest('[data-key]');
@@ -141,7 +164,7 @@ export function renderPosPage({ host }) {
         updateView();
       }
 
-      function setStatus(tone, title, helpText) {
+      function setStatus(tone, title) {
         const toneMap = {
           ready: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
           scanning: 'border-sky-500/30 bg-sky-500/10 text-sky-400',
@@ -150,7 +173,6 @@ export function renderPosPage({ host }) {
         };
         statusPill.className = 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold border ' + (toneMap[tone] || toneMap.ready);
         statusPillText.textContent = title;
-        statusText.textContent = helpText;
       }
 
       function showResult(kind, title, message) {
@@ -181,7 +203,27 @@ export function renderPosPage({ host }) {
       function updateView() {
         amountDisplay.textContent = formatAmount(amountInput);
 
-        const editingLocked = appState === 'charging' || appState === 'scanning' || appState === 'processing';
+        const overlayActive = appState === 'charging' || appState === 'scanning' || appState === 'processing';
+        if (overlayActive) {
+          tapOverlay.classList.add('visible');
+          overlayAmount.textContent = formatAmount(chargeAmount);
+        } else {
+          tapOverlay.classList.remove('visible');
+        }
+
+        if (appState === 'charging' || appState === 'scanning') {
+          overlayStatus.textContent = 'TAP CARD TO PAY';
+          overlayStatus.className = 'text-xl font-bold text-emerald-400 mb-2';
+          overlayHelp.textContent = 'Hold the boltcard against the back of your device';
+          overlayNfcIcon.classList.remove('hidden');
+        } else if (appState === 'processing') {
+          overlayStatus.textContent = 'PROCESSING...';
+          overlayStatus.className = 'text-xl font-bold text-amber-400 mb-2';
+          overlayHelp.textContent = 'Verifying card and submitting payment';
+          overlayNfcIcon.classList.add('hidden');
+        }
+
+        const editingLocked = overlayActive;
         keypadButtons.forEach(function(button) {
           button.disabled = editingLocked;
           button.classList.toggle('opacity-40', editingLocked);
@@ -193,26 +235,20 @@ export function renderPosPage({ host }) {
 
         if (!browserSupportsNfc()) {
           chargeButton.disabled = true;
-          setStatus('error', 'Unavailable', 'NFC not available on this device/browser. Use Chrome on Android.');
-          statusHelp.textContent = 'Web NFC is required to scan a boltcard tap.';
+          setStatus('error', 'Unavailable');
           return;
         }
 
         if (appState === 'idle') {
-          setStatus('ready', 'Ready', 'Ready to scan');
-          statusHelp.textContent = 'Enter an amount, then tap CHARGE and present the card.';
+          setStatus('ready', 'Ready');
         } else if (appState === 'charging' || appState === 'scanning') {
-          setStatus('scanning', 'Scanning...', 'Tap your card...');
-          statusHelp.textContent = 'Hold the boltcard against the back of your Android device.';
+          setStatus('scanning', 'Scanning...');
         } else if (appState === 'processing') {
-          setStatus('processing', 'Processing', 'Processing payment...');
-          statusHelp.textContent = 'Verifying the card and submitting the fakewallet payment.';
+          setStatus('processing', 'Processing');
         } else if (appState === 'success') {
-          setStatus('ready', 'Complete', 'Payment received');
-          statusHelp.textContent = 'Tap NEW SALE to start another payment.';
+          setStatus('ready', 'Complete');
         } else if (appState === 'failed') {
-          setStatus('error', 'Failed', 'Payment failed');
-          statusHelp.textContent = 'Tap NEW SALE to clear the result and start again.';
+          setStatus('error', 'Failed');
         }
       }
 
