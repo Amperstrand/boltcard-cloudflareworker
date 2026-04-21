@@ -22,6 +22,7 @@ import { handleBulkWipePage } from "./handlers/bulkWipePageHandler.js";
 import { handleAnalyticsPage, handleAnalyticsData } from "./handlers/analyticsHandler.js";
 import { hexToBytes } from "./cryptoutils.js";
 import { getDeterministicKeys } from "./keygenerator.js";
+import { generateFakeBolt11 } from "./utils/bolt11.js";
 import { logger } from "./utils/logger.js";
 import { jsonResponse, errorResponse } from "./utils/responses.js";
 import { checkRateLimit } from "./rateLimiter.js";
@@ -29,6 +30,19 @@ import { checkReplayOnly, recordTapRead, getCardState, activateCard } from "./re
 
 const router = Router();
 
+router.get("/api/fake-invoice", (request, env) => {
+  const url = new URL(request.url);
+  const amountMsat = parseInt(url.searchParams.get("amount"), 10);
+  if (!Number.isInteger(amountMsat) || amountMsat <= 0) {
+    return errorResponse("amount must be a positive integer (millisatoshis)", 400);
+  }
+  try {
+    const invoice = generateFakeBolt11(amountMsat);
+    return jsonResponse({ pr: invoice });
+  } catch (err) {
+    return errorResponse(err.message, 500);
+  }
+});
 router.get("/api/keys", (request, env) => handleGetKeys(request, env));
 router.post("/api/keys", (request, env) => handleGetKeys(request, env));
 router.get("/status", (request, env) => handleStatus(request, env));
