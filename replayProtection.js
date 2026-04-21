@@ -44,6 +44,8 @@ export async function recordTapRead(env, uidHex, counterValue, { userAgent, requ
 
   const id = env.CARD_REPLAY.idFromName(uidHex.toLowerCase());
   const stub = env.CARD_REPLAY.get(id);
+  // Intentional catch: recording is auditing-only, must not block the payment flow.
+  // Callers still await this to ensure the attempt completes before proceeding.
   await stub.fetch(
     new Request("https://card-replay.internal/record-read", {
       method: "POST",

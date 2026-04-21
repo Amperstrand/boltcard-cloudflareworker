@@ -62,9 +62,9 @@ class Logger {
   }
 
   logRequest(request) {
-    if (this.shouldLog('trace')) {
+    if (this.shouldLog('debug')) {
       const url = new URL(request.url);
-      this.trace('Incoming request', {
+      this.debug('Incoming request', {
         method: request.method,
         url: request.url,
         pathname: url.pathname,
@@ -74,8 +74,8 @@ class Logger {
   }
 
   logResponse(status, body, context = {}) {
-    if (this.shouldLog('trace')) {
-      this.trace('Response sent', {
+    if (this.shouldLog('debug')) {
+      this.debug('Response sent', {
         status,
         bodyLength: typeof body === 'string' ? body.length : 'object',
         ...context
@@ -91,8 +91,8 @@ class Logger {
   }
 
   logCrypto(operation, context = {}) {
-    if (this.shouldLog('trace')) {
-      this.trace(`Crypto operation: ${operation}`, context);
+    if (this.shouldLog('debug')) {
+      this.debug(`Crypto operation: ${operation}`, context);
     }
   }
 

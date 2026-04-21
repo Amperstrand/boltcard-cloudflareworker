@@ -124,8 +124,22 @@ async function detectCardVersion(uidHex, ctr, cHex, env, latestVersion) {
   return null;
 }
 
+async function checkAndRejectReplay(env, uidHex, counterValue) {
+  const replayResult = await checkReplayOnly(env, uidHex, counterValue);
+  if (!replayResult.accepted) {
+    logger.warn("Counter replay detected", {
+      uidHex,
+      counterValue,
+      lastCounter: replayResult.lastCounter,
+    });
+    return errorResponse(replayResult.reason || "Counter replay detected — tap rejected");
+  }
+  return null;
+}
+
 async function handleLnurlw(request, env) {
-  const { searchParams } = new URL(request.url);
+  const url = new URL(request.url);
+  const { searchParams } = url;
   const pHex = searchParams.get("p");
   const cHex = searchParams.get("c");
 
@@ -222,15 +236,8 @@ async function handleLnurlw(request, env) {
 
   if (proxyRelayMode) {
     try {
-      const replayResult = await checkReplayOnly(env, uidHex, counterValue);
-      if (!replayResult.accepted) {
-        logger.warn("Counter replay detected", {
-          uidHex,
-          counterValue,
-          lastCounter: replayResult.lastCounter,
-        });
-        return errorResponse(replayResult.reason || "Counter replay detected — tap rejected");
-      }
+      const replayError = await checkAndRejectReplay(env, uidHex, counterValue);
+      if (replayError) return replayError;
     } catch (error) {
       logger.error("Replay protection check failed", {
         uidHex,
@@ -252,7 +259,7 @@ async function handleLnurlw(request, env) {
   }
 
   if (config.payment_method === "lnurlpay") {
-    const baseUrl = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
+    const baseUrl = `${url.protocol}//${url.host}`;
     await recordTapRead(env, uidHex, counterValue, {
       userAgent: request.headers.get("User-Agent") || null,
       requestUrl: request.url,
@@ -262,15 +269,8 @@ async function handleLnurlw(request, env) {
 
   if (config.payment_method === "clnrest" || config.payment_method === "fakewallet") {
     try {
-      const replayResult = await checkReplayOnly(env, uidHex, counterValue);
-      if (!replayResult.accepted) {
-        logger.warn("Counter replay detected", {
-          uidHex,
-          counterValue,
-          lastCounter: replayResult.lastCounter,
-        });
-        return errorResponse(replayResult.reason || "Counter replay detected — tap rejected");
-      }
+      const replayError = await checkAndRejectReplay(env, uidHex, counterValue);
+      if (replayError) return replayError;
     } catch (error) {
       logger.error("Replay protection check failed", {
         uidHex,
@@ -285,7 +285,7 @@ async function handleLnurlw(request, env) {
       userAgent: request.headers.get("User-Agent") || null,
       requestUrl: request.url,
     });
-    const baseUrl = `${new URL(request.url).protocol}//${new URL(request.url).host}`;
+    const baseUrl = `${url.protocol}//${url.host}`;
     const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated, baseUrl, config.payment_method);
     if (responsePayload.status === "ERROR") return errorResponse(responsePayload.reason);
     return jsonResponse(responsePayload);
@@ -297,7 +297,6 @@ async function handleLnurlw(request, env) {
 
 // Export handleRequest for tests
 export async function handleRequest(request, env) {
-  logger.logRequest(request);
   return router.fetch(request, env);
 }
 
