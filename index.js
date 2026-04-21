@@ -23,12 +23,9 @@ import { handleAnalyticsPage, handleAnalyticsData } from "./handlers/analyticsHa
 import { hexToBytes } from "./cryptoutils.js";
 import { getDeterministicKeys } from "./keygenerator.js";
 import { logger } from "./utils/logger.js";
-import { jsonResponse } from "./utils/responses.js";
+import { jsonResponse, errorResponse } from "./utils/responses.js";
 import { checkRateLimit } from "./rateLimiter.js";
 import { checkReplayOnly, recordTapRead, getCardState, activateCard } from "./replayProtection.js";
-
-const errorResponse = (reason, status = 400) =>
-  jsonResponse({ status: "ERROR", reason }, status);
 
 const router = Router();
 

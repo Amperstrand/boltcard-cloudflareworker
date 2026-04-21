@@ -2,7 +2,7 @@ import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { logger } from "../utils/logger.js";
-import { jsonResponse } from "../utils/responses.js";
+import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { recordTap, updateTapStatus } from "../replayProtection.js";
 import { resolveLightningAddress } from "../utils/lightningAddress.js";
 
@@ -19,9 +19,6 @@ function pickRandomAddress(config) {
   }
   return POS_ADDRESS_POOL[Math.floor(Math.random() * POS_ADDRESS_POOL.length)];
 }
-
-const errorResponse = (reason, status = 400) =>
-  jsonResponse({ status: "ERROR", reason }, status);
 
 export function constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, config) {
   const host = baseUrl || "https://boltcardpoc.psbt.me";
