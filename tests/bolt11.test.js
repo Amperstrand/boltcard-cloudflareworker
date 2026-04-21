@@ -1,4 +1,4 @@
-import { decodeBolt11Amount } from "../utils/bolt11.js";
+import { decodeBolt11Amount, generateFakeBolt11 } from "../utils/bolt11.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { handleRequest } from "../index.js";
 
@@ -160,5 +160,103 @@ describe("analytics HTTP routes", () => {
     expect(json).toHaveProperty("completedTaps");
     expect(json).toHaveProperty("failedTaps");
     expect(json).toHaveProperty("pendingTaps");
+  });
+});
+
+describe("generateFakeBolt11", () => {
+  const amounts = [1, 100, 1000, 5000, 50000, 100000, 1000000];
+
+  test.each(amounts)("round-trip encodes %d msat", (amountMsat) => {
+    const invoice = generateFakeBolt11(amountMsat);
+    expect(invoice).toMatch(/^lnbc/);
+    expect(decodeBolt11Amount(invoice)).toBe(amountMsat);
+  });
+
+  test("produces unique invoices for the same amount", () => {
+    const a = generateFakeBolt11(1000);
+    const b = generateFakeBolt11(1000);
+    expect(a).not.toBe(b);
+    expect(decodeBolt11Amount(a)).toBe(1000);
+    expect(decodeBolt11Amount(b)).toBe(1000);
+  });
+
+  test("throws for zero amount", () => {
+    expect(() => generateFakeBolt11(0)).toThrow("positive integer");
+  });
+
+  test("throws for negative amount", () => {
+    expect(() => generateFakeBolt11(-1)).toThrow("positive integer");
+  });
+
+  test("throws for non-integer amount", () => {
+    expect(() => generateFakeBolt11(1.5)).toThrow("positive integer");
+  });
+
+  test("bech32 checksum is valid", async () => {
+    const invoice = generateFakeBolt11(5000);
+    const { bech32 } = await import("@scure/base");
+    const decoded = bech32.decode(invoice, 1024);
+    expect(decoded.prefix).toMatch(/^lnbc/);
+  });
+});
+
+describe("GET /api/fake-invoice", () => {
+  function makeEnv() {
+    return {
+      BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
+      CARD_REPLAY: makeReplayNamespace(),
+      UID_CONFIG: { get: async () => null, put: async () => {} },
+    };
+  }
+
+  async function makeRequest(path, env) {
+    return handleRequest(new Request("https://test.local" + path, { method: "GET" }), env);
+  }
+
+  test("returns a bolt11 invoice for valid amount", async () => {
+    const env = makeEnv();
+    const response = await makeRequest("/api/fake-invoice?amount=5000", env);
+    expect(response.status).toBe(200);
+
+    const json = await response.json();
+    expect(json.pr).toMatch(/^lnbc/);
+    expect(decodeBolt11Amount(json.pr)).toBe(5000);
+  });
+
+  test("returns 400 for missing amount", async () => {
+    const env = makeEnv();
+    const response = await makeRequest("/api/fake-invoice", env);
+    expect(response.status).toBe(400);
+
+    const json = await response.json();
+    expect(json.status).toBe("ERROR");
+    expect(json.reason).toMatch(/positive integer/);
+  });
+
+  test("returns 400 for zero amount", async () => {
+    const env = makeEnv();
+    const response = await makeRequest("/api/fake-invoice?amount=0", env);
+    expect(response.status).toBe(400);
+  });
+
+  test("returns 400 for negative amount", async () => {
+    const env = makeEnv();
+    const response = await makeRequest("/api/fake-invoice?amount=-100", env);
+    expect(response.status).toBe(400);
+  });
+
+  test("returns 400 for non-numeric amount", async () => {
+    const env = makeEnv();
+    const response = await makeRequest("/api/fake-invoice?amount=abc", env);
+    expect(response.status).toBe(400);
+  });
+
+  test("returns different invoices for repeated calls", async () => {
+    const env = makeEnv();
+    const resp1 = await makeRequest("/api/fake-invoice?amount=1000", env);
+    const resp2 = await makeRequest("/api/fake-invoice?amount=1000", env);
+    const json1 = await resp1.json();
+    const json2 = await resp2.json();
+    expect(json1.pr).not.toBe(json2.pr);
   });
 });

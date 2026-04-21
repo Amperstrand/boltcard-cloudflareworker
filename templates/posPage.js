@@ -324,8 +324,13 @@ export function renderPosPage({ host }) {
           throw new Error('Invalid withdraw response from card');
         }
 
+        const invoiceResp = await fetchJson(API_HOST + '/api/fake-invoice?amount=' + encodeURIComponent(chargeAmount));
+        if (!invoiceResp.pr) {
+          throw new Error('Failed to generate invoice');
+        }
+
         const callbackUrl = new URL(withdrawData.callback);
-        callbackUrl.searchParams.set('pr', 'fakewallet');
+        callbackUrl.searchParams.set('pr', invoiceResp.pr);
         callbackUrl.searchParams.set('k1', withdrawData.k1);
         callbackUrl.searchParams.set('amount', chargeAmount);
 
