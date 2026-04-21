@@ -9,6 +9,14 @@ const env = {
 // Test vector: p/c that decrypts with K1=55da174c9608993dc27bb3f30a4a7314
 const VALID_P = "4E2E289D945A66BB13377A728884E867";
 const VALID_C = "E19CCB1FED8892CE";
+const ACTION_UID = "04a39493cc8680";
+
+function makeEnv(replay = makeReplayNamespace()) {
+  return {
+    ...env,
+    CARD_REPLAY: replay,
+  };
+}
 
 async function makeRequest(path, method = "GET", body = null, requestEnv = env) {
   const url = "https://test.local" + path;
@@ -28,6 +36,8 @@ describe("GET /login", () => {
     const html = await response.text();
     expect(html).toContain("NFC LOGIN");
     expect(html).toContain("NTAG424");
+    expect(html).toContain("cdn.tailwindcss.com");
+    expect(html).toContain("function browserSupportsNfc()");
   });
 });
 
@@ -36,7 +46,12 @@ describe("POST /login (handleLoginVerify)", () => {
     const response = await makeRequest("/login", "POST", { c: VALID_C });
     expect(response.status).toBe(400);
     const json = await response.json();
-    expect(json.success).toBe(false);
+    expect(json).toMatchObject({
+      status: "ERROR",
+      success: false,
+      error: expect.any(String),
+      reason: expect.any(String),
+    });
     expect(json.error).toMatch(/missing p or c/i);
   });
 
@@ -44,12 +59,24 @@ describe("POST /login (handleLoginVerify)", () => {
     const response = await makeRequest("/login", "POST", { p: VALID_P });
     expect(response.status).toBe(400);
     const json = await response.json();
-    expect(json.success).toBe(false);
+    expect(json).toMatchObject({
+      status: "ERROR",
+      success: false,
+      error: expect.any(String),
+      reason: expect.any(String),
+    });
   });
 
   test("missing both p and c returns 400", async () => {
     const response = await makeRequest("/login", "POST", {});
     expect(response.status).toBe(400);
+    const json = await response.json();
+    expect(json).toMatchObject({
+      status: "ERROR",
+      success: false,
+      error: expect.any(String),
+      reason: expect.any(String),
+    });
   });
 
   test("invalid p that cannot be decrypted returns 400", async () => {
@@ -59,7 +86,12 @@ describe("POST /login (handleLoginVerify)", () => {
     });
     expect(response.status).toBe(400);
     const json = await response.json();
-    expect(json.success).toBe(false);
+    expect(json).toMatchObject({
+      status: "ERROR",
+      success: false,
+      error: expect.any(String),
+      reason: expect.any(String),
+    });
     expect(json.error).toMatch(/could not decrypt/i);
   });
 
@@ -147,7 +179,142 @@ describe("POST /login (handleLoginVerify)", () => {
     expect(json.timestamp).toBeGreaterThan(0);
   });
 
-  test("malformed JSON body returns 500", async () => {
+  test("UID-only login returns success with undeployed card details", async () => {
+    const response = await makeRequest("/login", "POST", { uid: ACTION_UID }, makeEnv());
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json).toMatchObject({
+      success: true,
+      uidHex: ACTION_UID,
+      counterValue: null,
+      cmacValid: false,
+      deployed: false,
+      cardState: "new",
+      tapHistory: [],
+    });
+    expect(json.k0).toMatch(/^[0-9a-f]{32}$/);
+    expect(json.k4).toMatch(/^[0-9a-f]{32}$/);
+  });
+
+  test("request-wipe rejects non-active cards with standardized error", async () => {
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { uid: ACTION_UID, action: "request-wipe" },
+      makeEnv()
+    );
+
+    expect(response.status).toBe(400);
+    const json = await response.json();
+    expect(json).toMatchObject({
+      status: "ERROR",
+      success: false,
+      error: expect.stringMatching(/Only active cards can request wipe keys/i),
+      reason: expect.stringMatching(/Only active cards can request wipe keys/i),
+    });
+  });
+
+  test("request-wipe returns wipe payload for active cards", async () => {
+    const replay = makeReplayNamespace();
+    replay.__activate(ACTION_UID, 2);
+
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { uid: ACTION_UID, action: "request-wipe" },
+      makeEnv(replay)
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json).toMatchObject({
+      success: true,
+      uidHex: ACTION_UID,
+      cardState: "wipe_requested",
+      keyVersion: 2,
+      programmingEndpoint: expect.stringContaining("/api/v1/pull-payments/"),
+      wipeDeeplink: expect.stringContaining("boltcard://reset?url="),
+    });
+    expect(json.wipeJson).toContain('"action": "wipe"');
+  });
+
+  test("terminate rejects cards that are not active or wipe_requested", async () => {
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { uid: ACTION_UID, action: "terminate" },
+      makeEnv()
+    );
+
+    expect(response.status).toBe(400);
+    const json = await response.json();
+    expect(json).toMatchObject({
+      status: "ERROR",
+      success: false,
+      error: expect.stringMatching(/cannot terminate/i),
+      reason: expect.stringMatching(/cannot terminate/i),
+    });
+  });
+
+  test("terminate returns success payload for active cards", async () => {
+    const replay = makeReplayNamespace();
+    replay.__activate(ACTION_UID, 3);
+
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { uid: ACTION_UID, action: "terminate" },
+      makeEnv(replay)
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json).toMatchObject({
+      success: true,
+      uidHex: ACTION_UID,
+      cardState: "terminated",
+      keyVersion: 3,
+      programmingEndpoint: expect.stringContaining("/api/v1/pull-payments/"),
+    });
+  });
+
+  test("top-up rejects non-positive amounts with standardized error", async () => {
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { uid: ACTION_UID, action: "top-up", amount: 0 },
+      makeEnv()
+    );
+
+    expect(response.status).toBe(400);
+    const json = await response.json();
+    expect(json).toMatchObject({
+      status: "ERROR",
+      success: false,
+      error: "Amount must be a positive integer",
+      reason: "Amount must be a positive integer",
+    });
+  });
+
+  test("top-up returns updated balance on success", async () => {
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { uid: ACTION_UID, action: "top-up", amount: 2500 },
+      makeEnv()
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json).toEqual({
+      success: true,
+      balance: 2500,
+      message: "Credited 2500 units",
+    });
+  });
+
+  test("malformed JSON body returns 400 with standardized error payload", async () => {
     const url = "https://test.local/login";
     const response = await handleRequest(
       new Request(url, {
@@ -157,6 +324,40 @@ describe("POST /login (handleLoginVerify)", () => {
       }),
       env
     );
+    expect(response.status).toBe(400);
+    const json = await response.json();
+    expect(json).toMatchObject({
+      status: "ERROR",
+      success: false,
+      error: "Invalid JSON body",
+      reason: "Invalid JSON body",
+    });
+  });
+
+  test("unexpected login verification failures return standardized 500 errors", async () => {
+    const explodingEnv = new Proxy(makeEnv(), {
+      get(target, prop, receiver) {
+        if (prop === "BOLT_CARD_K1") {
+          throw new Error("exploded issuer key lookup");
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { p: VALID_P, c: VALID_C },
+      explodingEnv
+    );
+
     expect(response.status).toBe(500);
+    const json = await response.json();
+    expect(json).toMatchObject({
+      status: "ERROR",
+      success: false,
+      error: "exploded issuer key lookup",
+      reason: "exploded issuer key lookup",
+    });
   });
 });

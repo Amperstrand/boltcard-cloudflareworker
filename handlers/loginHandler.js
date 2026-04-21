@@ -3,7 +3,7 @@ import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { renderLoginPage } from "../templates/loginPage.js";
 import { logger } from "../utils/logger.js";
-import { htmlResponse, jsonResponse } from "../utils/responses.js";
+import { htmlResponse, jsonResponse, errorResponse } from "../utils/responses.js";
 import { getAllIssuerKeyCandidates, getPerCardKeys } from "../utils/keyLookup.js";
 import { PERCARD_KEYS } from "../utils/generatedKeyData.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
@@ -20,6 +20,10 @@ function buildProgrammingEndpoint(requestOrigin, pullPaymentId) {
   return `${requestOrigin}/api/v1/pull-payments/${pullPaymentId}/boltcards?onExisting=UpdateVersion`;
 }
 
+function normalizeSubmittedUid(rawUid) {
+  return validateUid(typeof rawUid === "string" ? rawUid.replace(/:/g, "") : "");
+}
+
 export async function handleLoginPage(request) {
   const host = getRequestOrigin(request);
   const defaultProgrammingEndpoint = `${host}/api/v1/pull-payments/${DEFAULT_PULL_PAYMENT_ID}/boltcards?onExisting=UpdateVersion`;
@@ -28,7 +32,13 @@ export async function handleLoginPage(request) {
 
 export async function handleLoginVerify(request, env) {
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return errorResponse("Invalid JSON body", 400);
+    }
+
     const { p: pHex, c: cHex, uid: rawUid } = body;
     const requestOrigin = getRequestOrigin(request);
 
@@ -46,7 +56,7 @@ export async function handleLoginVerify(request, env) {
     }
 
     if (!pHex || !cHex) {
-      return jsonResponse({ success: false, error: "Missing p or c" }, 400);
+      return errorResponse("Missing p or c", 400);
     }
 
     const candidates = getAllIssuerKeyCandidates(env);
@@ -151,7 +161,7 @@ export async function handleLoginVerify(request, env) {
     }
 
     if (!matchedIssuer) {
-      return jsonResponse({ success: false, error: "Could not decrypt card with any known key" }, 400);
+      return errorResponse("Could not decrypt card with any known key", 400);
     }
 
     const uidHex = matchedUid;
@@ -235,15 +245,15 @@ export async function handleLoginVerify(request, env) {
     });
   } catch (error) {
     logger.error("Login verification error", { error: error.message });
-    return jsonResponse({ success: false, error: error.message }, 500);
+    return errorResponse(error, 500);
   }
 }
 
 async function handleUidOnlyLogin(rawUid, env, request) {
   const requestOrigin = getRequestOrigin(request);
-  const uidHex = validateUid(rawUid.replace(/:/g, ""));
+  const uidHex = normalizeSubmittedUid(rawUid);
   if (!uidHex) {
-    return jsonResponse({ success: false, error: "Invalid UID format" }, 400);
+    return errorResponse("Invalid UID format", 400);
   }
 
   const cardState = await getCardState(env, uidHex);
@@ -315,14 +325,14 @@ async function handleUidOnlyLogin(rawUid, env, request) {
 
 async function handleTerminateAction(rawUid, env, request) {
   const requestOrigin = getRequestOrigin(request);
-  const uidHex = validateUid(rawUid.replace(/:/g, ""));
+  const uidHex = normalizeSubmittedUid(rawUid);
   if (!uidHex) {
-    return jsonResponse({ success: false, error: "Invalid UID format" }, 400);
+    return errorResponse("Invalid UID format", 400);
   }
 
   const cardState = await getCardState(env, uidHex);
   if (cardState.state !== "active" && cardState.state !== "wipe_requested") {
-    return jsonResponse({ success: false, error: `Card is in '${cardState.state}' state, cannot terminate. Only active or wipe_requested cards can be terminated.` }, 400);
+    return errorResponse(`Card is in '${cardState.state}' state, cannot terminate. Only active or wipe_requested cards can be terminated.`, 400);
   }
 
   await terminateCard(env, uidHex);
@@ -345,14 +355,14 @@ async function handleTerminateAction(rawUid, env, request) {
 
 async function handleRequestWipeAction(rawUid, env, request) {
   const requestOrigin = getRequestOrigin(request);
-  const uidHex = validateUid(rawUid.replace(/:/g, ""));
+  const uidHex = normalizeSubmittedUid(rawUid);
   if (!uidHex) {
-    return jsonResponse({ success: false, error: "Invalid UID format" }, 400);
+    return errorResponse("Invalid UID format", 400);
   }
 
   const cardState = await getCardState(env, uidHex);
   if (cardState.state !== "active") {
-    return jsonResponse({ success: false, error: `Card is in '${cardState.state}' state. Only active cards can request wipe keys.` }, 400);
+    return errorResponse(`Card is in '${cardState.state}' state. Only active cards can request wipe keys.`, 400);
   }
 
   const version = cardState.active_version || 1;
@@ -372,33 +382,33 @@ async function handleRequestWipeAction(rawUid, env, request) {
     uidHex,
     cardState: "wipe_requested",
     keyVersion: version,
-    k0: keys.k0,
-    k1: keys.k1,
-    k2: keys.k2,
+      k0: keys.k0,
+      k1: keys.k1,
+      k2: keys.k2,
       k3: keys.k3,
       k4: keys.k4,
       programmingEndpoint,
       wipeDeeplink: `boltcard://reset?url=${encodeURIComponent(endpointUrl)}`,
       wipeJson: JSON.stringify({
-      version: version,
-      action: "wipe",
-      k0: keys.k0.toLowerCase(),
-      k1: keys.k1.toLowerCase(),
-      k2: keys.k2.toLowerCase(),
-      k3: keys.k3.toLowerCase(),
-      k4: keys.k4.toLowerCase(),
-    }, null, 2),
+        version: version,
+        action: "wipe",
+        k0: keys.k0.toLowerCase(),
+        k1: keys.k1.toLowerCase(),
+        k2: keys.k2.toLowerCase(),
+        k3: keys.k3.toLowerCase(),
+        k4: keys.k4.toLowerCase(),
+      }, null, 2),
   });
 }
 
 async function handleTopUpAction(rawUid, rawAmount, env, request) {
   void request;
-  const uidHex = validateUid(rawUid);
-  if (!uidHex) return jsonResponse({ success: false, error: "Invalid UID format" }, 400);
+  const uidHex = normalizeSubmittedUid(rawUid);
+  if (!uidHex) return errorResponse("Invalid UID format", 400);
 
   const amount = parseInt(rawAmount, 10);
   if (!Number.isInteger(amount) || amount <= 0) {
-    return jsonResponse({ success: false, error: "Amount must be a positive integer" }, 400);
+    return errorResponse("Amount must be a positive integer", 400);
   }
 
   try {
@@ -406,10 +416,10 @@ async function handleTopUpAction(rawUid, rawAmount, env, request) {
     if (result.ok) {
       return jsonResponse({ success: true, balance: result.balance, message: `Credited ${amount} units` });
     }
-    return jsonResponse({ success: false, error: result.reason || "Top-up failed" }, 500);
+    return errorResponse(result.reason || "Top-up failed", 500);
   } catch (e) {
     logger.error("Top-up failed", { uidHex, amount, error: e.message });
-    return jsonResponse({ success: false, error: "Top-up failed: " + e.message }, 500);
+    return errorResponse("Top-up failed: " + e.message, 500);
   }
 }
 

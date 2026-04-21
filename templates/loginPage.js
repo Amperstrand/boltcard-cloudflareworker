@@ -1,28 +1,19 @@
 import { rawHtml } from "../utils/rawTemplate.js";
+import { renderTailwindPage } from "./pageShell.js";
+import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 
 export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
-  return rawHtml`<!DOCTYPE html>
-<html lang="en" class="dark">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>NFC Login</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-    <style>
-      body { background-color: #111827; color: #f3f4f6; }
-      .qr-container { display: inline-block; padding: 10px; background: white; border-radius: 8px; margin-top: 10px; }
-      .pulse-ring {
-        animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
-      }
-      @keyframes pulse-ring {
-        0% { transform: scale(0.8); opacity: 1; }
-        80%, 100% { transform: scale(1.4); opacity: 0; }
-      }
-    </style>
-  </head>
-  <body class="min-h-screen p-4 md:p-8 font-sans antialiased flex flex-col items-center justify-center">
-
+  return renderTailwindPage({
+    title: "NFC Login",
+    bodyClass: "min-h-screen p-4 md:p-8 font-sans antialiased flex flex-col items-center justify-center",
+    headScripts: '<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>',
+    styles: [
+      'body { background-color: #111827; color: #f3f4f6; }',
+      '.qr-container { display: inline-block; padding: 10px; background: white; border-radius: 8px; margin-top: 10px; }',
+      '.pulse-ring { animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }',
+      '@keyframes pulse-ring { 0% { transform: scale(0.8); opacity: 1; } 80%, 100% { transform: scale(1.4); opacity: 0; } }',
+    ].join('\n'),
+    content: rawHtml`
     <div id="login-view" class="max-w-md w-full">
       <div class="text-center mb-8">
         <h1 class="text-3xl font-bold text-emerald-500 tracking-tight mb-2">NFC LOGIN</h1>
@@ -442,9 +433,9 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
         📱 TAP CARD TO SCAN AGAIN
       </button>
     </div>
-  </body>
 
   <script>
+    ${BROWSER_NFC_HELPERS}
     let loginTime = null;
     let timerInterval = null;
     let nfcAbortController = null;
@@ -454,7 +445,7 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
     let currentUid = null;
     let currentProgrammingEndpoint = DEFAULT_PROGRAMMING_ENDPOINT;
 
-    if (!('NDEFReader' in window)) {
+    if (!browserSupportsNfc()) {
       document.getElementById('nfc-not-supported').classList.remove('hidden');
       document.getElementById('nfc-ready').classList.add('hidden');
     } else {
@@ -1193,49 +1184,44 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
 
             clearErrors();
 
-            let foundUrl = false;
-            for (const record of event.message.records) {
-              if (record.recordType === 'url') {
-                foundUrl = true;
-                const rawUrl = new TextDecoder().decode(record.data);
-                let url = rawUrl;
-                if (url.startsWith('lnurlw://')) url = 'https://' + url.substring(9);
-                else if (url.startsWith('lnurlp://')) url = 'https://' + url.substring(9);
+            const rawUrl = await extractNdefUrl(event.message.records, ['lnurlw://', 'lnurlp://', 'https://']);
+            const foundUrl = Boolean(rawUrl);
+            if (foundUrl) {
+              const url = normalizeBrowserNfcUrl(rawUrl);
 
-                showNdef(rawUrl);
-                statusEl.textContent = 'Card detected! Verifying...';
+              showNdef(rawUrl);
+              statusEl.textContent = 'Card detected! Verifying...';
 
-                try {
-                  const urlObj = new URL(url);
-                  const p = urlObj.searchParams.get('p');
-                  const c = urlObj.searchParams.get('c');
-                  if (p && c) {
-                    const result = await validateWithServer(p, c);
-                    if (result.success) {
-                      if (!result.deployed && !result.public) {
-                        showUndeployedCard(result);
-                      } else if (result.public) {
-                        showPublicCard(result);
-                      } else {
-                        showPrivateCard(result);
-                      }
+              try {
+                const urlObj = new URL(url);
+                const p = urlObj.searchParams.get('p');
+                const c = urlObj.searchParams.get('c');
+                if (p && c) {
+                  const result = await validateWithServer(p, c);
+                  if (result.success) {
+                    if (!result.deployed && !result.public) {
+                      showUndeployedCard(result);
+                    } else if (result.public) {
+                      showPublicCard(result);
                     } else {
-                      showPersistentError(result.error || 'Authentication failed');
-                      statusEl.textContent = 'Failed. Tap card to retry.';
+                      showPrivateCard(result);
                     }
                   } else {
-                    showPersistentError('Card URL missing p/c parameters. Raw: ' + rawUrl);
-                    statusEl.textContent = 'Invalid card. Tap to retry.';
+                    showPersistentError(result.error || result.reason || 'Authentication failed');
+                    statusEl.textContent = 'Failed. Tap card to retry.';
                   }
-                } catch(e) {
-                  showPersistentError('Could not parse card URL: ' + e.message + '. Raw: ' + rawUrl);
-                  statusEl.textContent = 'Parse error. Tap to retry.';
+                } else {
+                  showPersistentError('Card URL missing p/c parameters. Raw: ' + rawUrl);
+                  statusEl.textContent = 'Invalid card. Tap to retry.';
                 }
+              } catch(e) {
+                showPersistentError('Could not parse card URL: ' + e.message + '. Raw: ' + rawUrl);
+                statusEl.textContent = 'Parse error. Tap to retry.';
               }
             }
 
             if (!foundUrl && event.serialNumber) {
-              const uid = event.serialNumber.replace(/:/g, '').toLowerCase();
+              const uid = normalizeNfcSerial(event.serialNumber);
               if (/^[0-9a-f]{14}$/.test(uid)) {
                 showNdef('No NDEF record found. UID: ' + uid.toUpperCase());
                 statusEl.textContent = 'Card detected! Reading UID...';
@@ -1256,7 +1242,7 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
                       showUndeployedCard(result);
                     }
                   } else {
-                    showPersistentError(result.error || 'UID lookup failed');
+                    showPersistentError(result.error || result.reason || 'UID lookup failed');
                     statusEl.textContent = 'Failed. Tap card to retry.';
                   }
                 } catch(e) {
@@ -1306,5 +1292,6 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
       }
     }
   </script>
-</html>`;
+`,
+  });
 }
