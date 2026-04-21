@@ -41,7 +41,7 @@ export function renderDebugPage({ host }) {
             </div>
             <div class="relative z-10 flex-grow">
               <h2 class="text-xl font-bold text-white mb-2 group-hover:text-blue-400 transition-colors">NFC Test Console</h2>
-              <p class="text-gray-400 text-sm leading-relaxed">Tap a boltcard, inspect LNURLW payload, scan/paste bolt11, trigger callback.</p>
+              <p class="text-gray-400 text-sm leading-relaxed">Tap a boltcard, inspect LNURLW payload, then scan an invoice QR with the camera or paste a BOLT11 manually.</p>
             </div>
           </a>
 
@@ -132,7 +132,7 @@ export function renderDebugPage({ host }) {
             </div>
             <div class="relative z-10 flex-grow">
               <h2 class="text-xl font-bold text-white mb-2 group-hover:text-cyan-400 transition-colors">2FA Codes</h2>
-              <p class="text-gray-400 text-sm leading-relaxed">NFC-based one-time password generation (TOTP + HOTP).</p>
+              <p class="text-gray-400 text-sm leading-relaxed">Tap a card to open a live TOTP + HOTP demo, or launch it from the identity screen after verification.</p>
             </div>
           </a>
 

@@ -185,8 +185,8 @@ describe("response patterns", () => {
     const html = await response.text();
     expect(html).toContain("BoltCard NFC Console");
     expect(html).toContain("NFC test console");
-    expect(html).toContain("Back to operator home");
-    expect(html).toContain("Open QR scanner");
+    expect(html).toContain("Back to debug tools");
+    expect(html).toContain("Scan invoice QR");
     expect(html).toContain("Pay invoice");
   });
 

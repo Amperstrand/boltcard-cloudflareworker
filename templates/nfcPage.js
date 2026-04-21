@@ -15,16 +15,22 @@ export function renderNfcPage() {
                 <p class="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-400">Operator utility</p>
                 <h1 class="mt-3 text-3xl font-bold tracking-tight text-white md:text-4xl">NFC test console</h1>
                 <p class="mt-3 text-sm leading-6 text-gray-400 md:text-base">
-                  Tap a BoltCard, inspect the decoded LNURL-withdraw payload, then scan or paste a BOLT11 invoice and trigger the callback directly from the browser.
+                  Tap a BoltCard, inspect the decoded LNURL-withdraw payload, then scan or paste a BOLT11 invoice and trigger the callback directly from the browser. Camera QR scanning is built in, so this works well as a hands-on payment demo on mobile.
                 </p>
               </div>
 
               <div class="flex flex-wrap items-center gap-3">
                 <a
-                  href="/experimental/activate"
+                  href="/debug"
                   class="rounded-xl border border-gray-700 bg-gray-950 px-4 py-2 text-sm font-semibold text-gray-200 transition hover:border-cyan-500/50 hover:text-cyan-300"
                 >
-                  Back to operator home
+                  Back to debug tools
+                </a>
+                <a
+                  href="/2fa"
+                  class="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
+                >
+                  Open 2FA demo
                 </a>
                 <button
                   id="nfc-indicator"
@@ -83,8 +89,16 @@ export function renderNfcPage() {
                   id="toggle-qr-button"
                   class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20 sm:min-w-[180px]"
                 >
-                  Open QR scanner
+                  Scan invoice QR
                 </button>
+              </div>
+
+              <div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-400">
+                <span class="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1 text-emerald-200">
+                  <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+                  Camera QR ready
+                </span>
+                <span>Best on mobile: tap the card, then point the camera at the invoice QR.</span>
               </div>
 
               <video
@@ -131,7 +145,7 @@ export function renderNfcPage() {
                   <div class="text-xs font-semibold uppercase tracking-[0.25em] text-gray-500">Suggested flow</div>
                   <ol class="mt-3 space-y-3 text-sm leading-6 text-gray-300">
                     <li>1. Tap a card and confirm the UID and NDEF payload appear above.</li>
-                    <li>2. Paste or scan a fresh BOLT11 invoice into the invoice field.</li>
+                    <li>2. Use <span class="font-semibold text-white">Scan invoice QR</span> or paste a fresh BOLT11 invoice.</li>
                     <li>3. Submit the payment and confirm the callback returns <span class="font-mono text-cyan-300">status: OK</span>.</li>
                   </ol>
                 </div>
@@ -207,7 +221,7 @@ export function renderNfcPage() {
 
           function updateToggleQrButton() {
             const button = document.getElementById("toggle-qr-button");
-            button.textContent = qrActive ? "Stop QR scanner" : "Open QR scanner";
+            button.textContent = qrActive ? "Stop invoice QR scan" : "Scan invoice QR";
           }
 
           function updateNfcIndicator() {
