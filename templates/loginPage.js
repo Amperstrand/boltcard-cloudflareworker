@@ -18,7 +18,10 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
       <div class="text-center mb-8">
         <h1 class="text-3xl font-bold text-emerald-500 tracking-tight mb-2">NFC LOGIN</h1>
         <p class="text-gray-400 text-sm">Tap your NTAG424 card to authenticate</p>
-        <a href="/pos" class="inline-block mt-3 text-xs font-semibold text-gray-500 hover:text-emerald-400 transition-colors tracking-wide">POS &#8594;</a>
+        <div class="flex items-center justify-center gap-4 mt-3">
+          <a href="/pos" class="text-xs font-semibold text-gray-500 hover:text-emerald-400 transition-colors tracking-wide">POS &#8594;</a>
+          <a href="/debug" class="text-xs font-semibold text-gray-500 hover:text-emerald-400 transition-colors tracking-wide">DEBUG &#8594;</a>
+        </div>
       </div>
 
       <div class="bg-gray-800 border border-gray-700 shadow-xl rounded-lg p-6">
