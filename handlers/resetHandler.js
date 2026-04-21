@@ -1,6 +1,6 @@
 import { getDeterministicKeys } from "../keygenerator.js";
 import { getCardState, terminateCard } from "../replayProtection.js";
-import { jsonResponse, buildBoltCardResponse } from "../utils/responses.js";
+import { jsonResponse, buildBoltCardResponse, errorResponse } from "../utils/responses.js";
 
 export async function handleReset(uid, env, baseUrl) {
   try {
@@ -9,14 +9,14 @@ export async function handleReset(uid, env, baseUrl) {
     }
 
     if (!uid) {
-      return jsonResponse({ error: "Missing UID parameter for reset." }, 400);
+      return errorResponse("Missing UID parameter for reset.", 400);
     }
 
     const normalizedUid = uid.toLowerCase();
     const cardState = await getCardState(env, normalizedUid);
 
     if (cardState.state !== "active" && cardState.state !== "terminated" && cardState.state !== "new") {
-      return jsonResponse({ error: "Card must be active to retrieve wipe keys." }, 400);
+      return errorResponse("Card must be active to retrieve wipe keys.", 400);
     }
 
     const wipeVersion = cardState.active_version || 1;
@@ -29,6 +29,6 @@ export async function handleReset(uid, env, baseUrl) {
     const host = baseUrl || "https://boltcardpoc.psbt.me";
     return jsonResponse(buildBoltCardResponse(keys, normalizedUid, host, wipeVersion), 200);
   } catch (err) {
-    return jsonResponse({ error: err.message }, 500);
+    return errorResponse(err.message, 500);
   }
 }

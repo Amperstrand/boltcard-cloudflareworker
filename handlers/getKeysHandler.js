@@ -1,6 +1,6 @@
 import { getDeterministicKeys } from "../keygenerator.js";
 import { getPerCardKeys, getAllIssuerKeyCandidates } from "../utils/keyLookup.js";
-import { jsonResponse, buildBoltCardResponse } from "../utils/responses.js";
+import { jsonResponse, buildBoltCardResponse, errorResponse } from "../utils/responses.js";
 import { getCardState } from "../replayProtection.js";
 import { validateUid } from "../utils/validation.js";
 
@@ -54,7 +54,7 @@ export async function handleGetKeys(request, env) {
     try {
       body = await request.json();
     } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
+      return errorResponse("Invalid JSON body", 400);
     }
 
     let uid = uidParam;
@@ -63,30 +63,30 @@ export async function handleGetKeys(request, env) {
     const validatedUid = validateUid(uid);
 
     if (!validatedUid) {
-      return jsonResponse({ error: "Invalid or missing UID (must be 14 hex chars)" }, 400);
+      return errorResponse("Invalid or missing UID (must be 14 hex chars)", 400);
     }
 
     const keys = await findFirstKeyset(validatedUid, env);
     if (!keys) {
-      return jsonResponse({ error: "No keys found for UID", uid: validatedUid }, 404);
+      return errorResponse("No keys found for UID", 404, { uid: validatedUid });
     }
 
     return jsonResponse(buildBoltCardResponse(keys, validatedUid, baseUrl));
   }
 
   if (!uidParam) {
-    return jsonResponse({ error: "Missing required parameter: uid" }, 400);
+    return errorResponse("Missing required parameter: uid", 400);
   }
 
   const validatedUid = validateUid(uidParam);
   if (!validatedUid) {
-    return jsonResponse({ error: "Invalid UID: must be exactly 14 hex characters (7 bytes)" }, 400);
+    return errorResponse("Invalid UID: must be exactly 14 hex characters (7 bytes)", 400);
   }
 
   if (url.searchParams.get("format") === "boltcard") {
     const keys = await findFirstKeyset(validatedUid, env);
     if (!keys) {
-      return jsonResponse({ error: "No keys found for UID", uid: validatedUid }, 404);
+      return errorResponse("No keys found for UID", 404, { uid: validatedUid });
     }
     return jsonResponse(buildBoltCardResponse(keys, validatedUid, baseUrl));
   }
@@ -127,7 +127,7 @@ export async function handleGetKeys(request, env) {
   }
 
   if (keysets.length === 0) {
-    return jsonResponse({ error: "No keys found for this UID", uid: validatedUid }, 404);
+    return errorResponse("No keys found for this UID", 404, { uid: validatedUid });
   }
 
   return jsonResponse({ uid: validatedUid, keysets });

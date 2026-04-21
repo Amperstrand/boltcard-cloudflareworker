@@ -1,5 +1,5 @@
 import { logger } from "../utils/logger.js";
-import { jsonResponse } from "../utils/responses.js";
+import { errorResponse } from "../utils/responses.js";
 
 export async function handleProxy(request, uidHex, pHex, cHex, baseurl, verification = {}) {
   const targetUrl = new URL(baseurl);
@@ -57,6 +57,6 @@ export async function handleProxy(request, uidHex, pHex, cHex, baseurl, verifica
 
   } catch (error) {
     logger.error("Error fetching from proxy", { uidHex, error: error.message });
-    return jsonResponse({ error: "Proxy error" }, 500);
+    return errorResponse("Proxy error", 500);
   }
 }

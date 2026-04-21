@@ -4,9 +4,7 @@ import { extractUIDAndCounter } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { resetReplayProtection, getCardState, deliverKeys, setCardConfig, requestWipe } from "../replayProtection.js";
-import { jsonResponse, buildBoltCardResponse } from "../utils/responses.js";
-
-const errorResponse = (error, status = 400) => jsonResponse({ error }, status);
+import { jsonResponse, buildBoltCardResponse, errorResponse } from "../utils/responses.js";
 
 export async function fetchBoltCardKeys(request, env) {
   if (request.method !== "POST") {

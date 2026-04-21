@@ -145,7 +145,12 @@ describe("response patterns", () => {
     expect(response.headers.get("Content-Type")).toContain("application/json");
 
     const json = await response.json();
-    expect(json).toMatchObject({ error: expect.any(String) });
+    expect(json).toMatchObject({
+      status: "ERROR",
+      reason: expect.any(String),
+      error: expect.any(String),
+      success: false,
+    });
   });
 
   test("GET /activate/form returns HTML", async () => {
@@ -238,7 +243,12 @@ describe("response patterns", () => {
     expect(response.headers.get("Content-Type")).toContain("application/json");
 
     const json = await response.json();
-    expect(json).toMatchObject({ error: expect.any(String) });
+    expect(json).toMatchObject({
+      status: "ERROR",
+      reason: expect.any(String),
+      error: expect.any(String),
+      success: false,
+    });
   });
 
   test("POST boltcards pull-payment endpoint requires UID or LNURLW", async () => {
@@ -253,7 +263,12 @@ describe("response patterns", () => {
     expect(response.headers.get("Content-Type")).toContain("application/json");
 
     const json = await response.json();
-    expect(json).toMatchObject({ error: expect.any(String) });
+    expect(json).toMatchObject({
+      status: "ERROR",
+      reason: expect.any(String),
+      error: expect.any(String),
+      success: false,
+    });
   });
 
   test("POST boltcards pull-payment endpoint returns keys for UpdateVersion UID flow", async () => {

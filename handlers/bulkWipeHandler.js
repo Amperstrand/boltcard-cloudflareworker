@@ -1,16 +1,16 @@
 import { deriveKeysFromHex } from "../keygenerator.js";
-import { jsonResponse, buildBoltCardResponse, buildResetDeeplink } from "../utils/responses.js";
+import { jsonResponse, buildBoltCardResponse, buildResetDeeplink, errorResponse } from "../utils/responses.js";
 
-export async function handleBulkWipeKeys(request, env) {
+export async function handleBulkWipeKeys(request) {
   const url = new URL(request.url);
   const uid = url.searchParams.get("uid");
   const key = url.searchParams.get("key");
 
   if (!uid || !/^[0-9a-fA-F]{14}$/.test(uid)) {
-    return jsonResponse({ error: "Invalid uid: must be exactly 14 hex characters." }, 400);
+    return errorResponse("Invalid uid: must be exactly 14 hex characters.", 400);
   }
   if (!key || !/^[0-9a-fA-F]{32}$/.test(key)) {
-    return jsonResponse({ error: "Invalid key: must be exactly 32 hex characters." }, 400);
+    return errorResponse("Invalid key: must be exactly 32 hex characters.", 400);
   }
 
   try {
@@ -34,6 +34,6 @@ export async function handleBulkWipeKeys(request, env) {
 
     return jsonResponse({ uid, boltcard_response, wipe_json, reset_deeplink }, 200);
   } catch (err) {
-    return jsonResponse({ error: err.message }, 500);
+    return errorResponse(err.message, 500);
   }
 }
