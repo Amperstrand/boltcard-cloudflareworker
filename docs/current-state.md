@@ -1,6 +1,6 @@
 # Current Project State: boltcard-cloudflareworker
 
-> Last updated: 2026-04-20.
+> Last updated: 2026-04-21.
 
 ---
 
@@ -78,6 +78,34 @@ Response determines view:
     |-- UID-only, cardState=wipe_requested -> auto-confirm wipe -> terminated
     |-- compromised   -> public view (recovered keys from CSV dump)
 ```
+
+### Request Flow: Identity Verification
+
+```
+User taps card on /identity page (Web NFC)
+    |
+    | Reads NDEF URL → extracts p and c params
+    v
+GET /api/verify-identity?p=XXX&c=YYY
+    |
+    v
+extractUIDAndCounter(pHex)                    [boltCardHelper.js]
+    |
+    | AES-ECB decrypt with K1 keys
+    v
+validate_cmac(uidBytes, ctr, cHex, k2Bytes)   [boltCardHelper.js]
+    |
+    v
+Check KV enrollment (UID_CONFIG)
+    |
+    |-- No KV entry (deterministic fallback card) → { verified: false, reason: "Card not enrolled" }
+    |-- KV entry found → { verified: true, uid, maskedUid }
+    v
+Frontend shows deterministic fake profile (name, role, department, clearance)
+    derived from UID hash
+```
+
+Only cards with explicit KV entries pass identity verification. Deterministic fallback cards are rejected to prevent unauthorized access.
 
 ### Wipe Detection (UID-only tap on active card)
 
@@ -170,6 +198,11 @@ cardKey = AES-CMAC(ISSUER_KEY, "2d003f75" || UID || version_le32)
 | `/experimental/wipe` | GET | `handleReset` / `handleWipePage` | Wipe utility |
 | `/experimental/bulkwipe` | GET | `handleBulkWipePage` | Bulk wipe tool |
 | `/experimental/analytics` | GET | `handleAnalyticsPage` | Analytics dashboard |
+| `/debug` | GET | `handleDebugPage` | Operator tools dashboard |
+| `/identity` | GET | `handleIdentityPage` | Identity/access control demo |
+| `/pos` | GET | `handlePosPage` | Fakewallet POS payment |
+| `/api/fake-invoice` | GET | inline | Generate fake bolt11 invoice |
+| `/api/verify-identity` | GET | `handleIdentityVerify` | Identity verification API |
 | `/activate`, `/nfc`, `/wipe`, `/bulkwipe`, `/analytics` | GET | 301 redirect | → `/experimental/*` |
 
 ---
@@ -221,25 +254,29 @@ No static config, no KV reads. All writes go to DO via `setCardConfig()`.
 
 ## Test Coverage
 
-15 suites, 203 tests, all passing. Key test files:
+19 suites, 262 tests, all passing. Key test files:
 
 | File | Tests | Coverage |
 |------|-------|----------|
-| `tests/cryptoutils.test.js` | 31 | AES-CMAC, decrypt, SV2, verifyCmac |
-| `tests/e2e/virtual-card.test.js` | 10 | Full NFC lifecycle: provision, tap, callback, wipe, re-provision |
-| `tests/worker.test.js` | 19 | LNURLW flow, proxy, counter, CLN REST |
-| `tests/lnurlPay.test.js` | 8 | POS card payRequest and callback |
-| `tests/smoke.test.js` | 8 | Real crypto pipeline E2E |
-| `tests/integration.test.js` | 9 | Payment flow, CMAC, programmer compatibility |
+| `tests/bolt11.test.js` | 39 | BOLT11 invoice generation, Schnorr signatures, encoding |
+| `tests/cryptoutils.test.js` | 37 | AES-CMAC, decrypt, SV2, verifyCmac |
+| `tests/responsePatterns.test.js` | 26 | API response patterns, KV/DO config writes |
+| `tests/loginHandler.test.js` | 21 | NFC login verification, card state views |
+| `tests/lnurlPay.test.js` | 13 | POS card payRequest and callback |
 | `tests/tapTracking.test.js` | 12 | Counter timing, tap recording, replay protection |
-| `tests/responsePatterns.test.js` | 13 | API response patterns, KV/DO config writes |
-| `tests/loginHandler.test.js` | 7 | NFC login verification |
-| `tests/bolt11.test.js` | 4 | BOLT11 invoice parsing |
-| `tests/bulkWipe.test.js` | 3 | Bulk wipe key generation |
-| `tests/twoFactorHandler.test.js` | 3 | 2FA TOTP/HOTP codes |
-| `tests/analytics.test.js` | 2 | Payment analytics |
-| `tests/keygenerator.test.js` | 1 | Deterministic key derivation |
-| `tests/keyLookup.test.js` | 5 | CSV-based key recovery |
+| `tests/worker.test.js` | 11 | LNURLW flow, proxy, counter, CLN REST |
+| `tests/keyLookup.test.js` | 11 | CSV-based key recovery |
+| `tests/integration.test.js` | 11 | Payment flow, CMAC, programmer compatibility |
+| `tests/getKeysHandler.test.js` | 11 | Key lookup API handler |
+| `tests/e2e/virtual-card.test.js` | 10 | Full NFC lifecycle: provision, tap, callback, wipe, re-provision |
+| `tests/bulkWipe.test.js` | 10 | Bulk wipe key generation |
+| `tests/templateHelpers.test.js` | 9 | HTML template rendering helpers |
+| `tests/smoke.test.js` | 8 | Real crypto pipeline E2E |
+| `tests/pos.test.js` | 8 | Fakewallet POS payment flow |
+| `tests/logging.test.js` | 8 | Structured logging |
+| `tests/debugIdentity.test.js` | 8 | Debug dashboard and identity page rendering |
+| `tests/twoFactorHandler.test.js` | 6 | 2FA TOTP/HOTP codes |
+| `tests/keygenerator.test.js` | 3 | Deterministic key derivation |
 
 ---
 
@@ -257,6 +294,13 @@ No static config, no KV reads. All writes go to DO via `setCardConfig()`.
 | `handlers/resetHandler.js` | Card wipe with lifecycle enforcement |
 | `boltCardHelper.js` | PICCData extraction and CMAC validation |
 | `cryptoutils.js` | AES-CMAC, AES-ECB decrypt, hex utils |
+| `utils/bolt11.js` | BOLT11 invoice generation with Schnorr signatures (@noble/secp256k1) |
+| `handlers/identityHandler.js` | Identity/access control verification API |
+| `handlers/debugHandler.js` | Operator debug dashboard page |
+| `handlers/posHandler.js` | Fakewallet POS payment page |
+| `templates/identityPage.js` | Identity demo HTML template |
+| `templates/debugPage.js` | Debug dashboard HTML template |
+| `templates/pageShell.js` | Shared Tailwind page wrapper for all HTML pages |
 
 ## Backups
 

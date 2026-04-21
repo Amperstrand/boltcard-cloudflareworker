@@ -49,10 +49,13 @@ The worker first attempts to fetch the UID configuration from KV. If no entry is
 - 🔐 **Cryptographic Security**: AES-CMAC validation with deterministic key generation
 - 💳 **Multi-Payment Support**: clnrest, proxy, and fakewallet payment methods  
 - 🌐 **LNURL Protocol**: Complete LNURL-withdraw implementation
+- 📝 **Bolt11 Invoice Generation**: Cryptographically valid BOLT11 invoices with Schnorr signatures using @noble/secp256k1
+- 🔑 **Identity & Access Control Demo**: NFC-based identity verification with deterministic fake profiles
+- 📊 **Operator Debug Dashboard**: Real-time card state, tap history, and management tools
 - 📱 **NFC Card Programming**: Card activation and programming endpoints
 - 🔒 **Replay Protection**: Atomic counter-based replay protection using Durable Objects with SQLite storage — strongly consistent, not eventually consistent
 - 🛡️ **DDoS Rate Limiting**: IP-based fixed-window rate limiting (100 req/min default)
-- 🧪 **Tested**: Comprehensive test suite with 129 tests across 9 test suites
+- 🧪 **Tested**: Comprehensive test suite with 262 tests across 19 test suites
 
 ## 🏗️ Architecture
 
@@ -67,7 +70,7 @@ The worker first attempts to fetch the UID configuration from KV. If no entry is
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Configuration │    │   Cryptographic │    │   External      │
 │   Management    │◀───│   Validation    │◀───│   Services      │
-│   (KV + Static) │    │   (AES-CMAC)    │    │   (LNBits/CLN)  │
+│   (KV + Static) │    │(AES-CMAC+secp)  │    │   (LNBits/CLN)  │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
          │                       │
          ▼                       ▼
@@ -192,6 +195,36 @@ npm run deploy
   - `uid` (query): Card UID to wipe
 - **Response**: HTML page
 
+#### GET `/debug`
+**Operator Tools Dashboard**
+- **Description**: Central hub for card management, tap history, state inspection, and configuration
+- **Response**: HTML page with interactive tools
+
+#### GET `/identity`
+**Identity & Access Control Demo**
+- **Description**: NFC-based identity verification demo page with Web NFC support
+- **Response**: HTML page with deterministic profile display
+
+#### GET `/pos`
+**Fakewallet POS Payment Page**
+- **Description**: Point-of-sale payment page for fakewallet cards with LNURL-withdraw flow
+- **Response**: HTML page
+
+#### GET `/api/fake-invoice?amount=XXXX`
+**Generate Fake Bolt11 Invoice**
+- **Description**: Generates a cryptographically valid BOLT11 invoice for fakewallet internal accounting
+- **Parameters**:
+  - `amount` (query): Amount in millisatoshis
+- **Response**: `{ pr: "lnbc..." }`
+
+#### GET `/api/verify-identity?p=XXX&c=YYY`
+**Identity Verification API**
+- **Description**: Verifies a card's identity by decrypting the UID, validating CMAC, and checking KV enrollment
+- **Parameters**:
+  - `p` (hex): Encrypted payload
+  - `c` (hex): CMAC validation
+- **Response**: `{ verified: true, uid, maskedUid }` or `{ verified: false, reason }`
+
 #### POST `/api/v1/pull-payments/{id}/boltcards`
 **Card Programming / Reset**
 - **Description**: Returns card programming keys, supports both UpdateVersion and KeepVersion modes, including old app compatibility (UID) and new app (LNURLW)
@@ -242,8 +275,8 @@ export const staticUidConfig = {
 - **Note**: When K2 is absent, the worker skips local CMAC validation and relays to the downstream service, which performs validation itself
 
 #### fakewallet
-- **Description**: Testing/development payment method
-- **Use Case**: Development and testing only
+- **Description**: Internal accounting with realistic bolt11 invoices to random nonexistent nodes
+- **Use Case**: Self-contained payment processing without external LN node; also works as a POS payment method
 
 ## 🧪 Testing
 
@@ -262,15 +295,26 @@ npm test -- --verbose
 
 ### Test Coverage
 
-- **✅ cryptoutils.test.js**: Cryptographic functions
-- **✅ keygenerator.test.js**: Deterministic key generation
-- **✅ worker.test.js**: API endpoints and request handling
-- **✅ integration.test.js**: End-to-end integration tests
-- **✅ bulkWipe.test.js**: Bulk card wipe operations
-- **✅ lnurlPay.test.js**: LNURL-pay payment method tests
-- **✅ smoke.test.js**: Smoke tests for core functionality
-- **✅ responsePatterns.test.js**: Response pattern validation
-- **Total**: 129 tests across 9 test suites
+- **✅ cryptoutils.test.js**: Cryptographic functions (37 tests)
+- **✅ bolt11.test.js**: BOLT11 invoice generation and parsing (39 tests)
+- **✅ responsePatterns.test.js**: Response pattern validation (26 tests)
+- **✅ loginHandler.test.js**: NFC login verification (21 tests)
+- **✅ lnurlPay.test.js**: LNURL-pay payment method tests (13 tests)
+- **✅ tapTracking.test.js**: Counter timing, tap recording, replay protection (12 tests)
+- **✅ worker.test.js**: API endpoints and request handling (11 tests)
+- **✅ keyLookup.test.js**: CSV-based key recovery (11 tests)
+- **✅ integration.test.js**: End-to-end integration tests (11 tests)
+- **✅ getKeysHandler.test.js**: Key lookup API handler (11 tests)
+- **✅ e2e/virtual-card.test.js**: Full NFC lifecycle E2E (10 tests)
+- **✅ bulkWipe.test.js**: Bulk card wipe operations (10 tests)
+- **✅ templateHelpers.test.js**: HTML template helpers (9 tests)
+- **✅ smoke.test.js**: Smoke tests for core functionality (8 tests)
+- **✅ pos.test.js**: POS payment flow (8 tests)
+- **✅ logging.test.js**: Structured logging (8 tests)
+- **✅ debugIdentity.test.js**: Debug and identity pages (8 tests)
+- **✅ twoFactorHandler.test.js**: 2FA TOTP/HOTP codes (6 tests)
+- **✅ keygenerator.test.js**: Deterministic key generation (3 tests)
+- **Total**: 262 tests across 19 test suites
 
 ### Test Vectors
 
@@ -410,13 +454,24 @@ npm run lint
 │   └── CardReplayDO.js        # Per-card SQLite-backed replay counter
 ├── handlers/                  # Route handlers
 │   ├── activateCardHandler.js
+│   ├── activatePageHandler.js
+│   ├── analyticsHandler.js
+│   ├── bulkWipeHandler.js
+│   ├── bulkWipePageHandler.js
+│   ├── debugHandler.js        # Operator debug dashboard
 │   ├── fetchBoltCardKeys.js
+│   ├── getKeysHandler.js
 │   ├── handleNfc.js
+│   ├── identityHandler.js     # Identity/access control demo
 │   ├── loginHandler.js        # NFC login + key recovery
 │   ├── lnurlHandler.js
+│   ├── lnurlPayHandler.js
+│   ├── posHandler.js          # Fakewallet POS payments
 │   ├── proxyHandler.js
 │   ├── resetHandler.js
 │   ├── statusHandler.js
+│   ├── twoFactorHandler.js
+│   ├── wipePageHandler.js
 │   └── withdrawHandler.js
 ├── keys/                      # Key recovery CSV files (source of truth)
 │   ├── _default.csv           # Default issuer keys (tried for all cards)
@@ -424,19 +479,51 @@ npm run lint
 │   └── _percard_k.psbt.me.csv # Per-card keys from k.psbt.me
 ├── scripts/
 │   └── build_keys.js          # CSV → JS bundler (run before deploy)
+├── templates/                 # HTML page templates
+│   ├── activatePage.js
+│   ├── analyticsPage.js
+│   ├── bulkWipePage.js
+│   ├── browserNfc.js          # Shared Web NFC helpers
+│   ├── debugPage.js
+│   ├── identityPage.js
+│   ├── loginPage.js
+│   ├── nfcPage.js
+│   ├── pageShell.js           # Shared Tailwind page wrapper
+│   ├── posPage.js
+│   └── wipePage.js
 ├── utils/
+│   ├── bolt11.js              # BOLT11 invoice generation (secp256k1 signatures)
 │   ├── generatedKeyData.js    # AUTO-GENERATED — bundled key data
 │   ├── keyLookup.js           # Key lookup functions
 │   ├── lightningAddress.js
 │   ├── logger.js
-│   ├── otp.js
-│   └── responses.js
+│   ├── otp.js                 # TOTP/HOTP one-time password generation
+│   ├── rawTemplate.js         # Raw HTML template helpers
+│   ├── responses.js
+│   └── validation.js
 ├── tests/                     # Test files
+│   ├── replayNamespace.js     # In-memory DO mock for tests
 │   ├── cloudflare-workers-shim.js
 │   ├── cryptoutils.test.js
+│   ├── bolt11.test.js
+│   ├── debugIdentity.test.js
+│   ├── e2e/
+│   │   └── virtual-card.test.js
+│   ├── getKeysHandler.test.js
 │   ├── integration.test.js
-│   ├── keygenerator.test.js
 │   ├── keyLookup.test.js
+│   ├── keygenerator.test.js
+│   ├── linkHandler.test.js
+│   ├── loading.test.js
+│   ├── logging.test.js
+│   ├── loginHandler.test.js
+│   ├── lnurlPay.test.js
+│   ├── pos.test.js
+│   ├── responsePatterns.test.js
+│   ├── smoke.test.js
+│   ├── tapTracking.test.js
+│   ├── templateHelpers.test.js
+│   ├── twoFactorHandler.test.js
 │   └── worker.test.js
 └── docs/                      # Documentation
 ```

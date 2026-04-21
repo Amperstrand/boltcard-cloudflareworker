@@ -13,21 +13,16 @@ This app handles programming your Boltcard.
 
 ## What You Do
 
-1. Open a browser and go to [https://boltcardpoc.psbt.me/status](https://boltcardpoc.psbt.me/status).
-2. On the page, you will see links and QR codes:
-   - **Ignore the QR codes** (they are currently broken).
-   - **Click the "Program Card" link** instead.
+1. Open a browser and go to [https://boltcardpoc.psbt.me/experimental/activate](https://boltcardpoc.psbt.me/experimental/activate).
+2. On the page, choose your card type (withdraw, POS, or 2FA) and follow the instructions.
+   - You can scan the **QR code** on the page or click the **"Program Card"** link directly.
 3. The link will open the **Bolt Card NFC Programmer** app automatically.
 4. Follow the instructions in the app:
    - Tap your card to the phone when prompted.
 
 > **Important:**  
 > If you get **all green checks except the last one**, the card was programmed successfully.  
->
-> ⚠️ **Why is the last check not green?**  
-> The backend currently does not automatically add newly programmed cards.  
-> (This is on the TODO list.)  
-> Because of this, the "card exists" check fails, even though the card was written correctly.
+> The last check ("card exists on server") is informational only. Your card is fully functional and will work immediately via deterministic key generation.
 
 ---
 
@@ -35,15 +30,15 @@ This app handles programming your Boltcard.
 
 When you click the link:
 
-- The browser redirects into the **Bolt Card NFC Programmer app**.
-- The app sends a **POST** request to the backend server with your card’s **UID**.
+- The browser redirects into the **Bolt Card NFC Programmer** app.
+- The app sends a **POST** request to the backend server with your card's **UID** and **card type**.
 
 Example `cURL` request:
 
 ```bash
-curl -X POST https://boltcardpoc.psbt.me/program \
+curl -X POST https://boltcardpoc.psbt.me/api/v1/pull-payments/default/boltcards \
   -H "Content-Type: application/json" \
-  -d '{"uid": "YOUR_CARD_UID"}'
+  -d '{"UID": "YOUR_CARD_UID"}'
 ```
 
 - The server uses your UID to **deterministically generate** all the necessary keys.
@@ -58,18 +53,23 @@ Example server response:
   "k2": "aabbccddeeff00112233445566778899",
   "k3": "99887766554433221100ffeeddccbbaa",
   "k4": "00112233445566778899aabbccddeeff",
-  "lnurlw_base": "https://your-lnurl-server.com/lnurlw"
+  "lnurlw_base": "https://boltcardpoc.psbt.me",
+  "version": 1,
+  "card_type": "withdraw"
 }
 ```
 
-- The app writes these keys into the Boltcard’s NFC memory using NFC commands.
+- The app writes these keys into the Boltcard's NFC memory using NFC commands.
 
 ### Notes
 
 - Key generation is **deterministic** based on your UID and a hardcoded master key.
 - Learn more about deterministic key generation here:  
-  [Deterministic Key Generation – Boltcard Docs](https://github.com/boltcard/boltcard/blob/main/docs/DETERMINISTIC.md)
+  [Deterministic Key Generation - Boltcard Docs](https://github.com/boltcard/boltcard/blob/main/docs/DETERMINISTIC.md)
+- Cards work **immediately** after programming with the fakewallet payment method via deterministic key generation. No manual backend setup step is needed.
 
-After programming, your card is ready to interact with Lightning wallets and services.
+### After Programming
 
-
+- **Tap your card** on any NFC-enabled phone to use it. The LNURL-withdraw flow will start automatically.
+- Visit the **[debug dashboard](https://boltcardpoc.psbt.me/debug)** to view your card's state, tap history, and configuration.
+- Cards provisioned with the `POS` card type work with the [POS payment page](https://boltcardpoc.psbt.me/pos).
