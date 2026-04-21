@@ -8,6 +8,8 @@ import { handleProxy } from "./handlers/proxyHandler.js";
 import { constructWithdrawResponse } from "./handlers/withdrawHandler.js";
 import { constructPayRequest, handleLnurlPayCallback } from "./handlers/lnurlPayHandler.js";
 import handleNfc from "./handlers/handleNfc.js";
+import { handleDebugPage } from "./handlers/debugHandler.js";
+import { handleIdentityPage, handleIdentityVerify } from "./handlers/identityHandler.js";
 import { getUidConfig } from "./getUidConfig.js";
 import { handleActivateCardPage as handleActivateForm, handleActivateCardSubmit } from "./handlers/activateCardHandler.js";
 import { handleReset } from "./handlers/resetHandler.js";
@@ -57,6 +59,9 @@ router.get("/pos", (request) => handlePosPage(request));
 router.post("/activate/form", (request, env) => handleActivateCardSubmit(request, env));
 router.get("/lnurlp/cb", (request, env) => handleLnurlPayCallback(request, env));
 router.get("/api/bulk-wipe-keys", (request, env) => handleBulkWipeKeys(request, env));
+router.get("/api/verify-identity", (request, env) => handleIdentityVerify(request, env));
+router.get("/debug", (request) => handleDebugPage(request));
+router.get("/identity", (request) => handleIdentityPage(request));
 
 // /experimental/ aliases for operator tools
 router.get("/experimental/nfc", () => handleNfc());

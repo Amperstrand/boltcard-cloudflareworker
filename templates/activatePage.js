@@ -27,11 +27,17 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
 
           <div class="mb-8 space-y-4">
             <div class="flex flex-wrap gap-3">
+              <a href="/debug" class="inline-flex items-center rounded border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-300 transition hover:bg-amber-500/20">
+                DEBUG & TOOLS
+              </a>
               <a href="/experimental/nfc" class="inline-flex items-center rounded border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/20">
                 OPEN NFC TEST CONSOLE
               </a>
               <a href="/login" class="inline-flex items-center rounded border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20">
                 NFC LOGIN DEMO
+              </a>
+              <a href="/identity" class="inline-flex items-center rounded border border-pink-500/30 bg-pink-500/10 px-4 py-2 text-sm font-semibold text-pink-300 transition hover:bg-pink-500/20">
+                IDENTITY DEMO
               </a>
             </div>
 
