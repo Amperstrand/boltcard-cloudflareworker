@@ -19,7 +19,7 @@ export function renderPosPage({ host }) {
     ].join("\n"),
     content: rawHtml`
     <div id="tap-overlay" class="fixed inset-0 z-50 flex flex-col bg-gray-900">
-      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+      <div class="flex items-center justify-between px-4 py-2 border-b border-gray-800">
         <span class="text-sm font-semibold text-emerald-500 tracking-widest">POS</span>
         <button id="overlay-cancel" type="button" class="text-sm font-semibold text-gray-500 hover:text-white transition-colors px-2 py-1">CANCEL</button>
       </div>
@@ -34,8 +34,8 @@ export function renderPosPage({ host }) {
       </div>
     </div>
 
-    <div class="flex flex-col h-screen">
-      <div class="flex items-center justify-between px-4 py-2">
+    <div class="flex flex-col h-[100dvh]">
+      <div class="flex items-center justify-between px-4 py-1.5 shrink-0">
         <a href="/login" class="text-sm font-semibold text-emerald-500 tracking-widest hover:text-emerald-400 transition-colors">POS</a>
         <div class="flex items-center gap-3">
           <span class="text-xs text-gray-600">fakewallet</span>
@@ -46,27 +46,27 @@ export function renderPosPage({ host }) {
       </div>
       </div>
 
-      <div class="flex-1 flex flex-col justify-end px-4 pb-4">
-        <div class="text-center py-3">
-          <div id="amount-display" class="text-5xl font-bold tracking-tight text-white leading-none">0</div>
-        </div>
+      <div class="text-center py-2 shrink-0">
+        <div id="amount-display" class="text-5xl font-bold tracking-tight text-white leading-none">0</div>
+      </div>
 
-        <div id="keypad" class="grid grid-cols-3 gap-2 mb-3">
-          <button type="button" data-key="1" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">1</button>
-          <button type="button" data-key="2" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">2</button>
-          <button type="button" data-key="3" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">3</button>
-          <button type="button" data-key="4" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">4</button>
-          <button type="button" data-key="5" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">5</button>
-          <button type="button" data-key="6" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">6</button>
-          <button type="button" data-key="7" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">7</button>
-          <button type="button" data-key="8" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">8</button>
-          <button type="button" data-key="9" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">9</button>
-          <button type="button" data-key="." class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">.</button>
-          <button type="button" data-key="0" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">0</button>
-          <button type="button" data-key="backspace" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold py-3 transition-colors">⌫</button>
-        </div>
+      <div id="keypad" class="flex-1 grid grid-cols-3 gap-1.5 px-3 min-h-0">
+        <button type="button" data-key="1" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">1</button>
+        <button type="button" data-key="2" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">2</button>
+        <button type="button" data-key="3" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">3</button>
+        <button type="button" data-key="4" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">4</button>
+        <button type="button" data-key="5" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">5</button>
+        <button type="button" data-key="6" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">6</button>
+        <button type="button" data-key="7" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">7</button>
+        <button type="button" data-key="8" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">8</button>
+        <button type="button" data-key="9" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">9</button>
+        <button type="button" data-key="." class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">.</button>
+        <button type="button" data-key="0" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">0</button>
+        <button type="button" data-key="backspace" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">⌫</button>
+      </div>
 
-        <div id="result-box" class="hidden rounded-xl border p-3 mb-3">
+      <div class="shrink-0 px-3 pt-2 pb-3">
+        <div id="result-box" class="hidden rounded-xl border p-3 mb-2">
           <div class="flex items-start gap-2">
             <div id="result-icon" class="text-xl leading-none">✓</div>
             <div>
