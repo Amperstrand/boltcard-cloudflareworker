@@ -1,12 +1,13 @@
 import { validateUid } from "../utils/validation.js";
+import { rawHtml } from "../utils/rawTemplate.js";
 
-const BROWSER_VALIDATE_UID_HELPER = `
+const BROWSER_VALIDATE_UID_HELPER = rawHtml`
         const UID_REGEX = /^[0-9a-f]{14}$/;
         ${validateUid.toString()}
 `;
 
 export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, programUrl, resetUrl }) {
-  return `
+  return rawHtml`
     <!DOCTYPE html>
     <html lang="en" class="dark">
       <head>
@@ -280,7 +281,7 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
 }
 
 export function renderActivateCardPage() {
-  return `
+  return rawHtml`
     <!DOCTYPE html>
     <html lang="en">
     <head>

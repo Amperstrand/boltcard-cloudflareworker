@@ -1,5 +1,7 @@
+import { rawHtml } from "../utils/rawTemplate.js";
+
 export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
-  return `<!DOCTYPE html>
+  return rawHtml`<!DOCTYPE html>
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />

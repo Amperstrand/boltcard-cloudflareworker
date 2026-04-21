@@ -1,5 +1,7 @@
+import { rawHtml } from "../utils/rawTemplate.js";
+
 export function renderWipePage({ baseUrl, resetApiUrl }) {
-  return `
+  return rawHtml`
     <!DOCTYPE html>
     <html lang="en" class="dark">
       <head>
