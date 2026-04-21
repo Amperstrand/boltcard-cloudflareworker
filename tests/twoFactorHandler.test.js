@@ -37,14 +37,19 @@ function makeKvEnv(uidConfig) {
 }
 
 describe("GET /2fa", () => {
-  test("missing p returns 400", async () => {
+  test("missing p renders landing page", async () => {
     const response = await makeRequest("/2fa?c=" + VALID_C);
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Boltcard 2FA demo");
+    expect(html).toContain("Start NFC scan");
   });
 
-  test("missing c returns 400", async () => {
+  test("missing c renders landing page", async () => {
     const response = await makeRequest("/2fa?p=" + VALID_P);
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Boltcard 2FA demo");
   });
 
   test("invalid p that cannot decrypt returns 400", async () => {
