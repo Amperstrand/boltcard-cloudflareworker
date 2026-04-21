@@ -495,9 +495,13 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
         pending:     'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
         paying:      'bg-blue-500/10 text-blue-400 border-blue-500/30',
         expired:     'bg-gray-600/10 text-gray-400 border-gray-500/30',
+        topup:       'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+        payment:     'bg-orange-500/10 text-orange-400 border-orange-500/30',
       };
+      var labels = { topup: 'TOP UP', payment: 'PAYMENT' };
       var cls = map[status] || map.pending;
-      return '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ' + cls + '">' + status + '</span>';
+      var label = labels[status] || status;
+      return '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ' + cls + '">' + label + '</span>';
     }
 
     function renderTapHistory(taps, prefix) {
@@ -513,24 +517,33 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
         return;
       }
       document.getElementById(prefix + '-tap-empty').classList.add('hidden');
-      countEl.textContent = taps.length + ' taps';
+      countEl.textContent = taps.length + ' entries';
       var html = '';
       for (var i = 0; i < taps.length; i++) {
         var t = taps[i];
         var time = relativeTime(t.created_at);
-        var invoice = t.bolt11 ? (t.bolt11.length > 20 ? t.bolt11.substring(0, 20) + '...' : t.bolt11) : '\u2014';
-        var ua = t.user_agent ? (t.user_agent.length > 30 ? t.user_agent.substring(0, 30) + '...' : t.user_agent) : '';
-        html += '<div class="flex items-center justify-between text-xs py-1.5 border-b border-gray-700/50 last:border-0">'
-          + '<div class="flex items-center gap-3">'
-          + '<span class="text-gray-500 w-20 shrink-0">' + time + '</span>'
-          + (t.counter != null ? '<span class="font-mono text-gray-400">#' + t.counter + '</span>' : '<span class="font-mono text-gray-500">—</span>')
+        var isTopup = t.status === 'topup';
+        var isPayment = t.status === 'payment';
+        var amountStr = '';
+        if (isTopup) {
+          amountStr = '<span class="font-mono text-emerald-400 font-semibold">+' + formatMsat(t.amount_msat) + '</span>';
+        } else if (isPayment) {
+          amountStr = '<span class="font-mono text-orange-400 font-semibold">-' + formatMsat(t.amount_msat) + '</span>';
+        } else if (t.amount_msat) {
+          amountStr = '<span class="font-mono text-gray-400">' + formatMsat(t.amount_msat) + '</span>';
+        }
+        var detailParts = [];
+        if (t.counter != null) detailParts.push('<span class="font-mono text-gray-500">#' + t.counter + '</span>');
+        if (t.note) detailParts.push('<span class="text-gray-500">' + esc(t.note) + '</span>');
+        if (t.balance_after != null && (isTopup || isPayment)) detailParts.push('<span class="font-mono text-gray-500">bal: ' + t.balance_after + '</span>');
+        html += '<div class="flex items-center justify-between py-2 border-b border-gray-700/50 last:border-0">'
+          + '<div class="flex items-center gap-2 min-w-0 flex-1">'
+          + '<span class="text-gray-500 text-[11px] shrink-0 w-14">' + time + '</span>'
           + statusBadge(t.status)
+          + (detailParts.length > 0 ? '<span class="text-gray-600 text-[11px] truncate">' + detailParts.join(' ') + '</span>' : '')
           + '</div>'
-          + '<div class="flex items-center gap-3">'
-          + (t.amount_msat ? '<span class="font-mono text-emerald-400/70 text-[11px]">' + formatMsat(t.amount_msat) + '</span>' : '')
-          + (t.version ? '<span class="font-mono text-purple-400/70 text-[11px]">v' + t.version + '</span>' : '')
-          + (t.bolt11 ? '<span class="font-mono text-gray-500 truncate max-w-[120px]" title="' + esc(t.bolt11) + '">' + esc(invoice) + '</span>' : '')
-          + (ua ? '<span class="text-gray-600 truncate max-w-[100px] hidden md:inline" title="' + esc(t.user_agent) + '">' + esc(ua) + '</span>' : '')
+          + '<div class="shrink-0 ml-2 text-xs">'
+          + amountStr
           + '</div></div>';
       }
       list.innerHTML = html;

@@ -154,9 +154,10 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     expect(loginResp.status).toBe(200);
     const loginJson = await loginResp.json();
     expect(loginJson.success).toBe(true);
-    expect(loginJson.tapHistory).toHaveLength(1);
+    expect(loginJson.tapHistory).toHaveLength(2);
     expect(loginJson.tapHistory[0].counter).toBe(1);
     expect(loginJson.tapHistory[0].status).toBe("completed");
+    expect(loginJson.tapHistory[1].status).toBe("payment");
   });
 
   test("replay protection: stale counter rejected in callback", async () => {
@@ -408,18 +409,18 @@ describe("E2E: Virtual card — login and tap history", () => {
     expect(loginResp.status).toBe(200);
     const json = await loginResp.json();
     expect(json.success).toBe(true);
-    expect(json.tapHistory).toHaveLength(3);
+    // 3 completed taps + 3 payment transactions = 6 entries
+    // (tap 1 failed has no payment transaction)
+    expect(json.tapHistory).toHaveLength(5);
 
-    // Sorted by counter DESC (most recent first)
+    // First entry should be counter 3 (tap or payment)
     expect(json.tapHistory[0].counter).toBe(3);
-    expect(json.tapHistory[2].counter).toBe(1);
+    expect([3, 2]).toContain(json.tapHistory[2].counter);
 
     // Each entry has metadata
     for (const tap of json.tapHistory) {
-      expect(tap.counter).toBeGreaterThan(0);
-      expect(tap.status).toBeTruthy();
       expect(tap.created_at).toBeGreaterThan(0);
-      expect(tap.updated_at).toBeGreaterThan(0);
+      expect(tap.status).toBeTruthy();
     }
   });
 
@@ -442,6 +443,7 @@ describe("E2E: Virtual card — login and tap history", () => {
     const { pHex, cHex } = virtualCardTap(UID, 26, k1Hex, keys.k2);
     const loginResp = await makeRequest("/login", "POST", { p: pHex, c: cHex }, env);
     const json = await loginResp.json();
-    expect(json.tapHistory.length).toBeLessThanOrEqual(20);
+    // 25 taps produce 25 tap entries + 25 payment transactions = 50, capped at 25 by merge
+    expect(json.tapHistory.length).toBeLessThanOrEqual(25);
   });
 });

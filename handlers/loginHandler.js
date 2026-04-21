@@ -7,7 +7,7 @@ import { htmlResponse, jsonResponse, errorResponse } from "../utils/responses.js
 import { getAllIssuerKeyCandidates, getPerCardKeys } from "../utils/keyLookup.js";
 import { PERCARD_KEYS } from "../utils/generatedKeyData.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
-import { listTaps, getCardState, getCardConfig, terminateCard, requestWipe, recordTapRead, getBalance, creditCard } from "../replayProtection.js";
+import { listTaps, listTransactions, getCardState, getCardConfig, terminateCard, requestWipe, recordTapRead, getBalance, creditCard } from "../replayProtection.js";
 import { validateUid, getRequestOrigin } from "../utils/validation.js";
 
 const DEFAULT_PULL_PAYMENT_ID = "fUDXsnySxvb5LYZ1bSLiWzLjVuT";
@@ -193,13 +193,7 @@ export async function handleLoginVerify(request, env) {
       keyVersion,
     });
 
-    let tapHistory = [];
-    try {
-      const tapData = await listTaps(env, uidHex, 20);
-      tapHistory = tapData.taps || [];
-    } catch (e) {
-      logger.warn("Could not load tap history", { uidHex, error: e.message });
-    }
+    const tapHistory = await getUnifiedHistory(env, uidHex);
 
     let balanceData = { balance: 0 };
     try {
@@ -277,13 +271,7 @@ async function handleUidOnlyLogin(rawUid, env, request) {
 
   logger.info("NFC login (UID-only, undeployed)", { uidHex, deployed: hasDoConfig, keyVersion });
 
-  let tapHistory = [];
-  try {
-    const tapData = await listTaps(env, uidHex, 20);
-    tapHistory = tapData.taps || [];
-  } catch (e) {
-    logger.warn("Could not load tap history", { uidHex, error: e.message });
-  }
+  const tapHistory = await getUnifiedHistory(env, uidHex);
 
   let balanceData = { balance: 0 };
   try {
@@ -421,6 +409,48 @@ async function handleTopUpAction(rawUid, rawAmount, env, request) {
     logger.error("Top-up failed", { uidHex, amount, error: e.message });
     return errorResponse("Top-up failed: " + e.message, 500);
   }
+}
+
+function mergeHistory(taps, transactions) {
+  const txEntries = (transactions || []).map((tx) => ({
+    counter: tx.counter,
+    bolt11: null,
+    status: tx.amount > 0 ? "topup" : "payment",
+    payment_hash: null,
+    amount_msat: Math.abs(tx.amount),
+    user_agent: null,
+    request_url: null,
+    created_at: tx.created_at,
+    updated_at: tx.created_at,
+    note: tx.note || null,
+    balance_after: tx.balance_after,
+  }));
+
+  const merged = [...(taps || []), ...txEntries].sort((a, b) => {
+    const timeDiff = (b.created_at || 0) - (a.created_at || 0);
+    if (timeDiff !== 0) return timeDiff;
+    return (b.counter || 0) - (a.counter || 0);
+  });
+
+  return merged.slice(0, 25);
+}
+
+async function getUnifiedHistory(env, uidHex) {
+  let taps = [];
+  let transactions = [];
+  try {
+    const tapData = await listTaps(env, uidHex, 25);
+    taps = tapData.taps || [];
+  } catch (e) {
+    logger.warn("Could not load tap history", { uidHex, error: e.message });
+  }
+  try {
+    const txData = await listTransactions(env, uidHex, 25);
+    transactions = txData.transactions || [];
+  } catch (e) {
+    logger.warn("Could not load transactions", { uidHex, error: e.message });
+  }
+  return mergeHistory(taps, transactions);
 }
 
 function getUniquePerCardK1s() {

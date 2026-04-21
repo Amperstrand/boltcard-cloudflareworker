@@ -432,10 +432,11 @@ describe("Tap tracking — login response", () => {
     expect(loginResp.status).toBe(200);
     const loginJson = await loginResp.json();
     expect(loginJson.success).toBe(true);
-    expect(loginJson.tapHistory).toHaveLength(1);
+    expect(loginJson.tapHistory).toHaveLength(2);
     expect(loginJson.tapHistory[0].counter).toBe(15);
     expect(loginJson.tapHistory[0].bolt11).toBe("lnbc10n1testinvoice");
     expect(loginJson.tapHistory[0].status).toBe("completed");
+    expect(loginJson.tapHistory[1].status).toBe("payment");
   });
 
   test("POST /login tapHistory is empty when no taps recorded", async () => {
