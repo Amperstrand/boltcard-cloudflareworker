@@ -118,7 +118,7 @@ export function renderPosPage({ host }) {
         let parts = next.split('.');
         let whole = parts[0] || '0';
         let fraction = parts[1] || '';
-        whole = whole.replace(/^0+(\d)/, '$1');
+        whole = whole.replace(/^0+(\\d)/, '$1');
         if (whole === '') whole = '0';
         return parts.length > 1 ? whole + '.' + fraction : whole;
       }
@@ -133,7 +133,7 @@ export function renderPosPage({ host }) {
         const parts = normalized.split('.');
         const whole = parts[0] || '0';
         const fraction = parts[1];
-        const formattedWhole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        const formattedWhole = whole.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');
         return fraction !== undefined ? formattedWhole + '.' + fraction : formattedWhole;
       }
 
@@ -286,7 +286,7 @@ export function renderPosPage({ host }) {
 
         const httpsUrl = trimmed.toLowerCase().startsWith('lnurlw://')
           ? 'https://' + trimmed.slice('lnurlw://'.length)
-          : trimmed.replace(/^http:\/\//i, 'https://');
+          : trimmed.replace(/^http:\\/\\//i, 'https://');
 
         const parsed = new URL(httpsUrl);
         const p = parsed.searchParams.get('p');
