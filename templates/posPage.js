@@ -36,13 +36,14 @@ export function renderPosPage({ host }) {
 
     <div class="flex flex-col h-screen">
       <div class="flex items-center justify-between px-4 py-2">
-        <span class="text-sm font-semibold text-emerald-500 tracking-widest">POS</span>
+        <a href="/login" class="text-sm font-semibold text-emerald-500 tracking-widest hover:text-emerald-400 transition-colors">POS</a>
         <div class="flex items-center gap-3">
           <span class="text-xs text-gray-600">fakewallet</span>
         <span id="status-pill" class="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-400">
           <span class="inline-block h-1.5 w-1.5 rounded-full bg-current"></span>
           <span id="status-pill-text">NFC Ready</span>
         </span>
+      </div>
       </div>
 
       <div class="flex-1 flex flex-col justify-end px-4 pb-4">
