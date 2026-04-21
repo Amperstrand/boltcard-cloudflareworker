@@ -5,6 +5,21 @@ export function jsonResponse(data, status = 200) {
   });
 }
 
+export function buildErrorPayload(reason, extra = {}) {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  return {
+    status: "ERROR",
+    reason: message,
+    error: message,
+    success: false,
+    ...extra,
+  };
+}
+
+export function errorResponse(reason, status = 400, extra = {}) {
+  return jsonResponse(buildErrorPayload(reason, extra), status);
+}
+
 export function htmlResponse(html, status = 200) {
   return new Response(html, {
     status,
