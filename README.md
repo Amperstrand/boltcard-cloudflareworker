@@ -55,7 +55,7 @@ The worker first attempts to fetch the UID configuration from KV. If no entry is
 - 📱 **NFC Card Programming**: Card activation and programming endpoints
 - 🔒 **Replay Protection**: Atomic counter-based replay protection using Durable Objects with SQLite storage — strongly consistent, not eventually consistent
 - 🛡️ **DDoS Rate Limiting**: IP-based fixed-window rate limiting (100 req/min default)
-- 🧪 **Tested**: Comprehensive test suite with 262 tests across 19 test suites
+- 🧪 **Tested**: Comprehensive test suite with 287 tests across 20 test suites
 
 ## 🏗️ Architecture
 
@@ -297,11 +297,12 @@ npm test -- --verbose
 
 - **✅ cryptoutils.test.js**: Cryptographic functions (37 tests)
 - **✅ bolt11.test.js**: BOLT11 invoice generation and parsing (39 tests)
-- **✅ responsePatterns.test.js**: Response pattern validation (26 tests)
+- **✅ responsePatterns.test.js**: Response pattern validation (27 tests)
 - **✅ loginHandler.test.js**: NFC login verification (21 tests)
 - **✅ lnurlPay.test.js**: LNURL-pay payment method tests (13 tests)
-- **✅ tapTracking.test.js**: Counter timing, tap recording, replay protection (12 tests)
-- **✅ worker.test.js**: API endpoints and request handling (11 tests)
+- **✅ getUidConfig.test.js**: UID configuration and K1 fallback guards (17 tests)
+- **✅ tapTracking.test.js**: Counter timing, tap recording, replay protection (13 tests)
+- **✅ worker.test.js**: API endpoints and request handling (12 tests)
 - **✅ keyLookup.test.js**: CSV-based key recovery (11 tests)
 - **✅ integration.test.js**: End-to-end integration tests (11 tests)
 - **✅ getKeysHandler.test.js**: Key lookup API handler (11 tests)
@@ -314,7 +315,7 @@ npm test -- --verbose
 - **✅ debugIdentity.test.js**: Debug and identity pages (8 tests)
 - **✅ twoFactorHandler.test.js**: 2FA TOTP/HOTP codes (6 tests)
 - **✅ keygenerator.test.js**: Deterministic key generation (3 tests)
-- **Total**: 262 tests across 19 test suites
+- **Total**: 287 tests across 20 test suites
 
 ### Test Vectors
 

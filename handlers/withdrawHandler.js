@@ -11,6 +11,9 @@ export const constructWithdrawResponse = (uidHex, pHex, cHex, ctr, cmac_validate
 
   const counterValue = parseInt(ctr, 16);
   const host = baseUrl || "https://boltcardpoc.psbt.me";
+  // clnrest and proxy use a fixed 1000 msat amount (1 sat) because the
+  // LNURL-withdraw callback is a payment trigger, not a user-chosen amount.
+  // fakewallet allows the full 1–1 000 000 msat range for POS flexibility.
   const minWithdrawable = paymentMethod === "fakewallet" ? 1 : 1000;
   const maxWithdrawable = paymentMethod === "fakewallet" ? 1000000 : 1000;
 

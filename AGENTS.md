@@ -97,6 +97,6 @@
 
 ## Test Baseline
 
-- 262 tests across 19 suites (as of debug page + identity demo addition)
+- 287 tests across 20 suites (as of full-project-review wave 2)
 - Run: `npm test` (uses Jest with `--experimental-vm-modules`)
 - Deploy: `npm run deploy` (tests → build_keys → wrangler deploy)
