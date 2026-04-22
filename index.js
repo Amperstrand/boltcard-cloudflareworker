@@ -84,7 +84,6 @@ router.get("/experimental/analytics/data", (request, env) => handleAnalyticsData
 router.get("/nfc", () => Response.redirect("/experimental/nfc", 301));
 router.get("/activate", () => Response.redirect("/experimental/activate", 301));
 router.get("/activate/form", () => Response.redirect("/experimental/activate/form", 301));
-router.post("/activate/form", (request, env) => handleActivateCardSubmit(request, env));
 router.get("/wipe", (request, env) => {
   const url = new URL(request.url);
   const uid = url.searchParams.get("uid");
