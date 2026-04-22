@@ -275,7 +275,7 @@ async function handleLnurlw(request, env) {
       userAgent: request.headers.get("User-Agent") || null,
       requestUrl: request.url,
     });
-    return jsonResponse(constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, config));
+    return jsonResponse(constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, config, env));
   }
 
   if (config.payment_method === "clnrest" || config.payment_method === "fakewallet") {

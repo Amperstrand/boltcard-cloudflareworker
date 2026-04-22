@@ -3,6 +3,7 @@ import { makeReplayNamespace } from "./replayNamespace.js";
 
 const env = {
   BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
+  ISSUER_KEY: "00000000000000000000000000000001",
   CARD_REPLAY: makeReplayNamespace(),
 };
 
@@ -14,6 +15,14 @@ const ACTION_UID = "04a39493cc8680";
 function makeEnv(replay = makeReplayNamespace()) {
   return {
     ...env,
+    CARD_REPLAY: replay,
+  };
+}
+
+function makeEnvWithoutIssuerKey(replay = makeReplayNamespace()) {
+  const { ISSUER_KEY, ...envWithoutKey } = env;
+  return {
+    ...envWithoutKey,
     CARD_REPLAY: replay,
   };
 }
@@ -359,5 +368,48 @@ describe("POST /login (handleLoginVerify)", () => {
       error: "exploded issuer key lookup",
       reason: "exploded issuer key lookup",
     });
+  });
+
+  test("UID-only login without ISSUER_KEY returns error", async () => {
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { uid: ACTION_UID },
+      makeEnvWithoutIssuerKey()
+    );
+
+    expect(response.status).toBe(500);
+    const json = await response.json();
+    expect(json).toMatchObject({
+      status: "ERROR",
+      success: false,
+      error: expect.any(String),
+      reason: expect.any(String),
+    });
+    expect(json.error).toMatch(/invalid hex string/i);
+    expect(json.reason).toMatch(/invalid hex string/i);
+  });
+
+  test("request-wipe without ISSUER_KEY returns error", async () => {
+    const replay = makeReplayNamespace();
+    replay.__activate(ACTION_UID, 2);
+
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { uid: ACTION_UID, action: "request-wipe" },
+      makeEnvWithoutIssuerKey(replay)
+    );
+
+    expect(response.status).toBe(500);
+    const json = await response.json();
+    expect(json).toMatchObject({
+      status: "ERROR",
+      success: false,
+      error: expect.any(String),
+      reason: expect.any(String),
+    });
+    expect(json.error).toMatch(/invalid hex string/i);
+    expect(json.reason).toMatch(/invalid hex string/i);
   });
 });

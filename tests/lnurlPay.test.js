@@ -145,6 +145,41 @@ describe("LNURL-pay POS card flow", () => {
       global.fetch = originalFetch;
     });
 
+    test("card without lightning_address AND no pool env → 503", async () => {
+      const env = makePayEnv();
+      const noAddressConfig = { ...POS_UID_CONFIG_OBJECT, lnurlpay: { ...POS_UID_CONFIG_OBJECT.lnurlpay } };
+      delete noAddressConfig.lnurlpay.lightning_address;
+      env.UID_CONFIG.get = async (uid) => uid === "04d070fa967380" ? JSON.stringify(noAddressConfig) : null;
+      env.CARD_REPLAY.__cardConfigs.set("04d070fa967380", noAddressConfig);
+
+      const response = await makeRequest(
+        `/lnurlp/cb?p=${PAY_COUNTER_1}&c=${PAY_CMAC_1}&amount=1000`,
+        "GET", null, env
+      );
+
+      expect(response.status).toBe(503);
+      const json = await response.json();
+      expect(json.reason).toContain("No Lightning Address");
+    });
+
+    test("card with pool env set → uses pool address", async () => {
+      const env = makePayEnv();
+      const noAddressConfig = { ...POS_UID_CONFIG_OBJECT, lnurlpay: { ...POS_UID_CONFIG_OBJECT.lnurlpay } };
+      delete noAddressConfig.lnurlpay.lightning_address;
+      env.UID_CONFIG.get = async (uid) => uid === "04d070fa967380" ? JSON.stringify(noAddressConfig) : null;
+      env.CARD_REPLAY.__cardConfigs.set("04d070fa967380", noAddressConfig);
+      env.POS_ADDRESS_POOL = "pooltest1@example.com,pooltest2@example.com";
+
+      const response = await makeRequest(
+        `/lnurlp/cb?p=${PAY_COUNTER_1}&c=${PAY_CMAC_1}&amount=1000`,
+        "GET", null, env
+      );
+
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      expect(json.pr).toBeDefined();
+    });
+
     test("returns invoice from Lightning Address", async () => {
       const env = makePayEnv();
 

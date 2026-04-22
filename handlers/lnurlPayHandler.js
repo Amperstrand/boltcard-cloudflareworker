@@ -6,21 +6,23 @@ import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { recordTap, updateTapStatus } from "../replayProtection.js";
 import { resolveLightningAddress } from "../utils/lightningAddress.js";
 
-const POS_ADDRESS_POOL = [
-  "test@walletofsatoshi.com",
-  "test@zbd.gg",
-  "test@bitrefill.me",
-];
+function getPosAddressPool(env) {
+  if (env?.POS_ADDRESS_POOL) {
+    return env.POS_ADDRESS_POOL.split(",").map(addr => addr.trim()).filter(addr => addr.length > 0);
+  }
+  return [];
+}
 
-function pickRandomAddress(config) {
+function pickRandomAddress(config, env) {
   const configured = config?.lnurlpay?.lightning_address;
   if (configured && !configured.includes("coinos")) {
     return configured;
   }
-  return POS_ADDRESS_POOL[Math.floor(Math.random() * POS_ADDRESS_POOL.length)];
+  const pool = getPosAddressPool(env);
+  return pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : null;
 }
 
-export function constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, config) {
+export function constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, config, env) {
   const host = baseUrl || "https://boltcardpoc.psbt.me";
   const callbackUrl = new URL("/lnurlp/cb", host);
   callbackUrl.searchParams.set("p", pHex);
@@ -28,7 +30,7 @@ export function constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, c
 
   const minSendable = config?.lnurlpay?.min_sendable ?? 1000;
   const maxSendable = config?.lnurlpay?.max_sendable ?? 1000;
-  const destination = pickRandomAddress(config);
+  const destination = pickRandomAddress(config, env);
 
   return {
     tag: "payRequest",
@@ -85,10 +87,10 @@ export async function handleLnurlPayCallback(request, env) {
       return errorResponse("K2 key not available for local CMAC validation");
     }
 
-  const lightningAddress = pickRandomAddress(config);
-  if (typeof lightningAddress !== "string" || !lightningAddress) {
-    return errorResponse("No Lightning Address available");
-  }
+   const lightningAddress = pickRandomAddress(config, env);
+   if (typeof lightningAddress !== "string" || !lightningAddress) {
+     return errorResponse("No Lightning Address available", 503);
+   }
 
     const minSendable = config.lnurlpay?.min_sendable ?? 1000;
     const maxSendable = config.lnurlpay?.max_sendable ?? 1000;
