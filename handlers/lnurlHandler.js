@@ -12,44 +12,10 @@ export async function handleLnurlpPayment(request, env) {
     const pathname = url.pathname;
     const lnurlpBase = "/boltcards/api/v1/lnurl/cb";
     
-    let p, c, json;
+    let p, c;
 
     if (request.method === "POST") {
-      json = await request.json();
-      logger.debug("Received LNURL callback POST", {
-        pathname,
-        hasK1: Boolean(json?.k1),
-        hasInvoice: Boolean(json?.invoice),
-        hasAmount: Boolean(json?.amount),
-      });
-
-      const extra = pathname.slice(lnurlpBase.length).split("/").filter(Boolean);
-        if (extra.length >= 1) {
-          p = extra[0];
-          if (!json.k1) {
-            return jsonResponse({ status: "ERROR", reason: "Missing k1 parameter for c value" }, 400);
-          }
-          c = json.k1;
-        } else {
-          if (!json.k1) {
-            return jsonResponse({ status: "ERROR", reason: "Missing k1 parameter" }, 400);
-          }
-          const k1Params = new URLSearchParams(json.k1);
-          p = k1Params.get("p");
-          c = k1Params.get("c");
-          if (!p || !c) {
-            return jsonResponse({ status: "ERROR", reason: "Invalid k1 format, missing p or c" }, 400);
-          }
-        }
-
-      logger.trace("Parsed LNURL callback POST params", {
-        hasP: Boolean(p),
-        hasC: Boolean(c),
-      });
-      // Optionally, if you want to support POST-based withdrawal processing,
-      // you can call processWithdrawalPayment here.
-      // For now, the POST branch only logs the request.
-      return jsonResponse({ status: "200", message: "POST received" }, 200);
+      return new Response("Method Not Allowed", { status: 405 });
     } else if (request.method === "GET") {
       const extra = pathname.slice(lnurlpBase.length).split("/").filter(Boolean);
       if (extra.length >= 1) {

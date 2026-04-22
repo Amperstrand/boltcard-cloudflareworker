@@ -440,7 +440,7 @@ describe("response patterns", () => {
     expect(json).toMatchObject({ error: expect.any(String) });
   });
 
-  test("POST /boltcards/api/v1/lnurl/cb returns JSON error when k1 is missing", async () => {
+  test("POST /boltcards/api/v1/lnurl/cb returns 405 even without k1", async () => {
     const response = await makeRequest(
       "/boltcards/api/v1/lnurl/cb",
       "POST",
@@ -448,17 +448,11 @@ describe("response patterns", () => {
       makeKvEnv()
     );
 
-    expect(response.status).toBe(400);
-    expect(response.headers.get("Content-Type")).toContain("application/json");
-
-    const json = await response.json();
-    expect(json).toMatchObject({
-      status: "ERROR",
-      reason: expect.any(String),
-    });
+    expect(response.status).toBe(405);
+    expect(await response.text()).toBe("Method Not Allowed");
   });
 
-  test("POST /boltcards/api/v1/lnurl/cb returns JSON success when k1 is valid", async () => {
+  test("POST /boltcards/api/v1/lnurl/cb returns Method Not Allowed", async () => {
     const response = await makeRequest(
       "/boltcards/api/v1/lnurl/cb",
       "POST",
@@ -470,14 +464,8 @@ describe("response patterns", () => {
       makeKvEnv()
     );
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Content-Type")).toContain("application/json");
-
-    const json = await response.json();
-    expect(json).toMatchObject({
-      status: "200",
-      message: "POST received",
-    });
+    expect(response.status).toBe(405);
+    expect(await response.text()).toBe("Method Not Allowed");
   });
 
   test("unknown route returns 404 text response", async () => {

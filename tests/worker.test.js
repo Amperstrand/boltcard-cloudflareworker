@@ -134,12 +134,23 @@ describe("Cloudflare Worker Tests", () => {
       }
     );
 
-    expect(response.status).toBe(200);
-    const json = await response.json();
-    
-    expect(json).toMatchObject({
-      status: "200"
-    });
+    expect(response.status).toBe(405);
+    expect(await response.text()).toBe("Method Not Allowed");
+  });
+
+  test("should return 405 for POST to LNURL callback", async () => {
+    const response = await makeRequest(
+      "/boltcards/api/v1/lnurl/cb",
+      "POST",
+      {
+        invoice: "lnbc1000n1p...your_bolt11_invoice...",
+        amount: 1000,
+        k1: "p=3736A84681238418D4B9B7210C13DC39&c=1549E9D901188F77"
+      }
+    );
+
+    expect(response.status).toBe(405);
+    expect(await response.text()).toBe("Method Not Allowed");
   });
 
   // New test case for Pull Payment with KeepVersion

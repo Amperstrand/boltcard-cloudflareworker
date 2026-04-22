@@ -273,7 +273,8 @@ describe('Complete Payment Flow Integration', () => {
       
       const paymentResponse = await handleRequest(paymentRequest, mockEnv);
       
-      expect([200, 400, 500]).toContain(paymentResponse.status);
+      // POST to LNURL callback is no longer supported — returns 405
+      expect(paymentResponse.status).toBe(405);
       
       // Step 4: Verify status endpoint works
       const statusRequest = new Request('https://test.local/status');
