@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { logger } from "../utils/logger.js";
 
 export class CardReplayDO extends DurableObject {
   constructor(state, env) {
@@ -510,8 +511,9 @@ export class CardReplayDO extends DurableObject {
       `INSERT INTO card_state (singleton, state, latest_issued_version, terminated_at, balance)
        VALUES (1, 'terminated', 0, ?, 0)
        ON CONFLICT(singleton) DO UPDATE SET
-          state = 'terminated',
-          terminated_at = excluded.terminated_at
+           state = 'terminated',
+           latest_issued_version = 0,
+           terminated_at = excluded.terminated_at
        RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance`,
       now
     );
@@ -536,7 +538,7 @@ export class CardReplayDO extends DurableObject {
         const extra = JSON.parse(row.config_json);
         config = { ...config, ...extra };
       } catch (e) {
-        console.warn("Failed to parse card_config.config_json", { error: e.message });
+        logger.warn("Failed to parse card_config.config_json", { error: e.message });
       }
     }
     return Response.json(config);
