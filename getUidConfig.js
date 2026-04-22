@@ -24,7 +24,13 @@ export function getBoltCardK1(env) {
     const issuerKeyBytes = hexToBytes(env.ISSUER_KEY);
     return [computeAesCmac(hexToBytes("2d003f77"), issuerKeyBytes)];
   }
-  
+
+  // Production guard: throw if no keys are configured in production
+  const isProduction = env && (env.WORKER_ENV === "production" || env.ENVIRONMENT === "production");
+  if (isProduction) {
+    throw new Error("Production deploy must set BOLT_CARD_K1 or BOLT_CARD_K1_0/1");
+  }
+
   // Fallback to development keys (for local testing only)
   logger.warn("Using fallback BOLT_CARD_K1 development keys - not for production");
   return [
