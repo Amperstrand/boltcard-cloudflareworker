@@ -177,7 +177,13 @@ async function handleLnurlw(request, env) {
   logger.info("LNURLW decrypted", { uidHex, counterValue });
 
   // Card lifecycle state check
-  const cardState = await getCardState(env, uidHex);
+  let cardState;
+  try {
+    cardState = await getCardState(env, uidHex);
+  } catch (error) {
+    logger.error("Card state check failed", { uidHex, error: error.message });
+    return errorResponse("Card state unavailable", 503);
+  }
 
   if (cardState.state === "terminated") {
     return errorResponse("Card has been terminated. Re-activate to use.", 403);

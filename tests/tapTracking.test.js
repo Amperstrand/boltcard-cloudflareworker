@@ -3,6 +3,8 @@ import { makeReplayNamespace } from "./replayNamespace.js";
 import { hexToBytes, bytesToHex } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { buildVerificationData } from "../cryptoutils.js";
+import { getCardState } from "../replayProtection.js";
+import { jest } from "@jest/globals";
 import aesjs from "aes-js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
@@ -453,5 +455,21 @@ describe("Tap tracking — login response", () => {
     const json = await response.json();
     expect(json.success).toBe(true);
     expect(json.tapHistory).toHaveLength(0);
+  });
+});
+
+describe("getCardState error handling", () => {
+  test("getCardState throws on DO error (fail-closed)", async () => {
+    const mockFetch = jest.fn(() => Promise.reject(new Error("DO connection failed")));
+    const mockStub = {
+      fetch: mockFetch,
+    };
+
+    const replay = makeReplayNamespace();
+    replay.get = (id) => mockStub;
+
+    const env = { CARD_REPLAY: replay };
+
+    await expect(getCardState(env, "04996c6a926980")).rejects.toThrow("DO connection failed");
   });
 });

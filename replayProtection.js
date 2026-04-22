@@ -170,7 +170,8 @@ export async function getCardState(env, uidHex) {
   }
 
   if (!response.ok) {
-    return { state: "new", latest_issued_version: 0, active_version: null, activated_at: null, terminated_at: null, keys_delivered_at: null, wipe_keys_fetched_at: null, balance: 0 };
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.reason || payload.error || "Card state unavailable");
   }
 
   return response.json();
