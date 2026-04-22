@@ -262,9 +262,9 @@ async function handleUidOnlyLogin(rawUid, env, request) {
   let keys;
   if (hasDoConfig && cardState?.active_version) {
     keyVersion = cardState.active_version;
-    keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY || env.BOLT_CARD_K1?.split(",")[0], keyVersion);
+    keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY, keyVersion);
   } else {
-    keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY || env.BOLT_CARD_K1?.split(",")[0], 1);
+    keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY, 1);
   }
 
   const ndefUrl = null;
@@ -354,7 +354,7 @@ async function handleRequestWipeAction(rawUid, env, request) {
   }
 
   const version = cardState.active_version || 1;
-  const keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY || env.BOLT_CARD_K1?.split(",")[0], version);
+  const keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY, version);
 
   await requestWipe(env, uidHex);
 
