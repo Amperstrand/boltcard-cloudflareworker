@@ -44,16 +44,7 @@ export function extractUIDAndCounter(pHex, env) {
   // K1 is the SDM meta read key, shared across all cards from the same IssuerKey.
   // Per boltcard key derivation: K1 = CMAC(IssuerKey, "2d003f77") — card-independent.
   // Multi-K1 rotation is supported for key migration (see boltcard-protocol.md §8).
-  const BOLT_CARD_K1 = getBoltCardK1(env);
-  let k1Keys;
-
-  if (typeof BOLT_CARD_K1 === "string") {
-    k1Keys = BOLT_CARD_K1.split(",").map(hexToBytes);
-  } else if (Array.isArray(BOLT_CARD_K1)) {
-    k1Keys = BOLT_CARD_K1;
-  } else {
-    return { error: "BOLT_CARD_K1 is not in a recognized format." };
-  }
+  const k1Keys = getBoltCardK1(env);
 
   if (!k1Keys || k1Keys.length === 0) {
     return { error: "Failed to parse BOLT_CARD_K1." };
@@ -121,10 +112,6 @@ export function validate_cmac(uidBytes, ctr, cHex, k2Bytes) {
     }
     return verification;
   }
-
-  // Fallback: no K2 provided — this should not happen in normal flow.
-  // Callers should always pass K2 from the card's config (KV, static, or deterministic).
-  return { cmac_validated: false, cmac_error: 'K2 key not provided for CMAC validation' };
 }
 
 /**
