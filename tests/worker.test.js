@@ -1,6 +1,7 @@
 import { handleRequest } from "../index.js"; // Import the handleRequest function for testing
 import { jest } from "@jest/globals";
 import { makeReplayNamespace } from "./replayNamespace.js";
+import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
 
 const env = {
   BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
@@ -9,6 +10,7 @@ const env = {
   CLN_PORT: "8080",
   CLN_RUNE: "your-rune-string",
   CARD_REPLAY: makeReplayNamespace(),
+  ...TEST_OPERATOR_AUTH,
 };
 
 const LEGACY_UID_CONFIGS = {
@@ -270,7 +272,7 @@ describe("Cloudflare Worker Tests", () => {
       const response = await makeRequest(counterThreePath, "GET", null, kvEnv);
 
       expect(response.status).toBe(200);
-      // Step 1 does NOT record the counter (uses checkReplayOnly)
+      // Step 1 uses read-only check — does NOT record the counter
       expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(false);
     });
 
@@ -287,12 +289,12 @@ describe("Cloudflare Worker Tests", () => {
       expect(json.reason || json.error).toMatch(/replay|counter/i);
     });
 
-    test("replayed Step 1 with no stored counter succeeds (no recording)", async () => {
+    test("replayed Step 1 with no stored counter succeeds (read-only check)", async () => {
       const kvEnv = makeKvEnv();
       const first = await makeRequest(counterThreePath, "GET", null, kvEnv);
       expect(first.status).toBe(200);
 
-      // Second call with same counter also succeeds because nothing was recorded
+      // Second call with same counter also succeeds because read-only check doesn't record
       const second = await makeRequest(counterThreePath, "GET", null, kvEnv);
       expect(second.status).toBe(200);
       expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(false);
@@ -306,7 +308,7 @@ describe("Cloudflare Worker Tests", () => {
       const response = await makeRequest(counterFivePath, "GET", null, kvEnv);
 
       expect(response.status).toBe(200);
-      // Counter still NOT recorded by Step 1 (read-only check)
+      // Step 1 read-only check — counter NOT recorded
       expect(kvEnv.__replayStore.get("04996c6a926980")).toBe(3);
     });
 
@@ -315,7 +317,7 @@ describe("Cloudflare Worker Tests", () => {
 
       const firstTap = await makeRequest(counterThreePath, "GET", null, kvEnv);
       expect(firstTap.status).toBe(200);
-      // Counter NOT recorded by Step 1
+      // Counter NOT recorded by Step 1 (read-only check)
       expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(false);
 
       const wipeResponse = await handleRequest(
@@ -323,9 +325,10 @@ describe("Cloudflare Worker Tests", () => {
         kvEnv
       );
       expect(wipeResponse.status).toBe(200);
+      // Counter still not recorded
       expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(false);
 
-      // After wipe, counter=3 should succeed and still NOT record
+      // After wipe, counter=3 should succeed
       const replayAfterWipe = await makeRequest(counterThreePath, "GET", null, kvEnv);
       expect(replayAfterWipe.status).toBe(200);
       expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(false);

@@ -4,6 +4,7 @@ import { makeReplayNamespace } from "./replayNamespace.js";
 import { hexToBytes, bytesToHex, computeAesCmacForVerification } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import AES from "aes-js";
+import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
 
 const env = {
   BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
@@ -12,6 +13,7 @@ const env = {
   CLN_PORT: "8080",
   CLN_RUNE: "your-rune-string",
   CARD_REPLAY: makeReplayNamespace(),
+  ...TEST_OPERATOR_AUTH,
 };
 
 const LEGACY_UID_CONFIGS = {

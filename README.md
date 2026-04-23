@@ -1,631 +1,445 @@
-# Boltcard POC Cloudflare Worker
+# Boltcard Cloudflare Worker
 
-⚡ **A production-ready Cloudflare Worker for LNURL/boltcard payment processing with cryptographic validation**
+A Cloudflare Worker that turns NTAG424 NFC cards into a payment system. Two modes:
 
-## 🚨 Security Notice
+1. **Lightning boltcard** — standard LNURL-withdraw flow (clnrest, LNBits proxy, fakewallet)
+2. **Closed-loop event payments** — cash top-up, tap-to-spend, cash-back refund for festivals and venues
 
-**CRITICAL**: This project implements cryptographic payment processing. Before deploying to production:
+## What Is This?
 
-- 🔐 **Set a secure ISSUER_KEY** via Cloudflare Workers secret (see deployment section)
-- 🔐 **Set explicit K1 decryption keys** via `BOLT_CARD_K1_0` / `BOLT_CARD_K1_1` (or `BOLT_CARD_K1`) instead of relying on development fallbacks
-- 🔐 **Review all cryptographic constants** and ensure they match your security requirements
+An NTAG424 "bolt card" stores a URL and encrypted payload on its NFC chip. When tapped against a phone, the browser opens the URL with `?p=XXX&c=YYY` parameters containing the card's UID and a rolling counter, encrypted with AES and authenticated with AES-CMAC.
 
-## 🔑 Development Key
+This worker decrypts the card, validates it, and performs the requested action — processing a Lightning payment, crediting a balance, debiting a charge, or refunding.
 
-**For POC and Development Only**: 
+## Live Demo
 
-This project currently uses the development key:
+Deployed at **https://boltcardpoc.psbt.me**
+
+### Dev Defaults
+
+The deployed instance uses development fallbacks for testing. **Do not use these in production.**
+
+| Setting | Dev Fallback | Set via |
+|---|---|---|
+| ISSUER_KEY | `00000000000000000000000000000001` | `wrangler secret put ISSUER_KEY` |
+| K1 decryption keys | Built-in dev keys | `wrangler secret put BOLT_CARD_K1_0` / `BOLT_CARD_K1_1` |
+| Operator PIN | `1234` | `wrangler secret put OPERATOR_PIN` |
+| Session secret | Built-in dev value | `wrangler secret put OPERATOR_SESSION_SECRET` |
+| Currency | `credits` (0 decimals) | `wrangler.toml` `[vars] CURRENCY_LABEL` |
+
+### Try It Out
+
+1. **Log in**: Go to [/operator/login](https://boltcardpoc.psbt.me/operator/login), enter PIN `1234`
+2. **Top-up a card**: [/operator/topup](https://boltcardpoc.psbt.me/operator/topup) — tap a programmed NTAG424 card
+3. **Charge at POS**: [/operator/pos](https://boltcardpoc.psbt.me/operator/pos) — tap the same card to debit
+4. **Refund**: [/operator/refund](https://boltcardpoc.psbt.me/operator/refund) — tap to see balance, refund
+
+You need a physical NTAG424 card programmed for this worker's issuer key. Cards from other LNBits/boltcard services won't work unless their keys are in the `keys/` directory.
+
+## All Endpoints
+
+### Operator Pages (auth required — PIN `1234` on dev)
+
+| Route | Purpose |
+|---|---|
+| [/operator/login](https://boltcardpoc.psbt.me/operator/login) | PIN login page |
+| [/operator/topup](https://boltcardpoc.psbt.me/operator/topup) | Top-up desk — credit balance to card |
+| [/operator/pos](https://boltcardpoc.psbt.me/operator/pos) | POS terminal — free-amount or menu mode |
+| [/operator/pos/menu](https://boltcardpoc.psbt.me/operator/pos/menu) | Menu editor — add/edit/remove items per terminal |
+| [/operator/refund](https://boltcardpoc.psbt.me/operator/refund) | Refund desk — full or partial cash-back |
+| [/operator](https://boltcardpoc.psbt.me/operator) | Redirects to POS |
+
+### Debug & Experimental Tools (auth required)
+
+| Route | Purpose |
+|---|---|
+| [/debug](https://boltcardpoc.psbt.me/debug) | Card debug dashboard — inspect state, taps, config |
+| [/experimental/nfc](https://boltcardpoc.psbt.me/experimental/nfc) | NFC test console — raw card communication |
+| [/experimental/activate](https://boltcardpoc.psbt.me/experimental/activate) | Card programming — enter UID, get keys + QR |
+| [/experimental/wipe](https://boltcardpoc.psbt.me/experimental/wipe) | Wipe a card — reset to factory for reprogramming |
+| [/experimental/bulkwipe](https://boltcardpoc.psbt.me/experimental/bulkwipe) | Bulk card wipe — wipe multiple cards at once |
+| [/experimental/analytics](https://boltcardpoc.psbt.me/experimental/analytics) | Per-card analytics — transaction history, balance |
+
+### Public Pages (no auth)
+
+| Route | Purpose |
+|---|---|
+| [/](https://boltcardpoc.psbt.me/) | Card tap entry point — LNURL-withdraw step 1 (or login page if no params) |
+| [/login](https://boltcardpoc.psbt.me/login) | Customer NFC login — key recovery for bolt card owners |
+| [/identity](https://boltcardpoc.psbt.me/identity) | Identity demo — NFC-based access control with fake profiles |
+| [/2fa](https://boltcardpoc.psbt.me/2fa) | 2FA demo — TOTP/HOTP codes from NFC card |
+
+### API Endpoints
+
+| Method | Route | Auth | Purpose |
+|---|---|---|---|
+| POST | `/operator/login` | No | Submit PIN, get session cookie |
+| POST | `/operator/logout` | No | Clear session cookie |
+| POST | `/operator/topup/apply` | Yes | Credit balance to card |
+| POST | `/operator/pos/charge` | Yes | Debit card (POS payment) |
+| GET | `/operator/pos/menu` | Yes | Menu editor page |
+| PUT | `/operator/pos/menu` | Yes | Save menu |
+| GET | `/api/pos/menu` | Yes | Get menu JSON |
+| POST | `/operator/refund/apply` | Yes | Refund card balance |
+| POST | `/api/balance-check` | No | Read card balance without auth |
+| GET | `/api/receipt/:txnId` | Yes | Plain-text receipt for a transaction |
+| GET | `/api/fake-invoice?amount=N` | No | Generate fake BOLT11 invoice |
+| GET | `/api/verify-identity?p=X&c=Y` | No | Verify card identity |
+| POST | `/api/identity/profile` | No | Update identity profile |
+| POST | `/api/v1/pull-payments/:id/boltcards` | Yes | Card programming keys |
+| GET | `/api/keys` | Yes | Key lookup |
+| POST | `/api/keys` | Yes | Key lookup |
+| GET | `/api/bulk-wipe-keys` | Yes | Bulk key wipe data |
+| GET | `/boltcards/api/v1/lnurl/cb/*` | No | LNURL-withdraw callback (step 2) |
+| GET | `/lnurlp/cb` | No | LNURL-pay callback |
+
+### Redirects
+
+| From | To | Type |
+|---|---|---|
+| `/pos` | `/operator/pos` | 302 |
+| `/nfc` | `/experimental/nfc` | 301 |
+| `/activate` | `/experimental/activate` | 301 |
+| `/activate/form` | `/experimental/activate/form` | 301 |
+| `/wipe` | `/experimental/wipe` | 301 |
+| `/bulkwipe` | `/experimental/bulkwipe` | 301 |
+| `/analytics` | `/experimental/analytics` | 301 |
+
+## Closed-Loop Event Mode
+
+Run a cash-in / tap-to-spend / cash-out system for festivals, funfairs, and small venues. No real fiat rails, no KYC, no compliance — just an internal ledger with configurable denomination labels.
+
+### How It Works
+
 ```
-ISSUER_KEY: 00000000000000000000000000000001
+Attendee arrives with cash
+        │
+        ▼
+  ┌─────────────┐
+  │  Top-Up Desk │  Credit balance to card via NFC tap
+  │ /operator/   │
+  │   topup      │
+  └──────┬──────┘
+         │
+         ▼
+  ┌─────────────┐
+  │ POS Terminal │  Debit balance via NFC tap
+  │ /operator/   │  Free-amount mode or menu mode
+  │   pos        │
+  └──────┬──────┘
+         │
+         ▼
+  ┌─────────────┐
+  │ Refund Desk  │  Cash out remaining balance
+  │ /operator/   │  Full or partial refund
+  │   refund     │
+  └─────────────┘
 ```
 
-**⚠️ IMPORTANT**: This key is **ONLY SAFE FOR DEVELOPMENT AND TESTING**. It is publicly known and should **NEVER** be used in production.
+All three desks use the same card validation: decrypt payload → validate CMAC → check replay counter → credit/debit Durable Object.
 
-### **Why This Development Key?**
+### Currency Config
 
-- **Deterministic Testing**: Ensures consistent key generation across environments
-- **Development Safety**: Clearly identifiable as a test key, preventing accidental production use
-- **Educational Purpose**: Demonstrates the key generation process safely
+Set in `wrangler.toml` `[vars]`:
 
-### **When to Replace This Key:**
-
-- ❌ **Keep for**: Local development, testing, proof-of-concept demonstrations
-- ✅ **Replace for**: Any production deployment, real financial transactions, live systems
-
-## 🎯 Project Overview
-
-This project implements a Cloudflare Worker for handling LNURL/boltcard payment requests. It supports two methods for managing UID configurations:
-
-1. **Static Configuration (`staticUidConfig` in getUidConfig.js)**  
-   A JavaScript object that exports UID configuration. Useful for development or smaller deployments.
-
-2. **Dynamic Configuration via Cloudflare KV**  
-   Each UID is stored as an individual key in a Cloudflare KV namespace. Scales well for production deployments.
-
-The worker first attempts to fetch the UID configuration from KV. If no entry is found (or if KV binding is not set up), it falls back to the static configuration.
-
-## ✅ Key Features
-
-- 🔐 **Cryptographic Security**: AES-CMAC validation with deterministic key generation
-- 💳 **Multi-Payment Support**: clnrest, proxy, and fakewallet payment methods  
-- 🌐 **LNURL Protocol**: Complete LNURL-withdraw implementation
-- 📝 **Bolt11 Invoice Generation**: Cryptographically valid BOLT11 invoices with Schnorr signatures using @noble/secp256k1
-- 🔑 **Identity & Access Control Demo**: NFC-based identity verification with deterministic fake profiles
-- 📊 **Operator Debug Dashboard**: Real-time card state, tap history, and management tools
-- 📱 **NFC Card Programming**: Card activation and programming endpoints
-- 🔒 **Replay Protection**: Atomic counter-based replay protection using Durable Objects with SQLite storage — strongly consistent, not eventually consistent
-- 🛡️ **DDoS Rate Limiting**: IP-based fixed-window rate limiting (100 req/min default)
-- 🧪 **Tested**: Comprehensive test suite with 287 tests across 20 test suites
-
-## 🏗️ Architecture
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Cloudflare    │    │   Request       │    │   Payment       │
-│    Worker       │───▶│   Routing       │───▶│   Method        │
-│   (index.js)    │    │   Logic         │    │   Handlers      │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Configuration │    │   Cryptographic │    │   External      │
-│   Management    │◀───│   Validation    │◀───│   Services      │
-│   (KV + Static) │    │(AES-CMAC+secp)  │    │   (LNBits/CLN)  │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │
-         ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Rate Limiter  │    │ Replay Protection│   │   Durable       │
-│   (KV-based)    │    │ (replayProtection│   │   Objects       │
-│                 │    │     .js)         │───▶│ (CardReplayDO)  │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+```toml
+CURRENCY_LABEL = "GBP"       # Display name: "GBP", "tokens", "EUR", "credits"
+CURRENCY_DECIMALS = "2"      # 0 = whole numbers, 2 = cents/pence
+MAX_TOPUP_AMOUNT = "50000"   # Optional cap per top-up (in minor units)
 ```
 
-## 🚀 Quick Start
+Examples:
+- Festival tokens: `CURRENCY_LABEL = "tokens"`, `CURRENCY_DECIMALS = "0"` → top up 50 tokens, send amount `50`
+- UK Pounds: `CURRENCY_LABEL = "GBP"`, `CURRENCY_DECIMALS = "2"` → top up £10.00, send amount `1000`
+
+### Operator Auth
+
+All `/operator/*` and `/experimental/*` and `/debug` routes require a shared PIN and HMAC-signed session cookie (12h expiry).
+
+- **Dev**: PIN is `1234`, session secret is built-in
+- **Production**: Set `OPERATOR_PIN` and `OPERATOR_SESSION_SECRET` via `wrangler secret put`
+- Login attempts are rate-limited to 10/minute per IP
+
+### Documentation
+
+- [Venue Deployment Guide](docs/VENUE-DEPLOYMENT.md) — full setup from zero to running event
+- [Operator Quick-Start Guide](docs/OPERATOR-GUIDE.md) — day-of-event workflows
+
+## Lightning Boltcard Mode
+
+The original boltcard LNURL-withdraw flow. Supports three payment backends:
+
+### Payment Methods
+
+| Method | Description | Required Config |
+|---|---|---|
+| `fakewallet` | Internal accounting, no external node needed | None |
+| `clnrest` | Core Lightning REST API | `host`, `port`, `rune` in card config |
+| `proxy` | Relay to downstream LNBits | `baseurl` in card config |
+| `lnurlpay` | LNURL-pay to a Lightning address | `lightning_address` in card config |
+
+### LNURL-withdraw Flow
+
+1. Card tap → `GET /?p=XXX&c=YYY` → worker decrypts card, returns LNURL-withdraw response
+2. Wallet creates invoice, calls back → `GET /boltcards/api/v1/lnurl/cb/...?pr=INVOICE&k1=KEY`
+3. Worker processes payment (via configured backend), debits card if fakewallet
+
+### Card Configuration
+
+Cards are configured either via:
+- **Deterministic key derivation**: Set `ISSUER_KEY` → all card keys derived from UID automatically
+- **Per-card KV**: Store config in KV with the card UID as key
+- **Static config**: Hardcoded in `getUidConfig.js` (dev/testing)
+
+Config example:
+```javascript
+{
+  "04aabbccdd7788": {
+    K2: "EFCF2DD0528E57FF2E674E76DFC6B3B1",
+    payment_method: "fakewallet"
+  }
+}
+```
+
+## Card Lifecycle
+
+```
+new → keys_delivered → active → (wipe_requested → active) | terminated
+```
+
+- `new` cards auto-activate on first tap (get `activeVersion=1`)
+- Cards can be wiped via `/experimental/wipe` and reprogrammed
+- Replay counters reset on wipe
+
+## Key Recovery
+
+This service helps bolt card owners recover cards from defunct services. Tap a card on [/login](https://boltcardpoc.psbt.me/login) — if we have the issuer keys, you'll see them and get a link to wipe and reprogram.
+
+To submit keys for a service, add a CSV file to `keys/` and run `node scripts/build_keys.js`. See [VENUE-DEPLOYMENT.md](docs/VENUE-DEPLOYMENT.md) or [guide.md](guide.md) for details.
+
+## Architecture
+
+```
+                    ┌─────────────────────┐
+                    │   NTAG424 NFC Card  │
+                    │  (URL + AES payload)│
+                    └──────────┬──────────┘
+                               │ tap
+                               ▼
+┌──────────────────────────────────────────────────┐
+│              Cloudflare Worker                    │
+│                                                    │
+│  ┌──────────────┐  ┌──────────────────────────┐  │
+│  │   itty-router │  │  middleware/operatorAuth  │  │
+│  │   (routing)   │→│  (PIN + session cookie)  │  │
+│  └──────┬───────┘  └──────────────────────────┘  │
+│         │                                          │
+│  ┌──────▼──────────────────────────────────────┐  │
+│  │              Route Handlers                  │  │
+│  │  topup · posCharge · refund · balanceCheck  │  │
+│  │  lnurlw · lnurlp · identity · 2fa · debug   │  │
+│  └──────┬──────────────────────────────────────┘  │
+│         │                                          │
+│  ┌──────▼───────┐  ┌──────────────┐               │
+│  │ cryptoutils  │  │ keygenerator  │               │
+│  │ (AES + CMAC) │  │ (deterministic│               │
+│  │              │  │  key deriv.)  │               │
+│  └──────────────┘  └──────────────┘               │
+│         │                                          │
+│  ┌──────▼──────────────────────────────────────┐  │
+│  │          Storage Layer                       │  │
+│  │  ┌─────────────┐  ┌──────────────────────┐  │  │
+│  │  │ KV          │  │ Durable Object       │  │  │
+│  │  │ • card cfg  │  │ CardReplayDO         │  │  │
+│  │  │ • menus     │  │ • SQLite (per-card)  │  │  │
+│  │  │ • rate limit│  │ • balance + txns     │  │  │
+│  │  └─────────────┘  │ • replay counter     │  │  │
+│  │                   └──────────────────────┘  │  │
+│  └────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────┘
+```
+
+## Quick Start
 
 ### Prerequisites
 
 - Node.js 18+
 - Cloudflare account with Workers enabled
 - Wrangler CLI installed
-- Bolt Card NFC Programmer app (iOS/Android)
 
-### Installation
+### Install & Run
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd boltcard-cloudflareworker
-
-# Install dependencies
+git clone <repository-url> && cd boltcard-cloudflareworker
 npm install
-
-# Run tests
-npm test
-
-# Deploy to Cloudflare
-npm run deploy
+npm test          # 339 tests across 23 suites
+npm run deploy    # tests → build_keys → wrangler deploy
 ```
 
-### Configuration
+### Deploy to a New Venue
 
-1. **Set ISSUER_KEY Secret** (CRITICAL):
-   
-   The ISSUER_KEY is now configured via Cloudflare Workers secrets for security:
-   
-   ```bash
-   # For development (uses fallback key)
-   # No action needed - uses 00000000000000000000000000000001
-   
-   # For production deployment:
-   wrangler secret put ISSUER_KEY
-   
-   # When prompted, enter your secure 16-byte hex key, e.g.:
-   # A1B2C3D4E5F60718293A4B5C6D7E8F901
-   ```
-   
-   **Key Generation** (for production):
-   ```javascript
-   // Generate a secure random key
-   const crypto = require('crypto');
-   const secureKey = crypto.randomBytes(16).toString('hex').toUpperCase();
-   console.log(secureKey); // e.g., "A1B2C3D4E5F60718293A4B5C6D7E8F901"
-   ```
+1. Fork the repo
+2. Edit `wrangler.toml`: change `name`, set `routes`, configure `CURRENCY_LABEL`/`CURRENCY_DECIMALS`
+3. Create KV namespace: `wrangler kv:namespace create "UID_CONFIG"`, put the ID in `wrangler.toml`
+4. Set secrets: `wrangler secret put ISSUER_KEY` and `wrangler secret put OPERATOR_PIN`
+5. Program NTAG424 cards with the card URL (e.g., `https://pay.yourvenue.com/`)
+6. Deploy: `npm run deploy`
 
-2. **Set K1 decryption keys** (recommended for production):
-   ```bash
-   wrangler secret put BOLT_CARD_K1_0
-   wrangler secret put BOLT_CARD_K1_1
-   ```
+See [docs/VENUE-DEPLOYMENT.md](docs/VENUE-DEPLOYMENT.md) for the full guide.
 
-   The worker supports either two separate secrets (`BOLT_CARD_K1_0`, `BOLT_CARD_K1_1`) or a single comma-separated value in `BOLT_CARD_K1`. If none are set, it falls back to development keys for local testing only.
+## Security
 
-3. **Setup Cloudflare KV**:
-   ```bash
-   # Create KV namespace
-   wrangler kv:namespace create "boltcard-config"
-   
-   # Update wrangler.toml with your namespace ID
-   ```
-
-4. **Setup Rate Limit KV** (optional, for DDoS protection):
-   ```bash
-   # Create rate limit namespace
-   wrangler kv:namespace create "RATE_LIMITS"
-   
-   # Update wrangler.toml with the returned namespace ID
-   ```
-
-5. **Review `wrangler.toml` bindings before deploy**:
-   - Replace the placeholder `RATE_LIMITS_KV_ID` if you want DDoS throttling enabled
-   - Confirm your `UID_CONFIG` namespace ID is correct
-   - Keep the `CARD_REPLAY` Durable Object binding and `v1` migration in place
-
-## 📚 API Documentation
-
-### Core Endpoints
-
-#### GET `/`
-**LNURL Withdraw Flow Entry Point**
-- **Description**: Main LNURL-withdraw flow
-- **Parameters**: 
-  - `p` (hex): Encrypted payload
-  - `c` (hex): CMAC validation
-- **Response**: LNURL withdraw request object
-
-#### GET `/nfc`
-**NFC Scanner Page**
-- **Description**: Serves an HTML page for NFC scanning
-- **Response**: HTML page
-
-#### GET `/status`
-**System Status / Health Check**
-- **Description**: Health check endpoint. Redirects to `/activate` if no KV configuration is found
-- **Response**: System status and configuration info, or redirect to activation page
-
-#### GET `/activate`
-**Card Activation Page**
-- **Description**: HTML page for card activation with QR codes
-- **Response**: HTML page with activation form and QR codes
-
-#### GET `/wipe?uid=XXX`
-**Card Wipe Page**
-- **Description**: HTML page for wiping a card's configuration
-- **Parameters**:
-  - `uid` (query): Card UID to wipe
-- **Response**: HTML page
-
-#### GET `/debug`
-**Operator Tools Dashboard**
-- **Description**: Central hub for card management, tap history, state inspection, and configuration
-- **Response**: HTML page with interactive tools
-
-#### GET `/identity`
-**Identity & Access Control Demo**
-- **Description**: NFC-based identity verification demo page with Web NFC support
-- **Response**: HTML page with deterministic profile display
-
-#### GET `/pos`
-**Fakewallet POS Payment Page**
-- **Description**: Point-of-sale payment page for fakewallet cards with LNURL-withdraw flow
-- **Response**: HTML page
-
-#### GET `/api/fake-invoice?amount=XXXX`
-**Generate Fake Bolt11 Invoice**
-- **Description**: Generates a cryptographically valid BOLT11 invoice for fakewallet internal accounting
-- **Parameters**:
-  - `amount` (query): Amount in millisatoshis
-- **Response**: `{ pr: "lnbc..." }`
-
-#### GET `/api/verify-identity?p=XXX&c=YYY`
-**Identity Verification API**
-- **Description**: Verifies a card's identity by decrypting the UID, validating CMAC, and checking KV enrollment
-- **Parameters**:
-  - `p` (hex): Encrypted payload
-  - `c` (hex): CMAC validation
-- **Response**: `{ verified: true, uid, maskedUid }` or `{ verified: false, reason }`
-
-#### POST `/api/v1/pull-payments/{id}/boltcards`
-**Card Programming / Reset**
-- **Description**: Returns card programming keys, supports both UpdateVersion and KeepVersion modes, including old app compatibility (UID) and new app (LNURLW)
-- **Body**: `{ "UID": "hex_string" }`
-- **Response**: Card keys (K0, K1, K2, K3, K4)
-
-#### POST `/boltcards/api/v1/lnurl/cb`
-**LNURL Callback Handler**
-- **Description**: Handles LNURL payment callbacks. Supports both GET with `pr` param and POST with `k1` body field
-- **Body**: JSON with invoice, amount, k1
-- **Response**: Payment confirmation
-
-## 🔧 Configuration Options
-
-### Static Configuration Example
-
-```javascript
-export const staticUidConfig = {
-  "044561fa967380": {
-    K2: "33268DEA5B5511A1B3DF961198FA46D5",
-    payment_method: "clnrest",
-    clnrest: {
-      protocol: "https",
-      host: "your-cln-node.com",
-      port: 3001,
-      rune: "your-rune-token"
-    }
-  },
-  "04a071fa967380": {
-    K2: "EFCF2DD0528E57FF2E674E76DFC6B3B1",
-    payment_method: "fakewallet"
-  }
-};
-```
-
-### Payment Methods
-
-#### clnrest
-- **Description**: Direct integration with Core Lightning REST API
-- **Required**: `host`, `port`, `rune`
-- **Protocol**: HTTPS recommended
-- **Status check**: Uses HTTP 201 response + JSON body to verify invoice creation
-
-#### proxy
-- **Description**: Proxy requests to external LNBits instance
-- **Required**: `baseurl` with external ID
-- **Use Case**: Third-party payment processing
-- **Note**: When K2 is absent, the worker skips local CMAC validation and relays to the downstream service, which performs validation itself
-
-#### fakewallet
-- **Description**: Internal accounting with realistic bolt11 invoices to random nonexistent nodes
-- **Use Case**: Self-contained payment processing without external LN node; also works as a POS payment method
-
-## 🧪 Testing
-
-### Running Tests
-
-```bash
-# Run all tests
-npm test
-
-# Run specific test file
-npm test -- --testNamePattern="cryptoutils"
-
-# Run with verbose output
-npm test -- --verbose
-```
-
-### Test Coverage
-
-- **✅ cryptoutils.test.js**: Cryptographic functions (37 tests)
-- **✅ bolt11.test.js**: BOLT11 invoice generation and parsing (39 tests)
-- **✅ responsePatterns.test.js**: Response pattern validation (27 tests)
-- **✅ loginHandler.test.js**: NFC login verification (21 tests)
-- **✅ lnurlPay.test.js**: LNURL-pay payment method tests (13 tests)
-- **✅ getUidConfig.test.js**: UID configuration and K1 fallback guards (17 tests)
-- **✅ tapTracking.test.js**: Counter timing, tap recording, replay protection (13 tests)
-- **✅ worker.test.js**: API endpoints and request handling (12 tests)
-- **✅ keyLookup.test.js**: CSV-based key recovery (11 tests)
-- **✅ integration.test.js**: End-to-end integration tests (11 tests)
-- **✅ getKeysHandler.test.js**: Key lookup API handler (11 tests)
-- **✅ e2e/virtual-card.test.js**: Full NFC lifecycle E2E (10 tests)
-- **✅ bulkWipe.test.js**: Bulk card wipe operations (10 tests)
-- **✅ templateHelpers.test.js**: HTML template helpers (9 tests)
-- **✅ smoke.test.js**: Smoke tests for core functionality (8 tests)
-- **✅ pos.test.js**: POS payment flow (8 tests)
-- **✅ logging.test.js**: Structured logging (8 tests)
-- **✅ debugIdentity.test.js**: Debug and identity pages (8 tests)
-- **✅ twoFactorHandler.test.js**: 2FA TOTP/HOTP codes (6 tests)
-- **✅ keygenerator.test.js**: Deterministic key generation (3 tests)
-- **Total**: 287 tests across 20 test suites
-
-### Test Vectors
-
-Use these test vectors for validation:
-
-```bash
-# LNURL verification tests
-curl 'https://your-worker.domain/?p=4E2E289D945A66BB13377A728884E867&c=E19CCB1FED8892CE'
-curl 'https://your-worker.domain/?p=00F48C4F8E386DED06BCDC78FA92E2FE&c=66B4826EA4C155B4'
-curl 'https://your-worker.domain/?p=0DBF3C59B59B0638D60B5842A997D4D1&c=CC61660C020B4D96'
-```
-
-## 🚀 Deployment
-
-### Cloudflare Deployment
-
-1. **Configure wrangler.toml**:
-   ```toml
-   name = "boltcard-worker"
-   type = "javascript"
-   compatibility_date = "2025-02-28"
-
-   kv_namespaces = [
-     { binding = "UID_CONFIG", id = "your-kv-namespace-id" }
-   ]
-
-   [[durable_objects.bindings]]
-   name = "CARD_REPLAY"
-   class_name = "CardReplayDO"
-
-   [[migrations]]
-   tag = "v1"
-   new_sqlite_classes = ["CardReplayDO"]
-
-   kv_namespaces = [
-     { binding = "UID_CONFIG", id = "your-kv-namespace-id" },
-     { binding = "RATE_LIMITS", id = "your-rate-limit-kv-id" } # optional
-   ]
-
-   routes = [
-     "https://your-domain.com/*"
-   ]
-   ```
-
-   > **Note**: The Durable Object binding and migration are already configured in the repo's `wrangler.toml`. The first `wrangler deploy` will create the DO namespace and run the migration automatically. The `RATE_LIMITS` binding is optional and only provides coarse DDoS throttling.
-
-2. **Deploy**:
-   ```bash
-   # Test deployment
-   wrangler dev
-   
-   # Production deployment
-   wrangler deploy
-   ```
-
-### DNS Setup
-
-1. **Add CNAME Record**:
-   - **Type**: CNAME
-   - **Name**: boltcard (or your preferred subdomain)
-   - **Target**: workers.dev (or your custom domain)
-   - **Proxy**: Enabled (orange cloud)
-
-2. **Configure Custom Domain** in Cloudflare Dashboard
-
-## 🔒 Security Considerations
-
-### Critical Security Items
-
-1. **Cryptographic Keys**: 
-   - NEVER use the default hardcoded keys in production
-   - Generate cryptographically secure random keys
-   - Store keys securely (environment variables, secrets manager)
-
-2. **CMAC Validation**:
-   - AES-CMAC validation (RFC 4493) is implemented and validates card requests using K2 keys
-   - In proxy mode, CMAC validation is optional: if K2 is absent, validation is delegated to the downstream service
-
-3. **Environment Variables**:
-   - Use Cloudflare Workers secrets for sensitive data
-   - Never commit secrets to version control
-   - Rotate keys regularly
-
-4. **Replay Protection**:
-   - Implemented via Durable Objects with SQLite storage — each card UID gets its own DO instance
-   - Counter validation is **atomic** using SQL `INSERT ... ON CONFLICT ... WHERE last_counter < new RETURNING`
-   - Strongly consistent (not eventually consistent like KV) — all requests for a given card are serialized through a single DO instance
-   - Fails **closed**: if the DO is unreachable, the request is rejected (500) rather than allowed through
-   - Replay state is automatically reset on card wipe, reprogramming, and activation
-
-5. **Rate Limiting**:
-   - Implemented as a KV-backed fixed-window counter on `CF-Connecting-IP`
-   - Intended as **best-effort DDoS throttling**, not a strict security boundary
-   - KV read/write is not atomic, so treat it as coarse abuse reduction rather than precise enforcement
+- **Card validation**: AES-ECB decrypt + AES-CMAC authenticate (RFC 4493) on every tap
+- **Replay protection**: Durable Object with SQLite — atomic counter check, strongly consistent, fails closed
+- **Operator auth**: HMAC-SHA256 signed session cookies, constant-time PIN comparison, 12h expiry
+- **Rate limiting**: IP-based fixed-window (100 req/min, optional via KV)
+- **No offline mode**: If the worker is unreachable, taps fail
 
 ### Production Checklist
 
-- [ ] Changed all default cryptographic keys
-- [ ] Configured proper environment variables
-- [ ] Enabled HTTPS for all endpoints
-- [ ] Set up proper error logging
-- [ ] Tested with real hardware
-- [ ] Reviewed payment method configurations
-- [ ] Set up monitoring and alerts
-- [ ] Verified Durable Object binding is active (replay protection)
-- [ ] Created RATE_LIMITS KV namespace if DDoS throttling is desired
+- [ ] Set `ISSUER_KEY` via `wrangler secret put` (not the dev key)
+- [ ] Set `OPERATOR_PIN` via `wrangler secret put` (not `1234`)
+- [ ] Set `OPERATOR_SESSION_SECRET` via `wrangler secret put`
+- [ ] Set `CURRENCY_LABEL` and `CURRENCY_DECIMALS` in `wrangler.toml`
+- [ ] Set `BOLT_CARD_K1_0` / `BOLT_CARD_K1_1` if using custom decryption keys
+- [ ] Test with real NFC hardware
+- [ ] Enable rate limiting KV namespace (optional)
 
-## 🛠️ Development
+## Environment Variables
 
-### Local Development
+### Secrets (set via `wrangler secret put`)
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `ISSUER_KEY` | No | `00000000000000000000000000000001` | 16-byte hex master key for deterministic card key derivation |
+| `OPERATOR_PIN` | No | `1234` | Shared operator PIN (min 4 chars) |
+| `OPERATOR_SESSION_SECRET` | No | Built-in dev value | HMAC key for signing session cookies |
+| `BOLT_CARD_K1_0` | No | Dev key | First K1 decryption key |
+| `BOLT_CARD_K1_1` | No | Dev key | Second K1 decryption key |
+
+### Config (set in `wrangler.toml` `[vars]`)
+
+| Variable | Default | Description |
+|---|---|---|
+| `CURRENCY_LABEL` | `credits` | Display name for amounts |
+| `CURRENCY_DECIMALS` | `0` | Decimal places (0 = whole numbers, 2 = cents) |
+| `MAX_TOPUP_AMOUNT` | unlimited | Max single top-up in minor units |
+
+### Bindings (set in `wrangler.toml`)
+
+| Binding | Type | Description |
+|---|---|---|
+| `UID_CONFIG` | KV | Card configs, menus, rate limits |
+| `CARD_REPLAY` | Durable Object | Per-card SQLite: balance, transactions, replay counter |
+| `RATE_LIMITS` | KV (optional) | IP-based rate limit counters |
+
+## Testing
 
 ```bash
-# Install dependencies
-npm install
-
-# Start development server
-wrangler dev
-
-# Run tests in watch mode  
-npm test -- --watch
-
-# Lint code
-npm run lint
+npm test                              # Run all 339 tests
+npm test -- --testNamePattern="pos"   # Run specific test pattern
+npm test -- --watch                   # Watch mode
 ```
 
-### Project Structure
+### Test Suites
+
+| Suite | Tests | What it covers |
+|---|---|---|
+| `bolt11.test.js` | 39 | BOLT11 invoice generation and parsing |
+| `cryptoutils.test.js` | 37 | AES encryption, CMAC, key operations |
+| `responsePatterns.test.js` | 27 | HTTP response format validation |
+| `loginHandler.test.js` | 21 | NFC login and key recovery |
+| `currency.test.js` | 17 | Currency formatting and parsing |
+| `operatorAuth.test.js` | 17 | PIN auth, session cookies, rate limiting |
+| `operatorFlows.test.js` | 18 | Top-up, POS charge, refund, balance, menu |
+| `getUidConfig.test.js` | 17 | UID config and K1 fallback guards |
+| `lnurlPay.test.js` | 13 | LNURL-pay payment method |
+| `tapTracking.test.js` | 13 | Counter timing and replay protection |
+| `worker.test.js` | 12 | API endpoints and request handling |
+| `keyLookup.test.js` | 11 | CSV-based key recovery |
+| `integration.test.js` | 11 | End-to-end integration |
+| `getKeysHandler.test.js` | 11 | Key lookup API |
+| `e2e/virtual-card.test.js` | 10 | Full NFC lifecycle E2E |
+| `bulkWipe.test.js` | 10 | Bulk card wipe |
+| `templateHelpers.test.js` | 9 | HTML template helpers |
+| `smoke.test.js` | 8 | Core functionality smoke tests |
+| `pos.test.js` | 8 | POS page rendering |
+| `logging.test.js` | 8 | Structured logging |
+| `debugIdentity.test.js` | 8 | Debug and identity pages |
+| `twoFactorHandler.test.js` | 6 | 2FA TOTP/HOTP codes |
+| `keygenerator.test.js` | 3 | Deterministic key generation |
+
+## Project Structure
 
 ```
-├── index.js                    # Main worker entry point
-├── boltCardHelper.js          # Card validation & CMAC logic
-├── cryptoutils.js             # Crypto utilities (AES-CMAC)
-├── getUidConfig.js            # Configuration management
-├── keygenerator.js            # Deterministic key generation
-├── rateLimiter.js             # IP-based DDoS rate limiting
-├── replayProtection.js        # Replay protection helper (routes to DO)
-├── durableObjects/            # Durable Object classes
-│   └── CardReplayDO.js        # Per-card SQLite-backed replay counter
-├── handlers/                  # Route handlers
-│   ├── activateCardHandler.js
-│   ├── activatePageHandler.js
-│   ├── analyticsHandler.js
-│   ├── bulkWipeHandler.js
-│   ├── bulkWipePageHandler.js
-│   ├── debugHandler.js        # Operator debug dashboard
-│   ├── fetchBoltCardKeys.js
-│   ├── getKeysHandler.js
-│   ├── handleNfc.js
-│   ├── identityHandler.js     # Identity/access control demo
-│   ├── loginHandler.js        # NFC login + key recovery
-│   ├── lnurlHandler.js
-│   ├── lnurlPayHandler.js
-│   ├── posHandler.js          # Fakewallet POS payments
-│   ├── proxyHandler.js
-│   ├── resetHandler.js
-│   ├── statusHandler.js
-│   ├── twoFactorHandler.js
-│   ├── wipePageHandler.js
-│   └── withdrawHandler.js
-├── keys/                      # Key recovery CSV files (source of truth)
-│   ├── _default.csv           # Default issuer keys (tried for all cards)
-│   ├── boltcardpoc.psbt.me.csv
-│   └── _percard_k.psbt.me.csv # Per-card keys from k.psbt.me
-├── scripts/
-│   └── build_keys.js          # CSV → JS bundler (run before deploy)
-├── templates/                 # HTML page templates
-│   ├── activatePage.js
-│   ├── analyticsPage.js
-│   ├── bulkWipePage.js
-│   ├── browserNfc.js          # Shared Web NFC helpers
-│   ├── debugPage.js
-│   ├── identityPage.js
-│   ├── loginPage.js
-│   ├── nfcPage.js
-│   ├── pageShell.js           # Shared Tailwind page wrapper
-│   ├── posPage.js
-│   └── wipePage.js
+├── index.js                     # Router + LNURL-withdraw handler
+├── boltCardHelper.js            # Card decrypt + CMAC validation
+├── cryptoutils.js               # AES-ECB + AES-CMAC primitives
+├── getUidConfig.js              # Card config lookup (KV → static fallback)
+├── keygenerator.js              # Deterministic key derivation from UID + ISSUER_KEY
+├── rateLimiter.js               # IP-based fixed-window rate limiting
+├── replayProtection.js          # Replay check + balance/txn helpers → DO
+├── middleware/
+│   └── operatorAuth.js          # PIN auth, session cookies, requireOperator()
+├── handlers/
+│   ├── operatorLoginHandler.js  # PIN login/logout
+│   ├── topupHandler.js          # Top-up desk (credit card)
+│   ├── posChargeHandler.js      # POS direct debit
+│   ├── posHandler.js            # POS page render
+│   ├── refundHandler.js         # Full/partial refund
+│   ├── balanceCheckHandler.js   # Read-only balance check
+│   ├── menuHandler.js           # KV-backed menu CRUD
+│   ├── menuEditorHandler.js     # Menu editor page + API
+│   ├── receiptHandler.js        # Plain-text receipt
+│   ├── debugHandler.js          # Debug dashboard
+│   ├── identityHandler.js       # Identity demo
+│   ├── twoFactorHandler.js      # 2FA TOTP/HOTP
+│   ├── loginHandler.js          # Customer NFC key recovery
+│   ├── lnurlHandler.js          # LNURL-withdraw callback
+│   ├── lnurlPayHandler.js       # LNURL-pay flow
+│   └── ...
+├── templates/                   # HTML pages (Tailwind CSS)
+│   ├── topupPage.js             # Top-up keypad + NFC
+│   ├── posPage.js               # POS with free-amount + menu modes
+│   ├── refundPage.js            # Refund desk
+│   ├── menuEditorPage.js        # Menu editor
+│   ├── operatorLoginPage.js     # PIN login form
+│   ├── debugPage.js             # Debug dashboard
+│   └── ...
 ├── utils/
-│   ├── bolt11.js              # BOLT11 invoice generation (secp256k1 signatures)
-│   ├── generatedKeyData.js    # AUTO-GENERATED — bundled key data
-│   ├── keyLookup.js           # Key lookup functions
-│   ├── lightningAddress.js
-│   ├── logger.js
-│   ├── otp.js                 # TOTP/HOTP one-time password generation
-│   ├── rawTemplate.js         # Raw HTML template helpers
-│   ├── responses.js
-│   └── validation.js
-├── tests/                     # Test files
-│   ├── replayNamespace.js     # In-memory DO mock for tests
-│   ├── cloudflare-workers-shim.js
-│   ├── cryptoutils.test.js
-│   ├── bolt11.test.js
-│   ├── debugIdentity.test.js
-│   ├── e2e/
-│   │   └── virtual-card.test.js
-│   ├── getKeysHandler.test.js
-│   ├── integration.test.js
-│   ├── keyLookup.test.js
-│   ├── keygenerator.test.js
-│   ├── linkHandler.test.js
-│   ├── loading.test.js
-│   ├── logging.test.js
-│   ├── loginHandler.test.js
-│   ├── lnurlPay.test.js
-│   ├── pos.test.js
-│   ├── responsePatterns.test.js
-│   ├── smoke.test.js
-│   ├── tapTracking.test.js
-│   ├── templateHelpers.test.js
-│   ├── twoFactorHandler.test.js
-│   └── worker.test.js
-└── docs/                      # Documentation
+│   ├── bolt11.js                # BOLT11 invoice generation (@noble/secp256k1)
+│   ├── currency.js              # Currency label formatting/parsing
+│   └── ...
+├── durableObjects/
+│   └── CardReplayDO.js          # Per-card SQLite DO (balance, txns, counter)
+├── tests/                       # 339 tests across 23 suites
+├── keys/                        # Key recovery CSV files
+├── docs/
+│   ├── VENUE-DEPLOYMENT.md      # Venue setup guide
+│   └── OPERATOR-GUIDE.md        # Operator quick-start
+└── guide.md                     # Card programming instructions
 ```
 
-### Contributing
+## Troubleshooting
 
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Ensure all tests pass (`npm test`)
-5. Submit a pull request
+| Problem | Cause | Fix |
+|---|---|---|
+| "Could not read card" | Card not programmed or wrong ISSUER_KEY | Reprogram card with correct key |
+| "CMAC validation failed" | Card keys don't match | Wipe and reprogram |
+| "Replay detected" | Counter already used (normal) | Tap again — counter auto-increments |
+| "Insufficient balance" (402) | Not enough funds | Top up first |
+| "Rate limited" on login | Too many failed PIN attempts | Wait 60 seconds |
+| Operator pages redirect to login | Session expired (12h) | Re-enter PIN |
+| Web NFC not working | Browser/device unsupported | Use Chrome on Android, or USB reader on desktop |
+| USB reader not working | Not in keyboard-wedge mode | Check reader docs, install drivers |
 
-## 🔑 Bolt Card Key Recovery
+## Dependencies — Known Quirks
 
-This service helps bolt card owners recover their cards. If you have an NTAG424 bolt card from a defunct or abandoned service, tap it on the [login page](https://boltcardpoc.psbt.me/login) — if we have your keys, you'll see them and get a link to wipe and repurpose the card.
+- `@noble/secp256k1` v3: requires explicit hash injection at module load (done in `index.js`)
+- `@noble/hashes`: import paths MUST include `.js` extension (e.g., `"@noble/hashes/sha2.js"`)
+- `@scure/base`: bech32 lives here (not `@scure/bech32`), and `bech32.encode()` has a 90-char default limit — pass `1024` as 3rd arg for bolt11
+- `aes-js`: kept intentionally — do not switch to `node:crypto`-dependent libraries
 
-### How It Works
+## License
 
-1. Card owner taps their card on the login page (Web NFC) or scans the card URL
-2. The server tries to decrypt the card using all known issuer keys and per-card key dumps
-3. If a match is found, the card's keys (K0–K4) are displayed
-4. For recovered cards, a "wipe and reprogram" deeplink opens the Bolt Card programmer app
-
-### Submitting Keys — Pull Requests Welcome
-
-If you run (or ran) a bolt card service and want to help users recover their cards, submit a pull request with a key file.
-
-**Option A: Issuer key** — if you used deterministic key derivation (one master key for all cards):
-
-Create `keys/your-domain.example.csv`:
-```csv
-issuer_key,label
-your32charhexkey,your-service-name
-```
-
-**Option B: Per-card keys** — if you used per-card keys (e.g. LNBits):
-
-Create `keys/_percard_your-domain.example.csv`:
-```csv
-uid,k0,k1,k2,card_name
-040a69fa967380,d6672015...,3db8852a...,ce08c579...,optional-name
-```
-
-**Exporting from LNBits:**
-```bash
-sqlite3 /path/to/ext_boltcards.sqlite3 -csv -header \
-  "SELECT uid, k0, k1, k2 FROM boltcards.cards;" > keys/_percard_your-domain.csv
-```
-
-Then run `node scripts/build_keys.js` and `npm test` to regenerate the bundled key data and verify.
-
-### Important Notes
-
-- **These keys are already public** — they were stored on the card's NFC chip. Publishing them lets owners verify and repurpose their cards.
-- **For LNBits cards**: K3 = K1 and K4 = K2 (per LNBits convention).
-- **Counter values are not needed** for key recovery and should not be included in exports.
-
-## 📚 Programming Guide
-
-For detailed card programming instructions, see [guide.md](guide.md).
-
-## 🔍 Troubleshooting
-
-### Common Issues
-
-#### CMAC Validation Failed
-**Symptom**: Payments failing with CMAC errors
-**Solution**: 
-- Check K2 key configuration
-- Ensure proper key generation
-- Verify hex string formats
-
-#### KV Connection Errors  
-**Symptom**: 500 errors, KV test failures
-**Solution**:
-- Verify KV namespace binding in wrangler.toml
-- Check Cloudflare account permissions
-- Ensure KV namespace exists
-- If using rate limiting, replace the placeholder `RATE_LIMITS_KV_ID` in `wrangler.toml`
-
-#### Card Programming Issues
-**Symptom**: "Last check not green" in programming app
-**Solution**:
-- Verify UID format (14-character hex string / 7 bytes)
-- Check network connectivity
-- Ensure server accessibility from mobile device
-
-### Debug Logging
-
-Enable debug logging by setting:
-```javascript
-const DEBUG = true;  // In relevant files
-```
-
-## 🤝 Support
-
-For issues and questions:
-- Check the troubleshooting section first
-- Review existing GitHub issues
-- Create a new issue with detailed information
-
----
-
-**⚠️ Remember: This is financial software. Test thoroughly and ensure proper security measures before production deployment.**
+See [LICENSE](LICENSE) for details.

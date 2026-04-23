@@ -2,9 +2,9 @@ import { rawHtml } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 
-export function renderPosPage({ host }) {
+export function renderPosPage({ host, currencyLabel }) {
   return renderTailwindPage({
-    title: "Boltcard POS",
+    title: "POS",
     metaRobots: "noindex,nofollow",
     bodyClass: "min-h-screen bg-gray-900 font-sans antialiased",
     styles: [
@@ -36,50 +36,70 @@ export function renderPosPage({ host }) {
 
     <div class="flex flex-col h-[100dvh]">
       <div class="flex items-center justify-between px-4 py-1.5 shrink-0">
-        <a href="/debug" class="text-sm font-semibold text-emerald-500 tracking-widest hover:text-emerald-400 transition-colors">POS</a>
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-semibold text-emerald-500 tracking-widest">POS</span>
+          <button id="mode-toggle" type="button" class="text-xs font-semibold bg-gray-800 border border-gray-700 rounded px-2 py-0.5 text-gray-400 hover:text-white transition-colors">
+            MENU
+          </button>
+        </div>
         <div class="flex items-center gap-3">
-          <span class="text-xs text-gray-600">fakewallet</span>
-        <span id="status-pill" class="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-400">
-          <span class="inline-block h-1.5 w-1.5 rounded-full bg-current"></span>
-          <span id="status-pill-text">NFC Ready</span>
-        </span>
-      </div>
+          <span class="text-xs text-gray-600">Terminal: <span id="terminal-id" class="text-gray-500 font-mono">---</span></span>
+          <a href="/operator/topup" class="text-xs text-gray-600 hover:text-gray-300 transition-colors">TOP-UP</a>
+          <a href="/operator/refund" class="text-xs text-gray-600 hover:text-gray-300 transition-colors">REFUND</a>
+        </div>
       </div>
 
-      <div class="text-center py-2 shrink-0">
-        <div id="amount-display" class="text-5xl font-bold tracking-tight text-white leading-none">0</div>
+      <div id="mode-free" class="flex flex-col flex-1 min-h-0">
+        <div class="text-center py-2 shrink-0">
+          <div id="amount-display" class="text-5xl font-bold tracking-tight text-white leading-none">0</div>
+        </div>
+        <div id="keypad" class="flex-1 grid grid-cols-3 gap-1.5 px-3 min-h-0">
+          <button type="button" data-key="1" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">1</button>
+          <button type="button" data-key="2" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">2</button>
+          <button type="button" data-key="3" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">3</button>
+          <button type="button" data-key="4" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">4</button>
+          <button type="button" data-key="5" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">5</button>
+          <button type="button" data-key="6" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">6</button>
+          <button type="button" data-key="7" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">7</button>
+          <button type="button" data-key="8" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">8</button>
+          <button type="button" data-key="9" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">9</button>
+          <button type="button" data-key="clear" class="keypad-btn rounded-xl bg-gray-700 hover:bg-gray-600 active:bg-gray-500 border border-gray-600 text-gray-300 text-sm font-semibold transition-colors flex items-center justify-center">CLR</button>
+          <button type="button" data-key="0" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">0</button>
+          <button type="button" data-key="backspace" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">&larr;</button>
+        </div>
       </div>
 
-      <div id="keypad" class="flex-1 grid grid-cols-3 gap-1.5 px-3 min-h-0">
-        <button type="button" data-key="1" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">1</button>
-        <button type="button" data-key="2" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">2</button>
-        <button type="button" data-key="3" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">3</button>
-        <button type="button" data-key="4" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">4</button>
-        <button type="button" data-key="5" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">5</button>
-        <button type="button" data-key="6" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">6</button>
-        <button type="button" data-key="7" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">7</button>
-        <button type="button" data-key="8" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">8</button>
-        <button type="button" data-key="9" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">9</button>
-        <button type="button" data-key="." class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">.</button>
-        <button type="button" data-key="0" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">0</button>
-        <button type="button" data-key="backspace" class="keypad-btn rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 text-white text-xl font-semibold transition-colors flex items-center justify-center">⌫</button>
+      <div id="mode-menu" class="hidden flex-col flex-1 min-h-0 overflow-hidden">
+        <div class="text-center py-2 shrink-0">
+          <div id="cart-total" class="text-5xl font-bold tracking-tight text-white leading-none">0</div>
+          <div id="cart-count" class="text-gray-500 text-xs mt-1"></div>
+        </div>
+        <div id="menu-grid" class="flex-1 overflow-y-auto px-3 py-2">
+          <div id="menu-empty" class="text-center py-8">
+            <p class="text-gray-500 text-sm mb-2">No menu configured</p>
+            <button id="menu-edit-btn" type="button" class="text-xs text-emerald-500 hover:text-emerald-400 transition-colors">Edit menu</button>
+          </div>
+          <div id="menu-items" class="grid grid-cols-2 gap-2"></div>
+        </div>
+        <div id="cart-bar" class="hidden px-3 py-2 border-t border-gray-800">
+          <div id="cart-items" class="space-y-1 max-h-32 overflow-y-auto mb-2"></div>
+          <button id="cart-clear-btn" type="button" class="text-xs text-gray-500 hover:text-red-400 transition-colors">CLEAR CART</button>
+        </div>
       </div>
 
       <div class="shrink-0 px-3 pt-2 pb-3">
         <div id="result-box" class="hidden rounded-xl border p-3 mb-2">
           <div class="flex items-start gap-2">
-            <div id="result-icon" class="text-xl leading-none">✓</div>
+            <div id="result-icon" class="text-xl leading-none"></div>
             <div>
               <p id="result-title" class="font-bold text-sm"></p>
               <p id="result-message" class="text-xs mt-0.5"></p>
             </div>
           </div>
         </div>
-
         <button id="charge-btn" type="button" class="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-400 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-bold py-3.5 px-4 rounded-xl transition-colors">
           CHARGE
         </button>
-
         <button id="new-sale-btn" type="button" class="hidden w-full bg-gray-700 hover:bg-gray-600 text-gray-200 font-bold py-3 px-4 rounded-xl transition-colors mt-2">
           NEW SALE
         </button>
@@ -94,13 +114,33 @@ export function renderPosPage({ host }) {
       let currentReader = null;
       let abortController = null;
       let chargeAmount = '0';
+      let posMode = localStorage.getItem('pos_mode') || 'free';
+      let terminalId = localStorage.getItem('terminal_id') || '';
+      let menuData = { items: [] };
+      let cart = [];
+
+      if (!terminalId) {
+        terminalId = crypto.randomUUID ? crypto.randomUUID() : ('t-' + Math.random().toString(36).slice(2, 10));
+        localStorage.setItem('terminal_id', terminalId);
+      }
+      document.getElementById('terminal-id').textContent = terminalId.slice(0, 8);
 
       const amountDisplay = document.getElementById('amount-display');
       const keypadButtons = Array.from(document.querySelectorAll('.keypad-btn'));
       const chargeButton = document.getElementById('charge-btn');
       const newSaleButton = document.getElementById('new-sale-btn');
-      const statusPill = document.getElementById('status-pill');
-      const statusPillText = document.getElementById('status-pill-text');
+      const modeToggle = document.getElementById('mode-toggle');
+      const modeFree = document.getElementById('mode-free');
+      const modeMenu = document.getElementById('mode-menu');
+      const menuGrid = document.getElementById('menu-grid');
+      const menuItems = document.getElementById('menu-items');
+      const menuEmpty = document.getElementById('menu-empty');
+      const menuEditBtn = document.getElementById('menu-edit-btn');
+      const cartTotal = document.getElementById('cart-total');
+      const cartCount = document.getElementById('cart-count');
+      const cartBar = document.getElementById('cart-bar');
+      const cartItemsEl = document.getElementById('cart-items');
+      const cartClearBtn = document.getElementById('cart-clear-btn');
       const resultBox = document.getElementById('result-box');
       const resultIcon = document.getElementById('result-icon');
       const resultTitle = document.getElementById('result-title');
@@ -108,292 +148,238 @@ export function renderPosPage({ host }) {
       const tapOverlay = document.getElementById('tap-overlay');
       const overlayAmount = document.getElementById('overlay-amount');
       const overlayStatus = document.getElementById('overlay-status');
-      const overlayHelp = document.getElementById('overlay-help');
-      const overlayNfcIcon = document.getElementById('overlay-nfc-icon');
       const overlayCancel = document.getElementById('overlay-cancel');
 
-      keypad.addEventListener('click', function(event) {
-        const button = event.target.closest('[data-key]');
-        if (!button) return;
-        handleKeypadInput(button.dataset.key);
-      });
-
+      keypad.addEventListener('click', function(e) { var btn = e.target.closest('[data-key]'); if (btn) handleKeypadInput(btn.dataset.key); });
       chargeButton.addEventListener('click', startChargeFlow);
       newSaleButton.addEventListener('click', resetSale);
       overlayCancel.addEventListener('click', cancelCharge);
+      modeToggle.addEventListener('click', toggleMode);
+      cartClearBtn.addEventListener('click', clearCart);
+      menuEditBtn.addEventListener('click', function() { window.location.href = '/operator/pos/menu'; });
       window.addEventListener('beforeunload', stopScanning);
 
+      applyMode();
+      loadMenu();
       updateView();
 
       function normalizeAmount(value) {
         if (!value || value === '.') return '0';
-        let next = String(value).replace(/[^0-9.]/g, '');
-        const firstDecimal = next.indexOf('.');
-        if (firstDecimal !== -1) {
-          next = next.slice(0, firstDecimal + 1) + next.slice(firstDecimal + 1).replace(/\./g, '');
-        }
-        let parts = next.split('.');
-        let whole = parts[0] || '0';
-        let fraction = parts[1] || '';
-        whole = whole.replace(/^0+(\d)/, '$1');
+        var next = String(value).replace(/[^0-9.]/g, '');
+        var firstDecimal = next.indexOf('.');
+        if (firstDecimal !== -1) { next = next.slice(0, firstDecimal + 1) + next.slice(firstDecimal + 1).replace(/\\./g, ''); }
+        var parts = next.split('.');
+        var whole = parts[0] || '0';
+        var fraction = parts[1] || '';
+        whole = whole.replace(/^0+(\\d)/, '$1');
         if (whole === '') whole = '0';
         return parts.length > 1 ? whole + '.' + fraction : whole;
       }
 
-      function amountIsZero(value) {
-        const numeric = Number(normalizeAmount(value));
-        return !Number.isFinite(numeric) || numeric <= 0;
-      }
+      function amountIsZero(value) { var n = Number(normalizeAmount(value)); return !Number.isFinite(n) || n <= 0; }
 
       function formatAmount(value) {
-        const normalized = normalizeAmount(value);
-        const parts = normalized.split('.');
-        const whole = parts[0] || '0';
-        const fraction = parts[1];
-        const formattedWhole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-        return fraction !== undefined ? formattedWhole + '.' + fraction : formattedWhole;
+        var normalized = normalizeAmount(value);
+        var parts = normalized.split('.');
+        var whole = parts[0] || '0';
+        var fraction = parts[1];
+        return (whole.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + (fraction !== undefined ? '.' + fraction : '')) + ' ${currencyLabel || "credits"}';
       }
 
-      function setState(nextState) {
-        appState = nextState;
+      function formatDisplayOnly(value) {
+        var normalized = normalizeAmount(value);
+        var parts = normalized.split('.');
+        var whole = parts[0] || '0';
+        return whole.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + (parts[1] !== undefined ? '.' + parts[1] : '');
+      }
+
+      function toggleMode() {
+        posMode = posMode === 'free' ? 'menu' : 'free';
+        localStorage.setItem('pos_mode', posMode);
+        applyMode();
+        clearCart();
+        amountInput = '0';
+        clearResult();
         updateView();
       }
 
-      function setStatus(tone, title) {
-        const toneMap = {
-          ready: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
-          scanning: 'border-sky-500/30 bg-sky-500/10 text-sky-400',
-          processing: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
-          error: 'border-red-500/30 bg-red-500/10 text-red-400',
-        };
-        statusPill.className = 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold border ' + (toneMap[tone] || toneMap.ready);
-        statusPillText.textContent = title;
+      function applyMode() {
+        if (posMode === 'menu') {
+          modeToggle.textContent = 'KEYPAD';
+          modeFree.classList.add('hidden');
+          modeFree.classList.remove('flex');
+          modeMenu.classList.remove('hidden');
+          modeMenu.classList.add('flex');
+        } else {
+          modeToggle.textContent = 'MENU';
+          modeFree.classList.remove('hidden');
+          modeFree.classList.add('flex');
+          modeMenu.classList.add('hidden');
+          modeMenu.classList.remove('flex');
+        }
       }
+
+      function loadMenu() {
+        fetch('/api/pos/menu?t=' + terminalId).then(function(r) { return r.json(); }).then(function(data) {
+          if (data.items && data.items.length > 0) {
+            menuData = data;
+            renderMenuItems();
+          }
+        }).catch(function() {});
+      }
+
+      function renderMenuItems() {
+        if (!menuData.items || menuData.items.length === 0) {
+          menuEmpty.classList.remove('hidden');
+          menuItems.classList.add('hidden');
+          return;
+        }
+        menuEmpty.classList.add('hidden');
+        menuItems.classList.remove('hidden');
+        var html = '';
+        for (var i = 0; i < menuData.items.length; i++) {
+          var item = menuData.items[i];
+          var cartItem = cart.find(function(c) { return c.name === item.name; });
+          var qty = cartItem ? cartItem.qty : 0;
+          var badge = qty > 0 ? '<span class="absolute -top-1 -right-1 bg-emerald-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">' + qty + '</span>' : '';
+          html += '<button type="button" data-item-idx="' + i + '" class="relative bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 rounded-lg p-3 transition-colors text-left">'
+            + badge
+            + '<div class="font-semibold text-sm text-gray-200">' + item.name + '</div>'
+            + '<div class="text-emerald-400 font-bold text-lg">' + item.price + '</div>'
+            + '</button>';
+        }
+        menuItems.innerHTML = html;
+        menuItems.querySelectorAll('[data-item-idx]').forEach(function(btn) {
+          btn.addEventListener('click', function() { addToCart(menuData.items[parseInt(btn.dataset.itemIdx)]); });
+        });
+      }
+
+      function addToCart(item) {
+        var existing = cart.find(function(c) { return c.name === item.name; });
+        if (existing) { existing.qty++; }
+        else { cart.push({ name: item.name, price: item.price, qty: 1 }); }
+        renderMenuItems();
+        renderCart();
+        updateView();
+      }
+
+      function clearCart() { cart = []; renderMenuItems(); renderCart(); updateView(); }
+
+      function renderCart() {
+        if (cart.length === 0) {
+          cartBar.classList.add('hidden');
+          cartCount.textContent = '';
+          return;
+        }
+        cartBar.classList.remove('hidden');
+        var total = 0;
+        var totalQty = 0;
+        var html = '';
+        for (var i = 0; i < cart.length; i++) {
+          var c = cart[i];
+          var subtotal = c.price * c.qty;
+          total += subtotal;
+          totalQty += c.qty;
+          html += '<div class="flex justify-between text-xs text-gray-400"><span>' + c.name + ' x' + c.qty + '</span><span>' + subtotal + '</span></div>';
+        }
+        cartItemsEl.innerHTML = html;
+        cartTotal.textContent = total + ' ${currencyLabel || "credits"}';
+        cartCount.textContent = totalQty + ' item' + (totalQty !== 1 ? 's' : '');
+      }
+
+      function getCartTotal() {
+        var total = 0;
+        for (var i = 0; i < cart.length; i++) { total += cart[i].price * cart[i].qty; }
+        return total;
+      }
+
+      function setState(next) { appState = next; updateView(); }
 
       function showResult(kind, title, message) {
         resultBox.classList.remove('hidden');
         resultTitle.textContent = title;
         resultMessage.textContent = message;
-
         if (kind === 'success') {
           resultBox.className = 'rounded-xl border p-3 mb-3 border-emerald-500/40 bg-emerald-900/20';
-          resultIcon.textContent = '✓';
+          resultIcon.textContent = '\\u2713';
           resultIcon.className = 'text-xl leading-none text-emerald-400';
           resultTitle.className = 'font-bold text-sm text-emerald-300';
           resultMessage.className = 'text-xs mt-0.5 text-emerald-100/90';
         } else {
           resultBox.className = 'rounded-xl border p-3 mb-3 border-red-500/40 bg-red-900/20';
-          resultIcon.textContent = '✗';
+          resultIcon.textContent = '\\u2717';
           resultIcon.className = 'text-xl leading-none text-red-400';
           resultTitle.className = 'font-bold text-sm text-red-300';
           resultMessage.className = 'text-xs mt-0.5 text-red-100/90';
         }
       }
 
-      function clearResult() {
-        resultBox.className = 'hidden rounded-xl border p-3 mb-3';
-      }
+      function clearResult() { resultBox.className = 'hidden rounded-xl border p-3 mb-3'; }
 
       function updateView() {
-        amountDisplay.textContent = formatAmount(amountInput);
-
-        const overlayActive = appState === 'charging' || appState === 'scanning' || appState === 'processing';
+        amountDisplay.textContent = formatDisplayOnly(amountInput);
+        var totalForCharge = posMode === 'menu' ? getCartTotal() : parseInt(normalizeAmount(amountInput), 10) || 0;
+        var overlayActive = appState === 'charging' || appState === 'scanning' || appState === 'processing';
         if (overlayActive) {
           tapOverlay.classList.add('visible');
-          overlayAmount.textContent = formatAmount(chargeAmount);
+          overlayAmount.textContent = (posMode === 'menu' ? getCartTotal() : formatDisplayOnly(chargeAmount)) + ' ${currencyLabel || "credits"}';
         } else {
           tapOverlay.classList.remove('visible');
         }
-
         if (appState === 'charging' || appState === 'scanning') {
           overlayStatus.textContent = 'TAP CARD TO PAY';
           overlayStatus.className = 'text-lg font-bold text-emerald-400';
-          overlayHelp.textContent = 'Hold the boltcard against the back of your device';
-          overlayNfcIcon.classList.remove('hidden');
           overlayCancel.classList.remove('hidden');
         } else if (appState === 'processing') {
           overlayStatus.textContent = 'PROCESSING...';
           overlayStatus.className = 'text-lg font-bold text-amber-400';
-          overlayHelp.textContent = 'Verifying card and submitting payment';
-          overlayNfcIcon.classList.add('hidden');
           overlayCancel.classList.add('hidden');
         }
-
-        const editingLocked = overlayActive;
-        keypadButtons.forEach(function(button) {
-          button.disabled = editingLocked;
-          button.classList.toggle('opacity-40', editingLocked);
-          button.classList.toggle('cursor-not-allowed', editingLocked);
-        });
-
-        chargeButton.disabled = editingLocked || amountIsZero(amountInput);
+        var editingLocked = overlayActive;
+        keypadButtons.forEach(function(b) { b.disabled = editingLocked; b.classList.toggle('opacity-40', editingLocked); });
+        chargeButton.disabled = editingLocked || (posMode === 'menu' ? getCartTotal() <= 0 : amountIsZero(amountInput));
         newSaleButton.classList.toggle('hidden', !(appState === 'success' || appState === 'failed'));
-
-        if (!browserSupportsNfc()) {
-          chargeButton.disabled = true;
-          setStatus('error', 'No NFC');
-          return;
-        }
-
-        if (appState === 'idle') {
-          setStatus('ready', 'NFC Ready');
-        } else if (appState === 'charging' || appState === 'scanning') {
-          setStatus('scanning', 'Scanning');
-        } else if (appState === 'processing') {
-          setStatus('processing', 'Working');
-        } else if (appState === 'success') {
-          setStatus('ready', 'Done');
-        } else if (appState === 'failed') {
-          setStatus('error', 'Failed');
-        }
       }
 
       function handleKeypadInput(key) {
         if (appState !== 'idle') return;
-
-        if (key === 'backspace') {
-          amountInput = amountInput.length > 1 ? amountInput.slice(0, -1) : '0';
-          if (amountInput === '' || amountInput === '-') amountInput = '0';
-          if (amountInput.endsWith('.')) amountInput = amountInput.slice(0, -1);
-          if (amountInput === '') amountInput = '0';
-        } else if (key === '.') {
-          if (!amountInput.includes('.')) {
-            amountInput += '.';
-          }
-        } else if (/^[0-9]$/.test(key)) {
-          if (amountInput === '0') {
-            amountInput = key;
-          } else {
-            amountInput += key;
-          }
-        }
-
+        if (key === 'backspace') { amountInput = amountInput.length > 1 ? amountInput.slice(0, -1) : '0'; }
+        else if (key === 'clear') { amountInput = '0'; }
+        else if (key === '.') { if (!amountInput.includes('.')) amountInput += '.'; }
+        else if (/^[0-9]$/.test(key)) { amountInput = amountInput === '0' ? key : amountInput + key; }
         amountInput = normalizeAmount(amountInput);
         clearResult();
         updateView();
       }
 
-      function resetSale() {
-        stopScanning();
-        amountInput = '0';
-        chargeAmount = '0';
-        clearResult();
-        setState('idle');
-      }
+      function resetSale() { stopScanning(); amountInput = '0'; chargeAmount = '0'; clearCart(); clearResult(); setState('idle'); }
+      function cancelCharge() { stopScanning(); setState('idle'); showResult('error', 'Cancelled', 'Charge cancelled'); }
+      function stopScanning() { if (currentReader) { currentReader.onreading = null; currentReader.onreadingerror = null; currentReader = null; } if (abortController) { abortController.abort(); abortController = null; } }
 
-      function cancelCharge() {
-        handleRecoverableError('Charge cancelled');
-      }
-
-      function stopScanning() {
-        if (currentReader) {
-          currentReader.onreading = null;
-          currentReader.onreadingerror = null;
-          currentReader = null;
+      async function directCharge(p, c) {
+        var amount = posMode === 'menu' ? getCartTotal() : parseInt(normalizeAmount(chargeAmount), 10);
+        var items = posMode === 'menu' ? cart.map(function(c) { return { name: c.name, qty: c.qty, unitPrice: c.price }; }) : null;
+        var resp = await fetch('/operator/pos/charge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ p: p, c: c, amount: amount, items: items, terminalId: terminalId }),
+        });
+        var data = await resp.json();
+        if (resp.ok && data.success) {
+          setState('success');
+          showResult('success', 'Payment approved', (posMode === 'menu' ? getCartTotal() : formatDisplayOnly(chargeAmount)) + ' charged. Balance: ' + data.balance);
+          if (posMode === 'menu') clearCart();
+        } else {
+          setState('failed');
+          showResult('error', 'Payment failed', data.error || data.reason || 'Unknown error');
         }
-        if (abortController) {
-          abortController.abort();
-          abortController = null;
-        }
-      }
-
-      function extractTapUrl(message) {
-        return (async function() {
-          for (const record of message.records) {
-            return await extractNdefUrl(message.records, ['lnurlw://', 'https://']);
-          }
-          return null;
-        })();
-      }
-
-      function normalizeLnurlwUrl(rawUrl) {
-        const trimmed = String(rawUrl || '').trim();
-        if (!trimmed) throw new Error('No LNURL-withdraw URL found on card.');
-
-        const httpsUrl = trimmed.toLowerCase().startsWith('lnurlw://')
-          ? 'https://' + trimmed.slice('lnurlw://'.length)
-          : trimmed.replace(/^http:\/\//i, 'https://');
-
-        const parsed = new URL(httpsUrl);
-        const p = parsed.searchParams.get('p');
-        const c = parsed.searchParams.get('c');
-
-        if (p && c) {
-          const workerUrl = new URL(API_HOST + '/');
-          workerUrl.searchParams.set('p', p);
-          workerUrl.searchParams.set('c', c);
-          return workerUrl.toString();
-        }
-
-        return parsed.toString();
-      }
-
-      async function fetchJson(url) {
-        let response;
-        try {
-          response = await fetch(url, { headers: { Accept: 'application/json' } });
-        } catch (error) {
-          throw new Error('Network error, please try again');
-        }
-
-        let payload;
-        try {
-          payload = await response.json();
-        } catch (error) {
-          throw new Error('Network error, please try again');
-        }
-
-        if (!response.ok) {
-          throw new Error(payload.reason || payload.message || 'Payment failed');
-        }
-
-        return payload;
-      }
-
-      async function processPayment(nfcUrl) {
-        const withdrawRequestUrl = normalizeLnurlwUrl(nfcUrl);
-        const withdrawData = await fetchJson(withdrawRequestUrl);
-
-        if (withdrawData.tag !== 'withdrawRequest' || !withdrawData.callback || !withdrawData.k1) {
-          throw new Error('Invalid withdraw response from card');
-        }
-
-        const invoiceResp = await fetchJson(API_HOST + '/api/fake-invoice?amount=' + encodeURIComponent(chargeAmount));
-        if (!invoiceResp.pr) {
-          throw new Error('Failed to generate invoice');
-        }
-
-        const callbackUrl = new URL(withdrawData.callback);
-        callbackUrl.searchParams.set('pr', invoiceResp.pr);
-        callbackUrl.searchParams.set('k1', withdrawData.k1);
-        callbackUrl.searchParams.set('amount', chargeAmount);
-
-        const paymentData = await fetchJson(callbackUrl.toString());
-
-        if (paymentData.status !== 'OK') {
-          throw new Error(paymentData.reason || paymentData.message || 'Payment failed');
-        }
-
-        return paymentData;
-      }
-
-      function handleRecoverableError(message) {
-        stopScanning();
-        setState('idle');
-        showResult('error', 'Unable to charge', message);
       }
 
       async function startChargeFlow() {
-        if (!browserSupportsNfc()) {
-          handleRecoverableError('NFC not available on this device/browser. Use Chrome on Android.');
-          return;
-        }
+        if (posMode === 'menu' && getCartTotal() <= 0) return;
+        if (posMode === 'free' && amountIsZero(amountInput)) return;
 
-        if (amountIsZero(amountInput)) {
-          return;
-        }
-
-        chargeAmount = normalizeAmount(amountInput);
+        chargeAmount = posMode === 'menu' ? String(getCartTotal()) : normalizeAmount(amountInput);
         clearResult();
         stopScanning();
         setState('charging');
@@ -403,41 +389,29 @@ export function renderPosPage({ host }) {
 
         currentReader.onreading = async function(event) {
           if (appState !== 'scanning') return;
-
           try {
-            const nfcUrl = await extractTapUrl(event.message);
-            if (!nfcUrl) {
-              throw new Error('No LNURL-withdraw URL found on card.');
-            }
-
+            var nfcUrl = await extractNdefUrl(event.message.records, ['lnurlw://', 'https://']);
+            if (!nfcUrl) throw new Error('No URL on card');
+            var parsed = new URL(nfcUrl);
+            var p = parsed.searchParams.get('p');
+            var c = parsed.searchParams.get('c');
+            if (!p || !c) throw new Error('Card URL missing parameters');
             stopScanning();
             setState('processing');
-            await processPayment(nfcUrl);
-            setState('success');
-            showResult('success', 'Payment approved', formatAmount(chargeAmount) + ' received');
+            await directCharge(p, c);
           } catch (error) {
-            const message = error && error.message ? error.message : 'Payment failed';
             stopScanning();
             setState('failed');
-            showResult('error', 'Payment failed', message);
+            showResult('error', 'Payment failed', error.message);
           }
         };
 
-        currentReader.onreadingerror = function() {
-          handleRecoverableError('Error reading NFC card. Please try again.');
-        };
+        currentReader.onreadingerror = function() { stopScanning(); setState('idle'); showResult('error', 'NFC error', 'Try again'); };
 
-        try {
-          await currentReader.scan({ signal: abortController.signal });
-          setState('scanning');
-        } catch (error) {
-          if (error && error.name === 'AbortError') {
-            return;
-          }
-          handleRecoverableError(error && error.message ? error.message : 'NFC scan error, please try again');
-        }
+        try { await currentReader.scan({ signal: abortController.signal }); setState('scanning'); }
+        catch (error) { if (error.name !== 'AbortError') { stopScanning(); setState('idle'); showResult('error', 'NFC error', error.message); } }
       }
     </script>
-`,
+  `,
   });
 }

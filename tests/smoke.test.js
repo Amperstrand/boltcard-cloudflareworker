@@ -5,6 +5,7 @@ import { hexToBytes, bytesToHex, computeAesCmac } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { buildVerificationData } from "../cryptoutils.js";
 import aesjs from "aes-js";
+import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const POS_UID = "04d070fa967380";
@@ -65,6 +66,7 @@ function makeEnv(replayInitial = {}) {
       get: async (uid) => uid === POS_UID ? POS_UID_CONFIG : null,
       put: async () => {},
     },
+    ...TEST_OPERATOR_AUTH,
   };
 }
 

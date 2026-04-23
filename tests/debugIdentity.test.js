@@ -5,6 +5,7 @@ import { hexToBytes, bytesToHex } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { buildVerificationData } from "../cryptoutils.js";
 import aesjs from "aes-js";
+import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const TEST_UID = "04996c6a926980";
@@ -46,6 +47,7 @@ function makeEnv(uidConfig = null) {
       get: async (uid) => store[uid] ?? null,
       put: async (uid, value) => { store[uid] = value; },
     },
+    ...TEST_OPERATOR_AUTH,
   };
 }
 

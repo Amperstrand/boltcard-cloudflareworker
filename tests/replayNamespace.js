@@ -192,6 +192,25 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
           return Response.json({ reset: true });
         }
 
+        if (request.method === "POST" && url.pathname === "/check") {
+          const { counterValue } = await request.json();
+          const lastCounter = counters.has(idStr) ? counters.get(idStr) : null;
+
+          if (lastCounter !== null && counterValue <= lastCounter) {
+            return Response.json(
+              {
+                accepted: false,
+                reason: "Counter replay detected — tap rejected",
+                lastCounter,
+              },
+              { status: 409 }
+            );
+          }
+
+          counters.set(idStr, counterValue);
+          return Response.json({ accepted: true, lastCounter: counterValue });
+        }
+
         if (request.method === "POST" && url.pathname === "/check-readonly") {
           const { counterValue } = await request.json();
           const lastCounter = counters.has(idStr) ? counters.get(idStr) : null;
@@ -207,6 +226,8 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
             );
           }
 
+          // read-only check does NOT advance the counter
+          // (the real DO distinguishes readOnly vs non-readonly)
           return Response.json({ accepted: true, lastCounter });
         }
 

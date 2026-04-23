@@ -6,6 +6,7 @@
 import { handleRequest } from '../index.js';
 import { logger } from '../utils/logger.js';
 import { makeReplayNamespace } from './replayNamespace.js';
+import { TEST_OPERATOR_AUTH } from './testHelpers.js';
 
 const LEGACY_UID_CONFIGS = {
   '04996c6a926980': JSON.stringify({
@@ -52,6 +53,7 @@ const mockEnv = {
     put: async () => {}
   },
   CARD_REPLAY: seedDoConfigs(makeReplayNamespace()),
+  ...TEST_OPERATOR_AUTH,
 };
 
 const TEST_DATA = [

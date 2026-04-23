@@ -10,6 +10,7 @@
 import { handleRequest } from "../../index.js";
 import { jest } from "@jest/globals";
 import { makeReplayNamespace } from "../replayNamespace.js";
+import { TEST_OPERATOR_AUTH } from "../testHelpers.js";
 import {
   hexToBytes,
   bytesToHex,
@@ -37,6 +38,7 @@ function makeFreshEnv() {
       },
     },
     __kvStore: kvStore,
+    ...TEST_OPERATOR_AUTH,
   };
 }
 
@@ -116,7 +118,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
   test("full withdraw lifecycle: provision → tap → callback → tap history", async () => {
     const k1Hex = env.BOLT_CARD_K1.split(",")[0];
 
-    // Step 1: Card tap — should return withdrawRequest, NOT record counter
+    // Step 1: Card tap — returns withdrawRequest, does NOT record counter (read-only check)
     const { pHex, cHex } = virtualCardTap(UID, 1, k1Hex, keys.k2);
     const tapResp = await makeRequest(`/?p=${pHex}&c=${cHex}`, "GET", null, env);
     expect(tapResp.status).toBe(200);
@@ -204,7 +206,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     const step1 = await makeRequest(`/?p=${tap2.pHex}&c=${tap2.cHex}`, "GET", null, env);
     expect(step1.status).toBe(200);
 
-    // Counter=2 callback records and advances counter
+    // Counter=2 callback succeeds (step 1 read-only didn't record)
     const step2 = await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${tap2.pHex}?k1=${tap2.cHex}&pr=lnbc10n1second`,
       "GET",
@@ -215,7 +217,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     expect(env.CARD_REPLAY.__counters.get(UID)).toBe(2);
   });
 
-  test("Step 1 does not record counter — repeated taps succeed", async () => {
+  test("Step 1 uses read-only replay check — repeated taps with same counter are allowed", async () => {
     const k1Hex = env.BOLT_CARD_K1.split(",")[0];
     const { pHex, cHex } = virtualCardTap(UID, 1, k1Hex, keys.k2);
 

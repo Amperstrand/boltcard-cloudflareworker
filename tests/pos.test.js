@@ -5,6 +5,7 @@ import { hexToBytes, bytesToHex } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { buildVerificationData } from "../cryptoutils.js";
 import aesjs from "aes-js";
+import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const TEST_UID = "04996c6a926980";
@@ -49,10 +50,8 @@ function makeEnv(replayInitial = {}) {
   return {
     BOLT_CARD_K1,
     CARD_REPLAY: makeReplayNamespace(replayInitial),
-    UID_CONFIG: {
-      get: async (uid) => null,
-      put: async () => {},
-    },
+    UID_CONFIG: { get: async () => null, put: async () => {} },
+    ...TEST_OPERATOR_AUTH,
   };
 }
 
@@ -72,26 +71,27 @@ describe("POS Page", () => {
       BOLT_CARD_K1,
       CARD_REPLAY: makeReplayNamespace(),
       UID_CONFIG: { get: async () => null, put: async () => {} },
+      ...TEST_OPERATOR_AUTH,
     };
   }
 
-  test("GET /pos returns HTML with 200 status", async () => {
+  test("GET /operator/pos returns HTML with 200 status", async () => {
     const env = makeEnv();
-    const response = await handleRequest(new Request("https://test.local/pos"), env);
+    const response = await handleRequest(new Request("https://test.local/operator/pos"), env);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("text/html");
   });
 
-  test("GET /pos response contains Boltcard POS title and NFC code", async () => {
+  test("GET /operator/pos response contains POS title and NFC code", async () => {
     const env = makeEnv();
-    const response = await handleRequest(new Request("https://test.local/pos"), env);
+    const response = await handleRequest(new Request("https://test.local/operator/pos"), env);
     const html = await response.text();
-    expect(html).toContain("Boltcard POS");
+    expect(html).toContain("POS");
     expect(html).toContain("NDEFReader");
     expect(html).toContain("CHARGE");
-    expect(html).toContain("keypad-btn");
     expect(html).toContain("NEW SALE");
-    expect(html).toContain("fakewallet");
+    expect(html).toContain("keypad-btn");
+    expect(html).toContain("MENU");
     expect(html).toContain("amount");
   });
 });

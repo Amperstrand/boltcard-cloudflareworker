@@ -1,9 +1,11 @@
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
+import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
 
 const env = {
   BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
   CARD_REPLAY: makeReplayNamespace(),
+  ...TEST_OPERATOR_AUTH,
 };
 
 const VALID_UID = "040660fa967380";

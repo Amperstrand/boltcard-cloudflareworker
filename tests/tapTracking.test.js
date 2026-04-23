@@ -109,10 +109,11 @@ describe("Tap tracking — Step 1 (initial tap)", () => {
     const response1 = await makeRequest(`/?p=${WITHDRAW_P_COUNTER3}&c=${WITHDRAW_C_COUNTER3}`, "GET", null, env);
     expect(response1.status).toBe(200);
 
+    // Same counter = same tap key, read-only check doesn't advance counter
+    // so second tap with same counter passes (LNURL-withdraw step 1 is read-only)
     const response2 = await makeRequest(`/?p=${WITHDRAW_P_COUNTER3}&c=${WITHDRAW_C_COUNTER3}`, "GET", null, env);
     expect(response2.status).toBe(200);
 
-    // Same counter = same tap key, INSERT OR IGNORE keeps the first
     expect(env.CARD_REPLAY.__taps.size).toBe(1);
   });
 });

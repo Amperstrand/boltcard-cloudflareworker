@@ -29,8 +29,24 @@ import { logger } from "./utils/logger.js";
 import { jsonResponse, errorResponse } from "./utils/responses.js";
 import { checkRateLimit } from "./rateLimiter.js";
 import { checkReplayOnly, recordTapRead, getCardState, activateCard } from "./replayProtection.js";
+import { requireOperator } from "./middleware/operatorAuth.js";
+import { handleOperatorLoginPage, handleOperatorLogin, handleOperatorLogout } from "./handlers/operatorLoginHandler.js";
+import { handleTopupPage, handleTopupApply } from "./handlers/topupHandler.js";
+import { handlePosCharge } from "./handlers/posChargeHandler.js";
+import { handleRefundPage, handleRefundApply } from "./handlers/refundHandler.js";
+import { handleBalanceCheck } from "./handlers/balanceCheckHandler.js";
+import { handleReceipt } from "./handlers/receiptHandler.js";
+import { handleMenuEditorPage, handleMenuGet, handleMenuPut } from "./handlers/menuEditorHandler.js";
 
 const router = Router();
+
+function withOperatorAuth(handler) {
+  return async (request, env) => {
+    const auth = await requireOperator(request, env);
+    if (!auth.authorized) return auth.response;
+    return handler(request, env, auth.session);
+  };
+}
 
 router.get("/api/fake-invoice", (request, env) => {
   const url = new URL(request.url);
@@ -45,54 +61,69 @@ router.get("/api/fake-invoice", (request, env) => {
     return errorResponse(err.message, 500);
   }
 });
-router.get("/api/keys", (request, env) => handleGetKeys(request, env));
-router.post("/api/keys", (request, env) => handleGetKeys(request, env));
 router.get("/status", (request, env) => handleStatus(request, env));
-router.all("/api/v1/pull-payments/:pullPaymentId/boltcards", (request, env) =>
-  fetchBoltCardKeys(request, env)
-);
 router.all("/boltcards/api/v1/lnurl/cb*", (request, env) => handleLnurlpPayment(request, env));
 router.get("/2fa", (request, env) => handleTwoFactor(request, env));
 router.get("/login", (request) => handleLoginPage(request));
 router.post("/login", (request, env) => handleLoginVerify(request, env));
-router.get("/pos", (request) => handlePosPage(request));
+router.get("/pos", () => new Response(null, { status: 302, headers: { Location: "/operator/pos" } }));
+router.get("/operator/pos", withOperatorAuth((request, env) => handlePosPage(request, env)));
+router.post("/operator/pos/charge", withOperatorAuth((request, env, session) => handlePosCharge(request, env, session)));
+router.get("/operator/pos/menu", withOperatorAuth((request, env) => handleMenuEditorPage(request, env)));
+router.put("/operator/pos/menu", withOperatorAuth((request, env) => handleMenuPut(request, env)));
+router.get("/api/pos/menu", withOperatorAuth((request, env) => handleMenuGet(request, env)));
+router.get("/api/receipt/:txnId", withOperatorAuth((request, env) => handleReceipt(request, env)));
 router.post("/activate/form", (request, env) => handleActivateCardSubmit(request, env));
 router.get("/lnurlp/cb", (request, env) => handleLnurlPayCallback(request, env));
-router.get("/api/bulk-wipe-keys", (request, env) => handleBulkWipeKeys(request, env));
 router.get("/api/verify-identity", (request, env) => handleIdentityVerify(request, env));
 router.post("/api/identity/profile", (request, env) => handleIdentityProfileUpdate(request, env));
-router.get("/debug", (request) => handleDebugPage(request));
-router.get("/identity", (request) => handleIdentityPage(request));
+router.get("/operator/login", (request) => handleOperatorLoginPage(request));
+router.post("/operator/login", (request, env) => handleOperatorLogin(request, env));
+router.post("/operator/logout", (request, env) => handleOperatorLogout(request, env));
+router.get("/operator", withOperatorAuth((request, env) => {
+  const host = new URL(request.url).origin;
+  return new Response(null, { status: 302, headers: { Location: "/operator/pos" } });
+}));
+router.get("/operator/topup", withOperatorAuth((request, env) => handleTopupPage(request, env)));
+router.post("/operator/topup/apply", withOperatorAuth((request, env, session) => handleTopupApply(request, env, session)));
+router.get("/operator/refund", withOperatorAuth((request, env) => handleRefundPage(request, env)));
+router.post("/operator/refund/apply", withOperatorAuth((request, env, session) => handleRefundApply(request, env, session)));
+router.post("/api/balance-check", (request, env) => handleBalanceCheck(request, env));
 
-// /experimental/ aliases for operator tools
-router.get("/experimental/nfc", () => handleNfc());
-router.get("/experimental/activate", (request, env) => handleActivatePage(request, env));
-router.get("/experimental/activate/form", () => handleActivateForm());
-router.post("/experimental/activate/form", (request, env) => handleActivateCardSubmit(request, env));
-router.get("/experimental/wipe", (request, env) => {
+router.get("/debug", withOperatorAuth((request) => handleDebugPage(request)));
+router.get("/experimental/nfc", withOperatorAuth(() => handleNfc()));
+router.get("/experimental/activate", withOperatorAuth((request, env) => handleActivatePage(request, env)));
+router.get("/experimental/activate/form", withOperatorAuth(() => handleActivateForm()));
+router.post("/experimental/activate/form", withOperatorAuth((request, env) => handleActivateCardSubmit(request, env)));
+router.get("/experimental/wipe", withOperatorAuth((request, env) => {
   const url = new URL(request.url);
   const uid = url.searchParams.get("uid");
   const baseUrl = `${url.protocol}//${url.host}`;
   if (uid) return handleReset(uid, env, baseUrl);
   return handleWipePage(request, env);
-});
-router.get("/experimental/bulkwipe", (request) => handleBulkWipePage(request));
-router.get("/experimental/analytics", (request) => handleAnalyticsPage(request));
-router.get("/experimental/analytics/data", (request, env) => handleAnalyticsData(request, env));
+}));
+router.get("/experimental/bulkwipe", withOperatorAuth((request) => handleBulkWipePage(request)));
+router.get("/experimental/analytics", withOperatorAuth((request) => handleAnalyticsPage(request)));
+router.get("/experimental/analytics/data", withOperatorAuth((request, env) => handleAnalyticsData(request, env)));
+router.get("/api/keys", withOperatorAuth((request, env) => handleGetKeys(request, env)));
+router.post("/api/keys", withOperatorAuth((request, env) => handleGetKeys(request, env)));
+router.all("/api/v1/pull-payments/:pullPaymentId/boltcards", withOperatorAuth((request, env) => fetchBoltCardKeys(request, env)));
+router.get("/api/bulk-wipe-keys", withOperatorAuth((request, env) => handleBulkWipeKeys(request, env)));
+router.get("/identity", (request) => handleIdentityPage(request));
 
 // 301 redirects from old paths to /experimental/
 router.get("/nfc", () => Response.redirect("/experimental/nfc", 301));
 router.get("/activate", () => Response.redirect("/experimental/activate", 301));
 router.get("/activate/form", () => Response.redirect("/experimental/activate/form", 301));
-router.get("/wipe", (request, env) => {
+router.get("/wipe", withOperatorAuth((request, env) => {
   const url = new URL(request.url);
   const uid = url.searchParams.get("uid");
   if (uid) return handleReset(uid, env, `${url.protocol}//${url.host}`);
   return Response.redirect("/experimental/wipe", 301);
-});
+}));
 router.get("/bulkwipe", () => Response.redirect("/experimental/bulkwipe", 301));
 router.get("/analytics", () => Response.redirect("/experimental/analytics", 301));
-router.get("/analytics/data", (request, env) => handleAnalyticsData(request, env));
+router.get("/analytics/data", withOperatorAuth((request, env) => handleAnalyticsData(request, env)));
 router.get("/favicon.ico", () => new Response(null, { status: 204 }));
 router.get("/", (request, env) => {
   const { searchParams } = new URL(request.url);

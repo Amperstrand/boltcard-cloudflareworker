@@ -10,6 +10,10 @@ kv_namespaces = [
 # and add: { binding = "RATE_LIMITS", id = "<your-namespace-id>" }
 # The worker gracefully skips rate limiting when the binding is absent.
 
+[vars]
+CURRENCY_LABEL = "credits"
+CURRENCY_DECIMALS = "0"
+
 routes = [
   "https://boltcardpoc.psbt.me/*"
 ]

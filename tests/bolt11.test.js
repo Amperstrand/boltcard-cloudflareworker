@@ -1,6 +1,7 @@
 import { decodeBolt11Amount, generateFakeBolt11 } from "../utils/bolt11.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { handleRequest } from "../index.js";
+import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
 
 describe("decodeBolt11Amount", () => {
   test("returns null for null input", () => {
@@ -129,7 +130,7 @@ describe("analytics HTTP routes", () => {
   const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 
   function makeEnv() {
-    return { BOLT_CARD_K1, CARD_REPLAY: makeReplayNamespace() };
+    return { BOLT_CARD_K1, CARD_REPLAY: makeReplayNamespace(), ...TEST_OPERATOR_AUTH };
   }
 
   async function makeRequest(path, env) {
