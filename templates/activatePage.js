@@ -1,5 +1,5 @@
 import { validateUid } from "../utils/validation.js";
-import { rawHtml } from "../utils/rawTemplate.js";
+import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 
@@ -197,7 +197,7 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
         </div>
 
         <script>
-          const posBaseUrl = "${apiUrl}";
+          const posBaseUrl = ${jsString(apiUrl)};
           let posQr = null;
 
           function updatePosConfig() {
@@ -234,14 +234,14 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
 
           document.addEventListener('DOMContentLoaded', () => {
             new QRCode(document.getElementById("qr-program"), {
-              text: "${programUrl}",
+              text: ${jsString(programUrl)},
               width: 200, height: 200,
               colorDark: "#000000", colorLight: "#ffffff",
               correctLevel: QRCode.CorrectLevel.L
             });
 
             new QRCode(document.getElementById("qr-reset"), {
-              text: "${resetUrl}",
+              text: ${jsString(resetUrl)},
               width: 200, height: 200,
               colorDark: "#000000", colorLight: "#ffffff",
               correctLevel: QRCode.CorrectLevel.L
@@ -395,8 +395,8 @@ export function renderActivateCardPage() {
       </div>
 
       <script>
-        ${BROWSER_VALIDATE_UID_HELPER}
-        ${BROWSER_NFC_HELPERS}
+        ${safe(BROWSER_VALIDATE_UID_HELPER)}
+        ${safe(BROWSER_NFC_HELPERS)}
 
         // NFC Scanning functionality
         document.getElementById('scan-nfc').addEventListener('click', async function() {

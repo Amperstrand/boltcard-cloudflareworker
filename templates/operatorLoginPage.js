@@ -1,4 +1,4 @@
-import { rawHtml } from "../utils/rawTemplate.js";
+import { rawHtml, safe } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 
 export function renderOperatorLoginPage({ error, returnTo }) {
@@ -24,9 +24,9 @@ export function renderOperatorLoginPage({ error, returnTo }) {
       </div>
 
       <div class="bg-gray-800 border border-gray-700 rounded-lg p-6">
-        ${errorHtml}
+        ${safe(errorHtml)}
         <form method="POST" action="/operator/login" class="space-y-4">
-          ${returnField}
+          ${safe(returnField)}
           <div>
             <label for="pin" class="block text-xs text-gray-500 uppercase tracking-wider mb-1">PIN</label>
             <input

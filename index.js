@@ -199,7 +199,7 @@ async function handleLnurlw(request, env) {
   const { uidHex, ctr } = decryption;
 
   if (!uidHex) {
-    logger.error("UID is undefined after decryption", { pHex, cHex });
+    logger.error("UID is undefined after decryption", { pHex: "[REDACTED]", cHex: "[REDACTED]" });
     return errorResponse("Failed to extract UID from payload");
   }
 

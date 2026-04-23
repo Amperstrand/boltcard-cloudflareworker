@@ -1,4 +1,4 @@
-import { rawHtml } from "../utils/rawTemplate.js";
+import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 
 export function renderMenuEditorPage({ host, terminalId, menu }) {
@@ -38,9 +38,9 @@ export function renderMenuEditorPage({ host, terminalId, menu }) {
     </div>
 
     <script>
-      let items = ${itemsJson ? itemsJson.replace(/</g, '\\u003c') : '[]'};
-      const terminalId = "${terminalId}";
-      const API_HOST = "${host}";
+      let items = ${safe(itemsJson ? itemsJson.replace(/</g, '\\u003c') : '[]')};
+      const terminalId = ${jsString(terminalId)};
+      const API_HOST = ${jsString(host)};
 
       function render() {
         const list = document.getElementById('items-list');

@@ -1,4 +1,4 @@
-import { rawHtml } from "../utils/rawTemplate.js";
+import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 
@@ -108,9 +108,9 @@ export function renderWipePage({ baseUrl, resetApiUrl }) {
         </div>
 
         <script>
-          ${BROWSER_NFC_HELPERS}
-          const baseUrl = "${baseUrl}";
-          const resetApiUrl = "${resetApiUrl}";
+          ${safe(BROWSER_NFC_HELPERS)}
+          const baseUrl = ${jsString(baseUrl)};
+          const resetApiUrl = ${jsString(resetApiUrl)};
           let wipeQrCode = null;
           let currentResetLink = "";
 

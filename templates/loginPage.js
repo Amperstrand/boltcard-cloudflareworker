@@ -1,4 +1,4 @@
-import { rawHtml } from "../utils/rawTemplate.js";
+import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 
@@ -439,13 +439,13 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
     </div>
 
   <script>
-    ${BROWSER_NFC_HELPERS}
+    ${safe(BROWSER_NFC_HELPERS)}
     let loginTime = null;
     let timerInterval = null;
     let nfcAbortController = null;
     let lastNfcReadTime = 0;
-    const API_HOST = "${host}";
-    const DEFAULT_PROGRAMMING_ENDPOINT = "${defaultProgrammingEndpoint}";
+    const API_HOST = ${jsString(host)};
+    const DEFAULT_PROGRAMMING_ENDPOINT = ${jsString(defaultProgrammingEndpoint)};
     let currentUid = null;
     let currentProgrammingEndpoint = DEFAULT_PROGRAMMING_ENDPOINT;
 

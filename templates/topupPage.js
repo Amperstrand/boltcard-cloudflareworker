@@ -1,4 +1,4 @@
-import { rawHtml } from "../utils/rawTemplate.js";
+import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 
@@ -74,8 +74,8 @@ export function renderTopupPage({ host, currencyLabel }) {
     </div>
 
     <script>
-      ${BROWSER_NFC_HELPERS}
-      const API_HOST = "${host}";
+      ${safe(BROWSER_NFC_HELPERS)}
+      const API_HOST = ${jsString(host)};
       let amountInput = '0';
       let appState = 'idle';
       let abortController = null;

@@ -6,6 +6,8 @@ import { renderBulkWipePage } from "../templates/bulkWipePage.js";
 import { renderActivatePage, renderActivateCardPage } from "../templates/activatePage.js";
 import { renderAnalyticsPage } from "../templates/analyticsPage.js";
 import { renderWipePage } from "../templates/wipePage.js";
+import { rawHtml, safe, jsString, escapeHtml } from "../utils/rawTemplate.js";
+import { renderOperatorLoginPage } from "../templates/operatorLoginPage.js";
 
 describe("response helpers", () => {
   test("buildErrorPayload preserves backward-compatible fields", () => {
@@ -104,5 +106,61 @@ describe("refactored page renderers", () => {
     const html = renderActivateCardPage();
     expect(html).toContain("function browserSupportsNfc()");
     expect(html).toContain("normalizeNfcSerial(event.serialNumber)");
+  });
+});
+
+describe("XSS auto-escape", () => {
+  test("rawHtml auto-escapes interpolated values", () => {
+    const html = rawHtml`<div>${'<script>alert(1)</script>'}</div>`;
+    expect(html).toBe("<div>&lt;script&gt;alert(1)&lt;/script&gt;</div>");
+  });
+
+  test("safe() bypasses escaping", () => {
+    const html = rawHtml`<div>${safe('<b>bold</b>')}</div>`;
+    expect(html).toBe("<div><b>bold</b></div>");
+  });
+
+  test("escapeHtml escapes all dangerous characters", () => {
+    expect(escapeHtml('<>&"\'')).toBe("&lt;&gt;&amp;&quot;&#39;");
+  });
+
+  test("jsString produces JSON-safe string", () => {
+    const html = rawHtml`const x = ${jsString('hello "world"')};`;
+    expect(html).toBe('const x = "hello \\"world\\"";');
+  });
+
+  test("jsString escapes script injection", () => {
+    const html = rawHtml`const x = ${jsString('</script><script>alert(1)</script>')};`;
+    expect(html).not.toContain("</script>");
+  });
+
+  test("operator login page escapes returnTo parameter", () => {
+    const html = renderOperatorLoginPage({ returnTo: '"><script>alert(1)</script>' });
+    expect(html).not.toContain('"><script>');
+    expect(html).toContain("&quot;&gt;");
+  });
+
+  test("operator login page escapes error messages", () => {
+    const html = renderOperatorLoginPage({ error: '<img src=x onerror=alert(1)>' });
+    expect(html).not.toContain("<img");
+    expect(html).toContain("&lt;img");
+  });
+
+  test("pageShell escapes title and bodyClass", () => {
+    const html = renderTailwindPage({
+      title: '<script>alert("xss")</script>',
+      bodyClass: '"><script>alert(1)</script>',
+      content: "<p>safe content</p>",
+    });
+    expect(html).not.toContain("<script>alert");
+    expect(html).toContain("&lt;script&gt;");
+  });
+
+  test("pageShell marks content as safe (pre-rendered HTML)", () => {
+    const html = renderTailwindPage({
+      title: "Test",
+      content: "<div class='custom'>Hello</div>",
+    });
+    expect(html).toContain("<div class='custom'>Hello</div>");
   });
 });

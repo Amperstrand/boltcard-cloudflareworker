@@ -1,5 +1,5 @@
 import { validateUid } from "../utils/validation.js";
-import { rawHtml } from "../utils/rawTemplate.js";
+import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 
 const BROWSER_VALIDATE_UID_HELPER = rawHtml`
@@ -33,7 +33,7 @@ export function renderBulkWipePage({ baseUrl, keyOptionsHtml }) {
             <div class="mb-2">
               <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Known Issuer Key</label>
               <select id="key-select" class="w-full bg-gray-900 border border-gray-700 text-gray-200 font-mono p-3 rounded focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors">
-${keyOptionsHtml}                <option value="custom">Custom key...</option>
+ ${safe(keyOptionsHtml)}                <option value="custom">Custom key...</option>
               </select>
             </div>
           </div>
@@ -81,7 +81,7 @@ ${keyOptionsHtml}                <option value="custom">Custom key...</option>
         <script>
 ${BROWSER_VALIDATE_UID_HELPER}
 
-          const baseUrl = "${baseUrl}";
+          const baseUrl = ${jsString(baseUrl)};
 
           // Toggle custom key section
           document.getElementById('key-select').addEventListener('change', (e) => {

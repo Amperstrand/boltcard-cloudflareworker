@@ -1,4 +1,4 @@
-import { rawHtml } from "../utils/rawTemplate.js";
+import { rawHtml, safe } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 
@@ -174,7 +174,7 @@ export function renderNfcPage() {
 
         <script type="module">
           import QrScanner from "https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner.min.js";
-          ${BROWSER_NFC_HELPERS}
+          ${safe(BROWSER_NFC_HELPERS)}
 
           let lastScannedUrl = "";
           let callbackUrl = "";

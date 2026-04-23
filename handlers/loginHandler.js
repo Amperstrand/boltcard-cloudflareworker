@@ -105,8 +105,8 @@ export async function handleLoginVerify(request, env) {
               k0: perCard.k0,
               k1: perCard.k1,
               k2: perCard.k2,
-              k3: perCard.k1,
-              k4: perCard.k2,
+              k3: perCard.k3 || deriveKeysFromHex(uidHex, candidate.hex, matchedVersion).k3,
+              k4: perCard.k4 || deriveKeysFromHex(uidHex, candidate.hex, matchedVersion).k4,
             };
             const { cmac_validated: pcCmac } = validate_cmac(uidBytes, ctrBytes, cHex, hexToBytes(perCard.k2));
             matchedCmacValid = pcCmac;
@@ -214,7 +214,6 @@ export async function handleLoginVerify(request, env) {
       cardType: pm,
       cmacValid: matchedCmacValid,
       issuerKey: matchedIssuer.label,
-      issuerKeyHex: perCardSource ? undefined : matchedIssuer.hex,
       k0: matchedKeys.k0,
       k1: matchedKeys.k1,
       k2: matchedKeys.k2,

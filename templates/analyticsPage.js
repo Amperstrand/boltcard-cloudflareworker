@@ -1,5 +1,5 @@
 import { validateUid } from "../utils/validation.js";
-import { rawHtml } from "../utils/rawTemplate.js";
+import { rawHtml, safe } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 
 const BROWSER_VALIDATE_UID_HELPER = rawHtml`
@@ -103,7 +103,7 @@ export function renderAnalyticsPage() {
   </div>
 
   <script>
-${BROWSER_VALIDATE_UID_HELPER}
+ ${safe(BROWSER_VALIDATE_UID_HELPER)}
 
     function formatMsat(msat) {
       if (!msat || msat === 0) return '0 sats';

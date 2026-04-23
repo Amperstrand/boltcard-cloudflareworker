@@ -1,4 +1,4 @@
-import { rawHtml } from "../utils/rawTemplate.js";
+import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 
@@ -107,8 +107,8 @@ export function renderPosPage({ host, currencyLabel }) {
     </div>
 
     <script>
-      ${BROWSER_NFC_HELPERS}
-      const API_HOST = "${host}";
+      ${safe(BROWSER_NFC_HELPERS)}
+      const API_HOST = ${jsString(host)};
       let amountInput = '0';
       let appState = 'idle';
       let currentReader = null;
@@ -183,7 +183,7 @@ export function renderPosPage({ host, currencyLabel }) {
         var parts = normalized.split('.');
         var whole = parts[0] || '0';
         var fraction = parts[1];
-        return (whole.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + (fraction !== undefined ? '.' + fraction : '')) + ' ${currencyLabel || "credits"}';
+        return (whole.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + (fraction !== undefined ? '.' + fraction : '')) + ' ' + ${jsString(currencyLabel || "credits")};
       }
 
       function formatDisplayOnly(value) {
@@ -283,7 +283,7 @@ export function renderPosPage({ host, currencyLabel }) {
           html += '<div class="flex justify-between text-xs text-gray-400"><span>' + c.name + ' x' + c.qty + '</span><span>' + subtotal + '</span></div>';
         }
         cartItemsEl.innerHTML = html;
-        cartTotal.textContent = total + ' ${currencyLabel || "credits"}';
+        cartTotal.textContent = total + ' ' + ${jsString(currencyLabel || "credits")};
         cartCount.textContent = totalQty + ' item' + (totalQty !== 1 ? 's' : '');
       }
 
@@ -322,7 +322,7 @@ export function renderPosPage({ host, currencyLabel }) {
         var overlayActive = appState === 'charging' || appState === 'scanning' || appState === 'processing';
         if (overlayActive) {
           tapOverlay.classList.add('visible');
-          overlayAmount.textContent = (posMode === 'menu' ? getCartTotal() : formatDisplayOnly(chargeAmount)) + ' ${currencyLabel || "credits"}';
+          overlayAmount.textContent = (posMode === 'menu' ? getCartTotal() : formatDisplayOnly(chargeAmount)) + ' ' + ${jsString(currencyLabel || "credits")};
         } else {
           tapOverlay.classList.remove('visible');
         }
