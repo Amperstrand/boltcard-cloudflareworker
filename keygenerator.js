@@ -37,7 +37,12 @@ export async function getDeterministicKeys(uidHex, env, version = 1) {
   if (!uidHex || uidHex.length !== 14) {
     throw new Error(`Invalid UID: "${uidHex}" is not exactly 7 bytes (14 hex characters). Received ${uidHex ? uidHex.length : 'no'} characters.`);
   }
-  const issuerKeyHex = (env && env.ISSUER_KEY) ? env.ISSUER_KEY : "00000000000000000000000000000001";
+  const issuerKeyHex = (env && env.ISSUER_KEY) ? env.ISSUER_KEY : (() => {
+    if (env && env.WORKER_ENV === "production") {
+      throw new Error("ISSUER_KEY must be set in production");
+    }
+    return "00000000000000000000000000000001";
+  })();
   const result = deriveKeysFromHex(uidHex, issuerKeyHex, version);
   const uid = hexToBytes(uidHex);
   const issuerKey = hexToBytes(issuerKeyHex);

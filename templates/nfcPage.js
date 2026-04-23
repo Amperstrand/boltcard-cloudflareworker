@@ -41,7 +41,7 @@ export function renderNfcPage() {
               </div>
             </div>
 
-            <div class="mt-6 grid gap-4 md:grid-cols-3">
+            <div class="mt-6 grid gap-4 md:grid-cols-2">
               <div class="rounded-xl border border-gray-800 bg-gray-950/70 p-4">
                 <div class="text-xs font-semibold uppercase tracking-[0.25em] text-gray-500">Card UID</div>
                 <div id="uid-box" class="mt-3 break-all font-mono text-sm text-amber-400">Waiting for scan...</div>
@@ -51,11 +51,21 @@ export function renderNfcPage() {
                 <div class="text-xs font-semibold uppercase tracking-[0.25em] text-gray-500">NDEF payload</div>
                 <div id="ndef-box" class="mt-3 break-all font-mono text-xs leading-6 text-gray-300">Waiting for NFC scan...</div>
               </div>
+            </div>
 
-              <div class="rounded-xl border border-gray-800 bg-gray-950/70 p-4">
-                <div class="text-xs font-semibold uppercase tracking-[0.25em] text-gray-500">Decoded LNURLW</div>
-                <div id="lnurlw-details" class="mt-3 text-sm leading-6 text-gray-300">Scan a card to load callback, limits, and payment metadata.</div>
+            <div id="identity-section" class="mt-4 hidden rounded-2xl border border-purple-500/30 bg-purple-500/5 p-6 shadow-xl shadow-black/20">
+              <div class="flex items-center gap-3 mb-4">
+                <div id="identity-status-dot" class="h-3 w-3 rounded-full bg-gray-500"></div>
+                <p class="text-xs font-semibold uppercase tracking-[0.25em] text-purple-400">Card Identification</p>
               </div>
+              <div id="identity-details" class="space-y-3 text-sm leading-6 text-gray-300">
+                <p class="text-gray-500">Identifying card...</p>
+              </div>
+            </div>
+
+            <div class="mt-4 rounded-xl border border-gray-800 bg-gray-950/70 p-4">
+              <div class="text-xs font-semibold uppercase tracking-[0.25em] text-gray-500">Decoded LNURLW</div>
+              <div id="lnurlw-details" class="mt-3 text-sm leading-6 text-gray-300">Scan a card to load callback, limits, and payment metadata.</div>
             </div>
 
             <div id="error-message" class="mt-4 hidden rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200"></div>
@@ -280,6 +290,16 @@ export function renderNfcPage() {
 
                 if (nfcData.startsWith("https://") && nfcData !== lastScannedUrl) {
                   lastScannedUrl = nfcData;
+
+                  try {
+                    const nfcUrl = new URL(nfcData);
+                    const pVal = nfcUrl.searchParams.get("p");
+                    const cVal = nfcUrl.searchParams.get("c");
+                    if (pVal && cVal) {
+                      identifyCard(pVal, cVal);
+                    }
+                  } catch {}
+
                   await fetchJsonAndHandlePayment(nfcData);
                 }
               };
@@ -301,6 +321,71 @@ export function renderNfcPage() {
                 showError("Unable to start NFC: " + error.message);
                 ndefBox.textContent = "Error: " + error.message;
               }
+            }
+          }
+
+          async function identifyCard(pVal, cVal) {
+            const section = document.getElementById("identity-section");
+            const details = document.getElementById("identity-details");
+            const dot = document.getElementById("identity-status-dot");
+            section.classList.remove("hidden");
+            dot.className = "h-3 w-3 rounded-full bg-yellow-400 animate-pulse";
+            details.innerHTML = '<p class="text-gray-500">Identifying card...</p>';
+
+            try {
+              const resp = await fetch("/api/identify-card", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ p: pVal, c: cVal }),
+              });
+              const data = await resp.json();
+
+              if (data.status === "ERROR") {
+                dot.className = "h-3 w-3 rounded-full bg-red-400";
+                details.innerHTML = '<p class="text-red-300">' + (data.reason || "Identification failed") + '</p>';
+                return;
+              }
+
+              if (data.matched) {
+                dot.className = "h-3 w-3 rounded-full bg-emerald-400";
+                const m = data.matched;
+                const versionLabel = m.version !== undefined ? ' (version ' + m.version + ')' : '';
+                const sourceLabel = m.source === "config" ? "Known card" : "Deterministic fallback";
+                const methodLabel = m.payment_method ? ' · ' + m.payment_method : '';
+                const stateLabel = m.card_state ? ' · state: ' + m.card_state : '';
+                const idLabel = m.id ? ' · id: ' + m.id.slice(0, 16) + '...' : '';
+                details.innerHTML =
+                  '<div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">' +
+                  '<div><span class="font-semibold text-gray-100">Source:</span> <span class="text-purple-200">' + sourceLabel + versionLabel + '</span></div>' +
+                  '<div><span class="font-semibold text-gray-100">UID:</span> <span class="font-mono text-amber-300">' + data.uid + '</span></div>' +
+                  '<div><span class="font-semibold text-gray-100">Counter:</span> <span class="font-mono text-cyan-300">' + data.counter + '</span></div>' +
+                  '<div><span class="font-semibold text-gray-100">CMAC:</span> <span class="text-emerald-300">valid</span></div>' +
+                  '</div>' +
+                  '<div class="mt-2 text-xs text-gray-400">' + methodLabel + stateLabel + idLabel + '</div>';
+
+                if (data.all_attempts && data.all_attempts.length > 1) {
+                  const others = data.all_attempts.filter(a => !a.cmac_validated);
+                  if (others.length > 0) {
+                    details.innerHTML += '<div class="mt-2 text-xs text-gray-500">Also tried ' + others.length + ' other key(s) without CMAC match.</div>';
+                  }
+                }
+              } else {
+                dot.className = "h-3 w-3 rounded-full bg-red-400";
+                let html = '<div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">' +
+                  '<div><span class="font-semibold text-gray-100">UID:</span> <span class="font-mono text-amber-300">' + data.uid + '</span></div>' +
+                  '<div><span class="font-semibold text-gray-100">Counter:</span> <span class="font-mono text-cyan-300">' + data.counter + '</span></div>' +
+                  '<div><span class="font-semibold text-gray-100">CMAC:</span> <span class="text-red-300">no match</span></div>' +
+                  '</div>';
+                if (data.all_attempts && data.all_attempts.length > 0) {
+                  html += '<div class="mt-2 text-xs text-gray-500">Tried ' + data.all_attempts.length + ' key(s) (config + deterministic v0-v10). None matched CMAC.</div>';
+                } else {
+                  html += '<div class="mt-2 text-xs text-gray-500">No keys available to try. Card may not be programmed for this issuer.</div>';
+                }
+                details.innerHTML = html;
+              }
+            } catch (err) {
+              dot.className = "h-3 w-3 rounded-full bg-red-400";
+              details.innerHTML = '<p class="text-red-300">Error: ' + err.message + '</p>';
             }
           }
 

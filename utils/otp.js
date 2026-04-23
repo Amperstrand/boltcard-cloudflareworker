@@ -1,6 +1,11 @@
 import { computeAesCmac, hexToBytes } from "../cryptoutils.js";
 
 export function deriveOtpSecret(env, uidHex, domainTag) {
+  if (!env?.ISSUER_KEY) {
+    if (env?.WORKER_ENV === "production") {
+      throw new Error("ISSUER_KEY must be set in production");
+    }
+  }
   const issuerKeyHex = env?.ISSUER_KEY || "00000000000000000000000000000001";
   const issuerKey = hexToBytes(issuerKeyHex);
   const uid = hexToBytes(uidHex);

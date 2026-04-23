@@ -63,7 +63,7 @@ export async function handleOperatorLogin(request, env) {
   }
 }
 
-export async function handleOperatorLogout(request) {
+export async function handleOperatorLogout(request, env) {
   const auth = await requireOperator(request, env);
   void auth;
   logger.info("Operator logged out");

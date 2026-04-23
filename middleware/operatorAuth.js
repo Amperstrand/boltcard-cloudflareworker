@@ -105,7 +105,7 @@ function buildExpiredCookie() {
 export async function requireOperator(request, env) {
   const secret = env.OPERATOR_SESSION_SECRET || DEV_SESSION_SECRET;
 
-  if (env.__TEST_OPERATOR_SESSION) {
+  if (env.__TEST_OPERATOR_SESSION && env.WORKER_ENV !== "production") {
     return { authorized: true, session: env.__TEST_OPERATOR_SESSION };
   }
 
@@ -139,6 +139,14 @@ export async function requireOperator(request, env) {
 }
 
 export function validatePinConfig(env) {
+  if (env.WORKER_ENV === "production") {
+    if (!env.OPERATOR_PIN || typeof env.OPERATOR_PIN !== "string" || env.OPERATOR_PIN.length < MIN_PIN_LENGTH) {
+      return false;
+    }
+    if (!env.OPERATOR_SESSION_SECRET || typeof env.OPERATOR_SESSION_SECRET !== "string") {
+      return false;
+    }
+  }
   if (env.OPERATOR_PIN !== undefined && env.OPERATOR_PIN !== null && env.OPERATOR_PIN !== "") {
     const pin = env.OPERATOR_PIN;
     return typeof pin === "string" && pin.length >= MIN_PIN_LENGTH;
@@ -147,11 +155,17 @@ export function validatePinConfig(env) {
 }
 
 export function checkPin(provided, env) {
+  if (env.WORKER_ENV === "production" && !env.OPERATOR_PIN) {
+    throw new Error("OPERATOR_PIN must be set in production");
+  }
   const expected = env.OPERATOR_PIN || DEV_PIN;
   return constantTimeComparePin(provided, expected);
 }
 
 export async function createSession(env) {
+  if (env.WORKER_ENV === "production" && !env.OPERATOR_SESSION_SECRET) {
+    throw new Error("OPERATOR_SESSION_SECRET must be set in production");
+  }
   const secret = env.OPERATOR_SESSION_SECRET || DEV_SESSION_SECRET;
   const shiftId = crypto.randomUUID();
   const payload = createSessionPayload(shiftId);

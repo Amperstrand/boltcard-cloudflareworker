@@ -160,3 +160,46 @@ describe("constants", () => {
     expect(MIN_PIN_LENGTH).toBe(4);
   });
 });
+
+describe("production guards", () => {
+  const prodEnv = { WORKER_ENV: "production" };
+
+  it("validatePinConfig rejects missing PIN in production", () => {
+    expect(validatePinConfig({ ...prodEnv })).toBe(false);
+  });
+
+  it("validatePinConfig rejects short PIN in production", () => {
+    expect(validatePinConfig({ ...prodEnv, OPERATOR_PIN: "12" })).toBe(false);
+  });
+
+  it("validatePinConfig rejects missing SESSION_SECRET in production", () => {
+    expect(validatePinConfig({ ...prodEnv, OPERATOR_PIN: "1234" })).toBe(false);
+  });
+
+  it("validatePinConfig accepts properly configured production env", () => {
+    expect(validatePinConfig({ ...prodEnv, OPERATOR_PIN: "1234", OPERATOR_SESSION_SECRET: "real-secret" })).toBe(true);
+  });
+
+  it("checkPin throws in production when OPERATOR_PIN is missing", () => {
+    expect(() => checkPin("1234", prodEnv)).toThrow("OPERATOR_PIN must be set in production");
+  });
+
+  it("createSession throws in production when OPERATOR_SESSION_SECRET is missing", async () => {
+    await expect(createSession(prodEnv)).rejects.toThrow("OPERATOR_SESSION_SECRET must be set in production");
+  });
+
+  it("__TEST_OPERATOR_SESSION bypass is ignored in production", async () => {
+    const prodTestEnv = { ...prodEnv, __TEST_OPERATOR_SESSION: { shiftId: "evil" } };
+    const request = makeRequest();
+    const result = await requireOperator(request, prodTestEnv);
+    expect(result.authorized).toBe(false);
+  });
+
+  it("__TEST_OPERATOR_SESSION bypass works in non-production", async () => {
+    const devTestEnv = { __TEST_OPERATOR_SESSION: { shiftId: "test-shift" } };
+    const request = makeRequest();
+    const result = await requireOperator(request, devTestEnv);
+    expect(result.authorized).toBe(true);
+    expect(result.session.shiftId).toBe("test-shift");
+  });
+});

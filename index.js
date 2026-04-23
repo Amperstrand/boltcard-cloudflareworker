@@ -37,6 +37,7 @@ import { handleRefundPage, handleRefundApply } from "./handlers/refundHandler.js
 import { handleBalanceCheck } from "./handlers/balanceCheckHandler.js";
 import { handleReceipt } from "./handlers/receiptHandler.js";
 import { handleMenuEditorPage, handleMenuGet, handleMenuPut } from "./handlers/menuEditorHandler.js";
+import { handleIdentifyCard } from "./handlers/identifyCardHandler.js";
 
 const router = Router();
 
@@ -73,15 +74,15 @@ router.get("/operator/pos/menu", withOperatorAuth((request, env) => handleMenuEd
 router.put("/operator/pos/menu", withOperatorAuth((request, env) => handleMenuPut(request, env)));
 router.get("/api/pos/menu", withOperatorAuth((request, env) => handleMenuGet(request, env)));
 router.get("/api/receipt/:txnId", withOperatorAuth((request, env) => handleReceipt(request, env)));
-router.post("/activate/form", (request, env) => handleActivateCardSubmit(request, env));
+router.post("/activate/form", withOperatorAuth((request, env) => handleActivateCardSubmit(request, env)));
 router.get("/lnurlp/cb", (request, env) => handleLnurlPayCallback(request, env));
 router.get("/api/verify-identity", (request, env) => handleIdentityVerify(request, env));
 router.post("/api/identity/profile", (request, env) => handleIdentityProfileUpdate(request, env));
 router.get("/operator/login", (request) => handleOperatorLoginPage(request));
 router.post("/operator/login", (request, env) => handleOperatorLogin(request, env));
+router.post("/api/identify-card", withOperatorAuth((request, env) => handleIdentifyCard(request, env)));
 router.post("/operator/logout", (request, env) => handleOperatorLogout(request, env));
-router.get("/operator", withOperatorAuth((request, env) => {
-  const host = new URL(request.url).origin;
+router.get("/operator", withOperatorAuth(() => {
   return new Response(null, { status: 302, headers: { Location: "/operator/pos" } });
 }));
 router.get("/operator/topup", withOperatorAuth((request, env) => handleTopupPage(request, env)));

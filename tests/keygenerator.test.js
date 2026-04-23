@@ -48,3 +48,14 @@ test("extractUIDAndCounter works with ISSUER_KEY-only env", () => {
     ctr: "00004e",
   });
 });
+
+test("getDeterministicKeys throws in production when ISSUER_KEY is missing", async () => {
+  const prodEnv = { WORKER_ENV: "production" };
+  await expect(getDeterministicKeys("04a39493cc8680", prodEnv)).rejects.toThrow("ISSUER_KEY must be set in production");
+});
+
+test("getDeterministicKeys uses fallback in dev when ISSUER_KEY is missing", async () => {
+  const devEnv = {};
+  const keys = await getDeterministicKeys("04a39493cc8680", devEnv);
+  expect(keys.k0).toBe("a29119fcb48e737d1591d3489557e49b");
+});
