@@ -180,7 +180,7 @@ describe("POS Amount Parameter Support", () => {
 
     expect(listJson.taps).toHaveLength(1);
     expect(listJson.taps[0].amount_msat).toBe(10000);
-    expect(listJson.taps[0].bolt11).toBe("fakewallet");
+    expect(listJson.taps[0].bolt11).toBeNull();
   });
 
   test("callback handler rejects request when both pr and amount are missing", async () => {

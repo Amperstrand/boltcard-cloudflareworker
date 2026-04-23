@@ -80,7 +80,7 @@ export async function handleLnurlpPayment(request, env) {
 
       try {
         const tapResult = await recordTap(env, normalizedUidHex, counterValue, {
-          bolt11: invoice || "fakewallet",
+          bolt11: invoice || null,
           amountMsat: explicitAmount != null ? parseInt(explicitAmount, 10) : decodeBolt11Amount(invoice),
           userAgent: request.headers.get("User-Agent") || null,
           requestUrl: request.url,
@@ -94,7 +94,7 @@ export async function handleLnurlpPayment(request, env) {
         return jsonResponse({ status: "ERROR", reason: "Tap recording unavailable" }, 500);
       }
 
-      const withdrawalResponse = await processWithdrawalPayment(normalizedUidHex, invoice || "fakewallet", env, counterValue, explicitAmount ? parseInt(explicitAmount, 10) : undefined);
+      const withdrawalResponse = await processWithdrawalPayment(normalizedUidHex, invoice || null, env, counterValue, explicitAmount ? parseInt(explicitAmount, 10) : undefined);
 
       if (withdrawalResponse.status === 200 || withdrawalResponse.status === 201) {
         await updateTapStatus(env, normalizedUidHex, counterValue, "completed").catch(e => logger.warn("Failed to update tap status to completed", { uidHex: normalizedUidHex, error: e.message }));

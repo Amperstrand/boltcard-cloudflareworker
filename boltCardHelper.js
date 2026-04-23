@@ -112,6 +112,8 @@ export function validate_cmac(uidBytes, ctr, cHex, k2Bytes) {
     }
     return verification;
   }
+
+  return { cmac_validated: false, cmac_error: "K2 key not available" };
 }
 
 /**
