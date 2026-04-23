@@ -4,9 +4,7 @@
   "type": "module",
   "private": true,
   "devDependencies": {
-    "axios": "^1.8.1",
     "jest": "^29.7.0",
-    "jest-github-actions-reporter": "^1.0.3",
     "miniflare": "^4.20260116.0",
     "wrangler": "^4.59.3"
   },

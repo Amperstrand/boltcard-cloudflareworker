@@ -75,11 +75,20 @@
 | `/` | `handleLnurlw()` | Card tap entry point (LNURL-withdraw) |
 | `/debug` | `handleDebugPage()` | Operator tools landing page |
 | `/identity` | `handleIdentityPage()` | Identity/access control demo |
-| `/pos` | `handlePosPage()` | Fakewallet POS payment |
+| `/pos` | redirect → `/operator/pos` | Fakewallet POS payment |
 | `/login` | `handleLoginPage()` | NFC login + key recovery |
 | `/2fa` | `handleTwoFactor()` | TOTP + HOTP one-time passwords |
 | `/api/fake-invoice` | inline | Generate fake bolt11 for fakewallet |
 | `/api/verify-identity` | `handleIdentityVerify()` | Identity verification API |
+| `/api/identify-card` | `handleIdentifyCard()` | Operator card identification |
+| `/api/balance-check` | `handleBalanceCheck()` | Card balance query |
+| `/api/pos/menu` | `handleMenuGet()` | POS menu retrieval |
+| `/api/receipt/:txnId` | `handleReceipt()` | Transaction receipt |
+| `/operator/login` | `handleOperatorLoginPage()` | Operator PIN login |
+| `/operator/logout` | `handleOperatorLogout()` | Operator session logout |
+| `/operator/pos` | `handlePosPage()` | POS terminal |
+| `/operator/topup` | `handleTopupPage()` | Card top-up |
+| `/operator/refund` | `handleRefundPage()` | Card refund |
 | `/experimental/nfc` | `handleNfc()` | NFC test console |
 | `/experimental/activate` | `handleActivatePage()` | Card programming + activation |
 | `/experimental/analytics` | `handleAnalyticsPage()` | Per-card analytics |
@@ -88,7 +97,8 @@
 ## Conventions
 
 - `errorResponse()` from `utils/responses.js` for all error paths
-- `renderTailwindPage()` + `rawHtml` tagged template for all HTML pages
+- `renderTailwindPage()` + `rawHtml` tagged template for all HTML pages (auto-escapes interpolations; use `safe()` for known-safe HTML, `jsString()` for JS contexts)
+- `validateCardTap()` from `utils/validateCardTap.js` for card-tap validation in operator handlers
 - `BROWSER_NFC_HELPERS` from `templates/browserNfc.js` for NFC pages
 - Tests use `makeReplayNamespace()` (in-memory DO mock) from `tests/replayNamespace.js`
 - Commit style: semantic (`feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`)
@@ -97,6 +107,6 @@
 
 ## Test Baseline
 
-- 287 tests across 20 suites (as of full-project-review wave 2)
+- 363 tests across 24 suites
 - Run: `npm test` (uses Jest with `--experimental-vm-modules`)
 - Deploy: `npm run deploy` (tests → build_keys → wrangler deploy)

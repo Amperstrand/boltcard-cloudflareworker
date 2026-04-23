@@ -60,45 +60,6 @@ class Logger {
       console.log(this.formatMessage('trace', message, context));
     }
   }
-
-  logRequest(request) {
-    if (this.shouldLog('debug')) {
-      const url = new URL(request.url);
-      this.debug('Incoming request', {
-        method: request.method,
-        url: request.url,
-        pathname: url.pathname,
-        searchParams: Object.fromEntries(url.searchParams)
-      });
-    }
-  }
-
-  logResponse(status, body, context = {}) {
-    if (this.shouldLog('debug')) {
-      this.debug('Response sent', {
-        status,
-        bodyLength: typeof body === 'string' ? body.length : 'object',
-        ...context
-      });
-    }
-  }
-
-  logError(error, context = {}) {
-    this.error(error.message || 'Unknown error', {
-      stack: error.stack,
-      ...context
-    });
-  }
-
-  logCrypto(operation, context = {}) {
-    if (this.shouldLog('debug')) {
-      this.debug(`Crypto operation: ${operation}`, context);
-    }
-  }
-
-  logPayment(method, action, context = {}) {
-    this.info(`Payment method [${method}]: ${action}`, context);
-  }
 }
 
 export const logger = new Logger('info');

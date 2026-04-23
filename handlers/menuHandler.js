@@ -41,14 +41,3 @@ export async function saveMenu(env, terminalId, menu) {
     return errorResponse("Failed to save menu", 500);
   }
 }
-
-export async function deleteMenu(env, terminalId) {
-  if (!env.UID_CONFIG) return errorResponse("KV not available", 500);
-  try {
-    await env.UID_CONFIG.delete(menuKey(terminalId));
-    return jsonResponse({ success: true, terminalId });
-  } catch (e) {
-    logger.error("Failed to delete POS menu", { terminalId, error: e.message });
-    return errorResponse("Failed to delete menu", 500);
-  }
-}
