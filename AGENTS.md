@@ -78,6 +78,9 @@
 | `/pos` | redirect → `/operator/pos` | Fakewallet POS payment |
 | `/login` | `handleLoginPage()` | NFC login + key recovery |
 | `/2fa` | `handleTwoFactor()` | TOTP + HOTP one-time passwords |
+| `/wipe` | `withOperatorAuth(handleReset)` | Wipe/re-provision card (auth required) |
+| `/activate/form` | `handleActivateCardSubmit()` | Card activation form submit |
+| `/lnurlp/cb` | `handleLnurlPayCallback()` | LNURL-pay callback (POS cards) |
 | `/api/fake-invoice` | inline | Generate fake bolt11 for fakewallet |
 | `/api/verify-identity` | `handleIdentityVerify()` | Identity verification API |
 | `/api/identify-card` | `handleIdentifyCard()` | Operator card identification |
@@ -89,17 +92,21 @@
 | `/operator/pos` | `handlePosPage()` | POS terminal |
 | `/operator/topup` | `handleTopupPage()` | Card top-up |
 | `/operator/refund` | `handleRefundPage()` | Card refund |
+| `/operator/menu` | `handleMenuEditorPage()` | Menu editor (CRUD) |
 | `/experimental/nfc` | `handleNfc()` | NFC test console |
 | `/experimental/activate` | `handleActivatePage()` | Card programming + activation |
 | `/experimental/analytics` | `handleAnalyticsPage()` | Per-card analytics |
 | `/experimental/bulkwipe` | `handleBulkWipePage()` | Batch card operations |
+| `/experimental/wipe` | `handleWipePage()` | Single card wipe |
 
 ## Conventions
 
 - `errorResponse()` from `utils/responses.js` for all error paths
 - `renderTailwindPage()` + `rawHtml` tagged template for all HTML pages (auto-escapes interpolations; use `safe()` for known-safe HTML, `jsString()` for JS contexts)
 - `validateCardTap()` from `utils/validateCardTap.js` for card-tap validation in operator handlers
-- `BROWSER_NFC_HELPERS` from `templates/browserNfc.js` for NFC pages
+- `BROWSER_NFC_HELPERS` from `templates/browserNfc.js` for NFC pages (includes `CSRF_FETCH_HELPER` for automatic CSRF token injection)
+- CSRF: double-submit cookie (`op_csrf`) on operator pages; `withOperatorAuth` validates on mutating methods; test bypass via `__TEST_OPERATOR_SESSION`
+- LNURLW replay: Step 1 (`GET /`) atomically advances counter via `checkAndAdvanceCounter`; callback detects replay via `listTaps` bolt11 check
 - Tests use `makeReplayNamespace()` (in-memory DO mock) from `tests/replayNamespace.js`
 - Commit style: semantic (`feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`)
 - Never commit without explicit user request
@@ -107,6 +114,5 @@
 
 ## Test Baseline
 
-- 363 tests across 24 suites
 - Run: `npm test` (uses Jest with `--experimental-vm-modules`)
 - Deploy: `npm run deploy` (tests → build_keys → wrangler deploy)

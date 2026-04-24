@@ -272,7 +272,7 @@ To submit keys for a service, add a CSV file to `keys/` and run `node scripts/bu
 ```bash
 git clone <repository-url> && cd boltcard-cloudflareworker
 npm install
-npm test          # 339 tests across 23 suites
+npm test          # Run tests
 npm run deploy    # tests → build_keys → wrangler deploy
 ```
 
@@ -292,7 +292,7 @@ See [docs/VENUE-DEPLOYMENT.md](docs/VENUE-DEPLOYMENT.md) for the full guide.
 - **Card validation**: AES-ECB decrypt + AES-CMAC authenticate (RFC 4493) on every tap
 - **Replay protection**: Durable Object with SQLite — atomic counter check, strongly consistent, fails closed
 - **Operator auth**: HMAC-SHA256 signed session cookies, constant-time PIN comparison, 12h expiry
-- **Rate limiting**: IP-based fixed-window (100 req/min, optional via KV)
+- **Rate limiting**: IP-based fixed-window (login: 5 req/15min; default: 100 req/min; optional via KV)
 - **No offline mode**: If the worker is unreachable, taps fail
 
 ### Production Checklist
@@ -336,38 +336,10 @@ See [docs/VENUE-DEPLOYMENT.md](docs/VENUE-DEPLOYMENT.md) for the full guide.
 ## Testing
 
 ```bash
-npm test                              # Run all 339 tests
+npm test                              # Run all tests
 npm test -- --testNamePattern="pos"   # Run specific test pattern
 npm test -- --watch                   # Watch mode
 ```
-
-### Test Suites
-
-| Suite | Tests | What it covers |
-|---|---|---|
-| `bolt11.test.js` | 39 | BOLT11 invoice generation and parsing |
-| `cryptoutils.test.js` | 37 | AES encryption, CMAC, key operations |
-| `responsePatterns.test.js` | 27 | HTTP response format validation |
-| `loginHandler.test.js` | 21 | NFC login and key recovery |
-| `currency.test.js` | 17 | Currency formatting and parsing |
-| `operatorAuth.test.js` | 17 | PIN auth, session cookies, rate limiting |
-| `operatorFlows.test.js` | 18 | Top-up, POS charge, refund, balance, menu |
-| `getUidConfig.test.js` | 17 | UID config and K1 fallback guards |
-| `lnurlPay.test.js` | 13 | LNURL-pay payment method |
-| `tapTracking.test.js` | 13 | Counter timing and replay protection |
-| `worker.test.js` | 12 | API endpoints and request handling |
-| `keyLookup.test.js` | 11 | CSV-based key recovery |
-| `integration.test.js` | 11 | End-to-end integration |
-| `getKeysHandler.test.js` | 11 | Key lookup API |
-| `e2e/virtual-card.test.js` | 10 | Full NFC lifecycle E2E |
-| `bulkWipe.test.js` | 10 | Bulk card wipe |
-| `templateHelpers.test.js` | 9 | HTML template helpers |
-| `smoke.test.js` | 8 | Core functionality smoke tests |
-| `pos.test.js` | 8 | POS page rendering |
-| `logging.test.js` | 8 | Structured logging |
-| `debugIdentity.test.js` | 8 | Debug and identity pages |
-| `twoFactorHandler.test.js` | 6 | 2FA TOTP/HOTP codes |
-| `keygenerator.test.js` | 3 | Deterministic key generation |
 
 ## Project Structure
 
