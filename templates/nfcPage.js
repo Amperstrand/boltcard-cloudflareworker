@@ -5,6 +5,7 @@ import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 export function renderNfcPage() {
   return renderTailwindPage({
     title: "BoltCard NFC Console",
+    csrf: true,
     bodyClass: "min-h-screen bg-gray-950 text-gray-100 font-sans antialiased",
     styles: "body { background-color: #030712; color: #f3f4f6; }",
     content: rawHtml`
