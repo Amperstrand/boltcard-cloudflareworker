@@ -22,7 +22,7 @@ export async function handleOperatorLogin(request, env) {
     return errorResponse("Operator PIN not configured", 500);
   }
 
-  const rateLimit = await checkRateLimit(request, env, { maxRequests: 10 });
+  const rateLimit = await checkRateLimit(request, env, { maxRequests: 5, windowSeconds: 900 });
   if (!rateLimit.allowed) {
     return errorResponse("Too many login attempts. Try again later.", 429);
   }
