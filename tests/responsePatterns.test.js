@@ -74,6 +74,9 @@ const makeKvEnv = (initialStore = {}) => {
       put: async (key, value) => {
         kvStore[key] = value;
       },
+      delete: async (key) => {
+        delete kvStore[key];
+      },
     },
     CARD_REPLAY: replay,
     __kvStore: kvStore,

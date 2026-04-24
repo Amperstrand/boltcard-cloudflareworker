@@ -4,15 +4,17 @@ import { jsonResponse } from "../utils/responses.js";
 export async function handleStatus(request, env) {
   if (env?.UID_CONFIG) {
     try {
-      await env.UID_CONFIG.put('test', 'test');
-      const testValue = await env.UID_CONFIG.get('test');
+      const testKey = 'health-' + Date.now();
+      await env.UID_CONFIG.put(testKey, 'ok');
+      const testValue = await env.UID_CONFIG.get(testKey);
+      await env.UID_CONFIG.delete(testKey);
       return jsonResponse({
         status: 'OK',
-        kv_status: testValue === 'test' ? 'working' : 'not working',
+        kv_status: testValue === 'ok' ? 'working' : 'not working',
         message: 'Server is running'
       });
     } catch (error) {
-      logger.error('KV test error', { error: error.message });
+      logger.error('KV health check error', { error: error.message });
       return jsonResponse({
         status: 'ERROR',
         kv_status: 'error',
