@@ -181,18 +181,12 @@ describe("response patterns", () => {
     expect(html).toContain("OPEN NFC TEST CONSOLE");
   });
 
-  test("GET /nfc returns refreshed HTML console", async () => {
+  test("GET /experimental/nfc redirects to /debug#console", async () => {
     const response = await makeRequest("/experimental/nfc");
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Content-Type")).toContain("text/html");
-
-    const html = await response.text();
-    expect(html).toContain("BoltCard NFC Console");
-    expect(html).toContain("NFC test console");
-    expect(html).toContain("Back to debug tools");
-    expect(html).toContain("Scan invoice QR");
-    expect(html).toContain("Pay invoice");
+    expect(response.status).toBe(301);
+    const location = response.headers.get("Location");
+    expect(location).toBe("https://test.local/debug#console");
   });
 
   test("POST /activate/form returns success JSON for valid UID", async () => {
@@ -645,7 +639,7 @@ describe("response patterns", () => {
 
   describe("short-URL redirects", () => {
     const redirectPaths = [
-      { from: "/nfc", to: "/experimental/nfc" },
+      { from: "/nfc", to: "/debug#console" },
       { from: "/activate", to: "/experimental/activate" },
       { from: "/activate/form", to: "/experimental/activate/form" },
       { from: "/bulkwipe", to: "/experimental/bulkwipe" },

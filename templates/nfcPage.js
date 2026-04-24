@@ -278,16 +278,26 @@ export function renderNfcPage() {
                 clearError();
                 hidePaymentStatus();
 
+                const uid = event.serialNumber ? normalizeNfcSerial(event.serialNumber) : null;
+                uidBox.textContent = uid || "No UID available";
+
                 let nfcData = await extractNdefUrl(event.message.records, ["lnurlw://", "https://"]);
                 nfcData = normalizeBrowserNfcUrl(nfcData);
 
-                ndefBox.textContent = nfcData;
-
-                if (event.serialNumber) {
-                  uidBox.textContent = normalizeNfcSerial(event.serialNumber);
-                } else {
-                  uidBox.textContent = "No UID available";
+                if (!nfcData) {
+                  ndefBox.textContent = "No NDEF records (blank or unprogrammed card)";
+                  lnurlwDetails.innerHTML = '<span class="text-gray-500">No LNURLW payload found. This card may be blank or unprogrammed.</span>';
+                  lastScannedUrl = "";
+                  callbackUrl = "";
+                  k1 = "";
+                  jsonFetched = false;
+                  paymentUsed = false;
+                  updatePayButtonState();
+                  identifyCard(null, null);
+                  return;
                 }
+
+                ndefBox.textContent = nfcData;
 
                 if (nfcData.startsWith("https://") && nfcData !== lastScannedUrl) {
                   lastScannedUrl = nfcData;
@@ -329,6 +339,14 @@ export function renderNfcPage() {
             const section = document.getElementById("identity-section");
             const details = document.getElementById("identity-details");
             const dot = document.getElementById("identity-status-dot");
+
+            if (!pVal || !cVal) {
+              section.classList.remove("hidden");
+              dot.className = "h-3 w-3 rounded-full bg-gray-500";
+              details.innerHTML = '<p class="text-gray-500">No card data available.</p>';
+              return;
+            }
+
             section.classList.remove("hidden");
             dot.className = "h-3 w-3 rounded-full bg-yellow-400 animate-pulse";
             details.innerHTML = '<p class="text-gray-500">Identifying card...</p>';

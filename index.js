@@ -7,7 +7,6 @@ import { handleLnurlpPayment } from "./handlers/lnurlHandler.js";
 import { handleProxy } from "./handlers/proxyHandler.js";
 import { constructWithdrawResponse } from "./handlers/withdrawHandler.js";
 import { constructPayRequest, handleLnurlPayCallback } from "./handlers/lnurlPayHandler.js";
-import handleNfc from "./handlers/handleNfc.js";
 import { handleDebugPage } from "./handlers/debugHandler.js";
 import { handleIdentityPage, handleIdentityProfileUpdate, handleIdentityVerify } from "./handlers/identityHandler.js";
 import { getUidConfig } from "./getUidConfig.js";
@@ -123,7 +122,10 @@ router.post("/operator/refund/apply", withOperatorAuth((request, env, session) =
 router.post("/api/balance-check", (request, env) => handleBalanceCheck(request, env));
 
 router.get("/debug", withOperatorAuth((request) => handleDebugPage(request)));
-router.get("/experimental/nfc", withOperatorAuth(() => handleNfc()));
+router.get("/experimental/nfc", (request) => {
+  const origin = new URL(request.url).origin;
+  return new Response(null, { status: 301, headers: { Location: origin + "/debug#console" } });
+});
 router.get("/experimental/activate", withOperatorAuth((request, env) => handleActivatePage(request, env)));
 router.get("/experimental/activate/form", withOperatorAuth(() => handleActivateForm()));
 router.post("/experimental/activate/form", withOperatorAuth((request, env) => handleActivateCardSubmit(request, env)));
@@ -146,7 +148,7 @@ router.get("/identity", (request) => handleIdentityPage(request));
 // 301 redirects from old paths to /experimental/
 router.get("/nfc", (request) => {
   const origin = new URL(request.url).origin;
-  return new Response(null, { status: 301, headers: { Location: origin + "/experimental/nfc" } });
+  return new Response(null, { status: 301, headers: { Location: origin + "/debug#console" } });
 });
 router.get("/activate", (request) => {
   const origin = new URL(request.url).origin;

@@ -63,19 +63,19 @@ describe("Debug Page", () => {
     expect(resp.headers.get("content-type")).toContain("text/html");
   });
 
-  test("debug page contains all tool links", async () => {
+  test("debug page renders tabbed console", async () => {
     const env = makeEnv();
     const resp = await makeRequest("/debug", env);
     const html = await resp.text();
-    expect(html).toContain("/experimental/nfc");
-    expect(html).toContain("/experimental/analytics");
-    expect(html).toContain("/experimental/bulkwipe");
-    expect(html).toContain("/pos");
-    expect(html).toContain("/experimental/activate");
-    expect(html).toContain("/login");
-    expect(html).toContain("/identity");
-    expect(html).toContain("/2fa");
-    expect(html).toContain("Debug & Tools");
+    expect(html).toContain("Debug Console");
+    expect(html).toContain("debug-tab");
+    expect(html).toContain("panel-console");
+    expect(html).toContain("panel-identify");
+    expect(html).toContain("panel-wipe");
+    expect(html).toContain("panel-twofa");
+    expect(html).toContain("panel-identity");
+    expect(html).toContain("panel-pos");
+    expect(html).toContain("Card Info");
   });
 });
 

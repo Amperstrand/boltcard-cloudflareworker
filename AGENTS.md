@@ -80,7 +80,7 @@
 | GET | `/login` | `handleLoginPage()` | Login page |
 | POST | `/login` | `handleLoginVerify()` | Login verification |
 | GET | `/pos` | redirect → `/operator/pos` | Fakewallet POS payment |
-| GET | `/debug` | `handleDebugPage()` | Operator tools landing page |
+| GET | `/debug` | `handleDebugPage()` | Tabbed debug console (Console, Identify, Wipe, 2FA, Identity, POS) |
 | GET | `/identity` | `handleIdentityPage()` | Identity/access control demo |
 | GET | `/api/fake-invoice` | inline | Generate fake bolt11 for fakewallet |
 | GET | `/api/verify-identity` | `handleIdentityVerify()` | Identity verification API |
@@ -106,7 +106,7 @@
 | POST | `/operator/topup/apply` | `handleTopupApply()` | Top-up submit |
 | GET | `/operator/refund` | `handleRefundPage()` | Card refund page |
 | POST | `/operator/refund/apply` | `handleRefundApply()` | Refund submit |
-| GET | `/experimental/nfc` | `handleNfc()` | NFC test console |
+| GET | `/experimental/nfc` | redirect → `/debug#console` | Redirects to unified console |
 | GET | `/experimental/activate` | `handleActivatePage()` | Card programming + activation |
 | GET | `/experimental/activate/form` | `handleActivateForm()` | Activation form page |
 | POST | `/activate/form` | `handleActivateCardSubmit()` | Card activation submit |
@@ -115,7 +115,7 @@
 | GET | `/experimental/analytics` | `handleAnalyticsPage()` | Per-card analytics |
 | GET | `/experimental/analytics/data` | `handleAnalyticsData()` | Analytics data (JSON) |
 | GET | `/wipe` | inline | Short → `/experimental/wipe` |
-| GET | `/nfc` | redirect → `/experimental/nfc` | Short URL redirect |
+| GET | `/nfc` | redirect → `/debug#console` | Short URL redirect |
 | GET | `/activate` | redirect → `/experimental/activate` | Short URL redirect |
 | GET | `/activate/form` | redirect → `/experimental/activate/form` | Short URL redirect |
 | GET | `/bulkwipe` | redirect → `/experimental/bulkwipe` | Short URL redirect |
