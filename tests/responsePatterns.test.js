@@ -642,4 +642,36 @@ describe("response patterns", () => {
       global.fetch = originalFetch;
     }
   });
+
+  describe("short-URL redirects", () => {
+    const redirectPaths = [
+      { from: "/nfc", to: "/experimental/nfc" },
+      { from: "/activate", to: "/experimental/activate" },
+      { from: "/activate/form", to: "/experimental/activate/form" },
+      { from: "/bulkwipe", to: "/experimental/bulkwipe" },
+      { from: "/analytics", to: "/experimental/analytics" },
+    ];
+
+    for (const { from, to } of redirectPaths) {
+      test(`${from} redirects to ${to} with 301 and absolute URL`, async () => {
+        const response = await makeRequest(from);
+        expect(response.status).toBe(301);
+        const location = response.headers.get("Location");
+        expect(location).toBe("https://test.local" + to);
+        expect(location).toMatch(/^https:\/\//);
+      });
+    }
+
+    test("/pos redirects to /operator/pos with 302", async () => {
+      const response = await makeRequest("/pos");
+      expect(response.status).toBe(302);
+      expect(response.headers.get("Location")).toBe("/operator/pos");
+    });
+
+    test("/operator redirects to /operator/pos", async () => {
+      const response = await makeRequest("/operator", "GET", null, makeKvEnv());
+      expect(response.status).toBe(302);
+      expect(response.headers.get("Location")).toBe("/operator/pos");
+    });
+  });
 });
