@@ -1,5 +1,7 @@
 const COOKIE_NAME = "op_session";
+const CSRF_COOKIE_NAME = "op_csrf";
 const SESSION_MAX_AGE = 12 * 60 * 60;
+const CSRF_MAX_AGE = 12 * 60 * 60;
 const MIN_PIN_LENGTH = 4;
 const DEV_PIN = "1234";
 const DEV_SESSION_SECRET = "dev-only-session-secret-do-not-use-in-production";
@@ -173,7 +175,37 @@ export async function createSession(env) {
   return { cookie: buildSessionCookie(signed), shiftId };
 }
 
-export { buildExpiredCookie, COOKIE_NAME, MIN_PIN_LENGTH };
+export { buildExpiredCookie, COOKIE_NAME, MIN_PIN_LENGTH, CSRF_COOKIE_NAME };
+
+function generateCsrfToken() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return bufToBase64url(bytes);
+}
+
+function getCsrfCookie(request) {
+  const cookieHeader = request.headers.get("Cookie") || "";
+  const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${CSRF_COOKIE_NAME}=([^;]*)`));
+  return match ? match[1] : null;
+}
+
+export function buildCsrfCookie(token) {
+  return `${CSRF_COOKIE_NAME}=${token}; Secure; SameSite=Strict; Max-Age=${CSRF_MAX_AGE}; Path=/`;
+}
+
+export function validateCsrf(request, env) {
+  if (env && env.__TEST_OPERATOR_SESSION && env.WORKER_ENV !== "production") {
+    return true;
+  }
+  const cookieToken = getCsrfCookie(request);
+  const headerToken = request.headers.get("X-CSRF-Token");
+  if (!cookieToken || !headerToken) return false;
+  return constantTimeEqual(cookieToken, headerToken);
+}
+
+export function requireCsrf(request, env) {
+  return validateCsrf(request, env);
+}
 
 function errorHtmlResponse(message, status) {
   return new Response(`<!DOCTYPE html><html><head><title>Error</title></head><body><h1>${status}</h1><p>${message}</p></body></html>`, {

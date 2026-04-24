@@ -118,16 +118,16 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
   test("full withdraw lifecycle: provision → tap → callback → tap history", async () => {
     const k1Hex = env.BOLT_CARD_K1.split(",")[0];
 
-    // Step 1: Card tap — returns withdrawRequest, does NOT record counter (read-only check)
+    // Step 1: Card tap — returns withdrawRequest, atomically advances counter
     const { pHex, cHex } = virtualCardTap(UID, 1, k1Hex, keys.k2);
     const tapResp = await makeRequest(`/?p=${pHex}&c=${cHex}`, "GET", null, env);
     expect(tapResp.status).toBe(200);
     const tapJson = await tapResp.json();
     expect(tapJson.tag).toBe("withdrawRequest");
     expect(tapJson.callback).toContain("/boltcards/api/v1/lnurl/cb");
-    expect(env.CARD_REPLAY.__counters.has(UID)).toBe(false);
+    expect(env.CARD_REPLAY.__counters.get(UID)).toBe(1);
 
-    // Step 2: Wallet callback — records counter + tap
+    // Step 2: Wallet callback — processes payment (counter already advanced in Step 1)
     const cbResp = await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}&pr=lnbc10n1testinvoice`,
       "GET",
@@ -201,12 +201,14 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     expect([200, 400]).toContain(cb1.status);
     expect(env.CARD_REPLAY.__counters.get(UID)).toBe(1);
 
-    // Counter=2 Step 1 passes (checkReplayOnly: 2 > 1)
+    // Counter=2 Step 1 passes (atomic: 2 > 1)
     const tap2 = virtualCardTap(UID, 2, k1Hex, keys.k2);
     const step1 = await makeRequest(`/?p=${tap2.pHex}&c=${tap2.cHex}`, "GET", null, env);
     expect(step1.status).toBe(200);
 
-    // Counter=2 callback succeeds (step 1 read-only didn't record)
+    // Counter=2 callback: Step 1 already recorded counter, so callback's
+    // recordTap is rejected but falls through to updateTapStatus + payment processing.
+    // First callback for this counter succeeds with 200.
     const step2 = await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${tap2.pHex}?k1=${tap2.cHex}&pr=lnbc10n1second`,
       "GET",
@@ -217,7 +219,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     expect(env.CARD_REPLAY.__counters.get(UID)).toBe(2);
   });
 
-  test("Step 1 uses read-only replay check — repeated taps with same counter are allowed", async () => {
+  test("Step 1 atomically advances counter — repeated taps with same counter are rejected", async () => {
     const k1Hex = env.BOLT_CARD_K1.split(",")[0];
     const { pHex, cHex } = virtualCardTap(UID, 1, k1Hex, keys.k2);
 
@@ -225,9 +227,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     expect(first.status).toBe(200);
 
     const second = await makeRequest(`/?p=${pHex}&c=${cHex}`, "GET", null, env);
-    expect(second.status).toBe(200);
-
-    expect(env.CARD_REPLAY.__counters.has(UID)).toBe(false);
+    expect(second.status).toBe(400);
   });
 
   test("wipe resets replay state, allows re-provisioning", async () => {
@@ -370,17 +370,11 @@ describe("E2E: Virtual card — concurrent taps", () => {
       env
     );
 
-    // Counter=2 Step 1 accepted
+    // Counter=2 Step 1 accepted — counter atomically advanced
     const tap2 = virtualCardTap(UID, 2, k1Hex, keys.k2);
     const step1 = await makeRequest(`/?p=${tap2.pHex}&c=${tap2.cHex}`, "GET", null, env);
     expect(step1.status).toBe(200);
-
-    // Both taps exist in history
-    expect(env.CARD_REPLAY.__taps.get(`${UID}:1`)).toBeDefined();
-    // counter=2 recorded as a "read" tap by Step 1 (awaited recordTapRead)
-    const tap2Record = env.CARD_REPLAY.__taps.get(`${UID}:2`);
-    expect(tap2Record).toBeDefined();
-    expect(tap2Record.status).toBe("read");
+    expect(env.CARD_REPLAY.__counters.get(UID)).toBe(2);
   });
 });
 

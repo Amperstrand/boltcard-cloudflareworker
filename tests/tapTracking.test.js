@@ -102,19 +102,16 @@ describe("Tap tracking — Step 1 (initial tap)", () => {
     expect(tap.amount_msat).toBeNull();
   });
 
-  test("repeated GET / with same counter does not duplicate tap", async () => {
+  test("repeated GET / with same counter is rejected (atomic advance)", async () => {
     const env = makeEnv();
     env.CARD_REPLAY.__cardConfigs.set(TEST_UID, TEST_UID_CONFIG_OBJECT);
 
     const response1 = await makeRequest(`/?p=${WITHDRAW_P_COUNTER3}&c=${WITHDRAW_C_COUNTER3}`, "GET", null, env);
     expect(response1.status).toBe(200);
 
-    // Same counter = same tap key, read-only check doesn't advance counter
-    // so second tap with same counter passes (LNURL-withdraw step 1 is read-only)
+    // Same counter rejected — counter was atomically advanced on first GET
     const response2 = await makeRequest(`/?p=${WITHDRAW_P_COUNTER3}&c=${WITHDRAW_C_COUNTER3}`, "GET", null, env);
-    expect(response2.status).toBe(200);
-
-    expect(env.CARD_REPLAY.__taps.size).toBe(1);
+    expect(response2.status).toBe(400);
   });
 });
 
@@ -169,7 +166,7 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
     expect(tap.updated_at).toBeDefined();
   });
 
-  test("callback rejects replayed counter", async () => {
+  test("callback records tap with bolt11 and metadata when Step 1 already advanced counter", async () => {
     const env = makeEnv();
     env.UID_CONFIG = {
       get: async (uid) => {
@@ -186,6 +183,28 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
 
     env.CARD_REPLAY = makeReplayNamespace({ [TEST_UID]: 1 });
 
+    // Simulate Step 1 having created a "read" tap entry via record-read
+    env.CARD_REPLAY.__taps.set(`${TEST_UID.toLowerCase()}:1`, {
+      counter: 1,
+      bolt11: null,
+      status: "read",
+      payment_hash: null,
+      amount_msat: null,
+      user_agent: null,
+      request_url: null,
+      created_at: Math.floor(Date.now() / 1000),
+      updated_at: Math.floor(Date.now() / 1000),
+    });
+
+    // Fund the card so the debit succeeds
+    const id = env.CARD_REPLAY.idFromName(TEST_UID);
+    const stub = env.CARD_REPLAY.get(id);
+    await stub.fetch(new Request("https://internal/credit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount: 5000, note: "Initial funding" }),
+    }));
+
     const { pHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]);
     const ctrHex = bytesToHex(new Uint8Array([0x00, 0x00, 0x01]));
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
@@ -197,10 +216,13 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
       env
     );
 
-    expect(response.status).toBe(409);
-    const json = await response.json();
-    expect(json.status).toBe("ERROR");
-    expect(json.reason).toMatch(/replay|counter/i);
+    expect(response.status).toBe(200);
+    const tapKey = `${TEST_UID.toLowerCase()}:1`;
+    expect(env.CARD_REPLAY.__taps.has(tapKey)).toBe(true);
+
+    const tap = env.CARD_REPLAY.__taps.get(tapKey);
+    expect(tap.bolt11).toBe("lnbc10n1replay");
+    expect(tap.status).toBe("completed");
   });
 
   test("callback debits fakewallet balance and marks tap completed", async () => {

@@ -1,4 +1,5 @@
 import { rawHtml, safe } from "../utils/rawTemplate.js";
+import { CSRF_FETCH_HELPER } from "./browserNfc.js";
 
 export function renderTailwindPage({
   title,
@@ -8,6 +9,7 @@ export function renderTailwindPage({
   styles = "",
   headScripts = "",
   metaRobots = "",
+  csrf = false,
 }) {
   return rawHtml`<!DOCTYPE html>
 <html lang="en" class="${htmlClass}">
@@ -19,6 +21,7 @@ export function renderTailwindPage({
     <script src="https://cdn.tailwindcss.com"></script>
     ${safe(headScripts)}
     ${styles ? safe(rawHtml`<style>${styles}</style>`) : ""}
+    ${csrf ? rawHtml`<script>${safe(CSRF_FETCH_HELPER)}</script>` : ""}
   </head>
   <body class="${bodyClass}">
 ${safe(content)}

@@ -52,8 +52,8 @@ describe("Logging and Observability", () => {
     });
   });
 
-  describe("recordTapRead completes before response (no fire-and-forget)", () => {
-    it("should record a read tap for clnrest payment method", async () => {
+  describe("LNURLW records counter atomically on first tap", () => {
+    it("should advance counter on initial GET for clnrest payment method", async () => {
       const env = makeEnv();
       env.CARD_REPLAY.__cardConfigs.set("04996c6a926980", DO_CARD_CONFIGS["04996c6a926980"]);
 
@@ -65,12 +65,7 @@ describe("Logging and Observability", () => {
       );
 
       expect(response.status).toBe(200);
-
-      const tapKey = "04996c6a926980:3";
-      expect(env.CARD_REPLAY.__taps.has(tapKey)).toBe(true);
-      const tap = env.CARD_REPLAY.__taps.get(tapKey);
-      expect(tap.status).toBe("read");
-      expect(tap.counter).toBe(3);
+      expect(env.CARD_REPLAY.__counters.get("04996c6a926980")).toBe(3);
     });
   });
 

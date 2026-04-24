@@ -254,6 +254,23 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
         if (request.method === "POST" && url.pathname === "/record-tap") {
           const { counterValue, bolt11, amountMsat, userAgent, requestUrl } = await request.json();
           const lastCounter = counters.has(idStr) ? counters.get(idStr) : null;
+          const tapKey = `${idStr}:${counterValue}`;
+          const existingTap = taps.get(tapKey);
+
+          // Allow recording if this is upgrading a "read" entry from Step 1
+          // (Step 1 uses record-read which creates a tap with status="read", no bolt11)
+          if (existingTap && existingTap.status === "read" && !existingTap.bolt11) {
+            const now = Math.floor(Date.now() / 1000);
+            counters.set(idStr, counterValue);
+            taps.set(tapKey, {
+              ...existingTap,
+              bolt11: bolt11 || null,
+              amount_msat: amountMsat || null,
+              status: "pending",
+              updated_at: now,
+            });
+            return Response.json({ accepted: true, lastCounter: counterValue, tapRecorded: true });
+          }
 
           if (lastCounter !== null && counterValue <= lastCounter) {
             return Response.json(
@@ -267,7 +284,6 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
           }
 
           counters.set(idStr, counterValue);
-          const tapKey = `${idStr}:${counterValue}`;
           const now = Math.floor(Date.now() / 1000);
           taps.set(tapKey, {
             counter: counterValue,
@@ -285,7 +301,7 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
         }
 
         if (request.method === "POST" && url.pathname === "/update-tap-status") {
-          const { counter, status } = await request.json();
+          const { counter, status, bolt11, amountMsat } = await request.json();
 
           if (!counter || !status) {
             return Response.json({ error: "Missing counter or status" }, { status: 400 });
@@ -306,6 +322,8 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
           const now = Math.floor(Date.now() / 1000);
           tap.status = status;
           tap.updated_at = now;
+          if (bolt11 != null) tap.bolt11 = bolt11;
+          if (amountMsat != null) tap.amount_msat = amountMsat;
           taps.set(tapKey, tap);
 
           return Response.json({ updated: true });
@@ -343,25 +361,6 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
           tapList.sort((a, b) => b.counter - a.counter);
 
           return Response.json({ taps: tapList });
-        }
-
-        if (request.method === "POST" && url.pathname === "/check") {
-          const { counterValue } = await request.json();
-          const lastCounter = counters.has(idStr) ? counters.get(idStr) : null;
-
-          if (lastCounter !== null && counterValue <= lastCounter) {
-            return Response.json(
-              {
-                accepted: false,
-                reason: "Counter replay detected — tap rejected",
-                lastCounter,
-              },
-              { status: 409 }
-            );
-          }
-
-          counters.set(idStr, counterValue);
-          return Response.json({ accepted: true, lastCounter: counterValue });
         }
 
         return new Response("Not found", { status: 404 });

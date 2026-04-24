@@ -8,6 +8,7 @@ export function renderMenuEditorPage({ host, terminalId, menu }) {
   return renderTailwindPage({
     title: "Menu Editor",
     metaRobots: "noindex,nofollow",
+    csrf: true,
     bodyClass: "min-h-screen bg-gray-900 font-sans antialiased",
     styles: "body { background-color: #111827; color: #f3f4f6; }",
     content: rawHtml`

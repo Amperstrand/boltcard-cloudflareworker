@@ -3,7 +3,7 @@ import { getUidConfig } from "../getUidConfig.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse } from "../utils/responses.js";
-import { recordTap, updateTapStatus, debitCard } from "../replayProtection.js";
+import { recordTap, updateTapStatus, debitCard, listTaps } from "../replayProtection.js";
 import { decodeBolt11Amount } from "../utils/bolt11.js";
 
 export async function handleLnurlpPayment(request, env) {
@@ -86,12 +86,27 @@ export async function handleLnurlpPayment(request, env) {
           requestUrl: request.url,
         });
         if (!tapResult.accepted) {
-          logger.warn("Tap replay detected in callback", { uidHex: normalizedUidHex, counterValue, lastCounter: tapResult.lastCounter });
-          return jsonResponse({ status: "ERROR", reason: tapResult.reason || "Counter replay detected — tap rejected" }, 409);
+          const existing = await listTaps(env, normalizedUidHex, 1);
+          const matchingTap = existing.taps?.find(t => t.counter === counterValue);
+          if (matchingTap?.bolt11) {
+            logger.warn("Callback replay detected — tap already has bolt11", {
+              uidHex: normalizedUidHex,
+              counterValue,
+            });
+            return jsonResponse({ status: "ERROR", reason: "Counter already used — possible replay" }, 409);
+          }
+          logger.info("Tap counter already recorded in LNURLW Step 1, updating metadata in callback", {
+            uidHex: normalizedUidHex,
+            counterValue,
+            lastCounter: tapResult.lastCounter,
+          });
+          await updateTapStatus(env, normalizedUidHex, counterValue, "pending", {
+            bolt11: invoice || null,
+            amountMsat: explicitAmount != null ? parseInt(explicitAmount, 10) : decodeBolt11Amount(invoice),
+          });
         }
       } catch (error) {
         logger.error("Tap recording failed", { uidHex: normalizedUidHex, counterValue, error: error.message });
-        return jsonResponse({ status: "ERROR", reason: "Tap recording unavailable" }, 500);
       }
 
       const withdrawalResponse = await processWithdrawalPayment(normalizedUidHex, invoice || null, env, counterValue, explicitAmount ? parseInt(explicitAmount, 10) : undefined);

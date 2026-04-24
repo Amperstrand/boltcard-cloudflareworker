@@ -266,14 +266,14 @@ describe("Cloudflare Worker Tests", () => {
     const counterFivePath = "/?p=00F48C4F8E386DED06BCDC78FA92E2FE&c=66B4826EA4C155B4";
     const counterKey = "counter:04996c6a926980";
 
-    test("first tap with no stored counter succeeds (read-only check)", async () => {
+    test("first tap with no stored counter succeeds and atomically records counter", async () => {
       const kvEnv = makeKvEnv();
 
       const response = await makeRequest(counterThreePath, "GET", null, kvEnv);
 
       expect(response.status).toBe(200);
-      // Step 1 uses read-only check — does NOT record the counter
-      expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(false);
+      expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(true);
+      expect(kvEnv.__replayStore.get("04996c6a926980")).toBe(3);
     });
 
     test("replay is rejected only if counter was previously recorded", async () => {
@@ -289,15 +289,14 @@ describe("Cloudflare Worker Tests", () => {
       expect(json.reason || json.error).toMatch(/replay|counter/i);
     });
 
-    test("replayed Step 1 with no stored counter succeeds (read-only check)", async () => {
+    test("replayed Step 1 with same counter is rejected (atomic advance)", async () => {
       const kvEnv = makeKvEnv();
       const first = await makeRequest(counterThreePath, "GET", null, kvEnv);
       expect(first.status).toBe(200);
 
-      // Second call with same counter also succeeds because read-only check doesn't record
+      // Second call with same counter is rejected because counter was atomically advanced
       const second = await makeRequest(counterThreePath, "GET", null, kvEnv);
-      expect(second.status).toBe(200);
-      expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(false);
+      expect(second.status).toBe(400);
     });
 
     test("incrementing counter succeeds", async () => {
@@ -308,30 +307,31 @@ describe("Cloudflare Worker Tests", () => {
       const response = await makeRequest(counterFivePath, "GET", null, kvEnv);
 
       expect(response.status).toBe(200);
-      // Step 1 read-only check — counter NOT recorded
-      expect(kvEnv.__replayStore.get("04996c6a926980")).toBe(3);
+      expect(kvEnv.__replayStore.get("04996c6a926980")).toBe(5);
     });
 
     test("wipe resets replay state for reprovisioned cards", async () => {
       const kvEnv = makeKvEnv();
 
+      // Card must be active for handleReset to call terminateCard (which resets replay)
+      kvEnv.CARD_REPLAY.__activate("04996c6a926980", 1);
+
       const firstTap = await makeRequest(counterThreePath, "GET", null, kvEnv);
       expect(firstTap.status).toBe(200);
-      // Counter NOT recorded by Step 1 (read-only check)
-      expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(false);
+      expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(true);
+      expect(kvEnv.__replayStore.get("04996c6a926980")).toBe(3);
 
       const wipeResponse = await handleRequest(
         new Request("https://test.local/wipe?uid=04996c6a926980"),
         kvEnv
       );
       expect(wipeResponse.status).toBe(200);
-      // Counter still not recorded
+      // Wipe terminates card and clears the counter
       expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(false);
 
-      // After wipe, counter=3 should succeed
-      const replayAfterWipe = await makeRequest(counterThreePath, "GET", null, kvEnv);
-      expect(replayAfterWipe.status).toBe(200);
-      expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(false);
+      // Card is now terminated — tapping returns 403
+      const blockedTap = await makeRequest(counterThreePath, "GET", null, kvEnv);
+      expect(blockedTap.status).toBe(403);
     });
   });
 });

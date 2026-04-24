@@ -6,6 +6,7 @@ export function renderTopupPage({ host, currencyLabel }) {
   return renderTailwindPage({
     title: "Top-Up",
     metaRobots: "noindex,nofollow",
+    csrf: true,
     bodyClass: "min-h-screen bg-gray-900 font-sans antialiased flex flex-col",
     styles: [
       "body { background-color: #111827; color: #f3f4f6; }",

@@ -10,6 +10,7 @@ const BROWSER_VALIDATE_UID_HELPER = rawHtml`
 export function renderBulkWipePage({ baseUrl, keyOptionsHtml }) {
   return renderTailwindPage({
     title: "Bulk Card Wipe",
+    csrf: true,
     bodyClass: "min-h-screen p-4 md:p-8 font-sans antialiased flex flex-col items-center",
     headScripts: '<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>',
     styles: [

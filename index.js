@@ -28,8 +28,8 @@ import { generateFakeBolt11 } from "./utils/bolt11.js";
 import { logger } from "./utils/logger.js";
 import { jsonResponse, errorResponse } from "./utils/responses.js";
 import { checkRateLimit } from "./rateLimiter.js";
-import { checkReplayOnly, recordTapRead, getCardState, activateCard } from "./replayProtection.js";
-import { requireOperator } from "./middleware/operatorAuth.js";
+import { recordTapRead, getCardState, activateCard, checkAndAdvanceCounter } from "./replayProtection.js";
+import { requireOperator, buildCsrfCookie, CSRF_COOKIE_NAME } from "./middleware/operatorAuth.js";
 import { handleOperatorLoginPage, handleOperatorLogin, handleOperatorLogout } from "./handlers/operatorLoginHandler.js";
 import { handleTopupPage, handleTopupApply } from "./handlers/topupHandler.js";
 import { handlePosCharge } from "./handlers/posChargeHandler.js";
@@ -45,7 +45,36 @@ function withOperatorAuth(handler) {
   return async (request, env) => {
     const auth = await requireOperator(request, env);
     if (!auth.authorized) return auth.response;
-    return handler(request, env, auth.session);
+
+    const method = request.method.toUpperCase();
+    const isMutating = method === "POST" || method === "PUT" || method === "DELETE" || method === "PATCH";
+
+    if (isMutating) {
+      const cookieHeader = request.headers.get("Cookie") || "";
+      const csrfMatch = cookieHeader.match(new RegExp(`(?:^|;\\s*)${CSRF_COOKIE_NAME}=([^;]*)`));
+      const csrfCookie = csrfMatch ? csrfMatch[1] : null;
+      const csrfHeader = request.headers.get("X-CSRF-Token");
+
+      const skipCsrf = env && env.__TEST_OPERATOR_SESSION && env.WORKER_ENV !== "production";
+      if (!skipCsrf && (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader)) {
+        return errorResponse("CSRF validation failed", 403);
+      }
+    }
+
+    const response = await handler(request, env, auth.session);
+
+    if (response && !isMutating) {
+      const existingCsrf = request.headers.get("Cookie") || "";
+      const hasCsrf = new RegExp(`(?:^|;\\s*)${CSRF_COOKIE_NAME}=`).test(existingCsrf);
+      if (!hasCsrf) {
+        const token = crypto.randomUUID();
+        const newResponse = new Response(response.body, response);
+        newResponse.headers.append("Set-Cookie", buildCsrfCookie(token));
+        return newResponse;
+      }
+    }
+
+    return response;
   };
 }
 
@@ -161,19 +190,6 @@ async function detectCardVersion(uidHex, ctr, cHex, env, latestVersion) {
   return null;
 }
 
-async function checkAndRejectReplay(env, uidHex, counterValue) {
-  const replayResult = await checkReplayOnly(env, uidHex, counterValue);
-  if (!replayResult.accepted) {
-    logger.warn("Counter replay detected", {
-      uidHex,
-      counterValue,
-      lastCounter: replayResult.lastCounter,
-    });
-    return errorResponse(replayResult.reason || "Counter replay detected — tap rejected");
-  }
-  return null;
-}
-
 async function handleLnurlw(request, env) {
   const url = new URL(request.url);
   const { searchParams } = url;
@@ -279,8 +295,11 @@ async function handleLnurlw(request, env) {
 
   if (proxyRelayMode) {
     try {
-      const replayError = await checkAndRejectReplay(env, uidHex, counterValue);
-      if (replayError) return replayError;
+      const replayResult = await checkAndAdvanceCounter(env, uidHex, counterValue);
+      if (!replayResult.accepted) {
+        logger.warn("Counter replay detected", { uidHex, counterValue });
+        return errorResponse(replayResult.reason || "Counter replay detected — tap rejected");
+      }
     } catch (error) {
       logger.error("Replay protection check failed", {
         uidHex,
@@ -291,10 +310,10 @@ async function handleLnurlw(request, env) {
     }
 
     logger.info("LNURLW request accepted", { uidHex, counterValue });
-    await recordTapRead(env, uidHex, counterValue, {
+    recordTapRead(env, uidHex, counterValue, {
       userAgent: request.headers.get("User-Agent") || null,
       requestUrl: request.url,
-    });
+    }).catch(() => {});
     return handleProxy(request, uidHex, pHex, cHex, config.proxy.baseurl, {
       cmacValidated: cmac_validated,
       validationDeferred: !hasK2,
@@ -312,8 +331,11 @@ async function handleLnurlw(request, env) {
 
   if (config.payment_method === "clnrest" || config.payment_method === "fakewallet") {
     try {
-      const replayError = await checkAndRejectReplay(env, uidHex, counterValue);
-      if (replayError) return replayError;
+      const replayResult = await checkAndAdvanceCounter(env, uidHex, counterValue);
+      if (!replayResult.accepted) {
+        logger.warn("Counter replay detected", { uidHex, counterValue });
+        return errorResponse(replayResult.reason || "Counter replay detected — tap rejected");
+      }
     } catch (error) {
       logger.error("Replay protection check failed", {
         uidHex,
@@ -324,10 +346,10 @@ async function handleLnurlw(request, env) {
     }
 
     logger.info("LNURLW request accepted", { uidHex, counterValue });
-    await recordTapRead(env, uidHex, counterValue, {
+    recordTapRead(env, uidHex, counterValue, {
       userAgent: request.headers.get("User-Agent") || null,
       requestUrl: request.url,
-    });
+    }).catch(() => {});
     const baseUrl = `${url.protocol}//${url.host}`;
     const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated, baseUrl, config.payment_method);
     if (responsePayload.status === "ERROR") return errorResponse(responsePayload.reason);

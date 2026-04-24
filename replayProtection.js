@@ -111,7 +111,7 @@ export async function recordTap(env, uidHex, counterValue, { bolt11, amountMsat,
   throw new Error(payload.reason || "Tap recording failed");
 }
 
-export async function updateTapStatus(env, uidHex, counter, status) {
+export async function updateTapStatus(env, uidHex, counter, status, meta = {}) {
   if (!env?.CARD_REPLAY) {
     return;
   }
@@ -122,7 +122,7 @@ export async function updateTapStatus(env, uidHex, counter, status) {
     new Request("https://card-replay.internal/update-tap-status", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ counter, status }),
+      body: JSON.stringify({ counter, status, ...meta }),
     })
   );
 }

@@ -279,7 +279,7 @@ export class CardReplayDO extends DurableObject {
   }
 
   handleUpdateTapStatus(request) {
-    return request.json().then(({ counter, status }) => {
+    return request.json().then(({ counter, status, bolt11, amountMsat }) => {
       if (!counter || !status) {
         return Response.json({ error: "Missing counter or status" }, { status: 400 });
       }
@@ -291,9 +291,11 @@ export class CardReplayDO extends DurableObject {
 
       const now = Math.floor(Date.now() / 1000);
       const result = this.sql.exec(
-        `UPDATE taps SET status = ?, updated_at = ? WHERE counter = ?`,
+        `UPDATE taps SET status = ?, updated_at = ?, bolt11 = COALESCE(?, bolt11), amount_msat = COALESCE(?, amount_msat) WHERE counter = ?`,
         status,
         now,
+        bolt11 ?? null,
+        amountMsat ?? null,
         counter
       );
 
