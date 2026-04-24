@@ -146,7 +146,7 @@ router.get("/identity", (request) => handleIdentityPage(request));
 // 301 redirects from old paths to /experimental/
 router.get("/nfc", (request) => {
   const origin = new URL(request.url).origin;
-  return Response.redirect(origin + "/experimental/nfc", 301);
+  return new Response(null, { status: 301, headers: { Location: origin + "/experimental/nfc" } });
 });
 router.get("/activate", (request) => {
   const origin = new URL(request.url).origin;

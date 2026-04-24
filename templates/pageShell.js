@@ -21,7 +21,7 @@ export function renderTailwindPage({
     <script src="https://cdn.tailwindcss.com"></script>
     ${safe(headScripts)}
     ${styles ? safe(rawHtml`<style>${styles}</style>`) : ""}
-    ${csrf ? rawHtml`<script>${safe(CSRF_FETCH_HELPER)}</script>` : ""}
+    ${csrf ? safe(rawHtml`<script>${safe(CSRF_FETCH_HELPER)}</script>`) : ""}
   </head>
   <body class="${bodyClass}">
 ${safe(content)}
