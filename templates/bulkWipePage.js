@@ -1,11 +1,6 @@
-import { validateUid } from "../utils/validation.js";
 import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
-
-const BROWSER_VALIDATE_UID_HELPER = rawHtml`
-          const UID_REGEX = /^[0-9a-f]{14}$/;
-          ${validateUid.toString()}
-`;
+import { BROWSER_NFC_HELPERS, BROWSER_VALIDATE_UID_HELPER } from "./browserNfc.js";
 
 export function renderBulkWipePage({ baseUrl, keyOptionsHtml }) {
   return renderTailwindPage({
@@ -27,6 +22,38 @@ export function renderBulkWipePage({ baseUrl, keyOptionsHtml }) {
           </div>
 
           <p class="text-sm text-gray-400">Wipe cards using known issuer keys or provide your own.</p>
+
+          <!-- Tap-to-Detect Section -->
+          <div class="bg-gray-800 border border-blue-500/30 rounded-lg p-6 shadow-xl">
+            <h2 class="text-lg font-bold text-gray-200 mb-4 border-b border-gray-700 pb-2">TAP CARD TO AUTO-DETECT</h2>
+            <p class="text-sm text-gray-400 mb-4">Tap a card to automatically identify its issuer key and version. This helps you find the right master secret without guessing.</p>
+
+            <div id="detect-status" class="text-sm font-mono text-blue-400/60 mb-3 bg-black/20 p-3 rounded border border-blue-500/20">
+              <div class="flex items-center space-x-2">
+                <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                <span>Tap your card to detect issuer key...</span>
+              </div>
+            </div>
+
+            <div id="detect-result" class="hidden space-y-3 mb-4">
+              <div class="grid grid-cols-2 gap-3 text-sm">
+                <div><span class="text-gray-500">UID:</span> <span id="detect-uid" class="font-mono text-amber-400">-</span></div>
+                <div><span class="text-gray-500">Version:</span> <span id="detect-version" class="font-mono text-emerald-400">-</span></div>
+                <div class="col-span-2"><span class="text-gray-500">Issuer Key:</span> <span id="detect-label" class="font-mono text-gray-300">-</span></div>
+              </div>
+              <div class="flex gap-3">
+                <button id="detect-wipe-this" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded transition-colors text-sm">
+                  WIPE THIS CARD
+                </button>
+                <button id="detect-use-key" class="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-200 font-bold py-2 px-4 rounded transition-colors text-sm">
+                  USE THIS KEY FOR BULK WIPE
+                </button>
+              </div>
+            </div>
+
+            <div id="detect-error" class="hidden bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm p-3 rounded font-mono mb-4">
+            </div>
+          </div>
 
           <!-- Section 1: Issuer Key Selection -->
           <div class="bg-gray-800 border border-gray-700 rounded-lg p-6 shadow-xl">
@@ -75,14 +102,125 @@ export function renderBulkWipePage({ baseUrl, keyOptionsHtml }) {
 
         </div>
 
-        <div id="toast" class="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 font-medium z-50">
-          Copied to clipboard
-        </div>
+         <div id="toast" class="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 font-medium z-50">
+           Copied to clipboard
+         </div>
 
-        <script>
-${BROWSER_VALIDATE_UID_HELPER}
+          <script>
+  ${safe(BROWSER_VALIDATE_UID_HELPER)}
+  ${safe(BROWSER_NFC_HELPERS)}
 
-          const baseUrl = ${jsString(baseUrl)};
+           const baseUrl = ${jsString(baseUrl)};
+
+           // Tap-to-detect
+           var detectScanner = null;
+           var detectedUid = null;
+           var detectedVersion = null;
+           var detectedFingerprint = null;
+
+           function initDetectScanner() {
+             detectScanner = createNfcScanner({
+               continuous: false,
+               debounceMs: 0,
+               onTap: async function(data) {
+                 var url = data.url;
+                 if (!url) {
+                   document.getElementById('detect-error').textContent = 'No URL found on card. The card may not be programmed.';
+                   document.getElementById('detect-error').classList.remove('hidden');
+                   document.getElementById('detect-status').classList.add('hidden');
+                   return;
+                 }
+                 try {
+                   var parsed = new URL(url);
+                   var p = parsed.searchParams.get('p');
+                   var c = parsed.searchParams.get('c');
+                   if (!p || !c) {
+                     document.getElementById('detect-error').textContent = 'Card URL missing p/c parameters.';
+                     document.getElementById('detect-error').classList.remove('hidden');
+                     document.getElementById('detect-status').classList.add('hidden');
+                     return;
+                   }
+                   document.getElementById('detect-status').querySelector('span').textContent = 'Identifying card...';
+                   var resp = await fetch('/api/identify-issuer-key', {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({ p: p, c: c })
+                   });
+                   var result = await resp.json();
+                   document.getElementById('detect-status').classList.add('hidden');
+                   if (result.matched) {
+                     detectedUid = result.uid;
+                     detectedVersion = result.version;
+                     detectedFingerprint = result.issuerKeyFingerprint;
+                     document.getElementById('detect-uid').textContent = result.uid.toUpperCase();
+                     document.getElementById('detect-version').textContent = result.version;
+                     document.getElementById('detect-label').textContent = result.issuerKeyLabel;
+                     document.getElementById('detect-result').classList.remove('hidden');
+                     document.getElementById('detect-error').classList.add('hidden');
+                     var keySelect = document.getElementById('key-select');
+                     var matchedOption = keySelect.querySelector('option[data-fingerprint="' + result.issuerKeyFingerprint + '"]');
+                     if (matchedOption) {
+                       keySelect.value = matchedOption.value;
+                       keySelect.dispatchEvent(new Event('change'));
+                     } else {
+                       keySelect.value = 'custom';
+                       keySelect.dispatchEvent(new Event('change'));
+                       document.getElementById('custom-key').value = '';
+                       document.getElementById('custom-key').focus();
+                     }
+                   } else {
+                     document.getElementById('detect-error').textContent = 'Unknown issuer \u2014 this card was not provisioned with any of our known issuer keys. Switch to Custom key\u2026 and paste the master secret manually.';
+                     document.getElementById('detect-error').classList.remove('hidden');
+                     document.getElementById('detect-result').classList.add('hidden');
+                     document.getElementById('key-select').value = 'custom';
+                     document.getElementById('key-select').dispatchEvent(new Event('change'));
+                     document.getElementById('custom-key').focus();
+                   }
+                 } catch (e) {
+                   document.getElementById('detect-error').textContent = 'Error: ' + e.message;
+                   document.getElementById('detect-error').classList.remove('hidden');
+                   document.getElementById('detect-status').classList.add('hidden');
+                 }
+               },
+               onError: function(err, phase) {
+                 if (phase === 'permission') {
+                   document.getElementById('detect-status').querySelector('span').textContent = 'NFC permission denied. Tap to retry.';
+                 }
+               },
+               onStatus: function(status) {
+                 var el = document.getElementById('detect-status');
+                 if (status === 'scanning') {
+                   el.classList.remove('hidden');
+                   el.querySelector('span').textContent = 'Tap your card to detect issuer key...';
+                 } else {
+                   el.classList.add('hidden');
+                 }
+               }
+             });
+           }
+
+           if (browserSupportsNfc()) {
+             initDetectScanner();
+             window.addEventListener('load', function() { detectScanner.scan(); });
+           } else {
+             document.getElementById('detect-status').querySelector('span').textContent = 'Web NFC not supported. Use Chrome on Android.';
+             document.getElementById('detect-status').querySelector('div').className = 'w-2 h-2 bg-red-500 rounded-full';
+           }
+
+           document.getElementById('detect-wipe-this').addEventListener('click', function() {
+             if (!detectedUid) return;
+             document.getElementById('uid-input').value = detectedUid.toUpperCase();
+             var keySelect = document.getElementById('key-select');
+             if (keySelect.value !== 'custom') {
+               var matchedOption = keySelect.querySelector('option[data-fingerprint="' + detectedFingerprint + '"]');
+               if (matchedOption) keySelect.value = matchedOption.value;
+             }
+             document.getElementById('btn-generate').click();
+           });
+
+           document.getElementById('detect-use-key').addEventListener('click', function() {
+             document.getElementById('uid-input').scrollIntoView({ behavior: 'smooth', block: 'center' });
+           });
 
           // Toggle custom key section
           document.getElementById('key-select').addEventListener('change', (e) => {

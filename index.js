@@ -38,6 +38,7 @@ import { handleBalanceCheck } from "./handlers/balanceCheckHandler.js";
 import { handleReceipt } from "./handlers/receiptHandler.js";
 import { handleMenuEditorPage, handleMenuGet, handleMenuPut } from "./handlers/menuEditorHandler.js";
 import { handleIdentifyCard } from "./handlers/identifyCardHandler.js";
+import { handleIdentifyIssuerKey } from "./handlers/identifyIssuerKeyHandler.js";
 
 const router = Router();
 
@@ -110,6 +111,7 @@ router.post("/api/identity/profile", (request, env) => handleIdentityProfileUpda
 router.get("/operator/login", (request) => handleOperatorLoginPage(request));
 router.post("/operator/login", (request, env) => handleOperatorLogin(request, env));
 router.post("/api/identify-card", withOperatorAuth((request, env) => handleIdentifyCard(request, env)));
+router.post("/api/identify-issuer-key", withOperatorAuth((request, env) => handleIdentifyIssuerKey(request, env)));
 router.post("/operator/logout", (request, env) => handleOperatorLogout(request, env));
 router.get("/operator", withOperatorAuth(() => {
   return new Response(null, { status: 302, headers: { Location: "/operator/pos" } });
@@ -132,7 +134,7 @@ router.get("/experimental/wipe", withOperatorAuth((request, env) => {
   if (uid) return handleReset(uid, env, baseUrl);
   return handleWipePage(request, env);
 }));
-router.get("/experimental/bulkwipe", withOperatorAuth((request) => handleBulkWipePage(request)));
+router.get("/experimental/bulkwipe", withOperatorAuth((request, env) => handleBulkWipePage(request, env)));
 router.get("/experimental/analytics", withOperatorAuth((request) => handleAnalyticsPage(request)));
 router.get("/experimental/analytics/data", withOperatorAuth((request, env) => handleAnalyticsData(request, env)));
 router.get("/api/keys", withOperatorAuth((request, env) => handleGetKeys(request, env)));

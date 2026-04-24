@@ -5,6 +5,10 @@ export async function handleBulkWipeKeys(request) {
   const url = new URL(request.url);
   const uid = url.searchParams.get("uid");
   const key = url.searchParams.get("key");
+  const version = url.searchParams.has("version") ? parseInt(url.searchParams.get("version"), 10) : 1;
+  if (isNaN(version) || version < 0) {
+    return errorResponse("Invalid version: must be a non-negative integer", 400);
+  }
 
   if (!uid || !/^[0-9a-fA-F]{14}$/.test(uid)) {
     return errorResponse("Invalid uid: must be exactly 14 hex characters.", 400);
@@ -14,13 +18,13 @@ export async function handleBulkWipeKeys(request) {
   }
 
   try {
-    const keys = deriveKeysFromHex(uid, key);
+    const keys = deriveKeysFromHex(uid, key, version);
 
     const host = `${url.protocol}//${url.host}`;
-    const boltcard_response = buildBoltCardResponse(keys, uid, host);
+    const boltcard_response = buildBoltCardResponse(keys, uid, host, version);
 
     const wipe_json = {
-      version: 1,
+      version: version,
       action: "wipe",
       k0: keys.k0,
       k1: keys.k1,

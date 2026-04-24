@@ -45,3 +45,21 @@ export function getPerCardKeys(uidHex) {
 export function getPerCardDomains() {
   return [...new Set(PERCARD_KEYS.map((e) => e.card_name).filter(Boolean))];
 }
+
+export function getUniquePerCardK1s() {
+  const seen = new Set();
+  const result = [];
+  for (const entry of PERCARD_KEYS) {
+    if (entry.k1 && !seen.has(entry.k1.toLowerCase())) {
+      seen.add(entry.k1.toLowerCase());
+      result.push(entry);
+    }
+  }
+  return result;
+}
+
+export async function fingerprintHex(hex) {
+  const data = new TextEncoder().encode(hex.toLowerCase());
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+}
