@@ -5,6 +5,7 @@ import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
   return renderTailwindPage({
     title: "NFC Login",
+    csrf: true,
     bodyClass: "min-h-screen p-4 md:p-8 font-sans antialiased flex flex-col items-center justify-center",
     headScripts: '<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>',
     styles: [

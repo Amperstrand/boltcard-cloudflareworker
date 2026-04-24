@@ -144,17 +144,32 @@ router.get("/api/bulk-wipe-keys", withOperatorAuth((request, env) => handleBulkW
 router.get("/identity", (request) => handleIdentityPage(request));
 
 // 301 redirects from old paths to /experimental/
-router.get("/nfc", () => Response.redirect("/experimental/nfc", 301));
-router.get("/activate", () => Response.redirect("/experimental/activate", 301));
-router.get("/activate/form", () => Response.redirect("/experimental/activate/form", 301));
+router.get("/nfc", (request) => {
+  const origin = new URL(request.url).origin;
+  return Response.redirect(origin + "/experimental/nfc", 301);
+});
+router.get("/activate", (request) => {
+  const origin = new URL(request.url).origin;
+  return Response.redirect(origin + "/experimental/activate", 301);
+});
+router.get("/activate/form", (request) => {
+  const origin = new URL(request.url).origin;
+  return Response.redirect(origin + "/experimental/activate/form", 301);
+});
 router.get("/wipe", withOperatorAuth((request, env) => {
   const url = new URL(request.url);
   const uid = url.searchParams.get("uid");
   if (uid) return handleReset(uid, env, `${url.protocol}//${url.host}`);
-  return Response.redirect("/experimental/wipe", 301);
+  return Response.redirect(url.origin + "/experimental/wipe", 301);
 }));
-router.get("/bulkwipe", () => Response.redirect("/experimental/bulkwipe", 301));
-router.get("/analytics", () => Response.redirect("/experimental/analytics", 301));
+router.get("/bulkwipe", (request) => {
+  const origin = new URL(request.url).origin;
+  return Response.redirect(origin + "/experimental/bulkwipe", 301);
+});
+router.get("/analytics", (request) => {
+  const origin = new URL(request.url).origin;
+  return Response.redirect(origin + "/experimental/analytics", 301);
+});
 router.get("/analytics/data", withOperatorAuth((request, env) => handleAnalyticsData(request, env)));
 router.get("/favicon.ico", () => new Response(null, { status: 204 }));
 router.get("/", (request, env) => {
