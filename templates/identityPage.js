@@ -47,8 +47,9 @@ export function renderIdentityPage({ host }) {
               <h2 class="text-xl font-medium text-gray-200 mb-2">Tap Card to Authenticate</h2>
               <p class="text-sm text-gray-500">Present your Boltcard to the device reader</p>
               
+              <p id="scan-hint" class="mt-6 text-xs text-blue-400/60 animate-pulse hidden">Scanning for card...</p>
               <button id="btn-scan" class="mt-8 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium tracking-wide transition-colors hidden shadow-lg shadow-blue-500/20">
-                START SCAN
+                RESCAN
               </button>
               <p id="no-nfc-msg" class="mt-8 text-sm text-red-400/80 hidden">Web NFC is not supported on this device/browser. Use Chrome on Android.</p>
             </div>
@@ -206,9 +207,9 @@ export function renderIdentityPage({ host }) {
         };
 
         let appState = 'idle';
-        let abortController = null;
         let currentVerification = null;
         let selectedEmoji = null;
+        var nfcScanner = null;
 
         function setEmojiSelection(emoji) {
           selectedEmoji = emoji;
@@ -345,66 +346,54 @@ export function renderIdentityPage({ host }) {
           }
         }
 
-        async function startScan() {
-          if (!browserSupportsNfc()) {
-            alert('NFC not supported on this device');
-            return;
-          }
-
-          if (abortController) {
-            abortController.abort();
-          }
-          abortController = new AbortController();
-
-          try {
-            const ndef = new NDEFReader();
-            await ndef.scan({ signal: abortController.signal });
-            
-            setState('scanning');
-            
-            ndef.onreadingerror = () => {
-              profile.reason.textContent = 'Read error. Try again.';
-              setState('denied');
-            };
-
-            ndef.onreading = event => {
-              const url = extractNdefUrl(event.message);
-              if (url) {
-                processNdefUrl(url);
+        function initNfc() {
+          nfcScanner = createNfcScanner({
+            continuous: false,
+            debounceMs: 0,
+            onStatus: function(status) {
+              if (status === 'scanning') setState('scanning');
+            },
+            onError: function(err, phase) {
+              if (phase === 'permission') {
+                ui.noNfcMsg.classList.remove('hidden');
+                ui.btnScan.classList.remove('hidden');
+              } else {
+                profile.reason.textContent = err.message || 'Scan failed';
+                setState('denied');
+              }
+            },
+            onTap: async function(data) {
+              if (data.url) {
+                processNdefUrl(data.url);
               } else {
                 profile.reason.textContent = 'No NDEF URL found on card';
                 setState('denied');
               }
-            };
-          } catch (error) {
-            console.error('Scan error:', error);
-            if (error.name !== 'AbortError') {
-              profile.reason.textContent = error.message || 'Scan failed to start';
-              setState('denied');
             }
-          }
-        }
-
-        if (browserSupportsNfc()) {
-          ui.btnScan.classList.remove('hidden');
-          ui.btnScan.addEventListener('click', startScan);
-        } else {
-          ui.noNfcMsg.classList.remove('hidden');
-        }
-
-        ui.btnRetry.addEventListener('click', () => {
-          setState('idle');
+          });
           if (browserSupportsNfc()) {
-            startScan().catch(e => console.log('Auto-scan on retry failed', e));
+            window.addEventListener('load', function() { nfcScanner.scan(); });
+          } else {
+            ui.noNfcMsg.classList.remove('hidden');
           }
+        }
+
+        ui.btnScan.addEventListener('click', function() {
+          setState('idle');
+          if (nfcScanner) nfcScanner.restart();
+        });
+
+        ui.btnRetry.addEventListener('click', function() {
+          setState('idle');
+          if (nfcScanner) nfcScanner.restart();
         });
         
-        ui.btnReset.addEventListener('click', () => {
+        ui.btnReset.addEventListener('click', function() {
           setState('idle');
-          if (browserSupportsNfc()) {
-            startScan().catch(e => console.log('Auto-scan on reset failed', e));
-          }
+          if (nfcScanner) nfcScanner.restart();
         });
+
+        initNfc();
 
         profile.emojiButtons.forEach((button) => {
           button.addEventListener('click', () => setEmojiSelection(button.dataset.emoji));

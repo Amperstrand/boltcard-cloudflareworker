@@ -54,7 +54,7 @@ export function renderTopupPage({ host, currencyLabel }) {
 
       <div id="nfc-btn-area" class="w-full max-w-xs mb-4">
         <button id="nfc-tap-btn" type="button" class="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-4 px-4 rounded-xl transition-colors text-lg">
-          TAP CARD TO TOP UP
+          SCANNING FOR CARD...
         </button>
       </div>
 
@@ -79,7 +79,6 @@ export function renderTopupPage({ host, currencyLabel }) {
       const API_HOST = ${jsString(host)};
       let amountInput = '0';
       let appState = 'idle';
-      let abortController = null;
       let currentReader = null;
 
       const amountDisplay = document.getElementById('amount-display');
@@ -111,6 +110,8 @@ export function renderTopupPage({ host, currencyLabel }) {
       if (!browserSupportsNfc()) {
         toggleWedgeMode();
         toggleWedge.classList.add('hidden');
+      } else {
+        window.addEventListener('load', function() { startNfcScan(); });
       }
 
       function normalizeAmount(val) {
@@ -174,6 +175,13 @@ export function renderTopupPage({ host, currencyLabel }) {
       function updateView() {
         amountDisplay.textContent = formatDisplay(amountInput);
         nfcTapBtn.disabled = appState !== 'idle' || amountInput === '0';
+        if (appState === 'idle') {
+          nfcTapBtn.textContent = amountInput === '0' ? 'TAP CARD TO TOP UP' : 'SCANNING FOR CARD...';
+        } else if (appState === 'scanning') {
+          nfcTapBtn.textContent = 'SCANNING FOR CARD...';
+        } else {
+          nfcTapBtn.textContent = 'TAP CARD TO TOP UP';
+        }
       }
 
       function showResult(kind, title, message) {
@@ -235,10 +243,6 @@ export function renderTopupPage({ host, currencyLabel }) {
           currentReader.onreadingerror = null;
           currentReader = null;
         }
-        if (abortController) {
-          abortController.abort();
-          abortController = null;
-        }
       }
 
       async function startNfcScan() {
@@ -247,7 +251,6 @@ export function renderTopupPage({ host, currencyLabel }) {
         updateView();
         clearResult();
 
-        abortController = new AbortController();
         currentReader = new NDEFReader();
 
         currentReader.onreading = async function(event) {
@@ -285,7 +288,7 @@ export function renderTopupPage({ host, currencyLabel }) {
         };
 
         try {
-          await currentReader.scan({ signal: abortController.signal });
+          await currentReader.scan();
         } catch(e) {
           if (e.name !== 'AbortError') {
             stopNfc();

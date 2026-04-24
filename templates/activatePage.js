@@ -1,12 +1,6 @@
-import { validateUid } from "../utils/validation.js";
 import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
-import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
-
-const BROWSER_VALIDATE_UID_HELPER = rawHtml`
-        const UID_REGEX = /^[0-9a-f]{14}$/;
-        ${validateUid.toString()}
-`;
+import { BROWSER_NFC_HELPERS, BROWSER_VALIDATE_UID_HELPER } from "./browserNfc.js";
 
 export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, programUrl, resetUrl }) {
   return renderTailwindPage({
@@ -375,12 +369,13 @@ export function renderActivateCardPage() {
         <h2>Activate New Card</h2>
         <p>Enter your card's UID below or scan it with NFC to activate it with the fake wallet payment method.</p>
         
-        <div id="nfc-section">
-          <div class="button-row">
-            <button id="scan-nfc" type="button">Scan Card with NFC</button>
+          <div id="nfc-section">
+            <div class="button-row">
+              <button id="scan-nfc" type="button" class="hidden">Scan Card with NFC</button>
+            </div>
+            <div id="nfc-status" style="display: none;"></div>
+            <p id="nfc-scanning-hint" class="text-sm text-gray-500">Tap your card to auto-fill UID...</p>
           </div>
-          <div id="nfc-status" style="display: none;"></div>
-        </div>
         
         <form id="activateForm" action="/activate" method="POST">
           <div class="form-group">
@@ -399,60 +394,44 @@ export function renderActivateCardPage() {
         ${safe(BROWSER_VALIDATE_UID_HELPER)}
         ${safe(BROWSER_NFC_HELPERS)}
 
-        // NFC Scanning functionality
-        document.getElementById('scan-nfc').addEventListener('click', async function() {
-          const nfcStatus = document.getElementById('nfc-status');
-          const uidInput = document.getElementById('uid');
-          
-          // Reset status display
-          nfcStatus.style.display = 'block';
-          nfcStatus.className = 'scanning';
-          nfcStatus.textContent = 'Please tap your card on the device...';
-          
-          try {
-            if (!browserSupportsNfc()) {
-              throw new Error('NFC is not supported in this browser or device.');
-            }
-            
-            const ndef = new NDEFReader();
-            await ndef.scan();
-            
-            ndef.onreading = (event) => {
-              // The serialNumber contains the UID of the card
-              if (event.serialNumber) {
-                // Clean up the UID format - remove colons and convert to lowercase
-                const formattedUid = normalizeNfcSerial(event.serialNumber);
-                const validatedUid = validateUid(formattedUid);
-                
-                // Verify the UID is correct length after cleaning
-                if (!validatedUid) {
-                  nfcStatus.className = 'error';
-                  nfcStatus.textContent = 'Invalid UID format after processing. Expected 14 hex characters.';
-                  return;
-                }
-                
-                // Update the input field with the formatted UID
+        var activateFormScanner = createNfcScanner({
+          continuous: false,
+          debounceMs: 0,
+          onTap: function(data) {
+            var nfcStatus = document.getElementById('nfc-status');
+            var uidInput = document.getElementById('uid');
+            nfcStatus.style.display = 'block';
+            if (data.serial) {
+              var formattedUid = data.serial;
+              var validatedUid = validateUid(formattedUid);
+              if (validatedUid) {
                 uidInput.value = validatedUid;
-                
-                // Update status
                 nfcStatus.className = 'success';
                 nfcStatus.textContent = 'Successfully scanned card UID: ' + validatedUid;
               } else {
                 nfcStatus.className = 'error';
-                nfcStatus.textContent = 'Could not read UID from card. Please try again.';
+                nfcStatus.textContent = 'Invalid UID format after processing. Expected 14 hex characters.';
               }
-            };
-            
-            ndef.onreadingerror = () => {
+            } else {
               nfcStatus.className = 'error';
-              nfcStatus.textContent = 'Error reading NFC card. Please try again.';
-            };
-            
-          } catch (error) {
-            nfcStatus.className = 'error';
-            nfcStatus.textContent = \`Error: \${error.message}\`;
+              nfcStatus.textContent = 'Could not read UID from card. Please try again.';
+            }
+            var scanHint = document.getElementById('nfc-scanning-hint');
+            if (scanHint) scanHint.textContent = 'Tap again to re-scan card';
+          },
+          onError: function(err, phase) {
+            var nfcStatus = document.getElementById('nfc-status');
+            if (phase !== 'permission') {
+              nfcStatus.style.display = 'block';
+              nfcStatus.className = 'error';
+              nfcStatus.textContent = 'Error: ' + err.message;
+            }
           }
         });
+
+        if (browserSupportsNfc()) {
+          window.addEventListener('load', function() { activateFormScanner.scan(); });
+        }
 
         // Form submission handling
         document.getElementById('activateForm').addEventListener('submit', async function(e) {

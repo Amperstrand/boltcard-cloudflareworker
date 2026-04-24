@@ -45,7 +45,7 @@ export function renderRefundPage({ host, currencyLabel }) {
 
       <div id="nfc-btn-area" class="w-full max-w-xs mb-4">
         <button id="nfc-tap-btn" type="button" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-4 px-4 rounded-xl transition-colors text-lg">
-          TAP CARD TO READ BALANCE
+          SCANNING FOR CARD...
         </button>
       </div>
 
@@ -68,7 +68,6 @@ export function renderRefundPage({ host, currencyLabel }) {
       ${safe(BROWSER_NFC_HELPERS)}
       const API_HOST = ${jsString(host)};
       let appState = 'idle';
-      let abortController = null;
       let currentReader = null;
       let lastP = null;
       let lastC = null;
@@ -101,6 +100,8 @@ export function renderRefundPage({ host, currencyLabel }) {
         nfcTapBtn.textContent = 'NFC NOT AVAILABLE — use Chrome on Android or USB reader';
         nfcTapBtn.disabled = true;
         nfcTapBtn.classList.add('opacity-50');
+      } else {
+        window.addEventListener('load', function() { startNfcScan(); });
       }
 
       function showResult(kind, title, message) {
@@ -151,14 +152,12 @@ export function renderRefundPage({ host, currencyLabel }) {
 
       function stopNfc() {
         if (currentReader) { currentReader.onreading = null; currentReader.onreadingerror = null; currentReader = null; }
-        if (abortController) { abortController.abort(); abortController = null; }
       }
 
       async function startNfcScan() {
         if (appState !== 'idle') return;
         appState = 'scanning';
         clearResult();
-        abortController = new AbortController();
         currentReader = new NDEFReader();
 
         currentReader.onreading = async function(event) {
@@ -182,7 +181,7 @@ export function renderRefundPage({ host, currencyLabel }) {
           stopNfc(); appState = 'idle'; showResult('error', 'NFC error', 'Try again');
         };
 
-        try { await currentReader.scan({ signal: abortController.signal }); }
+        try { await currentReader.scan(); }
         catch(e) { if (e.name !== 'AbortError') { stopNfc(); appState = 'idle'; showResult('error', 'NFC error', e.message); } }
       }
 

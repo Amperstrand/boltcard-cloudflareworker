@@ -28,14 +28,20 @@ export function renderWipePage({ baseUrl, resetApiUrl }) {
               <h2 class="text-xl font-bold text-gray-200 mb-4 border-b border-gray-700 pb-2">WORKFLOW 1: NFC SCAN</h2>
               <p class="text-sm text-gray-400 mb-6">Scan an existing BoltCard to read NDEF payload and extract its UID automatically.</p>
               
-              <button id="btn-scan" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded transition-colors mb-6 shadow-[0_0_15px_rgba(37,99,235,0.2)]">
-                START NFC SCANNER
+              <button id="btn-scan" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded transition-colors mb-6 shadow-[0_0_15px_rgba(37,99,235,0.2)] hidden">
+                SCAN AGAIN
               </button>
 
               <div id="scan-status" class="text-sm font-mono text-gray-400 mb-4 hidden bg-black/30 p-3 rounded border border-gray-700">
                 <div class="flex items-center space-x-2">
                   <div class="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
                   <span>Waiting for card tap...</span>
+                </div>
+              </div>
+              <div id="scan-auto-hint" class="text-sm font-mono text-blue-400/60 mb-4 bg-black/20 p-3 rounded border border-blue-500/20">
+                <div class="flex items-center space-x-2">
+                  <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                  <span>Tap your card to auto-detect UID...</span>
                 </div>
               </div>
 
@@ -115,63 +121,55 @@ export function renderWipePage({ baseUrl, resetApiUrl }) {
           let wipeQrCode = null;
           let currentResetLink = "";
 
-          // Workflow 1: NFC Scanner
-          document.getElementById('btn-scan').addEventListener('click', async () => {
-            const btn = document.getElementById('btn-scan');
-            const status = document.getElementById('scan-status');
-            const results = document.getElementById('scan-results');
-            
-            try {
-              if (!browserSupportsNfc()) {
-                alert("Web NFC is not supported on this device/browser. Use Chrome on Android.");
-                return;
+          // Workflow 1: NFC Scanner (auto-starts on load)
+          var wipeScanner = createNfcScanner({
+            continuous: false,
+            debounceMs: 0,
+            onStatus: function(status) {
+              var autoHint = document.getElementById('scan-auto-hint');
+              var btn = document.getElementById('btn-scan');
+              if (status === 'scanning') {
+                if (autoHint) autoHint.classList.remove('hidden');
+                btn.classList.add('hidden');
+              } else {
+                if (autoHint) autoHint.classList.add('hidden');
               }
-              
-              const ndef = new NDEFReader();
-              await ndef.scan();
-              
-              btn.classList.add('hidden');
-              status.classList.remove('hidden');
-              results.classList.add('hidden');
-
-              ndef.onreading = event => {
-                const serialNumber = normalizeNfcSerial(event.serialNumber);
-                document.getElementById('scan-uid').innerText = serialNumber || "Unknown";
-                
-                let pParam = "Not found";
-                let cParam = "Not found";
-
-                extractNdefUrl(event.message.records, ["lnurlw://", "https://"]).then(urlString => {
-                  if (urlString) {
-                    try {
-                      const url = new URL(normalizeBrowserNfcUrl(urlString));
-                      pParam = url.searchParams.get("p") || pParam;
-                      cParam = url.searchParams.get("c") || cParam;
-                    } catch(e) {
-                      // URL parse failed — keep existing pParam/cParam values
-                    }
-                  }
-
-                  document.getElementById('scan-p').innerText = pParam;
-                  document.getElementById('scan-c').innerText = cParam;
-                  
-                  status.classList.add('hidden');
-                  results.classList.remove('hidden');
-                  btn.classList.remove('hidden');
-                  btn.innerText = "SCAN AGAIN";
-                });
-              };
-              
-              ndef.onreadingerror = () => {
-                alert("Error reading NFC tag. Try again.");
-                status.classList.add('hidden');
-                btn.classList.remove('hidden');
-              };
-            } catch (error) {
-              alert("Error starting NFC: " + error.message);
-              status.classList.add('hidden');
+            },
+            onError: function(err, phase) {
+              var autoHint = document.getElementById('scan-auto-hint');
+              if (autoHint) autoHint.classList.add('hidden');
+              if (phase !== 'permission') {
+                alert("Error reading NFC: " + err.message);
+              }
+            },
+            onTap: function(data) {
+              var autoHint = document.getElementById('scan-auto-hint');
+              if (autoHint) autoHint.classList.add('hidden');
+              var btn = document.getElementById('btn-scan');
+              document.getElementById('scan-uid').innerText = data.serial || "Unknown";
+              var pParam = "Not found";
+              var cParam = "Not found";
+              if (data.url) {
+                try {
+                  var url = new URL(data.url);
+                  pParam = url.searchParams.get("p") || pParam;
+                  cParam = url.searchParams.get("c") || cParam;
+                } catch(e) {}
+              }
+              document.getElementById('scan-p').innerText = pParam;
+              document.getElementById('scan-c').innerText = cParam;
+              document.getElementById('scan-results').classList.remove('hidden');
               btn.classList.remove('hidden');
+              btn.innerText = "SCAN AGAIN";
             }
+          });
+
+          if (browserSupportsNfc()) {
+            window.addEventListener('load', function() { wipeScanner.scan(); });
+          }
+
+          document.getElementById('btn-scan').addEventListener('click', function() {
+            wipeScanner.restart();
           });
 
           // Handlers for Wipe requests

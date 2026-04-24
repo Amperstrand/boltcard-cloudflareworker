@@ -113,7 +113,7 @@ export function renderPosPage({ host, currencyLabel }) {
       let amountInput = '0';
       let appState = 'idle';
       let currentReader = null;
-      let abortController = null;
+      let autoChargeTimer = null;
       let chargeAmount = '0';
       let posMode = localStorage.getItem('pos_mode') || 'free';
       let terminalId = localStorage.getItem('terminal_id') || '';
@@ -340,6 +340,13 @@ export function renderPosPage({ host, currencyLabel }) {
         keypadButtons.forEach(function(b) { b.disabled = editingLocked; b.classList.toggle('opacity-40', editingLocked); });
         chargeButton.disabled = editingLocked || (posMode === 'menu' ? getCartTotal() <= 0 : amountIsZero(amountInput));
         newSaleButton.classList.toggle('hidden', !(appState === 'success' || appState === 'failed'));
+        if (appState === 'idle' && !editingLocked) {
+          var hasAmount = (posMode === 'menu' && getCartTotal() > 0) || (posMode === 'free' && !amountIsZero(amountInput));
+          clearTimeout(autoChargeTimer);
+          if (hasAmount && browserSupportsNfc()) {
+            autoChargeTimer = setTimeout(function() { if (appState === 'idle') startChargeFlow(); }, 1000);
+          }
+        }
       }
 
       function handleKeypadInput(key) {
@@ -355,7 +362,7 @@ export function renderPosPage({ host, currencyLabel }) {
 
       function resetSale() { stopScanning(); amountInput = '0'; chargeAmount = '0'; clearCart(); clearResult(); setState('idle'); }
       function cancelCharge() { stopScanning(); setState('idle'); showResult('error', 'Cancelled', 'Charge cancelled'); }
-      function stopScanning() { if (currentReader) { currentReader.onreading = null; currentReader.onreadingerror = null; currentReader = null; } if (abortController) { abortController.abort(); abortController = null; } }
+      function stopScanning() { if (currentReader) { currentReader.onreading = null; currentReader.onreadingerror = null; currentReader = null; } clearTimeout(autoChargeTimer); }
 
       async function directCharge(p, c) {
         var amount = posMode === 'menu' ? getCartTotal() : parseInt(normalizeAmount(chargeAmount), 10);
@@ -385,13 +392,13 @@ export function renderPosPage({ host, currencyLabel }) {
         stopScanning();
         setState('charging');
 
-        abortController = new AbortController();
         currentReader = new NDEFReader();
 
         currentReader.onreading = async function(event) {
           if (appState !== 'scanning') return;
           try {
             var nfcUrl = await extractNdefUrl(event.message.records, ['lnurlw://', 'https://']);
+            nfcUrl = normalizeBrowserNfcUrl(nfcUrl);
             if (!nfcUrl) throw new Error('No URL on card');
             var parsed = new URL(nfcUrl);
             var p = parsed.searchParams.get('p');
@@ -409,7 +416,7 @@ export function renderPosPage({ host, currencyLabel }) {
 
         currentReader.onreadingerror = function() { stopScanning(); setState('idle'); showResult('error', 'NFC error', 'Try again'); };
 
-        try { await currentReader.scan({ signal: abortController.signal }); setState('scanning'); }
+        try { await currentReader.scan(); setState('scanning'); }
         catch (error) { if (error.name !== 'AbortError') { stopScanning(); setState('idle'); showResult('error', 'NFC error', error.message); } }
       }
     </script>
