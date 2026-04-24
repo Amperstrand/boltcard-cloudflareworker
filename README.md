@@ -82,6 +82,8 @@ You need a physical NTAG424 card programmed for this worker's issuer key. Cards 
 | GET | `/api/pos/menu` | Yes | Get menu JSON |
 | POST | `/operator/refund/apply` | Yes | Refund card balance |
 | POST | `/api/balance-check` | No | Read card balance without auth |
+| POST | `/api/identify-card` | Yes | Operator card identification |
+| POST | `/api/identify-issuer-key` | Yes | Tap-to-detect issuer key + version |
 | GET | `/api/receipt/:txnId` | Yes | Plain-text receipt for a transaction |
 | GET | `/api/fake-invoice?amount=N` | No | Generate fake BOLT11 invoice |
 | GET | `/api/verify-identity?p=X&c=Y` | No | Verify card identity |
@@ -347,7 +349,7 @@ npm test -- --watch                   # Watch mode
 ├── index.js                     # Router + LNURL-withdraw handler
 ├── boltCardHelper.js            # Card decrypt + CMAC validation
 ├── cryptoutils.js               # AES-ECB + AES-CMAC primitives
-├── getUidConfig.js              # Card config lookup (KV → static fallback)
+├── getUidConfig.js              # Card config lookup (DO → deterministic fallback)
 ├── keygenerator.js              # Deterministic key derivation from UID + ISSUER_KEY
 ├── rateLimiter.js               # IP-based fixed-window rate limiting
 ├── replayProtection.js          # Replay check + balance/txn helpers → DO
@@ -384,7 +386,7 @@ npm test -- --watch                   # Watch mode
 │   └── ...
 ├── durableObjects/
 │   └── CardReplayDO.js          # Per-card SQLite DO (balance, txns, counter)
-├── tests/                       # 339 tests across 23 suites
+├── tests/                       # Tests across 25+ suites
 ├── keys/                        # Key recovery CSV files
 ├── docs/
 │   ├── VENUE-DEPLOYMENT.md      # Venue setup guide
@@ -400,14 +402,14 @@ npm test -- --watch                   # Watch mode
 | "CMAC validation failed" | Card keys don't match | Wipe and reprogram |
 | "Replay detected" | Counter already used (normal) | Tap again — counter auto-increments |
 | "Insufficient balance" (402) | Not enough funds | Top up first |
-| "Rate limited" on login | Too many failed PIN attempts | Wait 60 seconds |
+| "Rate limited" on login | Too many failed PIN attempts | Wait 15 minutes |
 | Operator pages redirect to login | Session expired (12h) | Re-enter PIN |
 | Web NFC not working | Browser/device unsupported | Use Chrome on Android, or USB reader on desktop |
 | USB reader not working | Not in keyboard-wedge mode | Check reader docs, install drivers |
 
 ## Dependencies — Known Quirks
 
-- `@noble/secp256k1` v3: requires explicit hash injection at module load (done in `index.js`)
+- `@noble/secp256k1` v3: requires explicit hash injection at module load (done in `utils/bolt11.js`)
 - `@noble/hashes`: import paths MUST include `.js` extension (e.g., `"@noble/hashes/sha2.js"`)
 - `@scure/base`: bech32 lives here (not `@scure/bech32`), and `bech32.encode()` has a 90-char default limit — pass `1024` as 3rd arg for bolt11
 - `aes-js`: kept intentionally — do not switch to `node:crypto`-dependent libraries
