@@ -4,8 +4,7 @@ import { getUidConfig } from "../getUidConfig.js";
 import { renderLoginPage } from "../templates/loginPage.js";
 import { logger } from "../utils/logger.js";
 import { htmlResponse, jsonResponse, errorResponse } from "../utils/responses.js";
-import { getAllIssuerKeyCandidates, getPerCardKeys } from "../utils/keyLookup.js";
-import { PERCARD_KEYS } from "../utils/generatedKeyData.js";
+import { getAllIssuerKeyCandidates, getPerCardKeys, getUniquePerCardK1s } from "../utils/keyLookup.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
 import { listTaps, listTransactions, getCardState, getCardConfig, terminateCard, requestWipe, recordTapRead, getBalance, creditCard } from "../replayProtection.js";
 import { validateUid, getRequestOrigin } from "../utils/validation.js";
@@ -450,13 +449,4 @@ async function getUnifiedHistory(env, uidHex) {
     logger.warn("Could not load transactions", { uidHex, error: e.message });
   }
   return mergeHistory(taps, transactions);
-}
-
-function getUniquePerCardK1s() {
-  const seen = new Set();
-  return PERCARD_KEYS.filter((e) => {
-    if (seen.has(e.k1)) return false;
-    seen.add(e.k1);
-    return true;
-  });
 }

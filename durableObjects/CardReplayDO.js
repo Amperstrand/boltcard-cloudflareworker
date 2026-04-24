@@ -63,6 +63,7 @@ export class CardReplayDO extends DurableObject {
       try {
         this.sql.exec(`ALTER TABLE card_config ADD COLUMN pull_payment_id TEXT`);
       } catch (e) {
+        // Column already exists — expected on subsequent initializations
       }
       this.sql.exec(`
         CREATE TABLE IF NOT EXISTS transactions (

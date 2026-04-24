@@ -1,11 +1,6 @@
-import { validateUid } from "../utils/validation.js";
 import { rawHtml, safe } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
-
-const BROWSER_VALIDATE_UID_HELPER = rawHtml`
-    const UID_REGEX = /^[0-9a-f]{14}$/;
-    ${validateUid.toString()}
-`;
+import { BROWSER_VALIDATE_UID_HELPER } from "./browserNfc.js";
 
 export function renderAnalyticsPage() {
   return renderTailwindPage({
