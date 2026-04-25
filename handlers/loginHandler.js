@@ -3,13 +3,13 @@ import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { renderLoginPage } from "../templates/loginPage.js";
 import { logger } from "../utils/logger.js";
-import { htmlResponse, jsonResponse, errorResponse } from "../utils/responses.js";
+import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { getAllIssuerKeyCandidates, getPerCardKeys, getUniquePerCardK1s } from "../utils/keyLookup.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
 import { listTaps, listTransactions, getCardState, getCardConfig, terminateCard, requestWipe, recordTapRead, getBalance, creditCard } from "../replayProtection.js";
 import { validateUid, getRequestOrigin } from "../utils/validation.js";
-
-const DEFAULT_PULL_PAYMENT_ID = "fUDXsnySxvb5LYZ1bSLiWzLjVuT";
+import { cmacScanVersions } from "../utils/cmacScan.js";
+import { DEFAULT_PULL_PAYMENT_ID } from "../utils/constants.js";
 
 function resolvePullPaymentId(env, cardConfig) {
   return cardConfig?.pull_payment_id || env.DEFAULT_PULL_PAYMENT_ID || DEFAULT_PULL_PAYMENT_ID;
@@ -23,7 +23,7 @@ function normalizeSubmittedUid(rawUid) {
   return validateUid(typeof rawUid === "string" ? rawUid.replace(/:/g, "") : "");
 }
 
-export async function handleLoginPage(request) {
+export function handleLoginPage(request) {
   const host = getRequestOrigin(request);
   const defaultProgrammingEndpoint = `${host}/api/v1/pull-payments/${DEFAULT_PULL_PAYMENT_ID}/boltcards?onExisting=UpdateVersion`;
   return htmlResponse(renderLoginPage({ host, defaultProgrammingEndpoint }));
@@ -31,12 +31,8 @@ export async function handleLoginPage(request) {
 
 export async function handleLoginVerify(request, env) {
   try {
-    let body;
-    try {
-      body = await request.json();
-    } catch {
-      return errorResponse("Invalid JSON body", 400);
-    }
+    const body = await parseJsonBody(request).catch(() => null);
+    if (!body) return errorResponse("Invalid JSON body", 400);
 
     const { p: pHex, c: cHex, uid: rawUid } = body;
     const requestOrigin = getRequestOrigin(request);
@@ -83,39 +79,36 @@ export async function handleLoginVerify(request, env) {
 
       const cardState = await getCardState(env, uidHex);
       const latestVersion = cardState?.latest_issued_version || cardState?.active_version || 1;
-      const minVersion = Math.max(1, latestVersion - 10);
       const uidBytes = hexToBytes(uidHex);
       const ctrBytes = hexToBytes(ctr);
-      const versionDebug = [];
 
-      for (let v = latestVersion; v >= minVersion; v--) {
-        const keys = deriveKeysFromHex(uidHex, candidate.hex, v);
-        const { cmac_validated } = validate_cmac(uidBytes, ctrBytes, cHex, hexToBytes(keys.k2));
-        versionDebug.push({ version: v, cmac: cmac_validated });
-        if (cmac_validated) {
-          matchedCmacValid = true;
-          matchedVersion = v;
-          matchedKeys = keys;
-
-          const perCard = getPerCardKeys(uidHex);
-          if (perCard) {
-            perCardSource = perCard.card_name || "recovered";
-            matchedKeys = {
-              k0: perCard.k0,
-              k1: perCard.k1,
-              k2: perCard.k2,
-              k3: perCard.k3 || deriveKeysFromHex(uidHex, candidate.hex, matchedVersion).k3,
-              k4: perCard.k4 || deriveKeysFromHex(uidHex, candidate.hex, matchedVersion).k4,
-            };
-            const { cmac_validated: pcCmac } = validate_cmac(uidBytes, ctrBytes, cHex, hexToBytes(perCard.k2));
-            matchedCmacValid = pcCmac;
-          }
-
-          break;
+      const { matchedVersion: scanVersion, attempts: versionDebug } = await cmacScanVersions(
+        uidBytes, ctrBytes, cHex, {
+          k2ForVersion: (v) => hexToBytes(deriveKeysFromHex(uidHex, candidate.hex, v).k2),
+          highVersion: latestVersion,
+          lowVersion: Math.max(1, latestVersion - 10),
         }
-      }
+      );
 
-      if (!matchedKeys) {
+      if (scanVersion !== null) {
+        matchedCmacValid = true;
+        matchedVersion = scanVersion;
+        matchedKeys = deriveKeysFromHex(uidHex, candidate.hex, scanVersion);
+
+        const perCard = getPerCardKeys(uidHex);
+        if (perCard) {
+          perCardSource = perCard.card_name || "recovered";
+          matchedKeys = {
+            k0: perCard.k0,
+            k1: perCard.k1,
+            k2: perCard.k2,
+            k3: perCard.k3 || deriveKeysFromHex(uidHex, candidate.hex, scanVersion).k3,
+            k4: perCard.k4 || deriveKeysFromHex(uidHex, candidate.hex, scanVersion).k4,
+          };
+          const { cmac_validated: pcCmac } = validate_cmac(uidBytes, ctrBytes, cHex, hexToBytes(perCard.k2));
+          matchedCmacValid = pcCmac;
+        }
+      } else {
         matchedKeys = deriveKeysFromHex(uidHex, candidate.hex, latestVersion);
         matchedVersion = latestVersion;
       }

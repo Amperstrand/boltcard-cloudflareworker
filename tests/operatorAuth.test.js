@@ -184,8 +184,8 @@ describe("production guards", () => {
     expect(() => checkPin("1234", prodEnv)).toThrow("OPERATOR_PIN must be set in production");
   });
 
-  it("createSession throws in production when OPERATOR_SESSION_SECRET is missing", async () => {
-    await expect(createSession(prodEnv)).rejects.toThrow("OPERATOR_SESSION_SECRET must be set in production");
+  it("createSession throws in production when OPERATOR_SESSION_SECRET is missing", () => {
+    expect(() => createSession(prodEnv)).toThrow("OPERATOR_SESSION_SECRET must be set in production");
   });
 
   it("__TEST_OPERATOR_SESSION bypass is ignored in production", async () => {

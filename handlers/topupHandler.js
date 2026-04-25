@@ -1,5 +1,5 @@
 import { getCurrencyLabel } from "../utils/currency.js";
-import { htmlResponse, jsonResponse, errorResponse } from "../utils/responses.js";
+import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { creditCard, getBalance } from "../replayProtection.js";
 import { validateCardTap } from "../utils/validateCardTap.js";
 import { logger } from "../utils/logger.js";
@@ -13,12 +13,8 @@ export function handleTopupPage(request, env) {
 }
 
 export async function handleTopupApply(request, env, session) {
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return errorResponse("Invalid JSON body", 400);
-  }
+  const body = await parseJsonBody(request).catch(() => null);
+  if (!body) return errorResponse("Invalid JSON body", 400);
 
   const { p: pHex, c: cHex, amount } = body;
 

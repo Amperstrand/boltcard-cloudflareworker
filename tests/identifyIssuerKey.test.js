@@ -61,7 +61,7 @@ describe("POST /api/identify-issuer-key", () => {
 
   beforeAll(async () => {
     const env = { BOLT_CARD_K1 };
-    keys = await getDeterministicKeys(TEST_UID, env);
+    keys = getDeterministicKeys(TEST_UID, env);
     const { pHex: p, ctrHex } = generateRealPandC(TEST_UID, 1, keys.k1);
     pHex = p;
     cHex = computeRealC(TEST_UID, ctrHex, keys.k2);

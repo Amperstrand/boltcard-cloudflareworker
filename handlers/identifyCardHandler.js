@@ -3,10 +3,11 @@ import { getUidConfig } from "../getUidConfig.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getCardState } from "../replayProtection.js";
-import { jsonResponse, errorResponse } from "../utils/responses.js";
+import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
+import { cmacScanVersions } from "../utils/cmacScan.js";
 
 export async function handleIdentifyCard(request, env) {
-  const body = await request.json().catch(() => null);
+  const body = await parseJsonBody(request).catch(() => null);
   const pHex = body?.p || new URL(request.url).searchParams.get("p");
   const cHex = body?.c || new URL(request.url).searchParams.get("c");
 
@@ -48,19 +49,31 @@ export async function handleIdentifyCard(request, env) {
     }
   }
 
-  for (let v = 0; v <= 10; v++) {
-    try {
-      const keys = await getDeterministicKeys(uidHex, env, v);
-      const cmac = validate_cmac(uidBytes, ctrBytes, cHex, hexToBytes(keys.k2));
-      if (cmac.cmac_validated) {
-        results.push({
-          source: "deterministic",
-          version: v,
-          cmac_validated: true,
-          id: keys.id,
-        });
+  const keyCache = new Map();
+  const { attempts: detAttempts } = await cmacScanVersions(uidBytes, ctrBytes, cHex, {
+    k2ForVersion: async (v) => {
+      try {
+        const keys = getDeterministicKeys(uidHex, env, v);
+        keyCache.set(v, keys);
+        return hexToBytes(keys.k2);
+      } catch {
+        return new Uint8Array(16);
       }
-    } catch {}
+    },
+    highVersion: 10,
+    lowVersion: 0,
+    stopOnFirst: false,
+  });
+
+  for (const attempt of detAttempts) {
+    if (attempt.cmac_validated && keyCache.has(attempt.version)) {
+      results.push({
+        source: "deterministic",
+        version: attempt.version,
+        cmac_validated: true,
+        id: keyCache.get(attempt.version).id,
+      });
+    }
   }
 
   const match = results.find(r => r.cmac_validated);

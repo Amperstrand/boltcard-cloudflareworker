@@ -127,11 +127,11 @@ export async function handleLnurlpPayment(request, env) {
     }
   } catch (err) {
     logger.error("Error processing LNURL withdraw request", { error: err.message });
-    return jsonResponse({ status: "ERROR", reason: err.message }, 500);
+    return errorResponse(err.message, 500);
   }
 }
 
-export async function processWithdrawalPayment(uid, pr, env, counterValue, explicitAmount) {
+async function processWithdrawalPayment(uid, pr, env, counterValue, explicitAmount) {
   if (!uid) {
     logger.error("Received undefined UID in processWithdrawalPayment");
     return jsonResponse({ status: "ERROR", reason: "Invalid UID" }, 400);

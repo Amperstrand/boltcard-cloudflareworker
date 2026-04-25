@@ -1,4 +1,6 @@
 import { ISSUER_KEYS_BY_DOMAIN, PERCARD_KEYS } from "./generatedKeyData.js";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex } from "../cryptoutils.js";
 
 const PERCARD_MAP = new Map(PERCARD_KEYS.map((entry) => [entry.uid, entry]));
 
@@ -58,8 +60,7 @@ export function getUniquePerCardK1s() {
   return result;
 }
 
-export async function fingerprintHex(hex) {
+export function fingerprintHex(hex) {
   const data = new TextEncoder().encode(hex.toLowerCase());
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+  return bytesToHex(sha256(data)).slice(0, 16);
 }

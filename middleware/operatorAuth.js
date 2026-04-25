@@ -1,46 +1,27 @@
+import { base64url } from "@scure/base";
+import { hmac } from "@noble/hashes/hmac.js";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { getCookieValue } from "../utils/cookies.js";
+import { OPERATOR_SESSION_MAX_AGE, OPERATOR_CSRF_MAX_AGE } from "../utils/constants.js";
+
 const COOKIE_NAME = "op_session";
 const CSRF_COOKIE_NAME = "op_csrf";
-const SESSION_MAX_AGE = 12 * 60 * 60;
-const CSRF_MAX_AGE = 12 * 60 * 60;
+const SESSION_MAX_AGE = OPERATOR_SESSION_MAX_AGE;
+const CSRF_MAX_AGE = OPERATOR_CSRF_MAX_AGE;
 const MIN_PIN_LENGTH = 4;
 const DEV_PIN = "1234";
 const DEV_SESSION_SECRET = "dev-only-session-secret-do-not-use-in-production";
 
-async function hmacSign(key, data) {
+function hmacSign(key, data) {
   const keyBuf = typeof key === "string" ? new TextEncoder().encode(key) : key;
   const dataBuf = typeof data === "string" ? new TextEncoder().encode(data) : data;
-  const cryptoKey = await crypto.subtle.importKey(
-    "raw",
-    keyBuf,
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const sig = await crypto.subtle.sign("HMAC", cryptoKey, dataBuf);
-  return bufToBase64url(new Uint8Array(sig));
+  const sig = hmac(sha256, keyBuf, dataBuf);
+  return base64url.encode(sig);
 }
 
-async function hmacVerify(key, data, sig) {
-  const expected = await hmacSign(key, data);
+function hmacVerify(key, data, sig) {
+  const expected = hmacSign(key, data);
   return constantTimeEqual(expected, sig);
-}
-
-function bufToBase64url(buf) {
-  let binary = "";
-  for (let i = 0; i < buf.length; i++) {
-    binary += String.fromCharCode(buf[i]);
-  }
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function base64urlToBuf(str) {
-  const padded = str.replace(/-/g, "+").replace(/_/g, "/");
-  const binary = atob(padded);
-  const buf = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    buf[i] = binary.charCodeAt(i);
-  }
-  return buf;
 }
 
 function constantTimeEqual(a, b) {
@@ -67,17 +48,17 @@ function createSessionPayload(shiftId) {
   });
 }
 
-async function signSession(payload, secret) {
+function signSession(payload, secret) {
   const b64 = btoa(payload).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  const sig = await hmacSign(secret, b64);
+  const sig = hmacSign(secret, b64);
   return `${b64}.${sig}`;
 }
 
-async function verifyAndParseSession(cookieValue, secret) {
+function verifyAndParseSession(cookieValue, secret) {
   const parts = cookieValue.split(".");
   if (parts.length !== 2) return null;
   const [b64, sig] = parts;
-  const valid = await hmacVerify(secret, b64, sig);
+  const valid = hmacVerify(secret, b64, sig);
   if (!valid) return null;
 
   try {
@@ -91,9 +72,7 @@ async function verifyAndParseSession(cookieValue, secret) {
 }
 
 function getSessionCookie(request) {
-  const cookieHeader = request.headers.get("Cookie") || "";
-  const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${COOKIE_NAME}=([^;]*)`));
-  return match ? match[1] : null;
+  return getCookieValue(request.headers.get("Cookie"), COOKIE_NAME);
 }
 
 function buildSessionCookie(value) {
@@ -104,7 +83,7 @@ function buildExpiredCookie() {
   return `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/`;
 }
 
-export async function requireOperator(request, env) {
+export function requireOperator(request, env) {
   const secret = env.OPERATOR_SESSION_SECRET || DEV_SESSION_SECRET;
 
   if (env.__TEST_OPERATOR_SESSION && env.WORKER_ENV !== "production") {
@@ -124,7 +103,7 @@ export async function requireOperator(request, env) {
     };
   }
 
-  const session = await verifyAndParseSession(sessionCookie, secret);
+  const session = verifyAndParseSession(sessionCookie, secret);
   if (!session) {
     const url = new URL(request.url);
     const returnUrl = encodeURIComponent(url.pathname + url.search);
@@ -164,52 +143,20 @@ export function checkPin(provided, env) {
   return constantTimeComparePin(provided, expected);
 }
 
-export async function createSession(env) {
+export function createSession(env) {
   if (env.WORKER_ENV === "production" && !env.OPERATOR_SESSION_SECRET) {
     throw new Error("OPERATOR_SESSION_SECRET must be set in production");
   }
   const secret = env.OPERATOR_SESSION_SECRET || DEV_SESSION_SECRET;
   const shiftId = crypto.randomUUID();
   const payload = createSessionPayload(shiftId);
-  const signed = await signSession(payload, secret);
+  const signed = signSession(payload, secret);
   return { cookie: buildSessionCookie(signed), shiftId };
 }
 
 export { buildExpiredCookie, COOKIE_NAME, MIN_PIN_LENGTH, CSRF_COOKIE_NAME };
 
-function generateCsrfToken() {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return bufToBase64url(bytes);
-}
-
-function getCsrfCookie(request) {
-  const cookieHeader = request.headers.get("Cookie") || "";
-  const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${CSRF_COOKIE_NAME}=([^;]*)`));
-  return match ? match[1] : null;
-}
-
 export function buildCsrfCookie(token) {
   return `${CSRF_COOKIE_NAME}=${token}; Secure; SameSite=Strict; Max-Age=${CSRF_MAX_AGE}; Path=/`;
 }
 
-export function validateCsrf(request, env) {
-  if (env && env.__TEST_OPERATOR_SESSION && env.WORKER_ENV !== "production") {
-    return true;
-  }
-  const cookieToken = getCsrfCookie(request);
-  const headerToken = request.headers.get("X-CSRF-Token");
-  if (!cookieToken || !headerToken) return false;
-  return constantTimeEqual(cookieToken, headerToken);
-}
-
-export function requireCsrf(request, env) {
-  return validateCsrf(request, env);
-}
-
-function errorHtmlResponse(message, status) {
-  return new Response(`<!DOCTYPE html><html><head><title>Error</title></head><body><h1>${status}</h1><p>${message}</p></body></html>`, {
-    status,
-    headers: { "Content-Type": "text/html" },
-  });
-}

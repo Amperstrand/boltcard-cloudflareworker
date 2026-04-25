@@ -325,8 +325,8 @@ export function renderDebugConsolePage({ host, baseUrl }) {
             if (json.tag === 'withdrawRequest') {
               detailsBox.innerHTML =
                 '<div class="space-y-1 text-sm">' +
-                '<div><span class="font-semibold text-gray-100">Callback:</span> <span class="break-all font-mono text-xs text-cyan-300">' + json.callback + '</span></div>' +
-                '<div><span class="font-semibold text-gray-100">K1:</span> <span class="break-all font-mono text-xs text-amber-300">' + json.k1 + '</span></div>' +
+                '<div><span class="font-semibold text-gray-100">Callback:</span> <span class="break-all font-mono text-xs text-cyan-300">' + esc(json.callback) + '</span></div>' +
+                '<div><span class="font-semibold text-gray-100">K1:</span> <span class="break-all font-mono text-xs text-amber-300">' + esc(json.k1) + '</span></div>' +
                 '<div><span class="font-semibold text-gray-100">Min:</span> ' + (json.minWithdrawable / 1000) + ' sats</div>' +
                 '<div><span class="font-semibold text-gray-100">Max:</span> ' + (json.maxWithdrawable / 1000) + ' sats</div>' +
                 '</div>';
@@ -363,7 +363,7 @@ export function renderDebugConsolePage({ host, baseUrl }) {
           rawBox.textContent = JSON.stringify(json, null, 2);
 
           if (json.status === 'ERROR') {
-            detailsBox.innerHTML = '<p class="text-red-300">' + (json.reason || 'Identification failed') + '</p>';
+            detailsBox.innerHTML = '<p class="text-red-300">' + esc(json.reason || 'Identification failed') + '</p>';
             return;
           }
 
@@ -371,12 +371,12 @@ export function renderDebugConsolePage({ host, baseUrl }) {
             var m = json.matched;
             detailsBox.innerHTML =
               '<div class="space-y-2 text-sm">' +
-              '<div><span class="font-semibold text-gray-100">UID:</span> <span class="font-mono text-amber-300">' + (json.uid || '--') + '</span></div>' +
-              '<div><span class="font-semibold text-gray-100">Counter:</span> <span class="font-mono text-cyan-300">' + (json.counter || '--') + '</span></div>' +
+              '<div><span class="font-semibold text-gray-100">UID:</span> <span class="font-mono text-amber-300">' + esc(json.uid || '--') + '</span></div>' +
+              '<div><span class="font-semibold text-gray-100">Counter:</span> <span class="font-mono text-cyan-300">' + esc(json.counter || '--') + '</span></div>' +
               '<div><span class="font-semibold text-gray-100">CMAC:</span> <span class="text-emerald-300">valid</span></div>' +
-              '<div><span class="font-semibold text-gray-100">State:</span> ' + (m.card_state || '--') + '</div>' +
-              '<div><span class="font-semibold text-gray-100">Method:</span> ' + (m.payment_method || '--') + '</div>' +
-              '<div><span class="font-semibold text-gray-100">Version:</span> ' + (m.version != null ? m.version : '--') + '</div>' +
+              '<div><span class="font-semibold text-gray-100">State:</span> ' + esc(m.card_state || '--') + '</div>' +
+              '<div><span class="font-semibold text-gray-100">Method:</span> ' + esc(m.payment_method || '--') + '</div>' +
+              '<div><span class="font-semibold text-gray-100">Version:</span> ' + esc(m.version != null ? m.version : '--') + '</div>' +
               '<div><span class="font-semibold text-gray-100">Source:</span> ' + (m.source === 'config' ? 'Known card' : 'Deterministic') + '</div>' +
               '</div>';
 
@@ -393,8 +393,8 @@ export function renderDebugConsolePage({ host, baseUrl }) {
           } else {
             detailsBox.innerHTML =
               '<div class="space-y-2 text-sm">' +
-              '<div><span class="font-semibold text-gray-100">UID:</span> <span class="font-mono text-amber-300">' + (json.uid || '--') + '</span></div>' +
-              '<div><span class="font-semibold text-gray-100">Counter:</span> <span class="font-mono text-cyan-300">' + (json.counter || '--') + '</span></div>' +
+              '<div><span class="font-semibold text-gray-100">UID:</span> <span class="font-mono text-amber-300">' + esc(json.uid || '--') + '</span></div>' +
+              '<div><span class="font-semibold text-gray-100">Counter:</span> <span class="font-mono text-cyan-300">' + esc(json.counter || '--') + '</span></div>' +
               '<div><span class="font-semibold text-gray-100">CMAC:</span> <span class="text-red-300">no match</span></div>' +
               '<div class="text-xs text-gray-500 mt-2">Tried ' + ((json.all_attempts && json.all_attempts.length) || 0) + ' key(s). None matched CMAC.</div>' +
               '</div>';
@@ -406,7 +406,7 @@ export function renderDebugConsolePage({ host, baseUrl }) {
             });
           }
         }).catch(function(err) {
-          detailsBox.innerHTML = '<p class="text-red-300">Error: ' + err.message + '</p>';
+          detailsBox.innerHTML = '<p class="text-red-300">Error: ' + esc(err.message) + '</p>';
         });
       }
 
@@ -487,16 +487,16 @@ export function renderDebugConsolePage({ host, baseUrl }) {
             if (json.verified) {
               outputDiv.innerHTML =
                 '<div class="rounded-xl border border-pink-500/20 bg-pink-500/5 p-4 mt-4">' +
-                '<div class="flex items-center gap-3 mb-3"><div class="h-8 w-8 rounded-full bg-pink-500 flex items-center justify-center text-xl">' + (json.profile && json.profile.emoji || '?') + '</div>' +
-                '<div><div class="font-bold text-white text-lg">' + (json.profile && json.profile.name || 'Unknown') + '</div>' +
-                '<div class="text-xs text-gray-400">' + (json.profile && json.profile.role || '') + ' \u00b7 ' + (json.profile && json.profile.department || '') + '</div></div></div>' +
-                '<div class="grid grid-cols-2 gap-2 text-sm"><div><span class="text-gray-500">UID:</span> <span class="font-mono text-amber-300">' + (json.uid || '--') + '</span></div>' +
-                '<div><span class="text-gray-500">Clearance:</span> <span class="text-pink-300">' + (json.profile && json.profile.clearance || '--') + '</span></div></div>' +
+                '<div class="flex items-center gap-3 mb-3"><div class="h-8 w-8 rounded-full bg-pink-500 flex items-center justify-center text-xl">' + esc(json.profile && json.profile.emoji || '?') + '</div>' +
+                '<div><div class="font-bold text-white text-lg">' + esc(json.profile && json.profile.name || 'Unknown') + '</div>' +
+                '<div class="text-xs text-gray-400">' + esc(json.profile && json.profile.role || '') + ' \u00b7 ' + esc(json.profile && json.profile.department || '') + '</div></div></div>' +
+                '<div class="grid grid-cols-2 gap-2 text-sm"><div><span class="text-gray-500">UID:</span> <span class="font-mono text-amber-300">' + esc(json.uid || '--') + '</span></div>' +
+                '<div><span class="text-gray-500">Clearance:</span> <span class="text-pink-300">' + esc(json.profile && json.profile.clearance || '--') + '</span></div></div>' +
                 '</div>';
             } else {
               outputDiv.innerHTML =
                 '<div class="rounded-xl border border-red-500/30 bg-red-500/10 p-4 mt-4">' +
-                '<p class="text-red-300">' + (json.reason || 'Not verified') + '</p></div>';
+                '<p class="text-red-300">' + esc(json.reason || 'Not verified') + '</p></div>';
             }
           }).catch(function() { outputDiv.innerHTML = '<div class="text-center text-red-400 py-4">Error loading identity data.</div>'; });
       }

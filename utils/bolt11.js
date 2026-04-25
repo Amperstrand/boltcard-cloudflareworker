@@ -2,6 +2,7 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { hmac } from "@noble/hashes/hmac.js";
 import * as secp from "@noble/secp256k1";
 import { bech32 } from "@scure/base";
+import { hexToBytes, bytesToHex } from "../cryptoutils.js";
 
 secp.hashes.sha256 = sha256;
 secp.hashes.hmacSha256 = (key, data) => hmac(sha256, key, data);
@@ -114,15 +115,7 @@ function encodeAmountHrp(amountMsat) {
 function randomHex(bytes) {
   const arr = new Uint8Array(bytes);
   crypto.getRandomValues(arr);
-  return [...arr].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-function hexToU8(hex) {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
-  }
-  return bytes;
+  return bytesToHex(arr);
 }
 
 /**
@@ -149,7 +142,7 @@ export function generateFakeBolt11(amountMsat) {
   const timestamp = Math.floor(Date.now() / 1000);
   const tsWords = encodeInt5Bit(timestamp, 35);
 
-  const paymentHashTag = encodeTag(1, hexToU8(randomHex(32)));
+  const paymentHashTag = encodeTag(1, hexToBytes(randomHex(32)));
 
   const descriptionTag = encodeTag(13, new TextEncoder().encode("fakewallet payment"));
 
@@ -167,7 +160,7 @@ export function generateFakeBolt11(amountMsat) {
   const msgBytes = fiveBitToBytes([...hrpWords, ...dataWithoutSig]);
   const msgHash = sha256(new Uint8Array(msgBytes));
 
-  const privKey = hexToU8(randomHex(32));
+  const privKey = hexToBytes(randomHex(32));
   const sigRecovered = secp.sign(msgHash, privKey, { format: "recovered" });
   const recovery = sigRecovered[0];
   const r = sigRecovered.slice(1, 33);

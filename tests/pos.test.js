@@ -101,7 +101,7 @@ describe("POS Amount Parameter Support", () => {
 
   beforeAll(async () => {
     const env = { BOLT_CARD_K1: BOLT_CARD_K1 };
-    keys = await getDeterministicKeys(TEST_UID, env);
+    keys = getDeterministicKeys(TEST_UID, env);
   });
 
   test("callback handler accepts amount query parameter alongside pr", async () => {

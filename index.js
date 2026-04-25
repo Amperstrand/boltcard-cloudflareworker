@@ -29,6 +29,9 @@ import { jsonResponse, errorResponse } from "./utils/responses.js";
 import { checkRateLimit } from "./rateLimiter.js";
 import { recordTapRead, getCardState, activateCard, checkAndAdvanceCounter } from "./replayProtection.js";
 import { requireOperator, buildCsrfCookie, CSRF_COOKIE_NAME } from "./middleware/operatorAuth.js";
+import { getRequestOrigin } from "./utils/validation.js";
+import { getCookieValue } from "./utils/cookies.js";
+import { cmacScanVersions } from "./utils/cmacScan.js";
 import { handleOperatorLoginPage, handleOperatorLogin, handleOperatorLogout } from "./handlers/operatorLoginHandler.js";
 import { handleTopupPage, handleTopupApply } from "./handlers/topupHandler.js";
 import { handlePosCharge } from "./handlers/posChargeHandler.js";
@@ -43,7 +46,7 @@ const router = Router();
 
 function withOperatorAuth(handler) {
   return async (request, env) => {
-    const auth = await requireOperator(request, env);
+    const auth = requireOperator(request, env);
     if (!auth.authorized) return auth.response;
 
     const method = request.method.toUpperCase();
@@ -51,8 +54,7 @@ function withOperatorAuth(handler) {
 
     if (isMutating) {
       const cookieHeader = request.headers.get("Cookie") || "";
-      const csrfMatch = cookieHeader.match(new RegExp(`(?:^|;\\s*)${CSRF_COOKIE_NAME}=([^;]*)`));
-      const csrfCookie = csrfMatch ? csrfMatch[1] : null;
+      const csrfCookie = getCookieValue(cookieHeader, CSRF_COOKIE_NAME);
       const csrfHeader = request.headers.get("X-CSRF-Token");
 
       const skipCsrf = env && env.__TEST_OPERATOR_SESSION && env.WORKER_ENV !== "production";
@@ -65,7 +67,7 @@ function withOperatorAuth(handler) {
 
     if (response && !isMutating) {
       const existingCsrf = request.headers.get("Cookie") || "";
-      const hasCsrf = new RegExp(`(?:^|;\\s*)${CSRF_COOKIE_NAME}=`).test(existingCsrf);
+      const hasCsrf = !!getCookieValue(existingCsrf, CSRF_COOKIE_NAME);
       if (!hasCsrf) {
         const token = crypto.randomUUID();
         const newResponse = new Response(response.body, response);
@@ -132,8 +134,7 @@ router.post("/experimental/activate/form", withOperatorAuth((request, env) => ha
 router.get("/experimental/wipe", withOperatorAuth((request, env) => {
   const url = new URL(request.url);
   const uid = url.searchParams.get("uid");
-  const baseUrl = `${url.protocol}//${url.host}`;
-  if (uid) return handleReset(uid, env, baseUrl);
+  if (uid) return handleReset(uid, env, getRequestOrigin(request));
   return handleWipePage(request, env);
 }));
 router.get("/experimental/bulkwipe", withOperatorAuth((request, env) => handleBulkWipePage(request, env)));
@@ -161,7 +162,7 @@ router.get("/activate/form", (request) => {
 router.get("/wipe", withOperatorAuth((request, env) => {
   const url = new URL(request.url);
   const uid = url.searchParams.get("uid");
-  if (uid) return handleReset(uid, env, `${url.protocol}//${url.host}`);
+  if (uid) return handleReset(uid, env, getRequestOrigin(request));
   return new Response(null, { status: 301, headers: { Location: url.origin + "/experimental/wipe" } });
 }));
 router.get("/bulkwipe", (request) => {
@@ -190,23 +191,18 @@ router.all("*", (request) => {
   } else {
     logger.warn("Route not found", { pathname, method: request.method });
   }
-  return new Response("Not found", { status: 404 });
+    return errorResponse("Not found", 404);
 });
 
 async function detectCardVersion(uidHex, ctr, cHex, env, latestVersion) {
   const uidBytes = hexToBytes(uidHex);
   const ctrBytes = hexToBytes(ctr);
-  const minVersion = Math.max(1, latestVersion - 10);
-
-  for (let v = latestVersion; v >= minVersion; v--) {
-    const keys = await getDeterministicKeys(uidHex, env, v);
-    const k2Bytes = hexToBytes(keys.k2);
-    const result = validate_cmac(uidBytes, ctrBytes, cHex, k2Bytes);
-    if (result.cmac_validated) {
-      return v;
-    }
-  }
-  return null;
+  const { matchedVersion } = await cmacScanVersions(uidBytes, ctrBytes, cHex, {
+    k2ForVersion: (v) => hexToBytes(getDeterministicKeys(uidHex, env, v).k2),
+    highVersion: latestVersion,
+    lowVersion: Math.max(1, latestVersion - 10),
+  });
+  return matchedVersion;
 }
 
 async function handleLnurlw(request, env) {
@@ -340,7 +336,7 @@ async function handleLnurlw(request, env) {
   }
 
   if (config.payment_method === "lnurlpay") {
-    const baseUrl = `${url.protocol}//${url.host}`;
+    const baseUrl = getRequestOrigin(request);
     await recordTapRead(env, uidHex, counterValue, {
       userAgent: request.headers.get("User-Agent") || null,
       requestUrl: request.url,
@@ -369,7 +365,7 @@ async function handleLnurlw(request, env) {
       userAgent: request.headers.get("User-Agent") || null,
       requestUrl: request.url,
     }).catch(() => {});
-    const baseUrl = `${url.protocol}//${url.host}`;
+    const baseUrl = getRequestOrigin(request);
     const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated, baseUrl, config.payment_method);
     if (responsePayload.status === "ERROR") return errorResponse(responsePayload.reason);
     return jsonResponse(responsePayload);

@@ -1,6 +1,7 @@
 import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { hexToBytes } from "../cryptoutils.js";
+import { DEFAULT_FALLBACK_HOST } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { recordTap, updateTapStatus } from "../replayProtection.js";
@@ -23,7 +24,7 @@ function pickRandomAddress(config, env) {
 }
 
 export function constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, config, env) {
-  const host = baseUrl || "https://boltcardpoc.psbt.me";
+  const host = baseUrl || DEFAULT_FALLBACK_HOST;
   const callbackUrl = new URL("/lnurlp/cb", host);
   callbackUrl.searchParams.set("p", pHex);
   callbackUrl.searchParams.set("c", cHex);

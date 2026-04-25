@@ -1,10 +1,11 @@
 import { renderActivatePage } from "../templates/activatePage.js";
 import { htmlResponse } from "../utils/responses.js";
+import { getRequestOrigin } from "../utils/validation.js";
+import { DEFAULT_PULL_PAYMENT_ID } from "../utils/constants.js";
 
 export function handleActivatePage(request, env = {}) {
-  const url = new URL(request.url);
-  const baseUrl = `${url.protocol}//${url.host}`;
-  const pullPaymentId = url.searchParams.get("pullPaymentId") || env.DEFAULT_PULL_PAYMENT_ID || "fUDXsnySxvb5LYZ1bSLiWzLjVuT";
+  const baseUrl = getRequestOrigin(request);
+  const pullPaymentId = new URL(request.url).searchParams.get("pullPaymentId") || env.DEFAULT_PULL_PAYMENT_ID || DEFAULT_PULL_PAYMENT_ID;
   const apiUrl = `${baseUrl}/api/v1/pull-payments/${pullPaymentId}/boltcards`;
   
   const programUrl = `${apiUrl}?onExisting=UpdateVersion`;

@@ -51,6 +51,10 @@ export function buildBoltCardResponse(keys, uid, host, version = 1) {
   };
 }
 
+export async function parseJsonBody(request) {
+  return request.json();
+}
+
 export function buildResetDeeplink(endpointUrl) {
   return `boltcard://reset?url=${encodeURIComponent(endpointUrl)}`;
 }

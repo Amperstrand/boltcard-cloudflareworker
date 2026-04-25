@@ -6,7 +6,7 @@ import { getBoltCardK1 } from "../getUidConfig.js";
 
 test("Generate deterministic keys for known UID", async () => {
   const uid = "04a39493cc8680";
-  const keys = await getDeterministicKeys(uid);
+  const keys = getDeterministicKeys(uid);
 
   const expectedKeys = {
     k0: "a29119fcb48e737d1591d3489557e49b",
@@ -31,7 +31,7 @@ test("getBoltCardK1 derives deterministic K1 from ISSUER_KEY when explicit K1 is
   const env = { ISSUER_KEY: "00000000000000000000000000000001" };
 
   const derivedK1Keys = getBoltCardK1(env);
-  const deterministicKeys = await getDeterministicKeys("04a39493cc8680", env);
+  const deterministicKeys = getDeterministicKeys("04a39493cc8680", env);
 
   expect(derivedK1Keys).toHaveLength(1);
   expect(bytesToHex(derivedK1Keys[0])).toBe(deterministicKeys.k1);
@@ -49,13 +49,13 @@ test("extractUIDAndCounter works with ISSUER_KEY-only env", () => {
   });
 });
 
-test("getDeterministicKeys throws in production when ISSUER_KEY is missing", async () => {
+test("getDeterministicKeys throws in production when ISSUER_KEY is missing", () => {
   const prodEnv = { WORKER_ENV: "production" };
-  await expect(getDeterministicKeys("04a39493cc8680", prodEnv)).rejects.toThrow("ISSUER_KEY must be set in production");
+  expect(() => getDeterministicKeys("04a39493cc8680", prodEnv)).toThrow("ISSUER_KEY must be set in production");
 });
 
 test("getDeterministicKeys uses fallback in dev when ISSUER_KEY is missing", async () => {
   const devEnv = {};
-  const keys = await getDeterministicKeys("04a39493cc8680", devEnv);
+  const keys = getDeterministicKeys("04a39493cc8680", devEnv);
   expect(keys.k0).toBe("a29119fcb48e737d1591d3489557e49b");
 });

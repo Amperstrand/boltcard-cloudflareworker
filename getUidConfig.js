@@ -45,7 +45,7 @@ async function withDeterministicK2IfMissing(uidHex, config, env, source, version
   }
 
   try {
-    const keys = await getDeterministicKeys(uidHex, env, version);
+    const keys = getDeterministicKeys(uidHex, env, version);
     if (keys?.k2) {
       logger.debug("Resolved deterministic K2 for UID config", { uidHex, source });
       return { ...config, K2: keys.k2 };
@@ -87,7 +87,7 @@ export async function getUidConfig(uidHex, env, version = 1) {
   // Step 2: Generate deterministic keys as fallback
   try {
     logger.debug("Generating deterministic fallback config", { uidHex: normalizedUid });
-    const keys = await getDeterministicKeys(normalizedUid, env, version);
+    const keys = getDeterministicKeys(normalizedUid, env, version);
     if (keys && keys.k2) {
       const defaultConfig = { 
         payment_method: "fakewallet", 

@@ -8,9 +8,10 @@ import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "../templates/pageShell.js";
 import { BROWSER_NFC_HELPERS } from "../templates/browserNfc.js";
 import { errorResponse, htmlResponse } from "../utils/responses.js";
+import { OTP_DOMAIN_TAG_HOTP, OTP_DOMAIN_TAG_TOTP } from "../utils/constants.js";
 
-const TOTP_DOMAIN_TAG = "2d003f80";
-const HOTP_DOMAIN_TAG = "2d003f81";
+const TOTP_DOMAIN_TAG = OTP_DOMAIN_TAG_TOTP;
+const HOTP_DOMAIN_TAG = OTP_DOMAIN_TAG_HOTP;
 
 export async function handleTwoFactor(request, env) {
   const { searchParams } = new URL(request.url);
@@ -47,8 +48,8 @@ export async function handleTwoFactor(request, env) {
   const totpSecret = deriveOtpSecret(env, uidHex, TOTP_DOMAIN_TAG);
   const hotpSecret = deriveOtpSecret(env, uidHex, HOTP_DOMAIN_TAG);
 
-  const totp = await generateTOTP(totpSecret);
-  const hotp = await generateHOTP(hotpSecret, counterValue);
+  const totp = generateTOTP(totpSecret);
+  const hotp = generateHOTP(hotpSecret, counterValue);
 
   logger.info("2FA codes generated", { uidHex, counterValue });
 

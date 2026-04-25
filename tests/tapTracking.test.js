@@ -120,7 +120,7 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
 
   beforeAll(async () => {
     const env = { BOLT_CARD_K1: BOLT_CARD_K1 };
-    keys = await getDeterministicKeys(TEST_UID, env);
+    keys = getDeterministicKeys(TEST_UID, env);
   });
 
   test("callback records tap with bolt11 and metadata", async () => {
@@ -422,7 +422,7 @@ describe("Tap tracking — login response", () => {
   test("POST /login tapHistory shows recorded taps", async () => {
     const env = makeEnv();
 
-    const keys = await getDeterministicKeys(TEST_UID, env);
+    const keys = getDeterministicKeys(TEST_UID, env);
     env.UID_CONFIG = {
       get: async (uid) => {
         if (uid === TEST_UID) {

@@ -1,6 +1,7 @@
 import { getDeterministicKeys } from "../keygenerator.js";
 import { getCardState, terminateCard } from "../replayProtection.js";
 import { jsonResponse, buildBoltCardResponse, errorResponse } from "../utils/responses.js";
+import { DEFAULT_FALLBACK_HOST } from "../utils/constants.js";
 
 export async function handleReset(uid, env, baseUrl) {
   try {
@@ -25,8 +26,8 @@ export async function handleReset(uid, env, baseUrl) {
       await terminateCard(env, normalizedUid);
     }
 
-    const keys = await getDeterministicKeys(normalizedUid, env, wipeVersion);
-    const host = baseUrl || "https://boltcardpoc.psbt.me";
+    const keys = getDeterministicKeys(normalizedUid, env, wipeVersion);
+    const host = baseUrl || DEFAULT_FALLBACK_HOST;
     return jsonResponse(buildBoltCardResponse(keys, normalizedUid, host, wipeVersion), 200);
   } catch (err) {
     return errorResponse(err.message, 500);

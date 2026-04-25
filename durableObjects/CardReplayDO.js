@@ -1,6 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
 import { logger } from "../utils/logger.js";
 
+function nowSec() {
+  return Math.floor(Date.now() / 1000);
+}
 export class CardReplayDO extends DurableObject {
   constructor(state, env) {
     super(state, env);
@@ -230,7 +233,7 @@ export class CardReplayDO extends DurableObject {
       ).toArray();
 
       if (updated.length === 1) {
-        const now = Math.floor(Date.now() / 1000);
+        const now = nowSec();
         this.sql.exec(
           `INSERT OR REPLACE INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
            VALUES (?, ?, 'pending', ?, ?, ?, ?, ?)`,
@@ -264,7 +267,7 @@ export class CardReplayDO extends DurableObject {
         ? counterValue
         : Date.now();
 
-      const now = Math.floor(Date.now() / 1000);
+      const now = nowSec();
       this.sql.exec(
         `INSERT OR IGNORE INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
          VALUES (?, NULL, 'read', NULL, ?, ?, ?, ?)`,
@@ -290,7 +293,7 @@ export class CardReplayDO extends DurableObject {
         return Response.json({ error: `Invalid status: ${status}` }, { status: 400 });
       }
 
-      const now = Math.floor(Date.now() / 1000);
+      const now = nowSec();
       const result = this.sql.exec(
         `UPDATE taps SET status = ?, updated_at = ?, bolt11 = COALESCE(?, bolt11), amount_msat = COALESCE(?, amount_msat) WHERE counter = ?`,
         status,
@@ -429,7 +432,7 @@ export class CardReplayDO extends DurableObject {
   }
 
   handleDeliverKeys() {
-    const now = Math.floor(Date.now() / 1000);
+    const now = nowSec();
     const rows = this.sql.exec(
       `INSERT INTO card_state (
          singleton,
@@ -463,7 +466,7 @@ export class CardReplayDO extends DurableObject {
       if (!Number.isInteger(active_version) || active_version < 1) {
         return Response.json({ error: "Invalid active_version" }, { status: 400 });
       }
-      const now = Math.floor(Date.now() / 1000);
+      const now = nowSec();
       const rows = this.sql.exec(
         `INSERT INTO card_state (
            singleton,
@@ -492,7 +495,7 @@ export class CardReplayDO extends DurableObject {
   }
 
   handleRequestWipe() {
-    const now = Math.floor(Date.now() / 1000);
+    const now = nowSec();
     const rows = this.sql.exec(
        `UPDATE card_state SET
           state = 'wipe_requested',
@@ -509,7 +512,7 @@ export class CardReplayDO extends DurableObject {
   }
 
   handleTerminate() {
-    const now = Math.floor(Date.now() / 1000);
+    const now = nowSec();
     const rows = this.sql.exec(
       `INSERT INTO card_state (singleton, state, latest_issued_version, terminated_at, balance)
        VALUES (1, 'terminated', 0, ?, 0)
@@ -554,7 +557,7 @@ export class CardReplayDO extends DurableObject {
       const k2 = K2 || null;
       const pullPaymentId = pull_payment_id || null;
       const configJson = Object.keys(rest).length > 0 ? JSON.stringify(rest) : null;
-      const now = Math.floor(Date.now() / 1000);
+      const now = nowSec();
 
       this.sql.exec(
         `INSERT INTO card_config (singleton, K2, payment_method, config_json, pull_payment_id, updated_at)
@@ -580,7 +583,7 @@ export class CardReplayDO extends DurableObject {
 
       const currentBalance = this.getCurrentBalance();
       const newBalance = currentBalance - amount;
-      const createdAt = Math.floor(Date.now() / 1000);
+      const createdAt = nowSec();
 
       this.ensureCardStateRow(currentBalance);
       this.sql.exec(
@@ -611,7 +614,7 @@ export class CardReplayDO extends DurableObject {
 
       const currentBalance = this.getCurrentBalance();
       const newBalance = currentBalance + amount;
-      const createdAt = Math.floor(Date.now() / 1000);
+      const createdAt = nowSec();
 
       this.ensureCardStateRow(currentBalance);
       this.sql.exec(

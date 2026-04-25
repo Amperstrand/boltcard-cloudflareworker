@@ -20,46 +20,23 @@
  * Ref: docs/ntag424_llm_context.md §4 (byte order), §5.4-5.7 (SDM keys & MAC)
  */
 import AES from "aes-js";
+import { hex as scureHex } from "@scure/base";
 import { logger } from "./utils/logger.js";
 
-const DEBUG = false;
-const BLOCK_SIZE = 16; // AES block size in bytes
+const BLOCK_SIZE = 16;
 
-/**
- * Converts a hex string to a Uint8Array.
- * @param {string} hex - The hex string.
- * @returns {Uint8Array}
- */
 export function hexToBytes(hex) {
   if (!hex || hex.length % 2 !== 0) {
     throw new Error("Invalid hex string");
   }
-  // Validate that every character is a valid hex digit before parsing.
-  // Without this, parseInt("GZ", 16) returns NaN, which the Uint8Array
-  // constructor silently casts to 0x00. This causes silent data corruption
-  // in cryptographic operations: a wrong UID or key would be used without
-  // any error, potentially validating invalid taps or generating wrong
-  // session keys.
-  // Callers pass user-supplied URL params (p=, c= from index.js:52-53),
-  // making this an input validation security fix.
-  // Ref: RFC 4648 §8 — hex encoding alphabet [0-9A-Fa-f]
   if (!/^[0-9a-fA-F]+$/.test(hex)) {
     throw new Error("Invalid hex string: contains non-hex characters");
   }
-  return new Uint8Array(
-    hex.match(/.{1,2}/g).map((byte) => parseInt(byte, 16))
-  );
+  return scureHex.decode(hex.toLowerCase());
 }
 
-/**
- * Converts a Uint8Array to a hex string.
- * @param {Uint8Array} bytes - The byte array.
- * @returns {string}
- */
 export function bytesToHex(bytes) {
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  return scureHex.encode(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
 }
 
 /**
@@ -150,46 +127,26 @@ export function computeAesCmac(message, key) {
     );
   }
 
-  if (DEBUG)
-    logger.trace("AES-CMAC: computing message", {
-      messageLength: message.length,
-      messageBytes: bytesToDecimalString(message),
-    });
-
   const aesEcb = new AES.ModeOfOperation.ecb(key);
   const zeroBlock = new Uint8Array(BLOCK_SIZE);
 
-  // Step 1: Encrypt the zero block to produce L.
   const L = aesEcb.encrypt(zeroBlock);
-  if (DEBUG) logger.trace("AES-CMAC: step 1", { L: bytesToDecimalString(L) });
 
-  // Step 2: Generate K1 from L.
   const K1 = generateSubkeyGo(L);
-  if (DEBUG) logger.trace("AES-CMAC: step 2 K1", { K1: bytesToDecimalString(K1) });
 
   let M_last;
   if (message.length === BLOCK_SIZE) {
-    // If the message length is exactly one block, XOR with K1.
     M_last = xorArrays(message, K1);
   } else {
-    // Otherwise, pad the message and XOR with K2.
     const padded = new Uint8Array(BLOCK_SIZE);
     padded.fill(0);
     padded.set(message);
-    padded[message.length] = 0x80; // Padding: append 0x80.
+    padded[message.length] = 0x80;
     const K2 = generateSubkeyGo(K1);
-    if (DEBUG)
-      logger.trace("AES-CMAC: step 2 K2", { K2: bytesToDecimalString(K2) });
     M_last = xorArrays(padded, K2);
   }
 
-  if (DEBUG)
-    logger.trace("AES-CMAC: step 3 M_last", { M_last: bytesToDecimalString(M_last) });
-
-  // Step 4: Encrypt the last block to produce the CMAC.
   const T = aesEcb.encrypt(M_last);
-  if (DEBUG)
-    logger.trace("AES-CMAC: step 4 result", { T: bytesToDecimalString(T) });
 
   return T;
 }
@@ -201,11 +158,7 @@ export function computeAesCmac(message, key) {
  * @returns {Uint8Array}
  */
 export function computeKs(sv2, cmacKeyBytes) {
-  if (DEBUG)
-    logger.trace("KS: computing session key");
-  const ks = computeAesCmac(sv2, cmacKeyBytes);
-  if (DEBUG) logger.trace("KS: computed", { ks: bytesToDecimalString(ks) });
-  return ks;
+  return computeAesCmac(sv2, cmacKeyBytes);
 }
 
 /**
@@ -214,34 +167,19 @@ export function computeKs(sv2, cmacKeyBytes) {
  * @returns {Uint8Array}
  */
 export function computeCm(ks) {
-  if (DEBUG) logger.trace("CM: computing from session key");
-
   const aesEcbKs = new AES.ModeOfOperation.ecb(ks);
   const zeroBlock = new Uint8Array(BLOCK_SIZE);
 
-  // Derive Lprime from encrypting a zero block.
   const Lprime = aesEcbKs.encrypt(zeroBlock);
-  if (DEBUG) logger.trace("CM: step L'", { Lprime: bytesToDecimalString(Lprime) });
 
-  // Generate K1prime from Lprime.
   const K1prime = generateSubkeyGo(Lprime);
-  if (DEBUG)
-    logger.trace("CM: step K1'", { K1prime: bytesToDecimalString(K1prime) });
 
-  // Generate an intermediate key hk1 from K1prime.
   const hk1 = generateSubkeyGo(K1prime);
-  if (DEBUG) logger.trace("CM: step h.k1", { hk1: bytesToDecimalString(hk1) });
 
-  // Modify the first byte of hk1.
   const hashVal = new Uint8Array(hk1);
   hashVal[0] ^= 0x80;
-  if (DEBUG)
-    logger.trace("CM: final MAC input", { hashVal: bytesToDecimalString(hashVal) });
 
-  // Encrypt hashVal to produce the final cm.
   const cm = aesEcbKs.encrypt(hashVal);
-  if (DEBUG)
-    logger.trace("CM: final cm", { cm: bytesToDecimalString(cm) });
 
   return cm;
 }
@@ -259,12 +197,9 @@ export function computeCm(ks) {
  * truncation — do NOT change this to match the NXP spec or all cards will fail.
  */
 export function computeAesCmacForVerification(sv2, cmacKeyBytes) {
-  if (DEBUG)
-    logger.trace("VERIFY: computing AES-CMAC for verification");
   const ks = computeKs(sv2, cmacKeyBytes);
   const cm = computeCm(ks);
 
-  // Extract verification tag from cm.
   const ct = new Uint8Array([
     cm[1],
     cm[3],
@@ -275,8 +210,6 @@ export function computeAesCmacForVerification(sv2, cmacKeyBytes) {
     cm[13],
     cm[15],
   ]);
-  if (DEBUG)
-    logger.trace("VERIFY: extracted ct", { ct: bytesToDecimalString(ct) });
 
   return ct;
 }

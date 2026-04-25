@@ -106,7 +106,7 @@ describe("Identity Verify API", () => {
 
   beforeAll(async () => {
     const env = { BOLT_CARD_K1 };
-    keys = await getDeterministicKeys(TEST_UID, env);
+    keys = getDeterministicKeys(TEST_UID, env);
   });
 
   test("returns verified for valid card", async () => {

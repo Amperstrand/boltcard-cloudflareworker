@@ -1,20 +1,17 @@
-import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
+import { extractUIDAndCounter } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
 import { getAllIssuerKeyCandidates, getPerCardKeys, getUniquePerCardK1s, fingerprintHex } from "../utils/keyLookup.js";
 import { getCardState } from "../replayProtection.js";
-import { jsonResponse, errorResponse } from "../utils/responses.js";
+import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { logger } from "../utils/logger.js";
+import { cmacScanVersions } from "../utils/cmacScan.js";
 
 const MAX_CANDIDATES = 50;
 
 export async function handleIdentifyIssuerKey(request, env) {
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return errorResponse("Invalid JSON body", 400);
-  }
+  const body = await parseJsonBody(request).catch(() => null);
+  if (!body) return errorResponse("Invalid JSON body", 400);
 
   const pHex = body?.p;
   const cHex = body?.c;
@@ -39,30 +36,31 @@ export async function handleIdentifyIssuerKey(request, env) {
 
     const cardState = await getCardState(env, uidHex);
     const latestVersion = cardState?.latest_issued_version || cardState?.active_version || 1;
-    const minVersion = Math.max(1, latestVersion - 10);
 
-    for (let v = latestVersion; v >= minVersion; v--) {
-      const keys = deriveKeysFromHex(uidHex, candidate.hex, v);
-      const { cmac_validated } = validate_cmac(uidBytes, ctrBytes, cHex, hexToBytes(keys.k2));
-      if (cmac_validated) {
-        const fp = await fingerprintHex(candidate.hex);
-        const perCard = getPerCardKeys(uidHex);
-        logger.info("Issuer key identified via card tap", {
-          uidHex,
-          version: v,
-          issuerLabel: candidate.label,
-          fingerprint: fp,
-          isPercard: !!perCard,
-        });
-        return jsonResponse({
-          matched: true,
-          uid: uidHex,
-          version: v,
-          issuerKeyFingerprint: fp,
-          issuerKeyLabel: candidate.label,
-          isPercard: !!perCard,
-        });
-      }
+    const { matchedVersion } = await cmacScanVersions(uidBytes, ctrBytes, cHex, {
+      k2ForVersion: (v) => hexToBytes(deriveKeysFromHex(uidHex, candidate.hex, v).k2),
+      highVersion: latestVersion,
+      lowVersion: Math.max(1, latestVersion - 10),
+    });
+
+    if (matchedVersion !== null) {
+      const fp = fingerprintHex(candidate.hex);
+      const perCard = getPerCardKeys(uidHex);
+      logger.info("Issuer key identified via card tap", {
+        uidHex,
+        version: matchedVersion,
+        issuerLabel: candidate.label,
+        fingerprint: fp,
+        isPercard: !!perCard,
+      });
+      return jsonResponse({
+        matched: true,
+        uid: uidHex,
+        version: matchedVersion,
+        issuerKeyFingerprint: fp,
+        issuerKeyLabel: candidate.label,
+        isPercard: !!perCard,
+      });
     }
   }
 
@@ -76,20 +74,22 @@ export async function handleIdentifyIssuerKey(request, env) {
     const uidBytes = hexToBytes(uidHex);
     const ctrBytes = hexToBytes(ctr);
 
-    for (let v = 1; v <= 10; v++) {
-      const keys = deriveKeysFromHex(uidHex, entry.k1, v);
-      const { cmac_validated } = validate_cmac(uidBytes, ctrBytes, cHex, hexToBytes(keys.k2));
-      if (cmac_validated) {
-        const fp = await fingerprintHex(entry.k1);
-        return jsonResponse({
-          matched: true,
-          uid: uidHex,
-          version: v,
-          issuerKeyFingerprint: fp,
-          issuerKeyLabel: entry.card_name || "percard",
-          isPercard: true,
-        });
-      }
+    const { matchedVersion } = await cmacScanVersions(uidBytes, ctrBytes, cHex, {
+      k2ForVersion: (v) => hexToBytes(deriveKeysFromHex(uidHex, entry.k1, v).k2),
+      highVersion: 10,
+      lowVersion: 1,
+    });
+
+    if (matchedVersion !== null) {
+      const fp = fingerprintHex(entry.k1);
+      return jsonResponse({
+        matched: true,
+        uid: uidHex,
+        version: matchedVersion,
+        issuerKeyFingerprint: fp,
+        issuerKeyLabel: entry.card_name || "percard",
+        isPercard: true,
+      });
     }
   }
 

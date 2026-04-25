@@ -1,8 +1,9 @@
 import { getAnalytics } from "../replayProtection.js";
 import { renderAnalyticsPage } from "../templates/analyticsPage.js";
 import { htmlResponse, errorResponse, jsonResponse } from "../utils/responses.js";
+import { logger } from "../utils/logger.js";
 
-export async function handleAnalyticsPage() {
+export function handleAnalyticsPage() {
   return htmlResponse(renderAnalyticsPage());
 }
 
@@ -14,6 +15,11 @@ export async function handleAnalyticsData(request, env) {
     return errorResponse("Missing uid parameter", 400);
   }
 
-  const analytics = await getAnalytics(env, uid);
-  return jsonResponse(analytics);
+  try {
+    const analytics = await getAnalytics(env, uid);
+    return jsonResponse(analytics);
+  } catch (error) {
+    logger.error("Analytics data fetch failed", { uid, error: error.message });
+    return errorResponse("Failed to retrieve analytics data", 500);
+  }
 }

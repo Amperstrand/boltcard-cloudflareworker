@@ -50,7 +50,7 @@ function makeEnv() {
 }
 
 async function provisionCard(env) {
-  const keys = await getDeterministicKeys(TEST_UID, env);
+  const keys = getDeterministicKeys(TEST_UID, env);
   const config = {
     K2: keys.k2,
     payment_method: "fakewallet",
@@ -76,7 +76,7 @@ async function tapCard(keys, counter = 2) {
 let keys;
 
 beforeAll(async () => {
-  keys = await getDeterministicKeys(TEST_UID, { BOLT_CARD_K1 });
+  keys = getDeterministicKeys(TEST_UID, { BOLT_CARD_K1 });
 });
 
 describe("Top-up flow", () => {

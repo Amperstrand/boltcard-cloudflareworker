@@ -1,9 +1,11 @@
 // tests/getUidConfig.test.js
 import {
-  getBoltCardK1
+  getBoltCardK1,
+  getUidConfig
 } from '../getUidConfig.js';
 import { logger } from '../utils/logger.js';
 import { jest } from '@jest/globals';
+import { makeReplayNamespace } from './replayNamespace.js';
 
 // Suppress logger output during tests
 logger.setLevel('error');
@@ -187,8 +189,77 @@ describe('getBoltCardK1', () => {
   });
 });
 
-async function getDeterministicKeys(uidHex, env, version = 1) {
-  const keys = {};
-  keys.k2 = '0' + uidHex + 'a'.repeat(30);
-  return keys;
-}
+describe('getUidConfig', () => {
+  const ISSUER_KEY = '00000000000000000000000000000001';
+  const UID = '04a39493cc8680';
+
+  it('returns deterministic fallback config when DO has no config', async () => {
+    const doStub = makeReplayNamespace();
+    const env = { CARD_REPLAY: doStub, ISSUER_KEY };
+    const config = await getUidConfig(UID, env);
+    expect(config).not.toBeNull();
+    expect(config.payment_method).toBe('fakewallet');
+    expect(config.K2).toBeDefined();
+    expect(typeof config.K2).toBe('string');
+    expect(config.K2.length).toBeGreaterThan(0);
+  });
+
+  it('returns DO config when available with K2', async () => {
+    const doStub = makeReplayNamespace({}, { [UID]: 1 });
+    const doObj = doStub.get(UID);
+    await doObj.fetch(new Request('https://internal/set-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payment_method: 'clnrest', K2: 'ab'.repeat(16) }),
+    }));
+    const env = { CARD_REPLAY: doStub, ISSUER_KEY };
+    const config = await getUidConfig(UID, env);
+    expect(config.payment_method).toBe('clnrest');
+    expect(config.K2).toBe('ab'.repeat(16));
+  });
+
+  it('augments DO config without K2 with deterministic K2', async () => {
+    const doStub = makeReplayNamespace({}, { [UID]: 1 });
+    const doObj = doStub.get(UID);
+    await doObj.fetch(new Request('https://internal/set-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payment_method: 'proxy' }),
+    }));
+    const env = { CARD_REPLAY: doStub, ISSUER_KEY };
+    const config = await getUidConfig(UID, env);
+    expect(config.payment_method).toBe('proxy');
+    expect(config.K2).toBeDefined();
+    expect(config.K2.length).toBeGreaterThan(0);
+  });
+
+  it('falls back to deterministic keys when DO throws', async () => {
+    const doStub = {
+      idFromName: (name) => name.toLowerCase(),
+      get: () => ({ fetch: () => Promise.reject(new Error('DO error')) }),
+    };
+    const env = { CARD_REPLAY: doStub, ISSUER_KEY };
+    const config = await getUidConfig(UID, env);
+    expect(config).not.toBeNull();
+    expect(config.payment_method).toBe('fakewallet');
+    expect(config.K2).toBeDefined();
+  });
+
+  it('returns deterministic fallback when no ISSUER_KEY and DO has no config', async () => {
+    const doStub = makeReplayNamespace();
+    const env = { CARD_REPLAY: doStub };
+    const config = await getUidConfig(UID, env);
+    expect(config).not.toBeNull();
+    expect(config.payment_method).toBe('fakewallet');
+    expect(config.K2).toBeDefined();
+  });
+
+  it('normalizes UID to lowercase for DO lookup', async () => {
+    const doStub = makeReplayNamespace({}, { '04a39493cc8680': 1 });
+    const getSpy = jest.spyOn(doStub, 'get');
+    const env = { CARD_REPLAY: doStub, ISSUER_KEY };
+    await getUidConfig('04A39493CC8680', env);
+    expect(getSpy).toHaveBeenCalledWith('04a39493cc8680');
+    getSpy.mockRestore();
+  });
+});

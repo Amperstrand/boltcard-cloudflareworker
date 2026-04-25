@@ -42,7 +42,7 @@ describe("validate_cmac", () => {
   });
 
   it("validates correct CMAC", async () => {
-    const keys = await getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
     const { cHex } = virtualTap(UID, 1, keys.k1, keys.k2);
     const ctr = hexToBytes("000001");
     const result = validate_cmac(hexToBytes(UID), ctr, cHex, hexToBytes(keys.k2));
@@ -84,7 +84,7 @@ describe("validateCardTap", () => {
 
   it("successfully validates a valid card tap", async () => {
     const env = makeTestEnv();
-    const keys = await getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
     const { pHex, cHex } = virtualTap(UID, 1, keys.k1, keys.k2);
     const result = await validateCardTap(makeTestRequest(), env, { pHex, cHex });
     expect(result.ok).toBe(true);
@@ -95,7 +95,7 @@ describe("validateCardTap", () => {
 
   it("rejects replay (second tap with same counter)", async () => {
     const env = makeTestEnv();
-    const keys = await getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
     const { pHex, cHex } = virtualTap(UID, 1, keys.k1, keys.k2);
 
     const first = await validateCardTap(makeTestRequest(), env, { pHex, cHex });

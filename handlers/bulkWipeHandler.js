@@ -1,5 +1,6 @@
 import { deriveKeysFromHex } from "../keygenerator.js";
 import { jsonResponse, buildBoltCardResponse, buildResetDeeplink, errorResponse } from "../utils/responses.js";
+import { getRequestOrigin } from "../utils/validation.js";
 
 export async function handleBulkWipeKeys(request) {
   const url = new URL(request.url);
@@ -20,7 +21,7 @@ export async function handleBulkWipeKeys(request) {
   try {
     const keys = deriveKeysFromHex(uid, key, version);
 
-    const host = `${url.protocol}//${url.host}`;
+    const host = getRequestOrigin(request);
     const boltcard_response = buildBoltCardResponse(keys, uid, host, version);
 
     const wipe_json = {

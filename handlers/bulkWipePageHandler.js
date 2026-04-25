@@ -2,6 +2,7 @@ import { renderBulkWipePage } from "../templates/bulkWipePage.js";
 import { ISSUER_KEYS_BY_DOMAIN } from '../utils/generatedKeyData.js';
 import { htmlResponse } from "../utils/responses.js";
 import { fingerprintHex } from "../utils/keyLookup.js";
+import { getRequestOrigin } from "../utils/validation.js";
 
 const KEY_FINGERPRINTS = new Map();
 
@@ -11,15 +12,14 @@ async function computeFingerprints() {
     for (const key of keys) {
       const hex = key.hex.toLowerCase();
       if (!KEY_FINGERPRINTS.has(hex)) {
-        KEY_FINGERPRINTS.set(hex, await fingerprintHex(hex));
+        KEY_FINGERPRINTS.set(hex, fingerprintHex(hex));
       }
     }
   }
 }
 
 export async function handleBulkWipePage(request) {
-  const url = new URL(request.url);
-  const baseUrl = `${url.protocol}//${url.host}`;
+  const baseUrl = getRequestOrigin(request);
 
   await computeFingerprints();
 

@@ -1,10 +1,11 @@
 import { getDeterministicKeys } from "../keygenerator.js";
-import { decodeAndValidate } from "../boltCardHelper.js";
-import { extractUIDAndCounter } from "../boltCardHelper.js";
+import { decodeAndValidate, extractUIDAndCounter } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { resetReplayProtection, getCardState, deliverKeys, setCardConfig, requestWipe } from "../replayProtection.js";
-import { jsonResponse, buildBoltCardResponse, errorResponse } from "../utils/responses.js";
+import { jsonResponse, buildBoltCardResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
+import { getRequestOrigin } from "../utils/validation.js";
+import { DEFAULT_PULL_PAYMENT_ID, DEFAULT_FALLBACK_HOST } from "../utils/constants.js";
 
 export async function fetchBoltCardKeys(request, env) {
   if (request.method !== "POST") {
@@ -18,8 +19,10 @@ export async function fetchBoltCardKeys(request, env) {
     const lightningAddress = url.searchParams.get("lightning_address") || "";
     const minSendable = parseInt(url.searchParams.get("min_sendable")) || 1000;
     const maxSendable = parseInt(url.searchParams.get("max_sendable")) || 1000;
-    const { UID: uid, LNURLW: lnurlw } = await request.json();
-    const baseUrl = `${url.protocol}//${url.host}`;
+    const body = await parseJsonBody(request).catch(() => null);
+    if (!body) return errorResponse("Invalid JSON body", 400);
+    const { UID: uid, LNURLW: lnurlw } = body;
+    const baseUrl = getRequestOrigin(request);
 
     if (!uid && !lnurlw) {
       return errorResponse("Must provide UID for programming, or LNURLW for reset");
@@ -52,7 +55,7 @@ export async function fetchBoltCardKeys(request, env) {
 
 async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddress, minSendable, maxSendable) {
   const normalizedUid = uid.toLowerCase();
-  const defaultPullPaymentId = env.DEFAULT_PULL_PAYMENT_ID || "fUDXsnySxvb5LYZ1bSLiWzLjVuT";
+  const defaultPullPaymentId = env.DEFAULT_PULL_PAYMENT_ID || DEFAULT_PULL_PAYMENT_ID;
 
   const cardState = await getCardState(env, normalizedUid);
 
@@ -80,7 +83,7 @@ async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddre
 
   await resetReplayProtection(env, normalizedUid);
 
-  const keys = await getDeterministicKeys(normalizedUid, env, version);
+  const keys = getDeterministicKeys(normalizedUid, env, version);
 
   let config;
   if (cardType === "pos") {
@@ -160,8 +163,8 @@ async function handleResetFlow(lnurlw, env, baseUrl) {
 }
 
 async function generateKeyResponse(uid, env, baseUrl, cardType = "withdraw", version = 1) {
-  const keys = await getDeterministicKeys(uid, env, version);
-  const host = baseUrl || "https://boltcardpoc.psbt.me";
+  const keys = getDeterministicKeys(uid, env, version);
+  const host = baseUrl || DEFAULT_FALLBACK_HOST;
   const hostPart = host.replace(/^https?:\/\//, "");
 
   const response = buildBoltCardResponse(keys, uid, host, version);

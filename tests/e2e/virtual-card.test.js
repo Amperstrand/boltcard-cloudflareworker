@@ -99,7 +99,7 @@ async function provisionCard(uid, env, extra = "") {
   expect(resp.status).toBe(200);
   const json = await resp.json();
   const version = json.Version || 1;
-  const keys = await getDeterministicKeys(uid, env, version);
+  const keys = getDeterministicKeys(uid, env, version);
   return { json, keys, version };
 }
 

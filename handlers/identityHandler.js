@@ -2,11 +2,10 @@ import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { logger } from "../utils/logger.js";
-import { jsonResponse, errorResponse } from "../utils/responses.js";
+import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { renderIdentityPage } from "../templates/identityPage.js";
-import { htmlResponse } from "../utils/responses.js";
 
-export const IDENTITY_EMOJI_OPTIONS = ["👤", "😀", "😎", "🤖", "🧠", "🚀", "🦊", "🦄", "🐸", "🦉", "⚡", "🔥"];
+const IDENTITY_EMOJI_OPTIONS = ["👤", "😀", "😎", "🤖", "🧠", "🚀", "🦊", "🦄", "🐸", "🦉", "⚡", "🔥"];
 
 const IDENTITY_DEPARTMENTS = ["Engineering", "Security", "Operations", "Command"];
 const IDENTITY_ROLES = ["Administrator", "Specialist", "Technician", "Director"];
@@ -71,7 +70,13 @@ async function resolveIdentityContext({ p, c }, env) {
     return { response: jsonResponse({ verified: false, reason: "Card not recognized" }) };
   }
 
-  const kvRaw = await env.UID_CONFIG.get(uidHex);
+  let kvRaw;
+  try {
+    kvRaw = await env.UID_CONFIG.get(uidHex);
+  } catch (error) {
+    logger.error("KV lookup failed during identity verification", { uidHex, error: error.message });
+    return { response: errorResponse("Identity lookup failed", 500) };
+  }
   const enrollment = parseIdentityRecord(kvRaw);
   if (!enrollment.enrolled) {
     return { response: jsonResponse({ verified: false, reason: "Card not enrolled for identity" }) };
@@ -122,12 +127,8 @@ export async function handleIdentityVerify(request, env) {
 }
 
 export async function handleIdentityProfileUpdate(request, env) {
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return errorResponse("Invalid JSON body", 400);
-  }
+  const body = await parseJsonBody(request).catch(() => null);
+  if (!body) return errorResponse("Invalid JSON body", 400);
 
   const { p, c, emoji } = body || {};
   if (!IDENTITY_EMOJI_OPTIONS.includes(emoji)) {

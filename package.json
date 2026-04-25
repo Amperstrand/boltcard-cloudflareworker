@@ -4,16 +4,16 @@
   "type": "module",
   "private": true,
   "devDependencies": {
-    "jest": "^29.7.0",
-    "miniflare": "^4.20260116.0",
-    "wrangler": "^4.59.3"
+    "jest": "29.7.0",
+    "miniflare": "4.20260116.0",
+    "wrangler": "4.59.3"
   },
   "dependencies": {
-    "@noble/hashes": "^2.2.0",
-    "@noble/secp256k1": "^3.1.0",
-    "@scure/base": "^2.0.0",
-    "aes-js": "^3.1.2",
-    "itty-router": "^5.0.23"
+    "@noble/hashes": "2.2.0",
+    "@noble/secp256k1": "3.1.0",
+    "@scure/base": "2.0.0",
+    "aes-js": "3.1.2",
+    "itty-router": "5.0.23"
   },
   "scripts": {
     "prebuild": "node scripts/build_keys.js",

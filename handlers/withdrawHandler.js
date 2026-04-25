@@ -1,4 +1,5 @@
 import { logger } from "../utils/logger.js";
+import { DEFAULT_FALLBACK_HOST } from "../utils/constants.js";
 
 export const constructWithdrawResponse = (uidHex, pHex, cHex, ctr, cmac_validated, baseUrl, paymentMethod = "fakewallet") => {
   if (!cmac_validated) {
@@ -10,7 +11,7 @@ export const constructWithdrawResponse = (uidHex, pHex, cHex, ctr, cmac_validate
   }
 
   const counterValue = parseInt(ctr, 16);
-  const host = baseUrl || "https://boltcardpoc.psbt.me";
+  const host = baseUrl || DEFAULT_FALLBACK_HOST;
   // clnrest and proxy use a fixed 1000 msat amount (1 sat) because the
   // LNURL-withdraw callback is a payment trigger, not a user-chosen amount.
   // fakewallet allows the full 1–1 000 000 msat range for POS flexibility.

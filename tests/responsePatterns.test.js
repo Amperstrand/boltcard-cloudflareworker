@@ -475,8 +475,9 @@ describe("response patterns", () => {
     const response = await makeRequest("/nope");
 
     expect(response.status).toBe(404);
-    expect(response.headers.get("Content-Type")).toContain("text/plain");
-    expect(await response.text()).toBe("Not found");
+    expect(response.headers.get("Content-Type")).toContain("application/json");
+    const json = await response.json();
+    expect(json.status).toBe("ERROR");
   });
 
   test("rate-limited requests return JSON error response", async () => {
@@ -535,7 +536,7 @@ describe("response patterns", () => {
     const k1Bytes = hexToBytes(k1Hex);
 
     // K2 for CMAC = from deterministic keys (what was stored in KV)
-    const keys = await getDeterministicKeys(zeroUid, kvEnv);
+    const keys = getDeterministicKeys(zeroUid, kvEnv);
     const k2Bytes = hexToBytes(keys.k2);
 
     // Build PICCData plaintext: [0xC7][UID 7 bytes][Counter LE 3 bytes][Padding 5 bytes]

@@ -25,6 +25,11 @@ export const BROWSER_VALIDATE_UID_HELPER = rawHtml`
 `;
 
 export const BROWSER_NFC_HELPERS = rawHtml`
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 function browserSupportsNfc() {
   return 'NDEFReader' in window;
 }

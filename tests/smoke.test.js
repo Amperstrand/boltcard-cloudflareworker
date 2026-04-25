@@ -75,7 +75,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
 
   beforeAll(async () => {
     const env = { BOLT_CARD_K1: BOLT_CARD_K1 };
-    keys = await getDeterministicKeys(POS_UID, env);
+    keys = getDeterministicKeys(POS_UID, env);
   });
 
   test("Phase 1: card tap returns valid LUD-06 payRequest", async () => {

@@ -1,4 +1,6 @@
 import { computeAesCmac, hexToBytes } from "../cryptoutils.js";
+import { hmac } from "@noble/hashes/hmac.js";
+import { sha1 } from "@noble/hashes/legacy.js";
 
 export function deriveOtpSecret(env, uidHex, domainTag) {
   if (!env?.ISSUER_KEY) {
@@ -13,16 +15,8 @@ export function deriveOtpSecret(env, uidHex, domainTag) {
   return computeAesCmac(message, issuerKey);
 }
 
-async function hmacSha1(keyBytes, messageBytes) {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    keyBytes,
-    { name: "HMAC", hash: "SHA-1" },
-    false,
-    ["sign"],
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, messageBytes);
-  return new Uint8Array(sig);
+function hmacSha1(keyBytes, messageBytes) {
+  return hmac(sha1, keyBytes, messageBytes);
 }
 
 function dynamicTruncation(hmacResult) {
@@ -35,18 +29,18 @@ function dynamicTruncation(hmacResult) {
   );
 }
 
-export async function generateHOTP(secretBytes, counter, digits = 6) {
+export function generateHOTP(secretBytes, counter, digits = 6) {
   const counterBytes = new Uint8Array(8);
   new DataView(counterBytes.buffer).setBigUint64(0, BigInt(counter), false);
-  const hmac = await hmacSha1(secretBytes, counterBytes);
-  const code = dynamicTruncation(hmac) % Math.pow(10, digits);
+  const hmacResult = hmacSha1(secretBytes, counterBytes);
+  const code = dynamicTruncation(hmacResult) % Math.pow(10, digits);
   return code.toString().padStart(digits, "0");
 }
 
-export async function generateTOTP(secretBytes, timeStep = 30, digits = 6) {
+export function generateTOTP(secretBytes, timeStep = 30, digits = 6) {
   const nowSec = Math.floor(Date.now() / 1000);
   const counter = Math.floor(nowSec / timeStep);
-  const code = await generateHOTP(secretBytes, counter, digits);
+  const code = generateHOTP(secretBytes, counter, digits);
   const secondsRemaining = timeStep - (nowSec % timeStep);
   return { code, secondsRemaining, counter };
 }

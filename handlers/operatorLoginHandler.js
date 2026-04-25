@@ -9,6 +9,7 @@ import {
 } from "../middleware/operatorAuth.js";
 import { checkRateLimit } from "../rateLimiter.js";
 import { logger } from "../utils/logger.js";
+import { LOGIN_RATE_LIMIT_REQUESTS, LOGIN_RATE_LIMIT_WINDOW } from "../utils/constants.js";
 
 export function handleOperatorLoginPage(request) {
   const url = new URL(request.url);
@@ -22,7 +23,7 @@ export async function handleOperatorLogin(request, env) {
     return errorResponse("Operator PIN not configured", 500);
   }
 
-  const rateLimit = await checkRateLimit(request, env, { maxRequests: 5, windowSeconds: 900 });
+  const rateLimit = await checkRateLimit(request, env, { maxRequests: LOGIN_RATE_LIMIT_REQUESTS, windowSeconds: LOGIN_RATE_LIMIT_WINDOW });
   if (!rateLimit.allowed) {
     return errorResponse("Too many login attempts. Try again later.", 429);
   }
@@ -47,7 +48,7 @@ export async function handleOperatorLogin(request, env) {
   const returnUrl = body.get("return") || "/operator/pos";
 
   try {
-    const { cookie, shiftId } = await createSession(env);
+    const { cookie, shiftId } = createSession(env);
     logger.info("Operator logged in", { shiftId });
 
     return new Response(null, {
@@ -63,9 +64,8 @@ export async function handleOperatorLogin(request, env) {
   }
 }
 
-export async function handleOperatorLogout(request, env) {
-  const auth = await requireOperator(request, env);
-  void auth;
+export function handleOperatorLogout(request, env) {
+  requireOperator(request, env);
   logger.info("Operator logged out");
   return new Response(null, {
     status: 302,

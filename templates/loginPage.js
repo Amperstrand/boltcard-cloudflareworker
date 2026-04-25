@@ -501,7 +501,7 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
       };
       var labels = { topup: 'TOP UP', payment: 'PAYMENT' };
       var cls = map[status] || map.pending;
-      var label = labels[status] || status;
+      var label = labels[status] || esc(status);
       return '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ' + cls + '">' + label + '</span>';
     }
 
@@ -622,11 +622,11 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
     }
 
     function buildKeysRows(k0, k1, k2, k3, k4) {
-      return '<tr><td class="pr-3 text-gray-500">K0</td><td class="font-mono text-xs text-gray-400">' + (k0 || '-') + '</td></tr>' +
-        '<tr><td class="pr-3 text-gray-500">K1</td><td class="font-mono text-xs text-gray-400">' + (k1 || '-') + '</td></tr>' +
-        '<tr><td class="pr-3 text-gray-500">K2</td><td class="font-mono text-xs text-gray-400">' + (k2 || '-') + '</td></tr>' +
-        '<tr><td class="pr-3 text-gray-500">K3</td><td class="font-mono text-xs text-gray-400">' + (k3 || '-') + '</td></tr>' +
-        '<tr><td class="pr-3 text-gray-500">K4</td><td class="font-mono text-xs text-gray-400">' + (k4 || '-') + '</td></tr>';
+      return '<tr><td class="pr-3 text-gray-500">K0</td><td class="font-mono text-xs text-gray-400">' + esc(k0 || '-') + '</td></tr>' +
+        '<tr><td class="pr-3 text-gray-500">K1</td><td class="font-mono text-xs text-gray-400">' + esc(k1 || '-') + '</td></tr>' +
+        '<tr><td class="pr-3 text-gray-500">K2</td><td class="font-mono text-xs text-gray-400">' + esc(k2 || '-') + '</td></tr>' +
+        '<tr><td class="pr-3 text-gray-500">K3</td><td class="font-mono text-xs text-gray-400">' + esc(k3 || '-') + '</td></tr>' +
+        '<tr><td class="pr-3 text-gray-500">K4</td><td class="font-mono text-xs text-gray-400">' + esc(k4 || '-') + '</td></tr>';
     }
 
     function setCurrentProgrammingEndpoint(endpointUrl) {

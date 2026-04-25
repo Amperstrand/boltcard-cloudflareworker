@@ -1,8 +1,8 @@
 import { getDeterministicKeys } from "../keygenerator.js";
 import { getPerCardKeys, getAllIssuerKeyCandidates } from "../utils/keyLookup.js";
-import { jsonResponse, buildBoltCardResponse, errorResponse } from "../utils/responses.js";
+import { jsonResponse, buildBoltCardResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { getCardState } from "../replayProtection.js";
-import { validateUid } from "../utils/validation.js";
+import { validateUid, getRequestOrigin } from "../utils/validation.js";
 
 async function findFirstKeyset(normalizedUid, env) {
   const perCard = getPerCardKeys(normalizedUid);
@@ -28,7 +28,7 @@ async function findFirstKeyset(normalizedUid, env) {
     for (const version of uniqueVersions) {
       try {
         const tempEnv = { ...env, ISSUER_KEY: candidate.hex };
-        const keys = await getDeterministicKeys(normalizedUid, tempEnv, version);
+        const keys = getDeterministicKeys(normalizedUid, tempEnv, version);
         if (keys.k0 && keys.k1 && keys.k2 && keys.k3 && keys.k4) {
           return {
             k0: keys.k0, k1: keys.k1, k2: keys.k2,
@@ -47,15 +47,11 @@ async function findFirstKeyset(normalizedUid, env) {
 export async function handleGetKeys(request, env) {
   const url = new URL(request.url);
   const uidParam = url.searchParams.get("uid");
-  const baseUrl = `${url.protocol}//${url.host}`;
+  const baseUrl = getRequestOrigin(request);
 
   if (request.method === "POST") {
-    let body;
-    try {
-      body = await request.json();
-    } catch {
-      return errorResponse("Invalid JSON body", 400);
-    }
+    const body = await parseJsonBody(request).catch(() => null);
+    if (!body) return errorResponse("Invalid JSON body", 400);
 
     let uid = uidParam;
     if (!uid && body.UID) uid = body.UID;
@@ -115,7 +111,7 @@ export async function handleGetKeys(request, env) {
     for (const version of uniqueDetailVersions) {
       try {
         const tempEnv = { ...env, ISSUER_KEY: candidate.hex };
-        const k = await getDeterministicKeys(validatedUid, tempEnv, version);
+        const k = getDeterministicKeys(validatedUid, tempEnv, version);
         keysets.push({
           k0: k.k0, k1: k.k1, k2: k.k2, k3: k.k3, k4: k.k4,
           version, source: "deterministic", label: candidate.label, card_key: k.cardKey,

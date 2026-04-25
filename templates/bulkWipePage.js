@@ -336,18 +336,18 @@ export function renderBulkWipePage({ baseUrl, keyOptionsHtml }) {
             card.className = 'bg-gray-800 border border-gray-700 rounded-lg p-6 shadow-xl';
             card.innerHTML = \`
               <div class="flex items-center justify-between mb-4 border-b border-gray-700 pb-2">
-                <h3 class="text-lg font-bold text-gray-200">UID: <span class="text-amber-500 font-mono">\${uid}</span></h3>
+                <h3 class="text-lg font-bold text-gray-200">UID: <span class="text-amber-500 font-mono">\${esc(uid)}</span></h3>
                 <span class="px-2 py-1 bg-green-500/10 text-green-500 text-xs font-mono rounded border border-green-500/20">OK</span>
               </div>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Wipe JSON</label>
-                  <pre class="font-mono text-xs text-green-400 bg-gray-900 p-4 rounded border border-gray-700 overflow-x-auto min-h-[140px] mb-2">\${JSON.stringify(wipeJson, null, 2)}</pre>
+                  <pre class="font-mono text-xs text-green-400 bg-gray-900 p-4 rounded border border-gray-700 overflow-x-auto min-h-[140px] mb-2">\${esc(JSON.stringify(wipeJson, null, 2))}</pre>
                   <button data-copy="\${encodeURIComponent(wipeJsonStr)}" class="copy-btn text-xs text-amber-500 hover:text-amber-400 font-bold">COPY JSON</button>
                 </div>
                 <div class="flex flex-col items-center">
                   <label class="block text-xs font-bold text-gray-500 uppercase mb-2">QR Code</label>
-                  <div id="qr-\${data.uid}" class="qr-container mb-4"></div>
+                  <div id="qr-\${esc(data.uid)}" class="qr-container mb-4"></div>
                 </div>
               </div>
               <div class="mt-4 bg-gray-900 rounded p-3 border border-gray-800">
@@ -355,7 +355,7 @@ export function renderBulkWipePage({ baseUrl, keyOptionsHtml }) {
                   <span class="text-xs font-bold text-red-500 uppercase">Reset Deeplink</span>
                   <button data-copy="\${encodeURIComponent(resetLink)}" class="copy-btn text-xs text-amber-500 hover:text-amber-400 font-bold">COPY LINK</button>
                 </div>
-                <a href="\${resetLink}" class="text-blue-400 hover:text-blue-300 text-sm font-mono break-all underline">\${resetLink}</a>
+                <a href="\${esc(resetLink)}" class="text-blue-400 hover:text-blue-300 text-sm font-mono break-all underline">\${esc(resetLink)}</a>
               </div>
             \`;
 
@@ -379,10 +379,10 @@ export function renderBulkWipePage({ baseUrl, keyOptionsHtml }) {
             card.className = 'bg-gray-800 border border-red-500/30 rounded-lg p-6 shadow-xl';
             card.innerHTML = \`
               <div class="flex items-center justify-between mb-2">
-                <h3 class="text-lg font-bold text-gray-200">UID: <span class="text-amber-500 font-mono">\${uid.toUpperCase()}</span></h3>
+                <h3 class="text-lg font-bold text-gray-200">UID: <span class="text-amber-500 font-mono">\${esc(uid.toUpperCase())}</span></h3>
                 <span class="px-2 py-1 bg-red-500/10 text-red-500 text-xs font-mono rounded border border-red-500/20">ERROR</span>
               </div>
-              <p class="text-sm text-red-400 font-mono">\${msg}</p>
+              <p class="text-sm text-red-400 font-mono">\${esc(msg)}</p>
             \`;
             container.appendChild(card);
           }

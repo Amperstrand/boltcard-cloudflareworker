@@ -1,4 +1,4 @@
-import { getAllIssuerKeyCandidates, getIssuerKeysForDomain, getPerCardKeys, getPerCardDomains } from "../utils/keyLookup.js";
+import { getAllIssuerKeyCandidates, getIssuerKeysForDomain, getPerCardKeys, getPerCardDomains, getUniquePerCardK1s, fingerprintHex } from "../utils/keyLookup.js";
 import { PERCARD_KEYS } from "../utils/generatedKeyData.js";
 
 describe("keyLookup — issuer key lookup", () => {
@@ -79,5 +79,56 @@ describe("keyLookup — per-card keys", () => {
 
   test("all 104 per-card entries are loaded", () => {
     expect(PERCARD_KEYS.length).toBe(104);
+  });
+});
+
+describe("keyLookup — getPerCardDomains", () => {
+  test("returns array of unique non-empty card names", () => {
+    const domains = getPerCardDomains();
+    expect(Array.isArray(domains)).toBe(true);
+    expect(new Set(domains).size).toBe(domains.length);
+  });
+
+  test("filters out empty card names", () => {
+    const domains = getPerCardDomains();
+    expect(domains.every(d => typeof d === "string" && d.length > 0)).toBe(true);
+  });
+});
+
+describe("keyLookup — getUniquePerCardK1s", () => {
+  test("deduplicates by k1 case-insensitively", () => {
+    const unique = getUniquePerCardK1s();
+    const k1Lower = unique.map(e => e.k1.toLowerCase());
+    expect(new Set(k1Lower).size).toBe(k1Lower.length);
+  });
+
+  test("returns subset of PERCARD_KEYS", () => {
+    const unique = getUniquePerCardK1s();
+    expect(unique.length).toBeLessThanOrEqual(PERCARD_KEYS.length);
+  });
+
+  test("skips entries without k1", () => {
+    const unique = getUniquePerCardK1s();
+    expect(unique.every(e => e.k1)).toBe(true);
+  });
+});
+
+describe("keyLookup — fingerprintHex", () => {
+  test("returns 16-char hex prefix of sha256", () => {
+    const fp = fingerprintHex("abcdef0123456789");
+    expect(fp).toHaveLength(16);
+    expect(/^[0-9a-f]{16}$/.test(fp)).toBe(true);
+  });
+
+  test("is deterministic", () => {
+    expect(fingerprintHex("test")).toBe(fingerprintHex("test"));
+  });
+
+  test("is case-insensitive", () => {
+    expect(fingerprintHex("ABC")).toBe(fingerprintHex("abc"));
+  });
+
+  test("produces different fingerprints for different inputs", () => {
+    expect(fingerprintHex("aaaa")).not.toBe(fingerprintHex("bbbb"));
   });
 });

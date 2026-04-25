@@ -37,7 +37,7 @@ export async function validateCardTap(request, env, { pHex, cHex, context = "tap
 
   let activeVersion;
   if (cardState.state === "keys_delivered") {
-    const keys = await getDeterministicKeys(uidHex, env, cardState.latest_issued_version);
+    const keys = getDeterministicKeys(uidHex, env, cardState.latest_issued_version);
     const { cmac_validated } = validate_cmac(
       hexToBytes(uidHex),
       hexToBytes(ctr),

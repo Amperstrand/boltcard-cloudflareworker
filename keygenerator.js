@@ -33,7 +33,7 @@
  */
 import { computeAesCmac, hexToBytes, bytesToHex } from "./cryptoutils.js";
 
-export async function getDeterministicKeys(uidHex, env, version = 1) {
+export function getDeterministicKeys(uidHex, env, version = 1) {
   if (!uidHex || uidHex.length !== 14) {
     throw new Error(`Invalid UID: "${uidHex}" is not exactly 7 bytes (14 hex characters). Received ${uidHex ? uidHex.length : 'no'} characters.`);
   }
