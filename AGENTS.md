@@ -140,7 +140,7 @@
 
 - Run: `npm test` (uses Jest with `--experimental-vm-modules`)
 - Deploy: `npm run deploy` (tests → build_keys → wrangler deploy)
-- **779 tests** across 50 test suites (as of 2026-04-25)
+- **788 tests** across 51 test suites (as of 2026-04-25)
 
 ## Test Inventory
 
@@ -195,6 +195,7 @@
 | `tests/e2e/virtual-card.test.js` | Full E2E lifecycle: provision → tap → pay → replay | |
 | `tests/identityHandler.test.js` | Identity verification, profile update, CMAC, enrollment | |
 | `tests/bulkWipePageHandler.test.js` | Bulk wipe page rendering with key fingerprints | |
+| `tests/withdrawHandler.test.js` | Withdraw response: CMAC-failed, fakewallet/clnrest amounts | |
 
 ## Test-Only Exports
 

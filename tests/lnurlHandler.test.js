@@ -287,4 +287,86 @@ describe("handleLnurlpPayment", () => {
     expect(tap).toBeDefined();
     expect(tap.status).toBe("failed");
   });
+
+  it("rejects k1 with invalid format (missing p and c)", async () => {
+    const env = buildEnv();
+    const req = new Request("https://test.local/boltcards/api/v1/lnurl/cb?k1=invaliddata&pr=lnbc10n1test");
+    const res = await handleLnurlpPayment(req, env);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.reason).toContain("Invalid k1");
+  });
+
+  it("handles CLN 201 with non-complete status (pending)", async () => {
+    const env = buildEnv();
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    env.CARD_REPLAY.__cardConfigs.set(UID, {
+      K2: keys.k2,
+      payment_method: "clnrest",
+      clnrest: { host: "https://cln.example.com", rune: "test-rune" },
+    });
+
+    globalThis.fetch = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: "pending" }), { status: 201 })
+    );
+
+    const { pHex, cHex } = virtualTap(UID, 9, keys.k1, keys.k2);
+    const req = new Request(callbackUrl(pHex, cHex, { pr: "lnbc10n1test" }));
+    const res = await handleLnurlpPayment(req, env);
+    expect(res.status).toBe(202);
+    const body = await res.json();
+    expect(body.reason).toContain("pending");
+    globalThis.fetch.mockRestore();
+  });
+
+  it("handles outer catch error", async () => {
+    const env = buildEnv();
+    const brokenEnv = new Proxy(env, {
+      get(target, prop) {
+        if (prop === "BOLT_CARD_K1") throw new Error("env broken");
+        return Reflect.get(target, prop);
+      },
+    });
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 10, keys.k1, keys.k2);
+    const req = new Request(callbackUrl(pHex, cHex, { amount: 500 }));
+    const res = await handleLnurlpPayment(req, brokenEnv);
+    expect(res.status).toBe(500);
+  });
+
+  it("processes two-step callback: read then callback upgrade", async () => {
+    const env = buildEnv(10000);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+
+    const counter = 11;
+    const { pHex, cHex } = virtualTap(UID, counter, keys.k1, keys.k2);
+
+    const stub = env.CARD_REPLAY.get(env.CARD_REPLAY.idFromName(UID));
+    await stub.fetch(new Request("https://card-replay.internal/record-tap", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ counterValue: counter }),
+    }));
+
+    const req = new Request(callbackUrl(pHex, cHex, { amount: 1000 }));
+    const res = await handleLnurlpPayment(req, env);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe("OK");
+  });
+
+  it("returns config not found when uid has no config", async () => {
+    const env = buildEnv();
+    env.CARD_REPLAY.__cardConfigs.delete(UID);
+    env.UID_CONFIG = {
+      get: async () => null,
+      put: async () => {},
+    };
+
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 12, keys.k1, keys.k2);
+    const req = new Request(callbackUrl(pHex, cHex, { amount: 500 }));
+    const res = await handleLnurlpPayment(req, env);
+    expect(res.status).toBe(200);
+  });
 });
