@@ -5,7 +5,7 @@ import { hexToBytes, bytesToHex } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { buildVerificationData } from "../cryptoutils.js";
 import aesjs from "aes-js";
-import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
+import { buildCardTestEnv } from "./testHelpers.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const TEST_UID = "04996c6a926980";
@@ -47,12 +47,7 @@ function computeRealC(uidHex, ctrHex, k2Hex) {
 }
 
 function makeEnv(replayInitial = {}) {
-  return {
-    BOLT_CARD_K1,
-    CARD_REPLAY: makeReplayNamespace(replayInitial),
-    UID_CONFIG: { get: async () => null, put: async () => {} },
-    ...TEST_OPERATOR_AUTH,
-  };
+  return buildCardTestEnv({ replayInitial, operatorAuth: true, extraEnv: { BOLT_CARD_K1 } });
 }
 
 async function makeRequest(path, method = "GET", body = null, requestEnv) {
@@ -67,12 +62,7 @@ async function makeRequest(path, method = "GET", body = null, requestEnv) {
 
 describe("POS Page", () => {
   function makeEnv() {
-    return {
-      BOLT_CARD_K1,
-      CARD_REPLAY: makeReplayNamespace(),
-      UID_CONFIG: { get: async () => null, put: async () => {} },
-      ...TEST_OPERATOR_AUTH,
-    };
+    return buildCardTestEnv({ operatorAuth: true, extraEnv: { BOLT_CARD_K1 } });
   }
 
   test("GET /operator/pos returns HTML with 200 status", async () => {

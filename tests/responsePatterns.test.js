@@ -184,7 +184,7 @@ describe("response patterns", () => {
   test("GET /experimental/nfc redirects to /debug#console", async () => {
     const response = await makeRequest("/experimental/nfc");
 
-    expect(response.status).toBe(301);
+    expect(response.status).toBe(302);
     const location = response.headers.get("Location");
     expect(location).toBe("https://test.local/debug#console");
   });
@@ -652,9 +652,9 @@ describe("response patterns", () => {
     ];
 
     for (const { from, to } of redirectPaths) {
-      test(`${from} redirects to ${to} with 301 and absolute URL`, async () => {
+      test(`${from} redirects to ${to} with 302 and absolute URL`, async () => {
         const response = await makeRequest(from);
-        expect(response.status).toBe(301);
+        expect(response.status).toBe(302);
         const location = response.headers.get("Location");
         expect(location).toBe("https://test.local" + to);
         expect(location).toMatch(/^https:\/\//);

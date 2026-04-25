@@ -118,7 +118,7 @@ router.post("/api/balance-check", (request, env) => handleBalanceCheck(request, 
 
 router.get("/debug", withOperatorAuth((request) => handleDebugPage(request)));
 router.get("/experimental/nfc", (request) => {
-  return redirect(new URL(request.url).origin + "/debug#console", 301);
+  return redirect(new URL(request.url).origin + "/debug#console", 302);
 });
 router.get("/experimental/activate", withOperatorAuth((request, env) => handleActivatePage(request, env)));
 router.get("/experimental/activate/form", withOperatorAuth(() => handleActivateForm()));
@@ -138,27 +138,27 @@ router.all("/api/v1/pull-payments/:pullPaymentId/boltcards", withOperatorAuth((r
 router.get("/api/bulk-wipe-keys", withOperatorAuth((request, env) => handleBulkWipeKeys(request, env)));
 router.get("/identity", (request) => handleIdentityPage(request));
 
-// 301 redirects from old paths to /experimental/
+// 302 redirects from short paths to /experimental/
 router.get("/nfc", (request) => {
-  return redirect(new URL(request.url).origin + "/debug#console", 301);
+  return redirect(new URL(request.url).origin + "/debug#console", 302);
 });
 router.get("/activate", (request) => {
-  return redirect(new URL(request.url).origin + "/experimental/activate", 301);
+  return redirect(new URL(request.url).origin + "/experimental/activate", 302);
 });
 router.get("/activate/form", (request) => {
-  return redirect(new URL(request.url).origin + "/experimental/activate/form", 301);
+  return redirect(new URL(request.url).origin + "/experimental/activate/form", 302);
 });
 router.get("/wipe", withOperatorAuth((request, env) => {
   const url = new URL(request.url);
   const uid = url.searchParams.get("uid");
   if (uid) return handleReset(uid, env, getRequestOrigin(request));
-  return redirect(url.origin + "/experimental/wipe", 301);
+  return redirect(url.origin + "/experimental/wipe", 302);
 }));
 router.get("/bulkwipe", (request) => {
-  return redirect(new URL(request.url).origin + "/experimental/bulkwipe", 301);
+  return redirect(new URL(request.url).origin + "/experimental/bulkwipe", 302);
 });
 router.get("/analytics", (request) => {
-  return redirect(new URL(request.url).origin + "/experimental/analytics", 301);
+  return redirect(new URL(request.url).origin + "/experimental/analytics", 302);
 });
 router.get("/analytics/data", withOperatorAuth((request, env) => handleAnalyticsData(request, env)));
 router.get("/favicon.ico", () => new Response(null, { status: 204 }));

@@ -1,6 +1,6 @@
 import { handleWipePage } from "../handlers/wipePageHandler.js";
 import { handleReset } from "../handlers/resetHandler.js";
-import { makeReplayNamespace } from "./replayNamespace.js";
+import { buildCardTestEnv } from "./testHelpers.js";
 
 const UID = "04a39493cc8680";
 const ISSUER_KEY = "00000000000000000000000000000001";
@@ -38,10 +38,7 @@ describe("handleWipePage", () => {
 
 describe("handleReset", () => {
   function makeEnv() {
-    return {
-      ISSUER_KEY,
-      CARD_REPLAY: makeReplayNamespace({}, { [UID]: 1 }),
-    };
+    return buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, initialCards: { [UID]: 1 } });
   }
 
   it("returns 400 for missing UID", async () => {

@@ -4,7 +4,7 @@ import { makeReplayNamespace } from "./replayNamespace.js";
 import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import aesjs from "aes-js";
-import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
+import { TEST_OPERATOR_AUTH, buildCardTestEnv } from "./testHelpers.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const TEST_UID = "04aabbccdd7788";
@@ -30,16 +30,7 @@ function computeC(uidHex, ctrHex, k2Hex) {
 }
 
 function makeEnv(replay = makeReplayNamespace({ [TEST_UID]: 1 })) {
-  const kvStore = {};
-  return {
-    BOLT_CARD_K1,
-    CARD_REPLAY: replay,
-    UID_CONFIG: {
-      get: async (uid) => kvStore[uid] ?? null,
-      put: async (uid, value) => { kvStore[uid] = value; },
-    },
-    ...TEST_OPERATOR_AUTH,
-  };
+  return buildCardTestEnv({ operatorAuth: true, extraEnv: { CARD_REPLAY: replay, BOLT_CARD_K1 } });
 }
 
 async function provisionCard(env, replay, balance = 0) {

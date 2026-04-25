@@ -4,7 +4,7 @@ import { hexToBytes, bytesToHex, computeAesCmac } from "../cryptoutils.js";
 import { getDeterministicKeys, deriveKeysFromHex } from "../keygenerator.js";
 import { buildVerificationData } from "../cryptoutils.js";
 import aesjs from "aes-js";
-import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
+import { buildCardTestEnv } from "./testHelpers.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const TEST_UID = "04a39493cc8680";
@@ -38,11 +38,7 @@ function computeRealC(uidHex, ctrHex, k2Hex) {
 }
 
 function makeEnv() {
-  return {
-    BOLT_CARD_K1: BOLT_CARD_K1,
-    CARD_REPLAY: makeReplayNamespace(),
-    ...TEST_OPERATOR_AUTH,
-  };
+  return buildCardTestEnv({ operatorAuth: true, extraEnv: { BOLT_CARD_K1 } });
 }
 
 async function makeRequest(path, method = "GET", body = null, requestEnv = null) {

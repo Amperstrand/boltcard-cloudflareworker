@@ -1,19 +1,9 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
 import { handleRequest } from "../index.js";
-import { makeReplayNamespace } from "./replayNamespace.js";
-import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
+import { buildCardTestEnv } from "./testHelpers.js";
 
 function makeEnv() {
-  const kvStore = {};
-  return {
-    BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
-    CARD_REPLAY: makeReplayNamespace(),
-    UID_CONFIG: {
-      get: async (key) => kvStore[key] ?? null,
-      put: async (key, value) => { kvStore[key] = value; },
-    },
-    ...TEST_OPERATOR_AUTH,
-  };
+  return buildCardTestEnv({ operatorAuth: true });
 }
 
 describe("GET /api/pos/menu", () => {

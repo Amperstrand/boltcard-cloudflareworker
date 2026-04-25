@@ -45,6 +45,7 @@ export function buildCardTestEnv(options = {}) {
     cardConfig = null,
     kvData = null,
     replayInitial = {},
+    initialCards = {},
     operatorAuth = false,
     exposeKvStore = false,
     noIssuerKey = false,
@@ -52,11 +53,13 @@ export function buildCardTestEnv(options = {}) {
   } = options;
 
   const keys = issuerKey ? getDeterministicKeys(uid, { ISSUER_KEY: issuerKey }, 1) : null;
-  const replay = makeReplayNamespace(replayInitial);
+  const replay = makeReplayNamespace(replayInitial, initialCards);
 
-  if (cardState === "active") {
+  const hasInitialCards = Object.keys(initialCards).length > 0;
+
+  if (!hasInitialCards && cardState === "active") {
     replay.__activate(uid, 1);
-  } else if (cardState === "keys_delivered") {
+  } else if (!hasInitialCards && cardState === "keys_delivered") {
     replay.__cardStates.set(uid.toLowerCase(), {
       state: "keys_delivered",
       latest_issued_version: 1,

@@ -1,13 +1,9 @@
 import { describe, it, expect } from "@jest/globals";
 import { handleRequest } from "../index.js";
-import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
+import { buildCardTestEnv } from "./testHelpers.js";
 
 function makeEnv(overrides = {}) {
-  return {
-    BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
-    ...TEST_OPERATOR_AUTH,
-    ...overrides,
-  };
+  return buildCardTestEnv({ operatorAuth: true, extraEnv: overrides });
 }
 
 describe("GET /operator/login", () => {

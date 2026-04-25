@@ -1,16 +1,12 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
-import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
+import { TEST_OPERATOR_AUTH, buildCardTestEnv } from "./testHelpers.js";
 
 const TEST_UID = "04aabbccdd7788";
 
 function makeEnv(replay = makeReplayNamespace({ [TEST_UID]: 1 })) {
-  return {
-    BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
-    CARD_REPLAY: replay,
-    ...TEST_OPERATOR_AUTH,
-  };
+  return buildCardTestEnv({ replayInitial: { [TEST_UID]: 1 }, operatorAuth: true, extraEnv: { CARD_REPLAY: replay } });
 }
 
 async function recordTap(replay, uid, counter, amountMsat, status) {

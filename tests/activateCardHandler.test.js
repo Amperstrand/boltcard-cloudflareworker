@@ -1,15 +1,12 @@
 import { handleActivateCardSubmit, handleActivateCardPage } from "../handlers/activateCardHandler.js";
 import { handleActivatePage } from "../handlers/activatePageHandler.js";
-import { makeReplayNamespace } from "./replayNamespace.js";
+import { buildCardTestEnv } from "./testHelpers.js";
 
 const UID = "04a39493cc8680";
 const ISSUER_KEY = "00000000000000000000000000000001";
 
 function buildEnv() {
-  return {
-    ISSUER_KEY,
-    CARD_REPLAY: makeReplayNamespace(),
-  };
+  return buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY });
 }
 
 function postRequest(body) {
