@@ -59,3 +59,15 @@ test("getDeterministicKeys uses fallback in dev when ISSUER_KEY is missing", asy
   const keys = getDeterministicKeys("04a39493cc8680", devEnv);
   expect(keys.k0).toBe("a29119fcb48e737d1591d3489557e49b");
 });
+
+test("getDeterministicKeys throws for empty uidHex", () => {
+  expect(() => getDeterministicKeys("", {})).toThrow(/Invalid UID.*no characters/);
+});
+
+test("getDeterministicKeys throws for null uidHex", () => {
+  expect(() => getDeterministicKeys(null, {})).toThrow(/Invalid UID.*no characters/);
+});
+
+test("getDeterministicKeys throws for short uidHex", () => {
+  expect(() => getDeterministicKeys("04a394", {})).toThrow(/Invalid UID.*6 characters/);
+});

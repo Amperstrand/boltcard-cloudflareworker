@@ -230,6 +230,32 @@ describe("GET /operator/pos/menu", () => {
     );
     expect(res.status).toBe(200);
   });
+
+  it("handles menu without items property (triggers || [] fallback)", async () => {
+    await env.UID_CONFIG.put("pos_menu:default", JSON.stringify({ foo: "bar" }));
+    const res = await handleRequest(
+      new Request("https://test.local/operator/pos/menu", {
+        headers: { Cookie: "op_session=test" },
+      }),
+      env,
+    );
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Menu Editor");
+  });
+
+  it("renders editor with empty items list", async () => {
+    await env.UID_CONFIG.put("pos_menu:default", JSON.stringify({ items: [] }));
+    const res = await handleRequest(
+      new Request("https://test.local/operator/pos/menu", {
+        headers: { Cookie: "op_session=test" },
+      }),
+      env,
+    );
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Menu Editor");
+  });
 });
 
 describe("GET /api/pos/menu error handling", () => {

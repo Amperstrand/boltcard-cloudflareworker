@@ -167,3 +167,23 @@ describe("GET /api/bulk-wipe-keys", () => {
     expect(jsonA.boltcard_response.K1).not.toBe(jsonB.boltcard_response.K1);
   });
 });
+
+describe("GET /experimental/bulkwipe", () => {
+  test("returns HTML bulk wipe page with key options", async () => {
+    const response = await makeRequest("/experimental/bulkwipe");
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Bulk");
+    expect(html).toContain("optgroup");
+  });
+
+  test("returns same result on second call (fingerprint cache)", async () => {
+    const res1 = await makeRequest("/experimental/bulkwipe");
+    const res2 = await makeRequest("/experimental/bulkwipe");
+    expect(res1.status).toBe(200);
+    expect(res2.status).toBe(200);
+    const html1 = await res1.text();
+    const html2 = await res2.text();
+    expect(html1).toBe(html2);
+  });
+});

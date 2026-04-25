@@ -1,4 +1,5 @@
 import { handleActivateCardSubmit, handleActivateCardPage } from "../handlers/activateCardHandler.js";
+import { handleActivatePage } from "../handlers/activatePageHandler.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 
 const UID = "04a39493cc8680";
@@ -120,5 +121,36 @@ describe("handleActivateCardSubmit", () => {
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.uid).toBe("04a39493cc8680");
+  });
+});
+
+describe("handleActivatePage", () => {
+  it("returns HTML with default pullPaymentId", () => {
+    const req = new Request("https://test.local/experimental/activate");
+    const res = handleActivatePage(req);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toContain("text/html");
+  });
+
+  it("uses pullPaymentId from URL query param", async () => {
+    const req = new Request("https://test.local/experimental/activate?pullPaymentId=custom-pp-999");
+    const res = handleActivatePage(req);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("custom-pp-999");
+  });
+
+  it("uses DEFAULT_PULL_PAYMENT_ID from env when no URL param", async () => {
+    const req = new Request("https://test.local/experimental/activate");
+    const res = handleActivatePage(req, { DEFAULT_PULL_PAYMENT_ID: "env-pp-42" });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("env-pp-42");
+  });
+
+  it("works without env (default parameter)", () => {
+    const req = new Request("https://test.local/experimental/activate");
+    const res = handleActivatePage(req);
+    expect(res.status).toBe(200);
   });
 });

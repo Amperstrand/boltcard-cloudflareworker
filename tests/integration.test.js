@@ -199,6 +199,48 @@ describe('End-to-End Payment Flow Integration Tests', () => {
       const responseData = await response.json();
       expect(responseData.status).toBeDefined();
     });
+
+    it('should redirect to /login when UID_CONFIG is missing', async () => {
+      const noKvEnv = { ...mockEnv };
+      delete noKvEnv.UID_CONFIG;
+      const request = new Request('https://test.local/status');
+      const response = await handleRequest(request, noKvEnv);
+      expect(response.status).toBe(302);
+      expect(response.headers.get('Location')).toContain('/login');
+    });
+
+    it('should report kv_status not working when KV returns wrong value', async () => {
+      const brokenKvEnv = {
+        ...mockEnv,
+        UID_CONFIG: {
+          get: async () => 'wrong',
+          put: async () => {},
+          delete: async () => {},
+        },
+      };
+      const request = new Request('https://test.local/status');
+      const response = await handleRequest(request, brokenKvEnv);
+      expect(response.status).toBe(200);
+      const responseData = await response.json();
+      expect(responseData.kv_status).toBe('not working');
+    });
+
+    it('should report error when KV throws', async () => {
+      const errorKvEnv = {
+        ...mockEnv,
+        UID_CONFIG: {
+          get: async () => { throw new Error('KV down'); },
+          put: async () => { throw new Error('KV down'); },
+          delete: async () => {},
+        },
+      };
+      const request = new Request('https://test.local/status');
+      const response = await handleRequest(request, errorKvEnv);
+      expect(response.status).toBe(200);
+      const responseData = await response.json();
+      expect(responseData.status).toBe('ERROR');
+      expect(responseData.kv_status).toBe('error');
+    });
   });
 
   describe('Cryptographic Validation Integration', () => {

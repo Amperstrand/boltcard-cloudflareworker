@@ -13,11 +13,26 @@ describe("handleWipePage", () => {
     expect(res.headers.get("Content-Type")).toContain("text/html");
   });
 
+  it("works without env parameter (default parameter)", () => {
+    const req = new Request("https://test.local/experimental/wipe");
+    const res = handleWipePage(req);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toContain("text/html");
+  });
+
   it("includes reset API URL in response", async () => {
     const req = new Request("https://test.local/experimental/wipe");
     const res = handleWipePage(req, {});
     const html = await res.text();
     expect(html).toContain("KeepVersion");
+  });
+
+  it("uses custom DEFAULT_PULL_PAYMENT_ID from env", async () => {
+    const req = new Request("https://test.local/experimental/wipe");
+    const res = handleWipePage(req, { DEFAULT_PULL_PAYMENT_ID: "custom-pp-123" });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("custom-pp-123");
   });
 });
 

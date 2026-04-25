@@ -1,6 +1,7 @@
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
+import { getDeterministicKeys, deriveKeysFromHex } from "../keygenerator.js";
 import aesjs from "aes-js";
 
 const env = {
@@ -686,5 +687,335 @@ describe("POST /login (handleLoginVerify)", () => {
       makeEnv()
     );
     expect(response.status).toBe(400);
+  });
+
+  describe("issuer key CMAC scan match (lines 94-96)", () => {
+    const SCAN_UID = "04a39493cc8680";
+
+    function buildScanTapEnv(replay = makeReplayNamespace()) {
+      const keys = getDeterministicKeys(SCAN_UID, { ISSUER_KEY: env.ISSUER_KEY }, 1);
+      const uid = hexToBytes(SCAN_UID);
+      const counter = 7;
+      const plaintext = new Uint8Array(16);
+      plaintext[0] = 0xc7;
+      plaintext.set(uid, 1);
+      plaintext[8] = counter & 0xff;
+      plaintext[9] = (counter >> 8) & 0xff;
+      plaintext[10] = (counter >> 16) & 0xff;
+      const aes = new aesjs.ModeOfOperation.ecb(hexToBytes(keys.k1));
+      const encrypted = aes.encrypt(plaintext);
+      const pHex = bytesToHex(new Uint8Array(encrypted));
+      const ctrHex = bytesToHex(new Uint8Array([(counter >> 16) & 0xff, (counter >> 8) & 0xff, counter & 0xff]));
+      const vd = buildVerificationData(uid, hexToBytes(ctrHex), hexToBytes(keys.k2));
+      const cHex = bytesToHex(vd.ct);
+      return { pHex, cHex, keys, replay };
+    }
+
+    test("valid issuer-derived CMAC returns cmacValid true via scan match", async () => {
+      const { pHex, cHex, replay } = buildScanTapEnv();
+      const response = await makeRequest("/login", "POST", { p: pHex, c: cHex }, makeEnv(replay));
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      expect(json.success).toBe(true);
+      expect(json.cmacValid).toBe(true);
+      expect(json.uidHex).toBe(SCAN_UID);
+    });
+
+    test("valid issuer-derived CMAC includes matchedVersion in debug", async () => {
+      const { pHex, cHex, replay } = buildScanTapEnv();
+      const response = await makeRequest("/login", "POST", { p: pHex, c: cHex }, makeEnv(replay));
+      const json = await response.json();
+      expect(json.debug.matchedVersion).toBe(1);
+    });
+  });
+
+  describe("error paths in main login flow", () => {
+    test("getBalance throwing logs warning and returns balance 0 (line 196)", async () => {
+      const replay = makeReplayNamespace();
+      const origGet = replay.get.bind(replay);
+      let balanceCallCount = 0;
+      replay.get = (id) => {
+        const obj = origGet(id);
+        return {
+          fetch: async (request) => {
+            const url = new URL(request.url);
+            if (url.pathname === "/balance") {
+              balanceCallCount++;
+              throw new Error("balance fetch failed");
+            }
+            return obj.fetch(request);
+          },
+        };
+      };
+
+      const warns = [];
+      const origWarn = console.warn;
+      console.warn = (...args) => warns.push(args.join(" "));
+
+      try {
+        const response = await makeRequest("/login", "POST", { p: VALID_P, c: VALID_C }, makeEnv(replay));
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.balance).toBe(0);
+        const warnLog = warns.find(l => l.includes("Could not fetch balance"));
+        expect(warnLog).toBeDefined();
+      } finally {
+        console.warn = origWarn;
+      }
+    });
+
+    test("recordTapRead rejecting logs warning (line 202)", async () => {
+      const replay = makeReplayNamespace();
+      let idFromNameCallCount = 0;
+      const origIdFromName = replay.idFromName.bind(replay);
+      replay.idFromName = (name) => {
+        idFromNameCallCount++;
+        if (idFromNameCallCount > 7) throw new Error("idFromName failed");
+        return origIdFromName(name);
+      };
+
+      const warns = [];
+      const origWarn = console.warn;
+      console.warn = (...args) => warns.push(args.join(" "));
+
+      try {
+        const response = await makeRequest("/login", "POST", { p: VALID_P, c: VALID_C }, makeEnv(replay));
+        expect(response.status).toBe(200);
+        await new Promise(r => setTimeout(r, 100));
+        const warnLog = warns.find(l => l.includes("Failed to record login tap"));
+        expect(warnLog).toBeDefined();
+      } finally {
+        console.warn = origWarn;
+      }
+    });
+
+    test("listTaps throwing logs warning and returns partial history (line 438)", async () => {
+      const replay = makeReplayNamespace();
+      const origGet = replay.get.bind(replay);
+      replay.get = (id) => {
+        const obj = origGet(id);
+        return {
+          fetch: async (request) => {
+            const url = new URL(request.url);
+            if (url.pathname === "/list-taps") {
+              throw new Error("tap list failed");
+            }
+            return obj.fetch(request);
+          },
+        };
+      };
+
+      const warns = [];
+      const origWarn = console.warn;
+      console.warn = (...args) => warns.push(args.join(" "));
+
+      try {
+        const response = await makeRequest("/login", "POST", { p: VALID_P, c: VALID_C }, makeEnv(replay));
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.tapHistory).toEqual([]);
+        const warnLog = warns.find(l => l.includes("Could not load tap history"));
+        expect(warnLog).toBeDefined();
+      } finally {
+        console.warn = origWarn;
+      }
+    });
+
+    test("listTransactions throwing logs warning (line 444)", async () => {
+      const replay = makeReplayNamespace();
+      const origGet = replay.get.bind(replay);
+      replay.get = (id) => {
+        const obj = origGet(id);
+        return {
+          fetch: async (request) => {
+            const url = new URL(request.url);
+            if (url.pathname === "/transactions") {
+              throw new Error("tx list failed");
+            }
+            return obj.fetch(request);
+          },
+        };
+      };
+
+      const warns = [];
+      const origWarn = console.warn;
+      console.warn = (...args) => warns.push(args.join(" "));
+
+      try {
+        const response = await makeRequest("/login", "POST", { p: VALID_P, c: VALID_C }, makeEnv(replay));
+        expect(response.status).toBe(200);
+        const warnLog = warns.find(l => l.includes("Could not load transactions"));
+        expect(warnLog).toBeDefined();
+      } finally {
+        console.warn = origWarn;
+      }
+    });
+  });
+
+  describe("UID-only login edge cases", () => {
+    test("UID-only login with invalid UID (no action) returns 400 (line 243)", async () => {
+      const response = await makeRequest("/login", "POST", { uid: "ZZZZ" }, makeEnv());
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toMatch(/invalid uid/i);
+    });
+
+    test("getBalance throwing in UID-only path logs warning (line 273)", async () => {
+      const replay = makeReplayNamespace();
+      replay.__activate(ACTION_UID, 1);
+      const origGet = replay.get.bind(replay);
+      replay.get = (id) => {
+        const obj = origGet(id);
+        return {
+          fetch: async (request) => {
+            const url = new URL(request.url);
+            if (url.pathname === "/balance") {
+              throw new Error("balance fetch failed");
+            }
+            return obj.fetch(request);
+          },
+        };
+      };
+
+      const warns = [];
+      const origWarn = console.warn;
+      console.warn = (...args) => warns.push(args.join(" "));
+
+      try {
+        const response = await makeRequest("/login", "POST", { uid: ACTION_UID }, makeEnv(replay));
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.balance).toBe(0);
+        const warnLog = warns.find(l => l.includes("Could not fetch balance"));
+        expect(warnLog).toBeDefined();
+      } finally {
+        console.warn = origWarn;
+      }
+    });
+
+    test("recordTapRead rejecting in UID-only path logs warning (line 279)", async () => {
+      const replay = makeReplayNamespace();
+      replay.__activate(ACTION_UID, 1);
+      let idFromNameCallCount = 0;
+      const origIdFromName = replay.idFromName.bind(replay);
+      replay.idFromName = (name) => {
+        idFromNameCallCount++;
+        if (idFromNameCallCount > 6) throw new Error("idFromName failed");
+        return origIdFromName(name);
+      };
+
+      const warns = [];
+      const origWarn = console.warn;
+      console.warn = (...args) => warns.push(args.join(" "));
+
+      try {
+        const response = await makeRequest("/login", "POST", { uid: ACTION_UID }, makeEnv(replay));
+        expect(response.status).toBe(200);
+        await new Promise(r => setTimeout(r, 100));
+        const warnLog = warns.find(l => l.includes("Failed to record UID-only login tap"));
+        expect(warnLog).toBeDefined();
+      } finally {
+        console.warn = origWarn;
+      }
+    });
+
+    test("listTaps throwing in UID-only path logs warning (line 438)", async () => {
+      const replay = makeReplayNamespace();
+      replay.__activate(ACTION_UID, 1);
+      const origGet = replay.get.bind(replay);
+      replay.get = (id) => {
+        const obj = origGet(id);
+        return {
+          fetch: async (request) => {
+            const url = new URL(request.url);
+            if (url.pathname === "/list-taps") {
+              throw new Error("tap list failed");
+            }
+            return obj.fetch(request);
+          },
+        };
+      };
+
+      const warns = [];
+      const origWarn = console.warn;
+      console.warn = (...args) => warns.push(args.join(" "));
+
+      try {
+        const response = await makeRequest("/login", "POST", { uid: ACTION_UID }, makeEnv(replay));
+        expect(response.status).toBe(200);
+        const warnLog = warns.find(l => l.includes("Could not load tap history"));
+        expect(warnLog).toBeDefined();
+      } finally {
+        console.warn = origWarn;
+      }
+    });
+  });
+
+  describe("top-up error paths", () => {
+    test("creditCard returns ok:false returns 500 (line 400)", async () => {
+      const replay = makeReplayNamespace();
+      replay.__activate(ACTION_UID, 1);
+      const origGet = replay.get.bind(replay);
+      replay.get = (id) => {
+        const obj = origGet(id);
+        return {
+          fetch: async (request) => {
+            const url = new URL(request.url);
+            if (request.method === "POST" && url.pathname === "/credit") {
+              return Response.json({ ok: false, reason: "Credit limit exceeded" });
+            }
+            return obj.fetch(request);
+          },
+        };
+      };
+
+      const response = await makeRequest(
+        "/login",
+        "POST",
+        { uid: ACTION_UID, action: "top-up", amount: 100 },
+        makeEnv(replay)
+      );
+      expect(response.status).toBe(500);
+      const json = await response.json();
+      expect(json.error).toContain("Credit limit exceeded");
+    });
+
+    test("creditCard throwing returns 500 (lines 402-403)", async () => {
+      const replay = makeReplayNamespace();
+      replay.__activate(ACTION_UID, 1);
+      const origGet = replay.get.bind(replay);
+      replay.get = (id) => {
+        const obj = origGet(id);
+        return {
+          fetch: async (request) => {
+            const url = new URL(request.url);
+            if (request.method === "POST" && url.pathname === "/credit") {
+              throw new Error("credit DO failed");
+            }
+            return obj.fetch(request);
+          },
+        };
+      };
+
+      const errors = [];
+      const origError = console.error;
+      console.error = (...args) => errors.push(args.join(" "));
+
+      try {
+        const response = await makeRequest(
+          "/login",
+          "POST",
+          { uid: ACTION_UID, action: "top-up", amount: 100 },
+          makeEnv(replay)
+        );
+        expect(response.status).toBe(500);
+        const json = await response.json();
+        expect(json.error).toContain("Top-up failed");
+        const errLog = errors.find(l => l.includes("Top-up failed"));
+        expect(errLog).toBeDefined();
+      } finally {
+        console.error = origError;
+      }
+    });
   });
 });

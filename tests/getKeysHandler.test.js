@@ -73,6 +73,49 @@ describe("GET /api/keys", () => {
     expect(Array.isArray(json.keysets)).toBe(true);
     expect(json.keysets.length).toBeGreaterThan(0);
   });
+
+  test("per-card UID returns percard keyset in listing", async () => {
+    const response = await makeRequest("/api/keys?uid=040a69fa967380");
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.keysets.some(ks => ks.source === "percard")).toBe(true);
+    const percard = json.keysets.find(ks => ks.source === "percard");
+    expect(percard.k0).toBeDefined();
+    expect(percard.k1).toBeDefined();
+    expect(percard.k2).toBeDefined();
+  });
+
+  test("per-card UID with format=boltcard returns boltcard response", async () => {
+    const response = await makeRequest("/api/keys?uid=040a69fa967380&format=boltcard");
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.PROTOCOL_NAME).toBe("NEW_BOLT_CARD_RESPONSE");
+    expect(json.K0).toMatch(/^[0-9A-F]{32}$/);
+  });
+
+  test("per-card UID with format=boltcard via POST", async () => {
+    const response = await makeRequest("/api/keys", "POST", { uid: "040a69fa967380" });
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.PROTOCOL_NAME).toBe("NEW_BOLT_CARD_RESPONSE");
+  });
+
+  test("keysets include card_key for deterministic entries", async () => {
+    const response = await makeRequest(`/api/keys?uid=${VALID_UID}`);
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    const det = json.keysets.find(ks => ks.source === "deterministic");
+    expect(det).toBeDefined();
+    expect(det.card_key).toMatch(/^[0-9a-f]{32}$/);
+  });
+
+  test("keysets include version info", async () => {
+    const response = await makeRequest(`/api/keys?uid=${VALID_UID}`);
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    const det = json.keysets.find(ks => ks.source === "deterministic");
+    expect(det.version).toBeDefined();
+  });
 });
 
 describe("POST /api/keys", () => {

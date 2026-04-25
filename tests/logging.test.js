@@ -1,5 +1,6 @@
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
+import { logger } from "../utils/logger.js";
 
 const LEGACY_UID_CONFIGS = {
   "04996c6a926980": JSON.stringify({
@@ -224,6 +225,139 @@ describe("Logging and Observability", () => {
       } finally {
         console.warn = originalWarn;
         console.error = originalError;
+      }
+    });
+  });
+
+  describe("Logger level gating", () => {
+    afterEach(() => {
+      logger.setLevel("info");
+    });
+
+    it("should emit debug messages when level is debug", () => {
+      const logs = [];
+      const originalLog = console.log;
+      console.log = (...args) => logs.push(args.join(" "));
+
+      try {
+        logger.setLevel("debug");
+        logger.debug("test debug message", { key: "value" });
+
+        const debugLog = logs.find(l => l.includes("test debug message"));
+        expect(debugLog).toBeDefined();
+        expect(debugLog).toContain("DEBUG");
+      } finally {
+        console.log = originalLog;
+      }
+    });
+
+    it("should suppress debug messages at info level", () => {
+      const logs = [];
+      const originalLog = console.log;
+      console.log = (...args) => logs.push(args.join(" "));
+
+      try {
+        logger.setLevel("info");
+        logger.debug("should not appear");
+
+        const debugLog = logs.find(l => l.includes("should not appear"));
+        expect(debugLog).toBeUndefined();
+      } finally {
+        console.log = originalLog;
+      }
+    });
+
+    it("should emit trace messages when level is trace", () => {
+      const logs = [];
+      const originalLog = console.log;
+      console.log = (...args) => logs.push(args.join(" "));
+
+      try {
+        logger.setLevel("trace");
+        logger.trace("test trace message", { key: "value" });
+
+        const traceLog = logs.find(l => l.includes("test trace message"));
+        expect(traceLog).toBeDefined();
+        expect(traceLog).toContain("TRACE");
+      } finally {
+        console.log = originalLog;
+      }
+    });
+
+    it("should suppress trace messages at debug level", () => {
+      const logs = [];
+      const originalLog = console.log;
+      console.log = (...args) => logs.push(args.join(" "));
+
+      try {
+        logger.setLevel("debug");
+        logger.trace("should not appear");
+
+        const traceLog = logs.find(l => l.includes("should not appear"));
+        expect(traceLog).toBeUndefined();
+      } finally {
+        console.log = originalLog;
+      }
+    });
+
+    it("should not change level for invalid level name", () => {
+      const logs = [];
+      const originalLog = console.log;
+      console.log = (...args) => logs.push(args.join(" "));
+
+      try {
+        logger.setLevel("invalid");
+        logger.debug("should not appear since level stays info");
+        const debugLog = logs.find(l => l.includes("should not appear"));
+        expect(debugLog).toBeUndefined();
+      } finally {
+        console.log = originalLog;
+      }
+    });
+
+    it("should format message without context", () => {
+      const logs = [];
+      const originalLog = console.log;
+      console.log = (...args) => logs.push(args.join(" "));
+
+      try {
+        logger.setLevel("info");
+        logger.info("no context");
+        const logEntry = logs.find(l => l.includes("no context"));
+        expect(logEntry).toBeDefined();
+        expect(logEntry).not.toContain("{");
+      } finally {
+        console.log = originalLog;
+      }
+    });
+
+    it("should suppress info messages at warn level", () => {
+      const logs = [];
+      const originalLog = console.log;
+      console.log = (...args) => logs.push(args.join(" "));
+
+      try {
+        logger.setLevel("warn");
+        logger.info("should not appear");
+        const infoLog = logs.find(l => l.includes("should not appear"));
+        expect(infoLog).toBeUndefined();
+      } finally {
+        console.log = originalLog;
+      }
+    });
+
+    it("should suppress warn messages at error level", () => {
+      const warns = [];
+      const originalWarn = console.warn;
+      console.warn = (...args) => warns.push(args.join(" "));
+
+      try {
+        logger.setLevel("error");
+        logger.warn("should not appear");
+        const warnLog = warns.find(l => l.includes("should not appear"));
+        expect(warnLog).toBeUndefined();
+      } finally {
+        console.warn = originalWarn;
       }
     });
   });
