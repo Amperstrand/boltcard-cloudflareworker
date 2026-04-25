@@ -140,7 +140,7 @@
 
 - Run: `npm test` (uses Jest with `--experimental-vm-modules`)
 - Deploy: `npm run deploy` (tests → build_keys → wrangler deploy)
-- **683 tests** across 46 test suites (as of 2026-04-25)
+- **716 tests** across 48 test suites (as of 2026-04-25)
 
 ## Test Inventory
 
@@ -186,7 +186,9 @@
 | `tests/lnurlwHandler.test.js` | LNURLW tap processing: fakewallet, clnrest, proxy, lnurlpay, replay, CMAC, card lifecycle | |
 | `tests/lnurlHandler.test.js` | LNURL callback: fakewallet debit, clnrest (success/error/network), replay, tap status | |
 | `tests/replayProtection.test.js` | All replayProtection.js exports: counter checks, tap recording, card state, config, balance, analytics | |
-| `tests/proxyHandler.test.js` | Proxy relay: headers, CMAC validation/deferred, error handling | |
+| `tests/proxyHandler.test.js` | Proxy relay: headers, CMAC validation/deferred, POST body, error handling | |
+| `tests/refundTopupPos.test.js` | Refund (full/partial/zero), top-up (amount/MAX), POS charge (balance/items) | |
+| `tests/wipeResetHandler.test.js` | Wipe page, card reset (active/terminated/new/keys_delivered) | |
 | `tests/fetchBoltCardKeys.test.js` | Card provisioning, POS/2FA programming, reset flow | |
 | `tests/activateCardHandler.test.js` | Quick-activate UID, validation, key consistency | |
 | `tests/tapTracking.test.js` | Two-step tap flow: read → callback → completed, tap history | |

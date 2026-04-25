@@ -96,4 +96,26 @@ describe("handleProxy", () => {
     const proxiedReq = globalThis.fetch.mock.calls[0][0];
     expect(proxiedReq.redirect).toBe("manual");
   });
+
+  it("forwards POST body to target", async () => {
+    const req = new Request("https://test.local/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invoice: "lnbc10n1test" }),
+    });
+    const res = await handleProxy(req, UID, "p", "c", "https://backend.example.com/tap", {});
+    expect(res.status).toBe(200);
+
+    const proxiedReq = globalThis.fetch.mock.calls[0][0];
+    expect(proxiedReq.method).toBe("POST");
+    const body = await proxiedReq.text();
+    expect(body).toContain("lnbc10n1test");
+  });
+
+  it("handles body read error gracefully", async () => {
+    const req = new Request("https://test.local/", { method: "POST" });
+    Object.defineProperty(req, 'clone', { value: () => { throw new Error("stream error"); } });
+    const res = await handleProxy(req, UID, "p", "c", "https://backend.example.com/tap", {});
+    expect(res.status).toBe(200);
+  });
 });
