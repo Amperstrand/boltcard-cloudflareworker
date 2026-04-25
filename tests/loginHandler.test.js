@@ -412,4 +412,125 @@ describe("POST /login (handleLoginVerify)", () => {
     expect(json.error).toMatch(/invalid hex string/i);
     expect(json.reason).toMatch(/invalid hex string/i);
   });
+
+  test("UID-only login with DO config returns deployed=true", async () => {
+    const replay = makeReplayNamespace();
+    replay.__activate(ACTION_UID, 3);
+    replay.__cardConfigs.set(ACTION_UID, { K2: "aa".repeat(16), payment_method: "fakewallet" });
+
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { uid: ACTION_UID },
+      makeEnv(replay)
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.deployed).toBe(true);
+    expect(json.keyVersion).toBe(3);
+  });
+
+  test("UID-only login with keys_delivered state shows awaitingProgramming", async () => {
+    const replay = makeReplayNamespace();
+    replay.__cardStates.set(ACTION_UID, {
+      state: "keys_delivered",
+      latest_issued_version: 2,
+      active_version: null,
+      activated_at: null,
+      terminated_at: null,
+      keys_delivered_at: Math.floor(Date.now() / 1000),
+      wipe_keys_fetched_at: null,
+      balance: 0,
+    });
+
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { uid: ACTION_UID },
+      makeEnv(replay)
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.cardState).toBe("keys_delivered");
+    expect(json.awaitingProgramming).toBe(true);
+  });
+
+  test("terminate wipe_requested card succeeds", async () => {
+    const replay = makeReplayNamespace();
+    replay.__activate(ACTION_UID, 2);
+    replay.__cardStates.get(ACTION_UID).state = "wipe_requested";
+
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { uid: ACTION_UID, action: "terminate" },
+      makeEnv(replay)
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.success).toBe(true);
+    expect(json.cardState).toBe("terminated");
+  });
+
+  test("top-up with invalid UID returns 400", async () => {
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { uid: "ZZZZ", action: "top-up", amount: 100 },
+      makeEnv()
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  test("request-wipe with invalid UID returns 400", async () => {
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { uid: "ZZZZ", action: "request-wipe" },
+      makeEnv()
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  test("terminate with invalid UID returns 400", async () => {
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { uid: "ZZZZ", action: "terminate" },
+      makeEnv()
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  test("response includes tapHistory for valid login", async () => {
+    const response = await makeRequest("/login", "POST", { p: VALID_P, c: VALID_C });
+    const json = await response.json();
+    expect(json.tapHistory).toBeDefined();
+    expect(Array.isArray(json.tapHistory)).toBe(true);
+  });
+
+  test("response includes balance field", async () => {
+    const response = await makeRequest("/login", "POST", { p: VALID_P, c: VALID_C });
+    const json = await response.json();
+    expect(typeof json.balance).toBe("number");
+  });
+
+  test("response includes debug info", async () => {
+    const response = await makeRequest("/login", "POST", { p: VALID_P, c: VALID_C });
+    const json = await response.json();
+    expect(json.debug).toBeDefined();
+    expect(typeof json.debug.issuerKey).toBe("string");
+  });
+
+  test("response includes card state", async () => {
+    const response = await makeRequest("/login", "POST", { p: VALID_P, c: VALID_C });
+    const json = await response.json();
+    expect(typeof json.cardState).toBe("string");
+  });
 });
