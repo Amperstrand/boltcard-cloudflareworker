@@ -1,0 +1,290 @@
+import { jest } from "@jest/globals";
+import { handleLnurlpPayment } from "../handlers/lnurlHandler.js";
+import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
+import { getDeterministicKeys } from "../keygenerator.js";
+import { makeReplayNamespace } from "./replayNamespace.js";
+import aesjs from "aes-js";
+
+const UID = "04a39493cc8680";
+const ISSUER_KEY = "00000000000000000000000000000001";
+
+function virtualTap(uidHex, counter, k1Hex, k2Hex) {
+  const k1 = hexToBytes(k1Hex);
+  const uid = hexToBytes(uidHex);
+  const plaintext = new Uint8Array(16);
+  plaintext[0] = 0xc7;
+  plaintext.set(uid, 1);
+  plaintext[8] = counter & 0xff;
+  plaintext[9] = (counter >> 8) & 0xff;
+  plaintext[10] = (counter >> 16) & 0xff;
+  const aes = new aesjs.ModeOfOperation.ecb(k1);
+  const encrypted = aes.encrypt(plaintext);
+  const pHex = bytesToHex(new Uint8Array(encrypted));
+  const ctrHex = bytesToHex(new Uint8Array([(counter >> 16) & 0xff, (counter >> 8) & 0xff, counter & 0xff]));
+  const vd = buildVerificationData(uid, hexToBytes(ctrHex), hexToBytes(k2Hex));
+  const cHex = bytesToHex(vd.ct);
+  return { pHex, cHex };
+}
+
+function buildEnv(balance = 0) {
+  const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+  const replay = makeReplayNamespace();
+  replay.__activate(UID, 1);
+  replay.__cardConfigs.set(UID, {
+    K2: keys.k2,
+    payment_method: "fakewallet",
+  });
+  if (balance > 0) {
+    replay.__cardStates.get(UID).balance = balance;
+  }
+  return {
+    ISSUER_KEY,
+    BOLT_CARD_K1: keys.k1,
+    CARD_REPLAY: replay,
+    UID_CONFIG: {
+      get: async () => null,
+      put: async () => {},
+    },
+  };
+}
+
+function callbackUrl(pHex, cHex, params = {}) {
+  const url = new URL(`https://test.local/boltcards/api/v1/lnurl/cb/${pHex}`);
+  url.searchParams.set("k1", cHex);
+  if (params.pr) url.searchParams.set("pr", params.pr);
+  if (params.amount) url.searchParams.set("amount", String(params.amount));
+  return url.toString();
+}
+
+describe("handleLnurlpPayment", () => {
+  it("rejects POST method with 405", async () => {
+    const env = buildEnv();
+    const req = new Request("https://test.local/boltcards/api/v1/lnurl/cb/test", {
+      method: "POST",
+    });
+    const res = await handleLnurlpPayment(req, env);
+    expect(res.status).toBe(405);
+  });
+
+  it("rejects missing k1 parameter", async () => {
+    const env = buildEnv();
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const req = new Request(`https://test.local/boltcards/api/v1/lnurl/cb/${pHex}`);
+    const res = await handleLnurlpPayment(req, env);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.reason).toContain("k1");
+  });
+
+  it("rejects missing pr and amount", async () => {
+    const env = buildEnv();
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const req = new Request(callbackUrl(pHex, cHex));
+    const res = await handleLnurlpPayment(req, env);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.reason).toContain("pr");
+  });
+
+  it("rejects invalid p (decryption failure)", async () => {
+    const env = buildEnv();
+    const req = new Request("https://test.local/boltcards/api/v1/lnurl/cb/0000000000?k1=ABCDEF0123456789&pr=lnbc10n1test");
+    const res = await handleLnurlpPayment(req, env);
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects invalid CMAC", async () => {
+    const env = buildEnv();
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const req = new Request(callbackUrl(pHex, "DEADBEEFDEADBEEF", { pr: "lnbc10n1test" }));
+    const res = await handleLnurlpPayment(req, env);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.reason).toContain("CMAC");
+  });
+
+  it("processes fakewallet payment with pr", async () => {
+    const env = buildEnv(10000);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const req = new Request(callbackUrl(pHex, cHex, { pr: "lnbc10n1test" }));
+    const res = await handleLnurlpPayment(req, env);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe("OK");
+    expect(body.balance).toBeLessThan(10000);
+  });
+
+  it("processes fakewallet payment with explicit amount", async () => {
+    const env = buildEnv(10000);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 3, keys.k1, keys.k2);
+    const req = new Request(callbackUrl(pHex, cHex, { amount: 1000 }));
+    const res = await handleLnurlpPayment(req, env);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe("OK");
+    expect(body.balance).toBe(9000);
+  });
+
+  it("rejects replay with same counter and bolt11", async () => {
+    const env = buildEnv(10000);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 4, keys.k1, keys.k2);
+    const url = callbackUrl(pHex, cHex, { pr: "lnbc10n1test" });
+    const res1 = await handleLnurlpPayment(new Request(url), env);
+    expect(res1.status).toBe(200);
+
+    const res2 = await handleLnurlpPayment(new Request(url), env);
+    expect(res2.status).toBe(409);
+    const body = await res2.json();
+    expect(body.reason).toContain("replay");
+  });
+
+  it("accepts k1 with embedded p and c", async () => {
+    const env = buildEnv(10000);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 5, keys.k1, keys.k2);
+    const k1 = `p=${pHex}&c=${cHex}`;
+    const url = `https://test.local/boltcards/api/v1/lnurl/cb?k1=${encodeURIComponent(k1)}&amount=500`;
+    const req = new Request(url);
+    const res = await handleLnurlpPayment(req, env);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe("OK");
+  });
+
+  it("handles clnrest payment method", async () => {
+    const env = buildEnv();
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    env.CARD_REPLAY.__cardConfigs.set(UID, {
+      K2: keys.k2,
+      payment_method: "clnrest",
+      clnrest: {
+        protocol: "https",
+        host: "https://cln.example.com",
+        port: 3001,
+        rune: "test-rune",
+      },
+    });
+
+    globalThis.fetch = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: "complete" }), { status: 201 })
+    );
+
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const req = new Request(callbackUrl(pHex, cHex, { pr: "lnbc10n1test" }));
+    const res = await handleLnurlpPayment(req, env);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe("OK");
+    expect(globalThis.fetch).toHaveBeenCalled();
+    globalThis.fetch.mockRestore();
+  });
+
+  it("handles clnrest error response", async () => {
+    const env = buildEnv();
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    env.CARD_REPLAY.__cardConfigs.set(UID, {
+      K2: keys.k2,
+      payment_method: "clnrest",
+      clnrest: {
+        host: "https://cln.example.com",
+        rune: "test-rune",
+      },
+    });
+
+    globalThis.fetch = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: "insufficient balance" }), { status: 500 })
+    );
+
+    const { pHex, cHex } = virtualTap(UID, 3, keys.k1, keys.k2);
+    const req = new Request(callbackUrl(pHex, cHex, { pr: "lnbc10n1test" }));
+    const res = await handleLnurlpPayment(req, env);
+    expect(res.status).toBe(500);
+    globalThis.fetch.mockRestore();
+  });
+
+  it("handles clnrest network error", async () => {
+    const env = buildEnv();
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    env.CARD_REPLAY.__cardConfigs.set(UID, {
+      K2: keys.k2,
+      payment_method: "clnrest",
+      clnrest: {
+        host: "https://cln.example.com",
+        rune: "test-rune",
+      },
+    });
+
+    globalThis.fetch = jest.fn().mockRejectedValue(new Error("Network error"));
+
+    const { pHex, cHex } = virtualTap(UID, 4, keys.k1, keys.k2);
+    const req = new Request(callbackUrl(pHex, cHex, { pr: "lnbc10n1test" }));
+    const res = await handleLnurlpPayment(req, env);
+    expect(res.status).toBe(500);
+    globalThis.fetch.mockRestore();
+  });
+
+  it("handles missing clnrest config", async () => {
+    const env = buildEnv();
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    env.CARD_REPLAY.__cardConfigs.set(UID, {
+      K2: keys.k2,
+      payment_method: "clnrest",
+    });
+
+    const { pHex, cHex } = virtualTap(UID, 5, keys.k1, keys.k2);
+    const req = new Request(callbackUrl(pHex, cHex, { pr: "lnbc10n1test" }));
+    const res = await handleLnurlpPayment(req, env);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.reason).toContain("CLN REST");
+  });
+
+  it("rejects unsupported payment method in withdrawal", async () => {
+    const env = buildEnv();
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    env.CARD_REPLAY.__cardConfigs.set(UID, {
+      K2: keys.k2,
+      payment_method: "unknown",
+    });
+
+    const { pHex, cHex } = virtualTap(UID, 6, keys.k1, keys.k2);
+    const req = new Request(callbackUrl(pHex, cHex, { pr: "lnbc10n1test" }));
+    const res = await handleLnurlpPayment(req, env);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.reason).toContain("Unsupported");
+  });
+
+  it("marks tap completed on success", async () => {
+    const env = buildEnv(10000);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 7, keys.k1, keys.k2);
+    await handleLnurlpPayment(new Request(callbackUrl(pHex, cHex, { amount: 500 })), env);
+
+    const tap = env.CARD_REPLAY.__taps.get(`${UID}:7`);
+    expect(tap).toBeDefined();
+    expect(tap.status).toBe("completed");
+  });
+
+  it("marks tap failed on payment error", async () => {
+    const env = buildEnv();
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    env.CARD_REPLAY.__cardConfigs.set(UID, {
+      K2: keys.k2,
+      payment_method: "unknown_method",
+    });
+
+    const { pHex, cHex } = virtualTap(UID, 8, keys.k1, keys.k2);
+    await handleLnurlpPayment(new Request(callbackUrl(pHex, cHex, { amount: 500 })), env);
+
+    const tap = env.CARD_REPLAY.__taps.get(`${UID}:8`);
+    expect(tap).toBeDefined();
+    expect(tap.status).toBe("failed");
+  });
+});

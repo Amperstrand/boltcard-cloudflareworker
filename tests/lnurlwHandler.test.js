@@ -1,3 +1,4 @@
+import { jest } from "@jest/globals";
 import { handleLnurlw } from "../handlers/lnurlwHandler.js";
 import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
@@ -203,5 +204,94 @@ describe("handleLnurlw", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.tag).toBe("payRequest");
+  });
+
+  it("auto-activates keys_delivered card and returns withdraw response", async () => {
+    const env = buildEnv("fakewallet");
+    env.CARD_REPLAY.__cardStates.get(UID).state = "keys_delivered";
+    env.CARD_REPLAY.__cardStates.get(UID).latest_issued_version = 1;
+    env.CARD_REPLAY.__cardStates.get(UID).active_version = null;
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const req = tapRequest(UID, 2, keys.k1, keys.k2);
+    const res = await handleLnurlw(req, env);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.tag).toBe("withdrawRequest");
+    expect(env.CARD_REPLAY.__cardStates.get(UID).state).toBe("active");
+  });
+
+  it("rejects keys_delivered card with version mismatch", async () => {
+    const env = buildEnv("fakewallet");
+    env.CARD_REPLAY.__cardStates.get(UID).state = "keys_delivered";
+    env.CARD_REPLAY.__cardStates.get(UID).latest_issued_version = 20;
+    env.CARD_REPLAY.__cardStates.get(UID).active_version = null;
+    const keysV1 = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex } = virtualTap(UID, 2, keysV1.k1, keysV1.k2);
+    const req = new Request(`https://test.local/?p=${pHex}&c=DEADBEEFDEADBEEF`);
+    const res = await handleLnurlw(req, env);
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.reason).toContain("Version mismatch");
+  });
+
+  it("proxies to downstream backend in proxy mode", async () => {
+    const env = buildEnv("proxy", {
+      proxy: { baseurl: "https://backend.example.com/tap" },
+    });
+    delete env.CARD_REPLAY.__cardConfigs.get(UID).K2;
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: "OK" }), { status: 200 })
+    );
+
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const req = tapRequest(UID, 2, keys.k1, keys.k2);
+    const res = await handleLnurlw(req, env);
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(200);
+    globalThis.fetch = originalFetch;
+  });
+
+  it("proxy mode with K2 validates CMAC locally and proxies", async () => {
+    const env = buildEnv("proxy", {
+      proxy: { baseurl: "https://backend.example.com/tap" },
+    });
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: "OK" }), { status: 200 })
+    );
+
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex } = virtualTap(UID, 3, keys.k1, keys.k2);
+    const badC = "DEADBEEFDEADBEEF";
+    const req = new Request(`https://test.local/?p=${pHex}&c=${badC}`);
+    const res = await handleLnurlw(req, env);
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.reason).toContain("CMAC");
+    globalThis.fetch = originalFetch;
+  });
+
+  it("proxy mode validates CMAC locally when K2 present", async () => {
+    const env = buildEnv("proxy", {
+      proxy: { baseurl: "https://backend.example.com/tap" },
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: "OK" }), { status: 200 })
+    );
+
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const req = tapRequest(UID, 2, keys.k1, keys.k2);
+    await handleLnurlw(req, env);
+
+    const proxiedReq = globalThis.fetch.mock.calls[0][0];
+    expect(proxiedReq.headers.get("X-BoltCard-CMAC-Validated")).toBe("true");
+    expect(proxiedReq.headers.get("X-BoltCard-CMAC-Deferred")).toBe("false");
+    globalThis.fetch = originalFetch;
   });
 });
