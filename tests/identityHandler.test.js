@@ -1,48 +1,25 @@
 import { handleIdentityVerify, handleIdentityProfileUpdate } from "../handlers/identityHandler.js";
-import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
-import { makeReplayNamespace } from "./replayNamespace.js";
-import aesjs from "aes-js";
+import { virtualTap, buildCardTestEnv } from "./testHelpers.js";
 
 const UID = "04a39493cc8680";
 const ISSUER_KEY = "00000000000000000000000000000001";
 
-function virtualTap(uidHex, counter, k1Hex, k2Hex) {
-  const k1 = hexToBytes(k1Hex);
-  const uid = hexToBytes(uidHex);
-  const plaintext = new Uint8Array(16);
-  plaintext[0] = 0xc7;
-  plaintext.set(uid, 1);
-  plaintext[8] = counter & 0xff;
-  plaintext[9] = (counter >> 8) & 0xff;
-  plaintext[10] = (counter >> 16) & 0xff;
-  const aes = new aesjs.ModeOfOperation.ecb(k1);
-  const encrypted = aes.encrypt(plaintext);
-  const pHex = bytesToHex(new Uint8Array(encrypted));
-  const ctrHex = bytesToHex(new Uint8Array([(counter >> 16) & 0xff, (counter >> 8) & 0xff, counter & 0xff]));
-  const vd = buildVerificationData(uid, hexToBytes(ctrHex), hexToBytes(k2Hex));
-  const cHex = bytesToHex(vd.ct);
-  return { pHex, cHex };
+function buildEnv(kvData = null) {
+  return buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, kvData });
 }
 
-function buildEnv(kvData = null) {
-  const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
-  const replay = makeReplayNamespace();
-  replay.__activate(UID, 1);
-  replay.__cardConfigs.set(UID, { K2: keys.k2, payment_method: "fakewallet" });
-
-  const kvStore = {};
-  if (kvData) kvStore[UID] = kvData;
-
-  return {
-    ISSUER_KEY,
-    BOLT_CARD_K1: keys.k1,
-    CARD_REPLAY: replay,
-    UID_CONFIG: {
-      get: async (key) => kvStore[key] ?? null,
-      put: async (key, val) => { kvStore[key] = val; },
+function buildEnvWithKvThrow() {
+  return buildCardTestEnv({
+    uid: UID,
+    issuerKey: ISSUER_KEY,
+    extraEnv: {
+      UID_CONFIG: {
+        get: async () => { throw new Error("KV exploded"); },
+        put: async () => {},
+      },
     },
-  };
+  });
 }
 
 describe("handleIdentityVerify", () => {
@@ -159,5 +136,63 @@ describe("handleIdentityProfileUpdate", () => {
     const res = await handleIdentityProfileUpdate(req, env);
     const body = await res.json();
     expect(body.verified).toBe(false);
+  });
+});
+
+describe("identityHandler branch coverage", () => {
+  it("handles non-JSON KV enrollment value (parseIdentityRecord catch)", async () => {
+    const env = buildEnv("not-json-but-truthy");
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const req = new Request(`https://test.local/api/verify-identity?p=${pHex}&c=${cHex}`);
+    const res = await handleIdentityVerify(req, env);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.verified).toBe(true);
+    expect(body.profile).toBeDefined();
+  });
+
+  it("returns 500 when KV get throws", async () => {
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const env = buildEnvWithKvThrow();
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const req = new Request(`https://test.local/api/verify-identity?p=${pHex}&c=${cHex}`);
+    const res = await handleIdentityVerify(req, env);
+    expect(res.status).toBe(500);
+  });
+
+  it("returns 400 when decryption fails", async () => {
+    const env = buildEnv(JSON.stringify({}));
+    const req = new Request("https://test.local/api/verify-identity?p=AABBCCDD11223344AABBCCDD11223344&c=1122334455667788");
+    const res = await handleIdentityVerify(req, env);
+    expect(res.status).toBe(400);
+  });
+
+  it("uses fallback emoji when record has invalid emoji", async () => {
+    const env = buildEnv(JSON.stringify({ identity_profile: { emoji: "INVALID" } }));
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const req = new Request(`https://test.local/api/verify-identity?p=${pHex}&c=${cHex}`);
+    const res = await handleIdentityVerify(req, env);
+    const body = await res.json();
+    expect(body.verified).toBe(true);
+    expect(body.profile.emoji).toBeDefined();
+    expect(body.profile.emoji).not.toBe("INVALID");
+  });
+
+  it("handles profile update for card with existing identity_profile", async () => {
+    const env = buildEnv(JSON.stringify({ identity_profile: { emoji: "🚀" }, extra: "data" }));
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const req = new Request("https://test.local/api/identity/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ p: pHex, c: cHex, emoji: "🦊" }),
+    });
+    const res = await handleIdentityProfileUpdate(req, env);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.profile.emoji).toBe("🦊");
   });
 });

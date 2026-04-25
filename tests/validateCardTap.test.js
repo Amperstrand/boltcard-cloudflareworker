@@ -3,31 +3,12 @@ import { validate_cmac } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { validateCardTap } from "../utils/validateCardTap.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
-import { buildVerificationData, bytesToHex } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
-import aesjs from "aes-js";
+import { virtualTap } from "./testHelpers.js";
 
 const UID = "04a39493cc8680";
 const ISSUER_KEY = "00000000000000000000000000000001";
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
-
-function virtualTap(uidHex, counter, k1Hex, k2Hex) {
-  const k1 = hexToBytes(k1Hex);
-  const uid = hexToBytes(uidHex);
-  const plaintext = new Uint8Array(16);
-  plaintext[0] = 0xc7;
-  plaintext.set(uid, 1);
-  plaintext[8] = counter & 0xff;
-  plaintext[9] = (counter >> 8) & 0xff;
-  plaintext[10] = (counter >> 16) & 0xff;
-  const aes = new aesjs.ModeOfOperation.ecb(k1);
-  const encrypted = aes.encrypt(plaintext);
-  const pHex = bytesToHex(new Uint8Array(encrypted));
-  const ctrHex = bytesToHex(new Uint8Array([(counter >> 16) & 0xff, (counter >> 8) & 0xff, counter & 0xff]));
-  const vd = buildVerificationData(uid, hexToBytes(ctrHex), hexToBytes(k2Hex));
-  const cHex = bytesToHex(vd.ct);
-  return { pHex, cHex };
-}
 
 describe("validate_cmac", () => {
   it("returns explicit error when K2 is missing and cHex is provided", () => {

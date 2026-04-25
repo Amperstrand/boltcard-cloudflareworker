@@ -1,47 +1,15 @@
 import { handleRefundApply, handleRefundPage } from "../handlers/refundHandler.js";
 import { handleTopupApply, handleTopupPage } from "../handlers/topupHandler.js";
 import { handlePosCharge } from "../handlers/posChargeHandler.js";
-import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
-import { makeReplayNamespace } from "./replayNamespace.js";
 import { creditCard } from "../replayProtection.js";
-import aesjs from "aes-js";
+import { virtualTap, buildCardTestEnv } from "./testHelpers.js";
 
 const UID = "04a39493cc8680";
 const ISSUER_KEY = "00000000000000000000000000000001";
 
-function virtualTap(uidHex, counter, k1Hex, k2Hex) {
-  const k1 = hexToBytes(k1Hex);
-  const uid = hexToBytes(uidHex);
-  const plaintext = new Uint8Array(16);
-  plaintext[0] = 0xc7;
-  plaintext.set(uid, 1);
-  plaintext[8] = counter & 0xff;
-  plaintext[9] = (counter >> 8) & 0xff;
-  plaintext[10] = (counter >> 16) & 0xff;
-  const aes = new aesjs.ModeOfOperation.ecb(k1);
-  const encrypted = aes.encrypt(plaintext);
-  const pHex = bytesToHex(new Uint8Array(encrypted));
-  const ctrHex = bytesToHex(new Uint8Array([(counter >> 16) & 0xff, (counter >> 8) & 0xff, counter & 0xff]));
-  const vd = buildVerificationData(uid, hexToBytes(ctrHex), hexToBytes(k2Hex));
-  const cHex = bytesToHex(vd.ct);
-  return { pHex, cHex };
-}
-
 function buildEnv(balance = 0) {
-  const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
-  const replay = makeReplayNamespace();
-  replay.__activate(UID, 1);
-  replay.__cardConfigs.set(UID, { K2: keys.k2, payment_method: "fakewallet" });
-  if (balance > 0) {
-    replay.__cardStates.get(UID).balance = balance;
-  }
-  return {
-    ISSUER_KEY,
-    BOLT_CARD_K1: keys.k1,
-    CARD_REPLAY: replay,
-    UID_CONFIG: { get: async () => null, put: async () => {} },
-  };
+  return buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, balance });
 }
 
 function makeRequest(body, path = "/operator/test") {
@@ -256,5 +224,74 @@ describe("handlePosCharge", () => {
     const env = buildEnv();
     const res = await handlePosCharge(makeRequest({ p: "", c: "", amount: 100 }), env, { shiftId: "test" });
     expect(res.status).toBe(400);
+  });
+
+  it("returns 402 when debitCard returns insufficient reason", async () => {
+    const env = buildEnv(1000);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
+    env.CARD_REPLAY.get = (id) => {
+      const obj = origGet(id);
+      return {
+        fetch: async (request) => {
+          const url = new URL(request.url);
+          if (request.method === "POST" && url.pathname === "/debit") {
+            return Response.json({ ok: false, reason: "Insufficient balance" });
+          }
+          return obj.fetch(request);
+        },
+      };
+    };
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const res = await handlePosCharge(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" });
+    expect(res.status).toBe(402);
+    const body = await res.json();
+    expect(body.error).toContain("Insufficient balance");
+  });
+
+  it("returns 500 when debitCard returns non-insufficient failure", async () => {
+    const env = buildEnv(1000);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
+    env.CARD_REPLAY.get = (id) => {
+      const obj = origGet(id);
+      return {
+        fetch: async (request) => {
+          const url = new URL(request.url);
+          if (request.method === "POST" && url.pathname === "/debit") {
+            return Response.json({ ok: false, reason: "Unknown error" });
+          }
+          return obj.fetch(request);
+        },
+      };
+    };
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const res = await handlePosCharge(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" });
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toContain("Unknown error");
+  });
+
+  it("returns 500 when getBalance throws", async () => {
+    const env = buildEnv(1000);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
+    env.CARD_REPLAY.get = (id) => {
+      const obj = origGet(id);
+      return {
+        fetch: async (request) => {
+          const url = new URL(request.url);
+          if (url.pathname === "/balance") {
+            throw new Error("DO connection failed");
+          }
+          return obj.fetch(request);
+        },
+      };
+    };
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const res = await handlePosCharge(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" });
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toContain("DO connection failed");
   });
 });

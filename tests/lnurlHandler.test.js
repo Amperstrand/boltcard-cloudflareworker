@@ -1,51 +1,13 @@
 import { jest } from "@jest/globals";
 import { handleLnurlpPayment } from "../handlers/lnurlHandler.js";
-import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
-import { makeReplayNamespace } from "./replayNamespace.js";
-import aesjs from "aes-js";
+import { virtualTap, buildCardTestEnv } from "./testHelpers.js";
 
 const UID = "04a39493cc8680";
 const ISSUER_KEY = "00000000000000000000000000000001";
 
-function virtualTap(uidHex, counter, k1Hex, k2Hex) {
-  const k1 = hexToBytes(k1Hex);
-  const uid = hexToBytes(uidHex);
-  const plaintext = new Uint8Array(16);
-  plaintext[0] = 0xc7;
-  plaintext.set(uid, 1);
-  plaintext[8] = counter & 0xff;
-  plaintext[9] = (counter >> 8) & 0xff;
-  plaintext[10] = (counter >> 16) & 0xff;
-  const aes = new aesjs.ModeOfOperation.ecb(k1);
-  const encrypted = aes.encrypt(plaintext);
-  const pHex = bytesToHex(new Uint8Array(encrypted));
-  const ctrHex = bytesToHex(new Uint8Array([(counter >> 16) & 0xff, (counter >> 8) & 0xff, counter & 0xff]));
-  const vd = buildVerificationData(uid, hexToBytes(ctrHex), hexToBytes(k2Hex));
-  const cHex = bytesToHex(vd.ct);
-  return { pHex, cHex };
-}
-
 function buildEnv(balance = 0) {
-  const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
-  const replay = makeReplayNamespace();
-  replay.__activate(UID, 1);
-  replay.__cardConfigs.set(UID, {
-    K2: keys.k2,
-    payment_method: "fakewallet",
-  });
-  if (balance > 0) {
-    replay.__cardStates.get(UID).balance = balance;
-  }
-  return {
-    ISSUER_KEY,
-    BOLT_CARD_K1: keys.k1,
-    CARD_REPLAY: replay,
-    UID_CONFIG: {
-      get: async () => null,
-      put: async () => {},
-    },
-  };
+  return buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, balance });
 }
 
 function callbackUrl(pHex, cHex, params = {}) {

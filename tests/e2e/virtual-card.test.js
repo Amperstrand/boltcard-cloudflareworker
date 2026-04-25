@@ -10,21 +10,13 @@
 import { handleRequest } from "../../index.js";
 import { jest } from "@jest/globals";
 import { makeReplayNamespace } from "../replayNamespace.js";
-import { TEST_OPERATOR_AUTH } from "../testHelpers.js";
-import {
-  hexToBytes,
-  bytesToHex,
-  buildVerificationData,
-} from "../../cryptoutils.js";
+import { TEST_OPERATOR_AUTH, virtualTap } from "../testHelpers.js";
 import { getDeterministicKeys } from "../../keygenerator.js";
-import aesjs from "aes-js";
 
 const BOLT_CARD_K1 =
   "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const PROG_ENDPOINT =
   "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion";
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function makeFreshEnv() {
   const kvStore = {};
@@ -50,42 +42,6 @@ async function makeRequest(path, method = "GET", body = null, env) {
     opts.headers = { "Content-Type": "application/json" };
   }
   return handleRequest(new Request(url, opts), env);
-}
-
-// Encrypt PICCData and compute CMAC — same as a real NTAG424 chip would
-function virtualCardTap(uidHex, counter, k1Hex, k2Hex) {
-  const k1 = hexToBytes(k1Hex);
-  const uid = hexToBytes(uidHex);
-
-  const plaintext = new Uint8Array(16);
-  plaintext[0] = 0xc7;
-  plaintext.set(uid, 1);
-  plaintext[8] = counter & 0xff;
-  plaintext[9] = (counter >> 8) & 0xff;
-  plaintext[10] = (counter >> 16) & 0xff;
-
-  const aes = new aesjs.ModeOfOperation.ecb(k1);
-  const encrypted = aes.encrypt(plaintext);
-  const pHex = bytesToHex(new Uint8Array(encrypted));
-
-  const ctrHex = bytesToHex(
-    new Uint8Array([
-      (counter >> 16) & 0xff,
-      (counter >> 8) & 0xff,
-      counter & 0xff,
-    ])
-  );
-
-  const cHex = computeCMAC(uidHex, ctrHex, k2Hex);
-  return { pHex, cHex };
-}
-
-function computeCMAC(uidHex, ctrHex, k2Hex) {
-  const uid = hexToBytes(uidHex);
-  const ctr = hexToBytes(ctrHex);
-  const k2 = hexToBytes(k2Hex);
-  const vd = buildVerificationData(uid, ctr, k2);
-  return bytesToHex(vd.ct);
 }
 
 // Provision a card via the programming endpoint, return env + keys + uid
@@ -119,7 +75,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     const k1Hex = env.BOLT_CARD_K1.split(",")[0];
 
     // Step 1: Card tap — returns withdrawRequest, atomically advances counter
-    const { pHex, cHex } = virtualCardTap(UID, 1, k1Hex, keys.k2);
+    const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
     const tapResp = await makeRequest(`/?p=${pHex}&c=${cHex}`, "GET", null, env);
     expect(tapResp.status).toBe(200);
     const tapJson = await tapResp.json();
@@ -164,7 +120,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
 
   test("replay protection: stale counter rejected in callback", async () => {
     const k1Hex = env.BOLT_CARD_K1.split(",")[0];
-    const { pHex, cHex } = virtualCardTap(UID, 1, k1Hex, keys.k2);
+    const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
     // First callback — may succeed (200) or fail (400) due to fakewallet alternation,
     // but either way the counter gets recorded
@@ -191,7 +147,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     const k1Hex = env.BOLT_CARD_K1.split(",")[0];
 
     // Record counter=1 via callback (payment status doesn't matter for this test)
-    const tap1 = virtualCardTap(UID, 1, k1Hex, keys.k2);
+    const tap1 = virtualTap(UID, 1, k1Hex, keys.k2);
     const cb1 = await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${tap1.pHex}?k1=${tap1.cHex}&pr=lnbc10n1first`,
       "GET",
@@ -202,7 +158,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     expect(env.CARD_REPLAY.__counters.get(UID)).toBe(1);
 
     // Counter=2 Step 1 passes (atomic: 2 > 1)
-    const tap2 = virtualCardTap(UID, 2, k1Hex, keys.k2);
+    const tap2 = virtualTap(UID, 2, k1Hex, keys.k2);
     const step1 = await makeRequest(`/?p=${tap2.pHex}&c=${tap2.cHex}`, "GET", null, env);
     expect(step1.status).toBe(200);
 
@@ -221,7 +177,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
 
   test("Step 1 atomically advances counter — repeated taps with same counter are rejected", async () => {
     const k1Hex = env.BOLT_CARD_K1.split(",")[0];
-    const { pHex, cHex } = virtualCardTap(UID, 1, k1Hex, keys.k2);
+    const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
     const first = await makeRequest(`/?p=${pHex}&c=${cHex}`, "GET", null, env);
     expect(first.status).toBe(200);
@@ -234,7 +190,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     const k1Hex = env.BOLT_CARD_K1.split(",")[0];
 
     // Record counter=5 via callback
-    const tap5 = virtualCardTap(UID, 5, k1Hex, keys.k2);
+    const tap5 = virtualTap(UID, 5, k1Hex, keys.k2);
     await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${tap5.pHex}?k1=${tap5.cHex}&pr=lnbc10n1tap5`,
       "GET",
@@ -253,7 +209,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     expect(env.CARD_REPLAY.__counters.has(UID)).toBe(false);
 
     // Terminated card cannot be tapped
-    const blockedTap = virtualCardTap(UID, 1, k1Hex, keys.k2);
+    const blockedTap = virtualTap(UID, 1, k1Hex, keys.k2);
     const blockedResp = await makeRequest(`/?p=${blockedTap.pHex}&c=${blockedTap.cHex}`, "GET", null, env);
     expect(blockedResp.status).toBe(403);
 
@@ -264,7 +220,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     env.CARD_REPLAY.__cardStates.get(UID.toLowerCase()).state = "active";
     env.CARD_REPLAY.__cardStates.get(UID.toLowerCase()).active_version = 2;
 
-    const tap1 = virtualCardTap(UID, 1, k1Hex, reprov.keys.k2);
+    const tap1 = virtualTap(UID, 1, k1Hex, reprov.keys.k2);
     const after = await makeRequest(`/?p=${tap1.pHex}&c=${tap1.cHex}`, "GET", null, env);
     expect(after.status).toBe(200);
   });
@@ -312,7 +268,7 @@ describe("E2E: Virtual card — LNURL-pay (POS)", () => {
 
   test("full POS lifecycle: tap → payRequest → callback → invoice", async () => {
     const k1Hex = env.BOLT_CARD_K1.split(",")[0];
-    const { pHex, cHex } = virtualCardTap(UID, 1, k1Hex, keys.k2);
+    const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
     // Step 1: tap returns payRequest
     const tapResp = await makeRequest(`/?p=${pHex}&c=${cHex}`, "GET", null, env);
@@ -338,7 +294,7 @@ describe("E2E: Virtual card — LNURL-pay (POS)", () => {
 
   test("POS replay protection in callback", async () => {
     const k1Hex = env.BOLT_CARD_K1.split(",")[0];
-    const { pHex, cHex } = virtualCardTap(UID, 1, k1Hex, keys.k2);
+    const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
     // First callback succeeds
     await makeRequest(`/lnurlp/cb?p=${pHex}&c=${cHex}&amount=1000`, "GET", null, env);
@@ -362,7 +318,7 @@ describe("E2E: Virtual card — concurrent taps", () => {
     const k1Hex = env.BOLT_CARD_K1.split(",")[0];
 
     // Record counter=1 via callback
-    const tap1 = virtualCardTap(UID, 1, k1Hex, keys.k2);
+    const tap1 = virtualTap(UID, 1, k1Hex, keys.k2);
     await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${tap1.pHex}?k1=${tap1.cHex}&pr=lnbc10n1first`,
       "GET",
@@ -371,7 +327,7 @@ describe("E2E: Virtual card — concurrent taps", () => {
     );
 
     // Counter=2 Step 1 accepted — counter atomically advanced
-    const tap2 = virtualCardTap(UID, 2, k1Hex, keys.k2);
+    const tap2 = virtualTap(UID, 2, k1Hex, keys.k2);
     const step1 = await makeRequest(`/?p=${tap2.pHex}&c=${tap2.cHex}`, "GET", null, env);
     expect(step1.status).toBe(200);
     expect(env.CARD_REPLAY.__counters.get(UID)).toBe(2);
@@ -390,7 +346,7 @@ describe("E2E: Virtual card — login and tap history", () => {
 
     // Do 3 taps
     for (let i = 1; i <= 3; i++) {
-      const { pHex, cHex } = virtualCardTap(UID, i, k1Hex, keys.k2);
+      const { pHex, cHex } = virtualTap(UID, i, k1Hex, keys.k2);
       await makeRequest(
         `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}&pr=lnbc10n1tap${i}`,
         "GET",
@@ -400,7 +356,7 @@ describe("E2E: Virtual card — login and tap history", () => {
     }
 
     // Login
-    const { pHex, cHex } = virtualCardTap(UID, 4, k1Hex, keys.k2);
+    const { pHex, cHex } = virtualTap(UID, 4, k1Hex, keys.k2);
     const loginResp = await makeRequest("/login", "POST", { p: pHex, c: cHex }, env);
     expect(loginResp.status).toBe(200);
     const json = await loginResp.json();
@@ -427,7 +383,7 @@ describe("E2E: Virtual card — login and tap history", () => {
 
     // Do 25 taps
     for (let i = 1; i <= 25; i++) {
-      const { pHex, cHex } = virtualCardTap(UID, i, k1Hex, keys.k2);
+      const { pHex, cHex } = virtualTap(UID, i, k1Hex, keys.k2);
       await makeRequest(
         `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}&pr=lnbc10n1tap${i}`,
         "GET",
@@ -436,7 +392,7 @@ describe("E2E: Virtual card — login and tap history", () => {
       );
     }
 
-    const { pHex, cHex } = virtualCardTap(UID, 26, k1Hex, keys.k2);
+    const { pHex, cHex } = virtualTap(UID, 26, k1Hex, keys.k2);
     const loginResp = await makeRequest("/login", "POST", { p: pHex, c: cHex }, env);
     const json = await loginResp.json();
     // 25 taps produce 25 tap entries + 25 payment transactions = 50, capped at 25 by merge
