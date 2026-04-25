@@ -140,7 +140,7 @@
 
 - Run: `npm test` (uses Jest with `--experimental-vm-modules`)
 - Deploy: `npm run deploy` (tests → build_keys → wrangler deploy)
-- **788 tests** across 51 test suites (as of 2026-04-25)
+- **790 tests** across 51 test suites (as of 2026-04-25)
 
 ## Test Inventory
 

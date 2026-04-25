@@ -117,4 +117,34 @@ describe("GET /2fa", () => {
     expect(html).toContain("HOTP");
     expect(html).toMatch(/\d{6}/);
   });
+
+  test("returns JSON when Accept: application/json", async () => {
+    const kvEnv = makeKvEnv({
+      [TEST_UID]: JSON.stringify({
+        K2: "B45775776CB224C75BCDE7CA3704E933",
+        payment_method: "twofactor",
+      }),
+    });
+    const url = `https://test.local/2fa?p=${VALID_P}&c=${VALID_C}`;
+    const response = await handleRequest(
+      new Request(url, { headers: { Accept: "application/json" } }),
+      kvEnv
+    );
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.totpCode).toMatch(/^\d{6}$/);
+    expect(json.hotpCode).toMatch(/^\d{6}$/);
+    expect(json.uidHex).toBe(TEST_UID);
+    expect(json.maskedUid).toContain("···");
+    expect(typeof json.totpSecondsRemaining).toBe("number");
+    expect(typeof json.counterValue).toBe("number");
+  });
+
+  test("landing page includes NFC scan button and debug link", async () => {
+    const response = await makeRequest("/2fa");
+    const html = await response.text();
+    expect(html).toContain("scan-button");
+    expect(html).toContain("/debug");
+    expect(html).toContain("/identity");
+  });
 });
