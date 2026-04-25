@@ -35,6 +35,8 @@ import { handleMenuEditorPage, handleMenuGet, handleMenuPut } from "./handlers/m
 import { handleIdentifyCard } from "./handlers/identifyCardHandler.js";
 import { handleIdentifyIssuerKey } from "./handlers/identifyIssuerKeyHandler.js";
 
+const redirect = (url, code = 302) => new Response(null, { status: code, headers: { Location: url } });
+
 const router = Router();
 
 function withOperatorAuth(handler) {
@@ -91,7 +93,7 @@ router.all("/boltcards/api/v1/lnurl/cb*", (request, env) => handleLnurlpPayment(
 router.get("/2fa", (request, env) => handleTwoFactor(request, env));
 router.get("/login", (request) => handleLoginPage(request));
 router.post("/login", (request, env) => handleLoginVerify(request, env));
-router.get("/pos", () => new Response(null, { status: 302, headers: { Location: "/operator/pos" } }));
+router.get("/pos", () => redirect("/operator/pos"));
 router.get("/operator/pos", withOperatorAuth((request, env) => handlePosPage(request, env)));
 router.post("/operator/pos/charge", withOperatorAuth((request, env, session) => handlePosCharge(request, env, session)));
 router.get("/operator/pos/menu", withOperatorAuth((request, env) => handleMenuEditorPage(request, env)));
@@ -107,9 +109,7 @@ router.post("/operator/login", (request, env) => handleOperatorLogin(request, en
 router.post("/api/identify-card", withOperatorAuth((request, env) => handleIdentifyCard(request, env)));
 router.post("/api/identify-issuer-key", withOperatorAuth((request, env) => handleIdentifyIssuerKey(request, env)));
 router.post("/operator/logout", (request, env) => handleOperatorLogout(request, env));
-router.get("/operator", withOperatorAuth(() => {
-  return new Response(null, { status: 302, headers: { Location: "/operator/pos" } });
-}));
+router.get("/operator", withOperatorAuth(() => redirect("/operator/pos")));
 router.get("/operator/topup", withOperatorAuth((request, env) => handleTopupPage(request, env)));
 router.post("/operator/topup/apply", withOperatorAuth((request, env, session) => handleTopupApply(request, env, session)));
 router.get("/operator/refund", withOperatorAuth((request, env) => handleRefundPage(request, env)));
@@ -118,8 +118,7 @@ router.post("/api/balance-check", (request, env) => handleBalanceCheck(request, 
 
 router.get("/debug", withOperatorAuth((request) => handleDebugPage(request)));
 router.get("/experimental/nfc", (request) => {
-  const origin = new URL(request.url).origin;
-  return new Response(null, { status: 301, headers: { Location: origin + "/debug#console" } });
+  return redirect(new URL(request.url).origin + "/debug#console", 301);
 });
 router.get("/experimental/activate", withOperatorAuth((request, env) => handleActivatePage(request, env)));
 router.get("/experimental/activate/form", withOperatorAuth(() => handleActivateForm()));
@@ -141,30 +140,25 @@ router.get("/identity", (request) => handleIdentityPage(request));
 
 // 301 redirects from old paths to /experimental/
 router.get("/nfc", (request) => {
-  const origin = new URL(request.url).origin;
-  return new Response(null, { status: 301, headers: { Location: origin + "/debug#console" } });
+  return redirect(new URL(request.url).origin + "/debug#console", 301);
 });
 router.get("/activate", (request) => {
-  const origin = new URL(request.url).origin;
-  return new Response(null, { status: 301, headers: { Location: origin + "/experimental/activate" } });
+  return redirect(new URL(request.url).origin + "/experimental/activate", 301);
 });
 router.get("/activate/form", (request) => {
-  const origin = new URL(request.url).origin;
-  return new Response(null, { status: 301, headers: { Location: origin + "/experimental/activate/form" } });
+  return redirect(new URL(request.url).origin + "/experimental/activate/form", 301);
 });
 router.get("/wipe", withOperatorAuth((request, env) => {
   const url = new URL(request.url);
   const uid = url.searchParams.get("uid");
   if (uid) return handleReset(uid, env, getRequestOrigin(request));
-  return new Response(null, { status: 301, headers: { Location: url.origin + "/experimental/wipe" } });
+  return redirect(url.origin + "/experimental/wipe", 301);
 }));
 router.get("/bulkwipe", (request) => {
-  const origin = new URL(request.url).origin;
-  return new Response(null, { status: 301, headers: { Location: origin + "/experimental/bulkwipe" } });
+  return redirect(new URL(request.url).origin + "/experimental/bulkwipe", 301);
 });
 router.get("/analytics", (request) => {
-  const origin = new URL(request.url).origin;
-  return new Response(null, { status: 301, headers: { Location: origin + "/experimental/analytics" } });
+  return redirect(new URL(request.url).origin + "/experimental/analytics", 301);
 });
 router.get("/analytics/data", withOperatorAuth((request, env) => handleAnalyticsData(request, env)));
 router.get("/favicon.ico", () => new Response(null, { status: 204 }));

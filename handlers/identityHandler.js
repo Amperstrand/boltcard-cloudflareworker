@@ -4,6 +4,7 @@ import { hexToBytes } from "../cryptoutils.js";
 import { logger } from "../utils/logger.js";
 import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { renderIdentityPage } from "../templates/identityPage.js";
+import { buildMaskedUid } from "../utils/validation.js";
 
 const IDENTITY_EMOJI_OPTIONS = ["👤", "😀", "😎", "🤖", "🧠", "🚀", "🦊", "🦄", "🐸", "🦉", "⚡", "🔥"];
 
@@ -25,12 +26,6 @@ function parseIdentityRecord(kvRaw) {
   }
 
   return { enrolled: true, record: {} };
-}
-
-function buildMaskedUid(uidHex) {
-  return uidHex.length >= 8
-    ? uidHex.substring(0, 4).toUpperCase() + "···" + uidHex.substring(uidHex.length - 4).toUpperCase()
-    : uidHex.toUpperCase();
 }
 
 function buildIdentityProfile(uidHex, record = {}) {
