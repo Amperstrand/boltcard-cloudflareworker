@@ -31,9 +31,8 @@ export function renderDebugConsolePage({ host, baseUrl }) {
         <!-- Shared: Card Info Panel -->
         <div id="card-info-panel" class="rounded-xl border border-gray-800 bg-gray-900/80 p-4">
           <div class="flex items-center gap-3 mb-3">
-            <div id="scan-status-dot" class="h-2.5 w-2.5 rounded-full bg-gray-600 animate-pulse"></div>
             <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Card Info</span>
-            <span id="nfc-status-text" class="text-xs text-gray-600 ml-auto">Waiting for tap\u2026</span>
+            <button id="nfc-scan-btn" class="ml-auto rounded-lg border border-gray-700 bg-gray-950 px-3 py-1.5 text-xs font-semibold text-gray-300 transition hover:border-cyan-500/50 hover:text-cyan-300">Start NFC scan</button>
           </div>
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
             <div>
@@ -174,19 +173,16 @@ export function renderDebugConsolePage({ host, baseUrl }) {
       ${safe(BROWSER_NFC_HELPERS)}
       ${safe(BROWSER_VALIDATE_UID_HELPER)}
 
-      const BASE_URL = ${jsString(baseUrl)};
-      const HOST = ${jsString(host)};
-      let nfcAbortController = null;
-      let nfcActive = false;
-      let lastReadTime = 0;
-      let lastP = null;
-      let lastC = null;
-      let lastIdentifyData = null;
-      let wipeQrCode = null;
+      var BASE_URL = ${jsString(baseUrl)};
+      var HOST = ${jsString(host)};
+      var lastP = null;
+      var lastC = null;
+      var lastIdentifyData = null;
+      var wipeQrCode = null;
+      var nfcScanner = null;
 
-      const statusDot = document.getElementById('scan-status-dot');
-      const statusText = document.getElementById('nfc-status-text');
-      const errorBox = document.getElementById('error-message');
+      var scanBtn = document.getElementById('nfc-scan-btn');
+      var errorBox = document.getElementById('error-message');
 
       function showError(msg) {
         errorBox.textContent = msg;
@@ -197,13 +193,17 @@ export function renderDebugConsolePage({ host, baseUrl }) {
         errorBox.classList.add('hidden');
       }
 
-      function setScanStatus(active, text) {
-        if (active) {
-          statusDot.className = 'h-2.5 w-2.5 rounded-full bg-emerald-400';
+      function updateScanBtn(state) {
+        if (state === 'scanning') {
+          scanBtn.textContent = 'Scanning\u2026';
+          scanBtn.className = 'ml-auto rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition hover:border-emerald-500/50';
+        } else if (state === 'error') {
+          scanBtn.textContent = 'Restart NFC scan';
+          scanBtn.className = 'ml-auto rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:border-red-500/50';
         } else {
-          statusDot.className = 'h-2.5 w-2.5 rounded-full bg-gray-600 animate-pulse';
+          scanBtn.textContent = 'Start NFC scan';
+          scanBtn.className = 'ml-auto rounded-lg border border-gray-700 bg-gray-950 px-3 py-1.5 text-xs font-semibold text-gray-300 transition hover:border-cyan-500/50 hover:text-cyan-300';
         }
-        statusText.textContent = text;
       }
 
       function setCardInfo(data) {
@@ -224,98 +224,89 @@ export function renderDebugConsolePage({ host, baseUrl }) {
         }
       }
 
-      function resetCardInfo() {
-        setCardInfo({});
-      }
-
       function switchTab(tabId) {
-        document.querySelectorAll('.debug-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
-        document.querySelectorAll('.debug-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'panel-' + tabId));
+        document.querySelectorAll('.debug-tab').forEach(function(t) { t.classList.toggle('active', t.dataset.tab === tabId); });
+        document.querySelectorAll('.debug-panel').forEach(function(p) { p.classList.toggle('hidden', p.id !== 'panel-' + tabId); });
       }
 
       function initTabs() {
-        document.querySelectorAll('.debug-tab').forEach(t => {
-          t.addEventListener('click', () => switchTab(t.dataset.tab));
+        document.querySelectorAll('.debug-tab').forEach(function(t) {
+          t.addEventListener('click', function() { switchTab(t.dataset.tab); });
         });
-        const hash = location.hash.replace('#', '');
+        var hash = location.hash.replace('#', '');
         if (hash && document.getElementById('panel-' + hash)) switchTab(hash);
       }
 
       function initNfc() {
         if (!browserSupportsNfc()) {
-          setScanStatus(false, 'Web NFC unavailable');
+          updateScanBtn('error');
+          scanBtn.textContent = 'Web NFC unavailable';
+          scanBtn.disabled = true;
           return;
         }
-        startNfc();
+        scanBtn.addEventListener('click', function() {
+          clearError();
+          if (nfcScanner) { nfcScanner.restart(); return; }
+          nfcScanner = createNfcScanner({
+            onTap: handleNfcTap,
+            onError: function(err, phase) {
+              if (phase === 'permission') {
+                updateScanBtn('error');
+                showError('NFC permission denied. Click the button to retry.');
+              } else if (phase === 'scan') {
+                showError('NFC read error: ' + err.message);
+              } else {
+                showError('Error: ' + err.message);
+              }
+            },
+            onStatus: function(status) {
+              if (status === 'scanning') updateScanBtn('scanning');
+              else if (status === 'stopped') updateScanBtn('error');
+              else if (status === 'starting') updateScanBtn('scanning');
+            },
+            debounceMs: 3000
+          });
+          nfcScanner.scan();
+        });
       }
 
-      async function startNfc() {
+      function handleNfcTap(tap) {
         clearError();
-        if (nfcAbortController) nfcAbortController.abort();
-        try {
-          const ndef = new NDEFReader();
-          nfcAbortController = new AbortController();
-          await ndef.scan({ signal: nfcAbortController.signal });
-          nfcActive = true;
-          setScanStatus(true, 'Scanning\u2026');
+        var uid = tap.serial || null;
+        var nfcUrl = tap.url;
+        var p = null, c = null;
 
-          ndef.onreadingerror = function() {
-            showError('NFC read error. Try holding the card still.');
-          };
-
-          ndef.onreading = async function(event) {
-            const now = Date.now();
-            if (now - lastReadTime < 3000) return;
-            lastReadTime = now;
-
-            clearError();
-            const uid = event.serialNumber ? normalizeNfcSerial(event.serialNumber) : null;
-
-            let nfcUrl = await extractNdefUrl(event.message.records, ['lnurlw://', 'https://']);
-            nfcUrl = normalizeBrowserNfcUrl(nfcUrl);
-
-            if (!nfcUrl) {
-              setCardInfo({ uid: uid || 'blank', cmac: 'n/a' });
-              dispatchToActiveTab({ uid, nfcUrl: null, p: null, c: null });
-              return;
-            }
-
-            let p = null, c = null;
-            try {
-              const u = new URL(nfcUrl);
-              p = u.searchParams.get('p');
-              c = u.searchParams.get('c');
-            } catch (e) {}
-
-            lastP = p;
-            lastC = c;
-
-            dispatchToActiveTab({ uid, nfcUrl, p, c });
-          };
-        } catch (error) {
-          nfcActive = false;
-          setScanStatus(false, error.name === 'NotAllowedError' ? 'NFC denied' : 'NFC error');
+        if (nfcUrl) {
+          try {
+            var u = new URL(nfcUrl);
+            p = u.searchParams.get('p');
+            c = u.searchParams.get('c');
+          } catch (e) {}
         }
-      }
 
-      function dispatchToActiveTab(data) {
-        const activePanel = document.querySelector('.debug-panel:not(.hidden)');
+        lastP = p;
+        lastC = c;
+
+        var activePanel = document.querySelector('.debug-panel:not(.hidden)');
         if (!activePanel) return;
-        const tabId = activePanel.id.replace('panel-', '');
+        var tabId = activePanel.id.replace('panel-', '');
 
-        if (tabId === 'console') handleConsoleTab(data);
-        else if (tabId === 'identify') handleIdentifyTab(data);
-        else if (tabId === 'wipe') handleWipeTab(data);
-        else if (tabId === 'twofa') handleTwofaTab(data);
-        else if (tabId === 'identity') handleIdentityTab(data);
-        else if (tabId === 'pos') handlePosTab(data);
+        var handlers = {
+          console: handleConsoleTab,
+          identify: handleIdentifyTab,
+          wipe: handleWipeTab,
+          twofa: handleTwofaTab,
+          identity: handleIdentityTab,
+          pos: handlePosTab
+        };
+        if (handlers[tabId]) handlers[tabId]({ uid: uid, nfcUrl: nfcUrl, p: p, c: c });
       }
 
       function handleConsoleTab(data) {
-        const ndefBox = document.getElementById('console-ndef');
-        const detailsBox = document.getElementById('console-lnurlw-details');
-        const payBtn = document.getElementById('console-pay-btn');
-        const statusBox = document.getElementById('console-payment-status');
+        var ndefBox = document.getElementById('console-ndef');
+        var detailsBox = document.getElementById('console-lnurlw-details');
+        var payBtn = document.getElementById('console-pay-btn');
+        var statusBox = document.getElementById('console-payment-status');
 
         if (!data.nfcUrl) {
           ndefBox.textContent = 'No NDEF records (blank or unprogrammed card)';
@@ -352,9 +343,9 @@ export function renderDebugConsolePage({ host, baseUrl }) {
         }
       }
 
-      async function handleIdentifyTab(data) {
-        const detailsBox = document.getElementById('identify-details');
-        const rawBox = document.getElementById('identify-raw');
+      function handleIdentifyTab(data) {
+        var detailsBox = document.getElementById('identify-details');
+        var rawBox = document.getElementById('identify-raw');
 
         if (!data.p || !data.c) {
           detailsBox.innerHTML = '<p class="text-gray-500">No card data available.</p>';
@@ -363,13 +354,11 @@ export function renderDebugConsolePage({ host, baseUrl }) {
         }
 
         detailsBox.innerHTML = '<p class="text-gray-500 animate-pulse">Identifying\u2026</p>';
-        try {
-          const resp = await fetch('/api/identify-card', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ p: data.p, c: data.c }),
-          });
-          const json = await resp.json();
+        fetch('/api/identify-card', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ p: data.p, c: data.c }),
+        }).then(function(r) { return r.json(); }).then(function(json) {
           lastIdentifyData = json;
           rawBox.textContent = JSON.stringify(json, null, 2);
 
@@ -379,7 +368,7 @@ export function renderDebugConsolePage({ host, baseUrl }) {
           }
 
           if (json.matched) {
-            const m = json.matched;
+            var m = json.matched;
             detailsBox.innerHTML =
               '<div class="space-y-2 text-sm">' +
               '<div><span class="font-semibold text-gray-100">UID:</span> <span class="font-mono text-amber-300">' + (json.uid || '--') + '</span></div>' +
@@ -416,16 +405,16 @@ export function renderDebugConsolePage({ host, baseUrl }) {
               cmac: 'invalid',
             });
           }
-        } catch (err) {
+        }).catch(function(err) {
           detailsBox.innerHTML = '<p class="text-red-300">Error: ' + err.message + '</p>';
-        }
+        });
       }
 
       function handleWipeTab(data) {
-        const statusDiv = document.getElementById('wipe-status');
-        const generateBtn = document.getElementById('wipe-generate-btn');
-        const outputDiv = document.getElementById('wipe-output');
-        const actionsDiv = document.getElementById('wipe-actions');
+        var statusDiv = document.getElementById('wipe-status');
+        var generateBtn = document.getElementById('wipe-generate-btn');
+        var outputDiv = document.getElementById('wipe-output');
+        var actionsDiv = document.getElementById('wipe-actions');
 
         if (!data.uid || data.uid === 'blank') {
           statusDiv.textContent = 'No card detected. Tap a card first.';
@@ -441,85 +430,80 @@ export function renderDebugConsolePage({ host, baseUrl }) {
         outputDiv.classList.add('hidden');
         actionsDiv.classList.add('hidden');
 
-        generateBtn.onclick = async function() {
+        generateBtn.onclick = function() {
           generateBtn.disabled = true;
           generateBtn.textContent = 'Generating\u2026';
-          try {
-            const resp = await fetch(BASE_URL + '/wipe?uid=' + encodeURIComponent(data.uid));
-            const json = await resp.json();
+          fetch(BASE_URL + '/wipe?uid=' + encodeURIComponent(data.uid))
+            .then(function(r) { return r.json(); })
+            .then(function(json) {
+              outputDiv.classList.remove('hidden');
+              var resultDiv = document.getElementById('wipe-result');
 
-            outputDiv.classList.remove('hidden');
-            const resultDiv = document.getElementById('wipe-result');
+              if (json.reset_deeplink) {
+                resultDiv.textContent = 'Keys generated successfully.';
+                var deeplink = json.reset_deeplink;
+                document.getElementById('wipe-deeplink').href = deeplink;
+                document.getElementById('wipe-deeplink').textContent = deeplink;
 
-            if (json.reset_deeplink) {
-              resultDiv.textContent = 'Keys generated successfully.';
-              const deeplink = json.reset_deeplink;
-              document.getElementById('wipe-deeplink').href = deeplink;
-              document.getElementById('wipe-deeplink').textContent = deeplink;
-
-              if (wipeQrCode) { wipeQrCode.clear(); wipeQrCode = null; }
-              const qrContainer = document.getElementById('wipe-qr');
-              qrContainer.innerHTML = '';
-              wipeQrCode = new QRCode(qrContainer, { text: deeplink, width: 200, height: 200, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.L });
-              actionsDiv.classList.remove('hidden');
-            } else {
-              resultDiv.textContent = json.reason || 'Failed to generate wipe data.';
-            }
-          } catch (err) {
-            resultDiv.textContent = 'Error: ' + err.message;
-          }
+                if (wipeQrCode) { wipeQrCode.clear(); wipeQrCode = null; }
+                var qrContainer = document.getElementById('wipe-qr');
+                qrContainer.innerHTML = '';
+                wipeQrCode = new QRCode(qrContainer, { text: deeplink, width: 200, height: 200, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.L });
+                actionsDiv.classList.remove('hidden');
+              } else {
+                resultDiv.textContent = json.reason || 'Failed to generate wipe data.';
+              }
+            }).catch(function(err) {
+              resultDiv.textContent = 'Error: ' + err.message;
+            });
           generateBtn.textContent = 'Generate Wipe Data';
           generateBtn.disabled = false;
         };
       }
 
       function handleTwofaTab(data) {
-        const outputDiv = document.getElementById('twofa-output');
+        var outputDiv = document.getElementById('twofa-output');
         if (!data.p || !data.c) {
           outputDiv.innerHTML = '<div class="text-center text-gray-500 py-4">Tap a card to load 2FA codes.</div>';
           return;
         }
         outputDiv.innerHTML = '<div class="text-center text-gray-500 py-4 animate-pulse">Loading\u2026</div>';
-        const url = BASE_URL + '/2fa?p=' + encodeURIComponent(data.p) + '&c=' + encodeURIComponent(data.c);
-        fetch(url).then(function(r) { return r.text(); }).then(function(html) {
-          outputDiv.innerHTML = html;
-        }).catch(function() {
-          outputDiv.innerHTML = '<div class="text-center text-red-400 py-4">Error loading 2FA page.</div>';
-        });
+        fetch(BASE_URL + '/2fa?p=' + encodeURIComponent(data.p) + '&c=' + encodeURIComponent(data.c))
+          .then(function(r) { return r.text(); })
+          .then(function(html) { outputDiv.innerHTML = html; })
+          .catch(function() { outputDiv.innerHTML = '<div class="text-center text-red-400 py-4">Error loading 2FA page.</div>'; });
       }
 
       function handleIdentityTab(data) {
-        const outputDiv = document.getElementById('identity-output');
+        var outputDiv = document.getElementById('identity-output');
         if (!data.p || !data.c) {
           outputDiv.innerHTML = '<div class="text-center text-gray-500 py-4">Tap a card to verify identity.</div>';
           return;
         }
         outputDiv.innerHTML = '<div class="text-center text-gray-500 py-4 animate-pulse">Verifying\u2026</div>';
-        const url = BASE_URL + '/api/verify-identity?p=' + encodeURIComponent(data.p) + '&c=' + encodeURIComponent(data.c);
-        fetch(url).then(function(r) { return r.json(); }).then(function(json) {
-          if (json.verified) {
-            outputDiv.innerHTML =
-              '<div class="rounded-xl border border-pink-500/20 bg-pink-500/5 p-4 mt-4">' +
-              '<div class="flex items-center gap-3 mb-3"><div class="h-8 w-8 rounded-full bg-pink-500 flex items-center justify-center text-xl">' + (json.profile && json.profile.emoji || '?') + '</div>' +
-              '<div><div class="font-bold text-white text-lg">' + (json.profile && json.profile.name || 'Unknown') + '</div>' +
-              '<div class="text-xs text-gray-400">' + (json.profile && json.profile.role || '') + ' \u00b7 ' + (json.profile && json.profile.department || '') + '</div></div></div>' +
-              '<div class="grid grid-cols-2 gap-2 text-sm"><div><span class="text-gray-500">UID:</span> <span class="font-mono text-amber-300">' + (json.uid || '--') + '</span></div>' +
-              '<div><span class="text-gray-500">Clearance:</span> <span class="text-pink-300">' + (json.profile && json.profile.clearance || '--') + '</span></div></div>' +
-              '</div>';
-          } else {
-            outputDiv.innerHTML =
-              '<div class="rounded-xl border border-red-500/30 bg-red-500/10 p-4 mt-4">' +
-              '<p class="text-red-300">' + (json.reason || 'Not verified') + '</p></div>';
-          }
-        }).catch(function() {
-          outputDiv.innerHTML = '<div class="text-center text-red-400 py-4">Error loading identity data.</div>';
-        });
+        fetch(BASE_URL + '/api/verify-identity?p=' + encodeURIComponent(data.p) + '&c=' + encodeURIComponent(data.c))
+          .then(function(r) { return r.json(); })
+          .then(function(json) {
+            if (json.verified) {
+              outputDiv.innerHTML =
+                '<div class="rounded-xl border border-pink-500/20 bg-pink-500/5 p-4 mt-4">' +
+                '<div class="flex items-center gap-3 mb-3"><div class="h-8 w-8 rounded-full bg-pink-500 flex items-center justify-center text-xl">' + (json.profile && json.profile.emoji || '?') + '</div>' +
+                '<div><div class="font-bold text-white text-lg">' + (json.profile && json.profile.name || 'Unknown') + '</div>' +
+                '<div class="text-xs text-gray-400">' + (json.profile && json.profile.role || '') + ' \u00b7 ' + (json.profile && json.profile.department || '') + '</div></div></div>' +
+                '<div class="grid grid-cols-2 gap-2 text-sm"><div><span class="text-gray-500">UID:</span> <span class="font-mono text-amber-300">' + (json.uid || '--') + '</span></div>' +
+                '<div><span class="text-gray-500">Clearance:</span> <span class="text-pink-300">' + (json.profile && json.profile.clearance || '--') + '</span></div></div>' +
+                '</div>';
+            } else {
+              outputDiv.innerHTML =
+                '<div class="rounded-xl border border-red-500/30 bg-red-500/10 p-4 mt-4">' +
+                '<p class="text-red-300">' + (json.reason || 'Not verified') + '</p></div>';
+            }
+          }).catch(function() { outputDiv.innerHTML = '<div class="text-center text-red-400 py-4">Error loading identity data.</div>'; });
       }
 
       function handlePosTab(data) {
-        const amountInput = document.getElementById('pos-amount');
-        const chargeBtn = document.getElementById('pos-charge-btn');
-        const statusBox = document.getElementById('pos-status');
+        var chargeBtn = document.getElementById('pos-charge-btn');
+        var statusBox = document.getElementById('pos-status');
 
         if (!data.p || !data.c) {
           chargeBtn.classList.add('hidden');
@@ -530,33 +514,27 @@ export function renderDebugConsolePage({ host, baseUrl }) {
         chargeBtn.classList.remove('hidden');
         chargeBtn.disabled = false;
         statusBox.classList.add('hidden');
-        amountInput.focus();
+        document.getElementById('pos-amount').focus();
       }
 
-      document.getElementById('pos-charge-btn').addEventListener('click', async function() {
+      document.getElementById('pos-charge-btn').addEventListener('click', function() {
         if (!lastP || !lastC) return;
-        const amount = parseInt(document.getElementById('pos-amount').value, 10);
-        if (!amount || amount <= 0) {
-          showPosStatus('Enter a valid amount', false);
-          return;
-        }
+        var amount = parseInt(document.getElementById('pos-amount').value, 10);
+        if (!amount || amount <= 0) { showPosStatus('Enter a valid amount', false); return; }
+        var chargeBtn = document.getElementById('pos-charge-btn');
         chargeBtn.disabled = true;
-        try {
-          const resp = await fetch(BASE_URL + '/operator/pos/charge', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ p: lastP, c: lastC, amount: amount }),
-          });
-          const json = await resp.json();
+        fetch(BASE_URL + '/operator/pos/charge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ p: lastP, c: lastC, amount: amount }),
+        }).then(function(r) { return r.json(); }).then(function(json) {
           showPosStatus(json.reason || (json.status === 'OK' ? 'Charged ' + amount + ' credits' : 'Charge failed'), json.status === 'OK');
-        } catch (err) {
-          showPosStatus('Error: ' + err.message, false);
-        }
+        }).catch(function(err) { showPosStatus('Error: ' + err.message, false); });
         chargeBtn.disabled = false;
       });
 
       function showPosStatus(msg, ok) {
-        const statusBox = document.getElementById('pos-status');
+        var statusBox = document.getElementById('pos-status');
         statusBox.textContent = msg;
         statusBox.className = ok
           ? 'mt-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-200'
@@ -565,7 +543,7 @@ export function renderDebugConsolePage({ host, baseUrl }) {
       }
 
       document.getElementById('console-toggle-json').addEventListener('click', function() {
-        const jsonBox = document.getElementById('console-json');
+        var jsonBox = document.getElementById('console-json');
         jsonBox.classList.toggle('hidden');
         this.textContent = jsonBox.classList.contains('hidden') ? 'Show raw JSON' : 'Hide raw JSON';
       });
