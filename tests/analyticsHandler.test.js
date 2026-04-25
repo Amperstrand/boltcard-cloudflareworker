@@ -136,4 +136,34 @@ describe("GET /experimental/analytics/data", () => {
     );
     expect(res.status).toBe(302);
   });
+
+  it("returns 400 for invalid uid format", async () => {
+    const res = await handleRequest(
+      new Request("https://test.local/experimental/analytics/data?uid=ZZZZ", {
+        headers: { Cookie: "op_session=test" },
+      }),
+      makeEnv(replay),
+    );
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.reason).toContain("uid");
+  });
+
+  it("returns 500 when DO throws error", async () => {
+    const brokenReplay = {
+      idFromName: () => {
+        throw new Error("DO instantiation broken");
+      },
+      get: () => ({}),
+    };
+    const res = await handleRequest(
+      new Request(`https://test.local/experimental/analytics/data?uid=${TEST_UID}`, {
+        headers: { Cookie: "op_session=test" },
+      }),
+      makeEnv(brokenReplay),
+    );
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.reason).toContain("analytics");
+  });
 });

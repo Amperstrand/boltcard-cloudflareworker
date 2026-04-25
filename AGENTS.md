@@ -140,7 +140,7 @@
 
 - Run: `npm test` (uses Jest with `--experimental-vm-modules`)
 - Deploy: `npm run deploy` (tests → build_keys → wrangler deploy)
-- **735 tests** across 49 test suites (as of 2026-04-25)
+- **779 tests** across 50 test suites (as of 2026-04-25)
 
 ## Test Inventory
 
@@ -194,6 +194,7 @@
 | `tests/tapTracking.test.js` | Two-step tap flow: read → callback → completed, tap history | |
 | `tests/e2e/virtual-card.test.js` | Full E2E lifecycle: provision → tap → pay → replay | |
 | `tests/identityHandler.test.js` | Identity verification, profile update, CMAC, enrollment | |
+| `tests/bulkWipePageHandler.test.js` | Bulk wipe page rendering with key fingerprints | |
 
 ## Test-Only Exports
 

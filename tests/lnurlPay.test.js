@@ -281,6 +281,49 @@ describe("LNURL-pay POS card flow", () => {
       expect(json.reason).toMatch(/cmac|CMAC/i);
     });
 
+    test("rejects decryption failure in callback", async () => {
+      const response = await makeRequest(
+        `/lnurlp/cb?p=00000000000000000000000000000000&c=deadbeefdeadbeef&amount=1000`,
+        "GET"
+      );
+      expect(response.status).toBe(400);
+    });
+
+    test("rejects non-lnurlpay payment method in callback", async () => {
+      const env = makePayEnv();
+      const fakewalletConfig = { ...POS_UID_CONFIG_OBJECT, payment_method: "fakewallet", K2: POS_UID_CONFIG_OBJECT.K2 };
+      env.CARD_REPLAY.__cardConfigs.set("04d070fa967380", fakewalletConfig);
+      env.UID_CONFIG.get = async (uid) => uid === "04d070fa967380" ? fakewalletConfig : null;
+
+      const response = await makeRequest(
+        `/lnurlp/cb?p=${PAY_COUNTER_1}&c=${PAY_CMAC_1}&amount=1000`,
+        "GET", null, env
+      );
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.reason).toContain("Unsupported payment method");
+    });
+
+    test("rejects amount outside range", async () => {
+      const env = makePayEnv();
+
+      const response = await makeRequest(
+        `/lnurlp/cb?p=${PAY_COUNTER_1}&c=${PAY_CMAC_1}&amount=5000`,
+        "GET", null, env
+      );
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.reason).toContain("outside allowed range");
+    });
+
+    test("rejects zero amount", async () => {
+      const response = await makeRequest(
+        `/lnurlp/cb?p=${PAY_COUNTER_1}&c=${PAY_CMAC_1}&amount=0`,
+        "GET"
+      );
+      expect(response.status).toBe(400);
+    });
+
     test("forwards correct amount to Lightning Address", async () => {
       const env = makePayEnv();
 

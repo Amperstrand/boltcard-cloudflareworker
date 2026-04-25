@@ -1,5 +1,7 @@
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
+import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
+import aesjs from "aes-js";
 
 const env = {
   BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
@@ -532,5 +534,111 @@ describe("POST /login (handleLoginVerify)", () => {
     const response = await makeRequest("/login", "POST", { p: VALID_P, c: VALID_C });
     const json = await response.json();
     expect(typeof json.cardState).toBe("string");
+  });
+
+  test("per-card UID decrypts but CMAC fails with deterministic keys", async () => {
+    const perCardUid = "040a69fa967380";
+    const perCardK1 = "3db8852a71d11fa0adb6babaf274af89";
+    const perCardK2 = "ce08c57983d65fceaa571e248390790f";
+
+    const uid = hexToBytes(perCardUid);
+    const counter = 5;
+    const plaintext = new Uint8Array(16);
+    plaintext[0] = 0xc7;
+    plaintext.set(uid, 1);
+    plaintext[8] = counter & 0xff;
+    plaintext[9] = (counter >> 8) & 0xff;
+    plaintext[10] = (counter >> 16) & 0xff;
+    const aes = new aesjs.ModeOfOperation.ecb(hexToBytes(perCardK1));
+    const encrypted = aes.encrypt(plaintext);
+    const pHex = bytesToHex(new Uint8Array(encrypted));
+
+    const ctrHex = bytesToHex(new Uint8Array([(counter >> 16) & 0xff, (counter >> 8) & 0xff, counter & 0xff]));
+    const vd = buildVerificationData(uid, hexToBytes(ctrHex), hexToBytes(perCardK2));
+    const cHex = bytesToHex(vd.ct);
+
+    const replay = makeReplayNamespace();
+    replay.__activate(perCardUid, 1);
+
+    const perCardEnv = {
+      ...env,
+      BOLT_CARD_K1: env.BOLT_CARD_K1 + "," + perCardK1,
+      CARD_REPLAY: replay,
+    };
+
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { p: pHex, c: cHex },
+      perCardEnv,
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.success).toBe(true);
+    expect(json.uidHex).toBe(perCardUid);
+    expect(json.cmacValid).toBe(false);
+  });
+
+  test("response includes keysDeliveredAt for keys_delivered card", async () => {
+    const tapUid = "04996c6a926980";
+    const replay = makeReplayNamespace();
+    replay.__cardStates.set(tapUid, {
+      state: "keys_delivered",
+      latest_issued_version: 2,
+      active_version: null,
+      activated_at: null,
+      terminated_at: null,
+      keys_delivered_at: Math.floor(Date.now() / 1000),
+      wipe_keys_fetched_at: null,
+      balance: 0,
+    });
+
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { p: VALID_P, c: VALID_C },
+      makeEnv(replay),
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.keysDeliveredAt).toBeGreaterThan(0);
+  });
+
+  test("response includes programmingEndpoint for keys_delivered card", async () => {
+    const tapUid = "04996c6a926980";
+    const replay = makeReplayNamespace();
+    replay.__cardStates.set(tapUid, {
+      state: "keys_delivered",
+      latest_issued_version: 2,
+      active_version: null,
+      activated_at: null,
+      terminated_at: null,
+      keys_delivered_at: Math.floor(Date.now() / 1000),
+      wipe_keys_fetched_at: null,
+      balance: 0,
+    });
+
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { p: VALID_P, c: VALID_C },
+      makeEnv(replay),
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.programmingEndpoint).toContain("/api/v1/pull-payments/");
+  });
+
+  test("top-up with non-integer string amount returns 400", async () => {
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { uid: ACTION_UID, action: "top-up", amount: "abc" },
+      makeEnv()
+    );
+    expect(response.status).toBe(400);
   });
 });

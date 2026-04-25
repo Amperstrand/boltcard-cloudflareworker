@@ -7,6 +7,22 @@ function makeEnv() {
   return { CARD_REPLAY: makeReplayNamespace({}, { [UID]: 1 }) };
 }
 
+function makeErrorEnv(statusCode, reason) {
+  return {
+    CARD_REPLAY: {
+      idFromName: () => "stub",
+      get: () => ({
+        fetch: async (req) => {
+          if (req.method === "GET") {
+            return Response.json({ error: reason }, { status: statusCode });
+          }
+          return Response.json({ reason, error: reason }, { status: statusCode });
+        },
+      }),
+    },
+  };
+}
+
 describe("replayProtection", () => {
   describe("checkAndAdvanceCounter", () => {
     it("accepts first counter for new card", async () => {
@@ -278,6 +294,102 @@ describe("replayProtection", () => {
     it("returns zeros when DO unavailable", async () => {
       const result = await getAnalytics({}, UID);
       expect(result.totalTaps).toBe(0);
+    });
+  });
+
+  describe("error paths", () => {
+    it("checkAndAdvanceCounter throws on server error", async () => {
+      const env = makeErrorEnv(500, "internal");
+      await expect(checkAndAdvanceCounter(env, UID, 2)).rejects.toThrow("internal");
+    });
+
+    it("recordTap throws on server error", async () => {
+      const env = makeErrorEnv(500, "tap failed");
+      await expect(recordTap(env, UID, 2, {})).rejects.toThrow("tap failed");
+    });
+
+    it("listTaps returns empty on server error", async () => {
+      const env = makeErrorEnv(500, "list failed");
+      const result = await listTaps(env, UID);
+      expect(result.taps).toEqual([]);
+    });
+
+    it("resetReplayProtection throws on server error", async () => {
+      const env = makeErrorEnv(500, "reset fail");
+      await expect(resetReplayProtection(env, UID)).rejects.toThrow("reset fail");
+    });
+
+    it("getAnalytics returns zeros on server error", async () => {
+      const env = makeErrorEnv(500, "analytics fail");
+      const result = await getAnalytics(env, UID);
+      expect(result.totalTaps).toBe(0);
+    });
+
+    it("getCardState throws on server error (not 404)", async () => {
+      const env = makeErrorEnv(500, "state fail");
+      await expect(getCardState(env, UID)).rejects.toThrow("state fail");
+    });
+
+    it("getCardState returns legacy on 404", async () => {
+      const env = makeErrorEnv(404, "not found");
+      const state = await getCardState(env, UID);
+      expect(state.state).toBe("legacy");
+    });
+
+    it("deliverKeys returns legacy fallback on 404", async () => {
+      const env = makeErrorEnv(404, "not found");
+      const result = await deliverKeys(env, UID);
+      expect(result.state).toBe("keys_delivered");
+      expect(result.latest_issued_version).toBe(1);
+    });
+
+    it("deliverKeys throws on server error", async () => {
+      const env = makeErrorEnv(500, "deliver fail");
+      await expect(deliverKeys(env, UID)).rejects.toThrow("deliver fail");
+    });
+
+    it("activateCard returns legacy fallback on 404", async () => {
+      const env = makeErrorEnv(404, "not found");
+      const result = await activateCard(env, UID, 3);
+      expect(result.state).toBe("active");
+      expect(result.active_version).toBe(3);
+    });
+
+    it("activateCard throws on server error", async () => {
+      const env = makeErrorEnv(500, "activate fail");
+      await expect(activateCard(env, UID, 1)).rejects.toThrow("activate fail");
+    });
+
+    it("terminateCard returns legacy fallback on 404", async () => {
+      const env = makeErrorEnv(404, "not found");
+      const result = await terminateCard(env, UID);
+      expect(result.state).toBe("terminated");
+    });
+
+    it("terminateCard throws on server error", async () => {
+      const env = makeErrorEnv(500, "terminate fail");
+      await expect(terminateCard(env, UID)).rejects.toThrow("terminate fail");
+    });
+
+    it("requestWipe returns fallback on 404", async () => {
+      const env = makeErrorEnv(404, "not found");
+      const result = await requestWipe(env, UID);
+      expect(result.state).toBe("new");
+    });
+
+    it("requestWipe throws on server error", async () => {
+      const env = makeErrorEnv(500, "wipe fail");
+      await expect(requestWipe(env, UID)).rejects.toThrow("wipe fail");
+    });
+
+    it("getCardConfig returns null on server error", async () => {
+      const env = makeErrorEnv(500, "config fail");
+      const result = await getCardConfig(env, UID);
+      expect(result).toBeNull();
+    });
+
+    it("setCardConfig does nothing when CARD_REPLAY missing", async () => {
+      await expect(setCardConfig({}, UID, { foo: "bar" })).resolves.toBeUndefined();
     });
   });
 });

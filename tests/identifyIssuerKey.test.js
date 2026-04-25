@@ -128,6 +128,30 @@ describe("POST /api/identify-issuer-key", () => {
     expect(resp.status).toBe(302);
     expect(resp.headers.get("Location")).toContain("/operator/login");
   });
+
+  test("returns 500 on unexpected error", async () => {
+    const brokenEnv = new Proxy(makeEnv(), {
+      get(target, prop) {
+        if (prop === "BOLT_CARD_K1") throw new Error("boom");
+        return Reflect.get(target, prop);
+      },
+    });
+    const resp = await makeRequest("/api/identify-issuer-key", "POST", { p: pHex, c: cHex }, brokenEnv);
+    expect(resp.status).toBe(500);
+  });
+
+  test("clamps candidates to MAX_CANDIDATES (50)", async () => {
+    const env = makeEnv();
+    let extraKeys = "";
+    for (let i = 0; i < 60; i++) {
+      extraKeys += `,${(i + 2).toString().padStart(32, "0")}`;
+    }
+    env.BOLT_CARD_K1 = BOLT_CARD_K1 + extraKeys;
+    const resp = await makeRequest("/api/identify-issuer-key", "POST", { p: pHex, c: cHex }, env);
+    expect(resp.status).toBe(200);
+    const json = await resp.json();
+    expect(json.matched).toBe(true);
+  });
 });
 
 describe("GET /api/bulk-wipe-keys with version parameter", () => {

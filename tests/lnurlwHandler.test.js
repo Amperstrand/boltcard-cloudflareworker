@@ -294,4 +294,148 @@ describe("handleLnurlw", () => {
     expect(proxiedReq.headers.get("X-BoltCard-CMAC-Deferred")).toBe("false");
     globalThis.fetch = originalFetch;
   });
+
+  it("resolves config from deterministic keys when DO config has no K2", async () => {
+    const env = buildEnv("fakewallet");
+    delete env.CARD_REPLAY.__cardConfigs.get(UID).K2;
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const req = tapRequest(UID, 2, keys.k1, keys.k2);
+    const res = await handleLnurlw(req, env);
+    expect(res.status).toBe(200);
+  });
+
+  it("handles active card with active_version set", async () => {
+    const env = buildEnv("fakewallet");
+    env.CARD_REPLAY.__cardStates.get(UID).active_version = 1;
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const req = tapRequest(UID, 2, keys.k1, keys.k2);
+    const res = await handleLnurlw(req, env);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.tag).toBe("withdrawRequest");
+  });
+
+  it("clnrest returns withdraw with fixed 1000 msat amounts", async () => {
+    const env = buildEnv("clnrest", {
+      clnrest: {
+        protocol: "https",
+        host: "https://cln.example.com",
+        port: 3001,
+        rune: "test",
+      },
+    });
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const req = tapRequest(UID, 2, keys.k1, keys.k2);
+    const res = await handleLnurlw(req, env);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.minWithdrawable).toBe(1000);
+    expect(body.maxWithdrawable).toBe(1000);
+  });
+
+  it("proxy mode rejects replayed counter", async () => {
+    const env = buildEnv("proxy", {
+      proxy: { baseurl: "https://backend.example.com/tap" },
+    });
+    delete env.CARD_REPLAY.__cardConfigs.get(UID).K2;
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const req1 = tapRequest(UID, 2, keys.k1, keys.k2);
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: "OK" }), { status: 200 })
+    );
+    const res1 = await handleLnurlw(req1, env);
+    expect(res1.status).toBe(200);
+    globalThis.fetch = originalFetch;
+
+    const req2 = tapRequest(UID, 2, keys.k1, keys.k2);
+    const res2 = await handleLnurlw(req2, env);
+    expect(res2.status).toBe(400);
+    const body = await res2.json();
+    expect(body.reason).toMatch(/replay/i);
+  });
+
+  it("lnurlpay card does not advance counter on initial tap", async () => {
+    const env = buildEnv("lnurlpay", {
+      lnurlpay: {
+        lightning_address: "test@example.com",
+        min_sendable: 1000,
+        max_sendable: 1000,
+      },
+    });
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const req = tapRequest(UID, 2, keys.k1, keys.k2);
+    await handleLnurlw(req, env);
+    expect(env.CARD_REPLAY.__counters.has(UID)).toBe(false);
+  });
+
+  it("returns error when p decrypts but uid is undefined", async () => {
+    const env = buildEnv("fakewallet");
+    const req = new Request("https://test.local/?p=4E2E289D945A66BB13377A728884E867&c=E19CCB1FED8892CE");
+    const res = await handleLnurlw(req, env);
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 503 when card state check throws", async () => {
+    const env = buildEnv("fakewallet");
+    const origGet = env.CARD_REPLAY.get;
+    env.CARD_REPLAY.get = () => ({
+      fetch: async () => Response.json({ error: "broken" }, { status: 500 }),
+    });
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const req = tapRequest(UID, 2, keys.k1, keys.k2);
+    const res = await handleLnurlw(req, env);
+    expect(res.status).toBe(503);
+  });
+
+  it("returns 500 when replay check throws for clnrest", async () => {
+    const env = buildEnv("clnrest", {
+      clnrest: {
+        protocol: "https",
+        host: "https://cln.example.com",
+        port: 3001,
+        rune: "test",
+      },
+    });
+    const origGet = env.CARD_REPLAY.get;
+    let callCount = 0;
+    env.CARD_REPLAY.get = (id) => ({
+      fetch: async (req) => {
+        callCount++;
+        const url = new URL(req.url);
+        if (url.pathname === "/check") {
+          return Response.json({ reason: "DO unavailable" }, { status: 500 });
+        }
+        const stub = origGet(id);
+        return stub.fetch(req);
+      },
+    });
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const req = tapRequest(UID, 2, keys.k1, keys.k2);
+    const res = await handleLnurlw(req, env);
+    expect(res.status).toBe(500);
+  });
+
+  it("returns 500 when replay check throws for proxy", async () => {
+    const env = buildEnv("proxy", {
+      proxy: { baseurl: "https://backend.example.com/tap" },
+    });
+    delete env.CARD_REPLAY.__cardConfigs.get(UID).K2;
+    const origGet = env.CARD_REPLAY.get;
+    env.CARD_REPLAY.get = () => ({
+      fetch: async (req) => {
+        const url = new URL(req.url);
+        if (url.pathname === "/check") {
+          return Response.json({ reason: "DO down" }, { status: 500 });
+        }
+        const stub = origGet(UID);
+        return stub.fetch(req);
+      },
+    });
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const req = tapRequest(UID, 2, keys.k1, keys.k2);
+    const res = await handleLnurlw(req, env);
+    expect(res.status).toBe(500);
+  });
 });

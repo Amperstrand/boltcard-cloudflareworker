@@ -213,4 +213,37 @@ describe("GET /operator/pos/menu", () => {
     );
     expect(res.status).toBe(302);
   });
+
+  it("gracefully handles broken KV by showing empty menu", async () => {
+    const brokenEnv = {
+      ...env,
+      UID_CONFIG: {
+        get: async () => { throw new Error("KV down"); },
+        put: async () => {},
+      },
+    };
+    const res = await handleRequest(
+      new Request("https://test.local/operator/pos/menu", {
+        headers: { Cookie: "op_session=test" },
+      }),
+      brokenEnv,
+    );
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("GET /api/pos/menu error handling", () => {
+  it("gracefully handles broken KV by returning empty items", async () => {
+    const env = makeEnv();
+    env.UID_CONFIG = { get: async () => { throw new Error("KV exploded"); }, put: async () => {} };
+    const res = await handleRequest(
+      new Request("https://test.local/api/pos/menu", {
+        headers: { Cookie: "op_session=test" },
+      }),
+      env,
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.items).toEqual([]);
+  });
 });
