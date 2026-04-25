@@ -7,6 +7,7 @@ import { getRequestOrigin } from "../utils/validation.js";
 import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "../templates/pageShell.js";
 import { BROWSER_NFC_HELPERS } from "../templates/browserNfc.js";
+import { errorResponse, htmlResponse } from "../utils/responses.js";
 
 const TOTP_DOMAIN_TAG = "2d003f80";
 const HOTP_DOMAIN_TAG = "2d003f81";
@@ -22,7 +23,7 @@ export async function handleTwoFactor(request, env) {
 
   const decryption = extractUIDAndCounter(pHex, env);
   if (!decryption.success) {
-    return new Response("Decryption failed: " + decryption.error, { status: 400 });
+    return errorResponse(decryption.error, 400);
   }
 
   const { uidHex, ctr } = decryption;
@@ -30,7 +31,7 @@ export async function handleTwoFactor(request, env) {
 
   const config = await getUidConfig(uidHex, env);
   if (!config || !config.K2) {
-    return new Response("Card not registered", { status: 404 });
+    return errorResponse("Card not registered", 404);
   }
 
   const { cmac_validated, cmac_error } = validate_cmac(
@@ -40,7 +41,7 @@ export async function handleTwoFactor(request, env) {
     hexToBytes(config.K2),
   );
   if (!cmac_validated) {
-    return new Response("CMAC validation failed: " + (cmac_error || ""), { status: 403 });
+    return errorResponse(cmac_error || "CMAC validation failed", 403);
   }
 
   const totpSecret = deriveOtpSecret(env, uidHex, TOTP_DOMAIN_TAG);
@@ -138,7 +139,7 @@ function renderTwoFactorPage(uidHex, totp, hotp, counterValue, pHex, cHex, baseU
     </script>
   `;
 
-  return new Response(
+  return htmlResponse(
     renderTailwindPage({
       title: "2FA \u2014 NFC One-Time Password",
       bodyClass: "min-h-screen",
@@ -149,7 +150,6 @@ function renderTwoFactorPage(uidHex, totp, hotp, counterValue, pHex, cHex, baseU
       `,
       content,
     }),
-    { headers: { "Content-Type": "text/html" } },
   );
 }
 
@@ -305,13 +305,12 @@ function renderTwoFactorLandingPage(baseUrl) {
     </script>
   `;
 
-  return new Response(
+  return htmlResponse(
     renderTailwindPage({
       title: "2FA Demo \u2014 Boltcard",
       bodyClass: "min-h-screen bg-gray-950 text-gray-100 font-sans antialiased",
       styles: "body { background-color: #030712; color: #f3f4f6; }",
       content,
     }),
-    { headers: { "Content-Type": "text/html" } },
   );
 }

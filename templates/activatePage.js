@@ -25,7 +25,7 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
               <a href="/debug" class="inline-flex items-center rounded border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-300 transition hover:bg-amber-500/20">
                 DEBUG & TOOLS
               </a>
-              <a href="/experimental/nfc" class="inline-flex items-center rounded border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/20">
+              <a href="/debug#console" class="inline-flex items-center rounded border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/20">
                 OPEN NFC TEST CONSOLE
               </a>
               <a href="/login" class="inline-flex items-center rounded border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/20">
@@ -277,207 +277,108 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
 }
 
 export function renderActivateCardPage() {
-  return rawHtml`
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>BoltCard Activation</title>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          max-width: 800px;
-          margin: 0 auto;
-          padding: 20px;
-          line-height: 1.6;
-        }
-        h1 {
-          color: #333;
-          margin-bottom: 20px;
-        }
-        .card {
-          background-color: #f9f9f9;
-          border-radius: 8px;
-          padding: 20px;
-          margin-bottom: 20px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .form-group {
-          margin-bottom: 15px;
-        }
-        label {
-          display: block;
-          margin-bottom: 5px;
-          font-weight: bold;
-        }
-        input[type="text"] {
-          width: 100%;
-          padding: 8px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          font-size: 16px;
-        }
-        button {
-          background-color: #007bff;
-          color: white;
-          border: none;
-          padding: 10px 15px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 16px;
-          margin-right: 10px;
-        }
-        button:hover {
-          background-color: #0069d9;
-        }
-        .error {
-          color: #dc3545;
-          margin-top: 10px;
-        }
-        .success {
-          color: #28a745;
-          margin-top: 10px;
-        }
-        .button-row {
-          display: flex;
-          margin-bottom: 15px;
-        }
-        #nfc-status {
-          margin-top: 10px;
-          padding: 10px;
-          border-radius: 4px;
-        }
-        #nfc-status.scanning {
-          background-color: #fff3cd;
-          color: #856404;
-        }
-        #nfc-status.success {
-          background-color: #d4edda;
-          color: #155724;
-        }
-        #nfc-status.error {
-          background-color: #f8d7da;
-          color: #721c24;
-        }
-      </style>
-    </head>
-    <body>
-      <h1>BoltCard Activation</h1>
-      
-      <div class="card">
-        <h2>Activate New Card</h2>
-        <p>Enter your card's UID below or scan it with NFC to activate it with the fake wallet payment method.</p>
-        
-          <div id="nfc-section">
-            <div class="button-row">
-              <button id="scan-nfc" type="button" class="hidden">Scan Card with NFC</button>
-            </div>
-            <div id="nfc-status" style="display: none;"></div>
+  const content = rawHtml`
+      <div class="max-w-3xl mx-auto p-4 md:p-8">
+        <h1 class="text-3xl font-bold text-white mb-2">BoltCard Activation</h1>
+        <p class="text-sm text-gray-400 mb-6">Enter your card's UID below or scan it with NFC to activate it with the fake wallet payment method.</p>
+
+        <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-6 mb-6">
+          <h2 class="text-xl font-bold text-gray-200 mb-4">Activate New Card</h2>
+
+          <div id="nfc-section" class="mb-4">
+            <div id="nfc-status" class="hidden rounded-lg px-4 py-3 text-sm mb-3"></div>
             <p id="nfc-scanning-hint" class="text-sm text-gray-500">Tap your card to auto-fill UID...</p>
           </div>
-        
-        <form id="activateForm" action="/activate" method="POST">
-          <div class="form-group">
-            <label for="uid">Card UID (7 bytes, 14 hex characters):</label>
-            <input type="text" id="uid" name="uid" placeholder="e.g., 04a39493cc8680" required
-                   pattern="[0-9a-fA-F]{14}" title="UID must be exactly 14 hexadecimal characters">
-          </div>
-          
-          <button type="submit">Activate Card with Fake Wallet</button>
-        </form>
-        
-        <div id="result"></div>
+
+          <form id="activateForm" action="/experimental/activate/form" method="POST">
+            <div class="mb-4">
+              <label for="uid" class="block text-sm font-semibold text-gray-300 mb-2">Card UID (7 bytes, 14 hex characters):</label>
+              <input type="text" id="uid" name="uid" placeholder="e.g., 04a39493cc8680" required
+                     pattern="[0-9a-fA-F]{14}" title="UID must be exactly 14 hexadecimal characters"
+                     class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-gray-200 font-mono text-sm focus:border-cyan-500 focus:outline-none" />
+            </div>
+
+            <button type="submit" class="w-full rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-3 px-4 transition-colors">Activate Card with Fake Wallet</button>
+          </form>
+
+          <div id="result" class="mt-4 text-sm"></div>
+        </div>
+
+        <div class="text-center">
+          <a href="/experimental/activate" class="text-xs text-gray-500 hover:text-cyan-300 transition">&larr; Back to card activation</a>
+        </div>
       </div>
 
-      <script>
-        ${safe(BROWSER_VALIDATE_UID_HELPER)}
-        ${safe(BROWSER_NFC_HELPERS)}
+    <script>
+      ${safe(BROWSER_VALIDATE_UID_HELPER)}
+      ${safe(BROWSER_NFC_HELPERS)}
 
-        var activateFormScanner = createNfcScanner({
-          continuous: false,
-          debounceMs: 0,
-          onTap: function(data) {
-            var nfcStatus = document.getElementById('nfc-status');
-            var uidInput = document.getElementById('uid');
-            nfcStatus.style.display = 'block';
-            if (data.serial) {
-              var formattedUid = data.serial;
-              var validatedUid = validateUid(formattedUid);
-              if (validatedUid) {
-                uidInput.value = validatedUid;
-                nfcStatus.className = 'success';
-                nfcStatus.textContent = 'Successfully scanned card UID: ' + validatedUid;
-              } else {
-                nfcStatus.className = 'error';
-                nfcStatus.textContent = 'Invalid UID format after processing. Expected 14 hex characters.';
-              }
+      var activateFormScanner = createNfcScanner({
+        continuous: false,
+        debounceMs: 0,
+        onTap: function(data) {
+          var nfcStatus = document.getElementById('nfc-status');
+          var uidInput = document.getElementById('uid');
+          nfcStatus.classList.remove('hidden');
+          if (data.serial) {
+            var formattedUid = data.serial;
+            var validatedUid = validateUid(formattedUid);
+            if (validatedUid) {
+              uidInput.value = validatedUid;
+              nfcStatus.className = 'rounded-lg px-4 py-3 text-sm mb-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300';
+              nfcStatus.textContent = 'Successfully scanned card UID: ' + validatedUid;
             } else {
-              nfcStatus.className = 'error';
-              nfcStatus.textContent = 'Could not read UID from card. Please try again.';
+              nfcStatus.className = 'rounded-lg px-4 py-3 text-sm mb-3 bg-red-500/10 border border-red-500/30 text-red-300';
+              nfcStatus.textContent = 'Invalid UID format after processing. Expected 14 hex characters.';
             }
-            var scanHint = document.getElementById('nfc-scanning-hint');
-            if (scanHint) scanHint.textContent = 'Tap again to re-scan card';
-          },
-          onError: function(err, phase) {
-            var nfcStatus = document.getElementById('nfc-status');
-            if (phase !== 'permission') {
-              nfcStatus.style.display = 'block';
-              nfcStatus.className = 'error';
-              nfcStatus.textContent = 'Error: ' + err.message;
-            }
+          } else {
+            nfcStatus.className = 'rounded-lg px-4 py-3 text-sm mb-3 bg-red-500/10 border border-red-500/30 text-red-300';
+            nfcStatus.textContent = 'Could not read UID from card. Please try again.';
           }
-        });
+          var scanHint = document.getElementById('nfc-scanning-hint');
+          if (scanHint) scanHint.textContent = 'Tap again to re-scan card';
+        },
+        onError: function(err, phase) {
+          var nfcStatus = document.getElementById('nfc-status');
+          if (phase !== 'permission') {
+            nfcStatus.classList.remove('hidden');
+            nfcStatus.className = 'rounded-lg px-4 py-3 text-sm mb-3 bg-red-500/10 border border-red-500/30 text-red-300';
+            nfcStatus.textContent = 'Error: ' + err.message;
+          }
+        }
+      });
 
-        if (browserSupportsNfc()) {
-          window.addEventListener('load', function() { activateFormScanner.scan(); });
+      document.getElementById('activateForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        var result = document.getElementById('result');
+        var uidInput = document.getElementById('uid');
+        var validatedUid = validateUid(uidInput.value.replace(/:/g, '').toLowerCase());
+
+        if (!validatedUid) {
+          result.className = 'mt-4 text-sm text-red-300';
+          result.textContent = 'Error: UID must be exactly 7 bytes (14 hex characters)';
+          return;
         }
 
-        // Form submission handling
-        document.getElementById('activateForm').addEventListener('submit', async function(e) {
-          e.preventDefault();
-          const result = document.getElementById('result');
-          
-          const formData = new FormData(this);
-          const data = {};
-          formData.forEach((value, key) => {
-            // Strip colons and convert to lowercase for the UID field
-            data[key] = key === 'uid' ? value.replace(/:/g, '').toLowerCase() : value;
-          });
-          const validatedUid = validateUid(data.uid);
-          
-          // Validate UID format after stripping colons
-          if (!validatedUid) {
-            result.className = 'error';
-            result.textContent = 'Error: UID must be exactly 7 bytes (14 hex characters)';
-            return;
+        fetch('/experimental/activate/form', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid: validatedUid })
+        }).then(function(r) { return r.json(); }).then(function(json) {
+          if (json.status === 'OK') {
+            result.className = 'mt-4 text-sm text-emerald-300';
+            result.textContent = 'Card activated successfully! ' + (json.message || '');
+          } else {
+            result.className = 'mt-4 text-sm text-red-300';
+            result.textContent = 'Error: ' + (json.reason || 'Unknown error');
           }
-
-          data.uid = validatedUid;
-
-          try {
-            const response = await fetch('/activate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(data)
-            });
-            
-            const responseData = await response.json();
-            
-            if (response.ok) {
-              result.className = 'success';
-              result.textContent = 'Card activated successfully! ' + responseData.message;
-            } else {
-              result.className = 'error';
-              result.textContent = 'Error: ' + responseData.reason;
-            }
-          } catch (error) {
-            result.className = 'error';
-            result.textContent = 'Error submitting form: ' + error.message;
-          }
+        }).catch(function(error) {
+          result.className = 'mt-4 text-sm text-red-300';
+          result.textContent = 'Error submitting form: ' + error.message;
         });
-      </script>
-    </body>
-    </html>
+      });
+    </script>
   `;
+
+  return renderTailwindPage({ title: "BoltCard Activation", content, csrf: true });
 }

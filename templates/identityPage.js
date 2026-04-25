@@ -405,5 +405,5 @@ export function renderIdentityPage({ host }) {
     </script>
   `;
   
-  return renderTailwindPage({ title: pageTitle, content });
+  return renderTailwindPage({ title: pageTitle, content, csrf: true });
 }

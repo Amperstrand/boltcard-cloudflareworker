@@ -152,25 +152,25 @@ router.get("/nfc", (request) => {
 });
 router.get("/activate", (request) => {
   const origin = new URL(request.url).origin;
-  return Response.redirect(origin + "/experimental/activate", 301);
+  return new Response(null, { status: 301, headers: { Location: origin + "/experimental/activate" } });
 });
 router.get("/activate/form", (request) => {
   const origin = new URL(request.url).origin;
-  return Response.redirect(origin + "/experimental/activate/form", 301);
+  return new Response(null, { status: 301, headers: { Location: origin + "/experimental/activate/form" } });
 });
 router.get("/wipe", withOperatorAuth((request, env) => {
   const url = new URL(request.url);
   const uid = url.searchParams.get("uid");
   if (uid) return handleReset(uid, env, `${url.protocol}//${url.host}`);
-  return Response.redirect(url.origin + "/experimental/wipe", 301);
+  return new Response(null, { status: 301, headers: { Location: url.origin + "/experimental/wipe" } });
 }));
 router.get("/bulkwipe", (request) => {
   const origin = new URL(request.url).origin;
-  return Response.redirect(origin + "/experimental/bulkwipe", 301);
+  return new Response(null, { status: 301, headers: { Location: origin + "/experimental/bulkwipe" } });
 });
 router.get("/analytics", (request) => {
   const origin = new URL(request.url).origin;
-  return Response.redirect(origin + "/experimental/analytics", 301);
+  return new Response(null, { status: 301, headers: { Location: origin + "/experimental/analytics" } });
 });
 router.get("/analytics/data", withOperatorAuth((request, env) => handleAnalyticsData(request, env)));
 router.get("/favicon.ico", () => new Response(null, { status: 204 }));

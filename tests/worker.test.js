@@ -137,7 +137,9 @@ describe("Cloudflare Worker Tests", () => {
     );
 
     expect(response.status).toBe(405);
-    expect(await response.text()).toBe("Method Not Allowed");
+    const body = await response.json();
+    expect(body.status).toBe("ERROR");
+    expect(body.reason).toContain("Method Not Allowed");
   });
 
   test("should return 405 for POST to LNURL callback", async () => {
@@ -152,7 +154,9 @@ describe("Cloudflare Worker Tests", () => {
     );
 
     expect(response.status).toBe(405);
-    expect(await response.text()).toBe("Method Not Allowed");
+    const body2 = await response.json();
+    expect(body2.status).toBe("ERROR");
+    expect(body2.reason).toContain("Method Not Allowed");
   });
 
   // New test case for Pull Payment with KeepVersion

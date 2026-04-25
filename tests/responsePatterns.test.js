@@ -177,7 +177,7 @@ describe("response patterns", () => {
 
     const html = await response.text();
     expect(html).toContain("CARD ACTIVATION");
-    expect(html).toContain('href="/experimental/nfc"');
+    expect(html).toContain('href="/debug#console"');
     expect(html).toContain("OPEN NFC TEST CONSOLE");
   });
 
@@ -448,7 +448,9 @@ describe("response patterns", () => {
     );
 
     expect(response.status).toBe(405);
-    expect(await response.text()).toBe("Method Not Allowed");
+    const body = await response.json();
+    expect(body.status).toBe("ERROR");
+    expect(body.reason).toContain("Method Not Allowed");
   });
 
   test("POST /boltcards/api/v1/lnurl/cb returns Method Not Allowed", async () => {
@@ -464,7 +466,9 @@ describe("response patterns", () => {
     );
 
     expect(response.status).toBe(405);
-    expect(await response.text()).toBe("Method Not Allowed");
+    const body2 = await response.json();
+    expect(body2.status).toBe("ERROR");
+    expect(body2.reason).toContain("Method Not Allowed");
   });
 
   test("unknown route returns 404 text response", async () => {

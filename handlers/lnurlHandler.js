@@ -2,7 +2,7 @@ import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { logger } from "../utils/logger.js";
-import { jsonResponse } from "../utils/responses.js";
+import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { recordTap, updateTapStatus, debitCard, listTaps } from "../replayProtection.js";
 import { decodeBolt11Amount } from "../utils/bolt11.js";
 
@@ -15,7 +15,7 @@ export async function handleLnurlpPayment(request, env) {
     let p, c;
 
     if (request.method === "POST") {
-      return new Response("Method Not Allowed", { status: 405 });
+      return errorResponse("Method Not Allowed", 405);
     } else if (request.method === "GET") {
       const extra = pathname.slice(lnurlpBase.length).split("/").filter(Boolean);
       if (extra.length >= 1) {
