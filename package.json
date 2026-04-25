@@ -4,6 +4,7 @@
   "type": "module",
   "private": true,
   "devDependencies": {
+    "better-sqlite3": "12.9.0",
     "jest": "29.7.0",
     "miniflare": "4.20260116.0",
     "wrangler": "4.59.3"

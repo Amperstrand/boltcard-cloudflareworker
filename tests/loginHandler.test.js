@@ -536,7 +536,7 @@ describe("POST /login (handleLoginVerify)", () => {
     expect(typeof json.cardState).toBe("string");
   });
 
-  test("per-card UID decrypts but CMAC fails with deterministic keys", async () => {
+  test("per-card UID validates CMAC via per-card keys", async () => {
     const perCardUid = "040a69fa967380";
     const perCardK1 = "3db8852a71d11fa0adb6babaf274af89";
     const perCardK2 = "ce08c57983d65fceaa571e248390790f";
@@ -577,7 +577,53 @@ describe("POST /login (handleLoginVerify)", () => {
     const json = await response.json();
     expect(json.success).toBe(true);
     expect(json.uidHex).toBe(perCardUid);
-    expect(json.cmacValid).toBe(false);
+    expect(json.cmacValid).toBe(true);
+    expect(json.compromised).toBe(true);
+  });
+
+  test("per-card K1 fallback loop validates without ISSUER_KEY", async () => {
+    const perCardUid = "040c66fa967380";
+    const perCardK1 = "3db8852a71d11fa0adb6babaf274af89";
+    const perCardK2 = "420e18a161fec00e083aaaa787fb3a3f";
+
+    const uid = hexToBytes(perCardUid);
+    const counter = 3;
+    const plaintext = new Uint8Array(16);
+    plaintext[0] = 0xc7;
+    plaintext.set(uid, 1);
+    plaintext[8] = counter & 0xff;
+    plaintext[9] = (counter >> 8) & 0xff;
+    plaintext[10] = (counter >> 16) & 0xff;
+    const aes = new aesjs.ModeOfOperation.ecb(hexToBytes(perCardK1));
+    const encrypted = aes.encrypt(plaintext);
+    const pHex = bytesToHex(new Uint8Array(encrypted));
+
+    const ctrHex = bytesToHex(new Uint8Array([(counter >> 16) & 0xff, (counter >> 8) & 0xff, counter & 0xff]));
+    const vd = buildVerificationData(uid, hexToBytes(ctrHex), hexToBytes(perCardK2));
+    const cHex = bytesToHex(vd.ct);
+
+    const replay = makeReplayNamespace();
+    replay.__activate(perCardUid, 1);
+
+    const perCardEnv = {
+      ...env,
+      BOLT_CARD_K1: env.BOLT_CARD_K1 + "," + perCardK1,
+      CARD_REPLAY: replay,
+    };
+    delete perCardEnv.ISSUER_KEY;
+
+    const response = await makeRequest(
+      "/login",
+      "POST",
+      { p: pHex, c: cHex },
+      perCardEnv,
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.success).toBe(true);
+    expect(json.cmacValid).toBe(true);
+    expect(json.compromised).toBe(true);
   });
 
   test("response includes keysDeliveredAt for keys_delivered card", async () => {

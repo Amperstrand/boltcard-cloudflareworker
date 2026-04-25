@@ -1,4 +1,4 @@
-import { extractUIDAndCounter } from "../boltCardHelper.js";
+import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
 import { getAllIssuerKeyCandidates, getPerCardKeys, getUniquePerCardK1s, fingerprintHex } from "../utils/keyLookup.js";
@@ -72,23 +72,22 @@ export async function handleIdentifyIssuerKey(request, env) {
     if (!decryption.success) continue;
 
     const { uidHex, ctr } = decryption;
+    const perCard = getPerCardKeys(uidHex);
+    if (!perCard) continue;
+
     const uidBytes = hexToBytes(uidHex);
     const ctrBytes = hexToBytes(ctr);
 
-    const { matchedVersion } = await cmacScanVersions(uidBytes, ctrBytes, cHex, {
-      k2ForVersion: (v) => hexToBytes(deriveKeysFromHex(uidHex, entry.k1, v).k2),
-      highVersion: 10,
-      lowVersion: 1,
-    });
+    const { cmac_validated } = validate_cmac(uidBytes, ctrBytes, cHex, hexToBytes(perCard.k2));
 
-    if (matchedVersion !== null) {
+    if (cmac_validated) {
       const fp = fingerprintHex(entry.k1);
       return jsonResponse({
         matched: true,
         uid: uidHex,
-        version: matchedVersion,
+        version: 1,
         issuerKeyFingerprint: fp,
-        issuerKeyLabel: entry.card_name || "percard",
+        issuerKeyLabel: perCard.card_name || "percard",
         isPercard: true,
       });
     }

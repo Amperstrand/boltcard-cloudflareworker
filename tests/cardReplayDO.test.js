@@ -1,0 +1,368 @@
+import Database from "better-sqlite3";
+
+function createDoDb() {
+  const db = new Database(":memory:");
+  db.pragma("journal_mode = WAL");
+
+  db.exec(`CREATE TABLE IF NOT EXISTS replay_state (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    last_counter INTEGER NOT NULL
+  )`);
+  db.exec(`CREATE TABLE IF NOT EXISTS taps (
+    counter INTEGER PRIMARY KEY,
+    bolt11 TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    payment_hash TEXT,
+    amount_msat INTEGER,
+    user_agent TEXT,
+    request_url TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`);
+  db.exec(`CREATE TABLE IF NOT EXISTS card_state (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    state TEXT NOT NULL DEFAULT 'new',
+    latest_issued_version INTEGER NOT NULL DEFAULT 0,
+    active_version INTEGER,
+    activated_at INTEGER,
+    terminated_at INTEGER,
+    keys_delivered_at INTEGER,
+    wipe_keys_fetched_at INTEGER,
+    balance INTEGER NOT NULL DEFAULT 0
+  )`);
+  db.exec(`CREATE TABLE IF NOT EXISTS card_config (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    K2 TEXT,
+    payment_method TEXT NOT NULL DEFAULT 'fakewallet',
+    config_json TEXT,
+    pull_payment_id TEXT,
+    updated_at INTEGER
+  )`);
+  db.exec(`CREATE TABLE IF NOT EXISTS transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    counter INTEGER,
+    amount INTEGER NOT NULL,
+    balance_after INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    note TEXT
+  )`);
+
+  return db;
+}
+
+function nowSec() {
+  return Math.floor(Date.now() / 1000);
+}
+
+describe("CardReplayDO SQL logic", () => {
+  let db;
+
+  beforeEach(() => {
+    db = createDoDb();
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  describe("check (counter replay)", () => {
+    it("accepts first counter", () => {
+      const result = db.prepare(
+        `INSERT INTO replay_state (singleton, last_counter) VALUES (1, ?)
+         ON CONFLICT(singleton) DO UPDATE SET last_counter = excluded.last_counter
+         WHERE replay_state.last_counter < excluded.last_counter
+         RETURNING last_counter`
+      ).get(5);
+      expect(result.last_counter).toBe(5);
+    });
+
+    it("accepts higher counter", () => {
+      db.prepare("INSERT INTO replay_state (singleton, last_counter) VALUES (1, ?)").run(3);
+      const result = db.prepare(
+        `INSERT INTO replay_state (singleton, last_counter) VALUES (1, ?)
+         ON CONFLICT(singleton) DO UPDATE SET last_counter = excluded.last_counter
+         WHERE replay_state.last_counter < excluded.last_counter
+         RETURNING last_counter`
+      ).get(7);
+      expect(result.last_counter).toBe(7);
+    });
+
+    it("rejects same counter (no row returned)", () => {
+      db.prepare("INSERT INTO replay_state (singleton, last_counter) VALUES (1, ?)").run(5);
+      const result = db.prepare(
+        `INSERT INTO replay_state (singleton, last_counter) VALUES (1, ?)
+         ON CONFLICT(singleton) DO UPDATE SET last_counter = excluded.last_counter
+         WHERE replay_state.last_counter < excluded.last_counter
+         RETURNING last_counter`
+      ).get(5);
+      expect(result).toBeUndefined();
+    });
+
+    it("rejects lower counter", () => {
+      db.prepare("INSERT INTO replay_state (singleton, last_counter) VALUES (1, ?)").run(10);
+      const result = db.prepare(
+        `INSERT INTO replay_state (singleton, last_counter) VALUES (1, ?)
+         ON CONFLICT(singleton) DO UPDATE SET last_counter = excluded.last_counter
+         WHERE replay_state.last_counter < excluded.last_counter
+         RETURNING last_counter`
+      ).get(3);
+      expect(result).toBeUndefined();
+    });
+
+    it("returns current last_counter on rejection", () => {
+      db.prepare("INSERT INTO replay_state (singleton, last_counter) VALUES (1, ?)").run(10);
+      const row = db.prepare("SELECT last_counter FROM replay_state WHERE singleton = 1").get();
+      expect(row.last_counter).toBe(10);
+    });
+  });
+
+  describe("record-tap", () => {
+    it("records tap with bolt11 and amount", () => {
+      const now = nowSec();
+      db.prepare("INSERT INTO replay_state (singleton, last_counter) VALUES (1, ?)").run(5);
+      db.prepare(
+        `INSERT OR REPLACE INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
+         VALUES (?, ?, 'pending', ?, ?, ?, ?, ?)`
+      ).run(5, "lnbc10n1test", 1000, null, null, now, now);
+
+      const tap = db.prepare("SELECT * FROM taps WHERE counter = 5").get();
+      expect(tap.bolt11).toBe("lnbc10n1test");
+      expect(tap.amount_msat).toBe(1000);
+      expect(tap.status).toBe("pending");
+    });
+  });
+
+  describe("card state lifecycle", () => {
+    it("returns new state when no row exists", () => {
+      const row = db.prepare("SELECT * FROM card_state WHERE singleton = 1").get();
+      expect(row).toBeUndefined();
+    });
+
+    it("deliver-keys transitions to keys_delivered", () => {
+      const now = nowSec();
+      const row = db.prepare(
+        `INSERT INTO card_state (singleton, state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance)
+         VALUES (1, 'keys_delivered', 1, NULL, NULL, NULL, ?, NULL, 0)
+         ON CONFLICT(singleton) DO UPDATE SET
+           state = 'keys_delivered',
+           latest_issued_version = card_state.latest_issued_version + 1,
+           active_version = NULL,
+           activated_at = NULL,
+           terminated_at = NULL,
+           keys_delivered_at = excluded.keys_delivered_at,
+           wipe_keys_fetched_at = NULL
+         RETURNING *`
+      ).get(now);
+      expect(row.state).toBe("keys_delivered");
+      expect(row.latest_issued_version).toBe(1);
+    });
+
+    it("activate transitions to active", () => {
+      const now = nowSec();
+      db.prepare(
+        `INSERT INTO card_state (singleton, state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance)
+         VALUES (1, 'active', ?, ?, ?, NULL, NULL, NULL, 0)
+         ON CONFLICT(singleton) DO UPDATE SET
+           state = 'active',
+           active_version = excluded.active_version,
+           activated_at = excluded.activated_at,
+           terminated_at = NULL
+         RETURNING *`
+      ).get(1, 1, now);
+      const row = db.prepare("SELECT * FROM card_state WHERE singleton = 1").get();
+      expect(row.state).toBe("active");
+      expect(row.active_version).toBe(1);
+    });
+
+    it("terminate clears taps and counters", () => {
+      const now = nowSec();
+      db.prepare("INSERT INTO replay_state (singleton, last_counter) VALUES (1, ?)").run(5);
+      db.prepare(
+        `INSERT OR REPLACE INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
+         VALUES (?, ?, 'pending', ?, ?, ?, ?, ?)`
+      ).run(5, "lnbc_test", 1000, null, null, now, now);
+      db.prepare(
+        `INSERT INTO card_state (singleton, state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance)
+         VALUES (1, 'active', 1, 1, ?, NULL, NULL, NULL, 0)`
+      ).run(now);
+
+      db.prepare(
+        `INSERT INTO card_state (singleton, state, latest_issued_version, terminated_at, balance)
+         VALUES (1, 'terminated', 0, ?, 0)
+         ON CONFLICT(singleton) DO UPDATE SET
+           state = 'terminated',
+           latest_issued_version = 0,
+           terminated_at = excluded.terminated_at`
+      ).run(now);
+      db.exec("DELETE FROM taps");
+      db.exec("DELETE FROM replay_state WHERE singleton = 1");
+
+      const state = db.prepare("SELECT * FROM card_state WHERE singleton = 1").get();
+      expect(state.state).toBe("terminated");
+      const taps = db.prepare("SELECT COUNT(*) as count FROM taps").get();
+      expect(taps.count).toBe(0);
+      const counter = db.prepare("SELECT * FROM replay_state WHERE singleton = 1").get();
+      expect(counter).toBeUndefined();
+    });
+
+    it("request-wipe updates state", () => {
+      const now = nowSec();
+      db.prepare(
+        `INSERT INTO card_state (singleton, state, latest_issued_version, active_version, activated_at, balance)
+         VALUES (1, 'active', 1, 1, ?, 0)`
+      ).run(now);
+
+      const row = db.prepare(
+        `UPDATE card_state SET state = 'wipe_requested', wipe_keys_fetched_at = ?
+         WHERE singleton = 1 RETURNING *`
+      ).get(now);
+      expect(row.state).toBe("wipe_requested");
+    });
+  });
+
+  describe("card config", () => {
+    it("set and get config", () => {
+      const now = nowSec();
+      db.prepare(
+        `INSERT INTO card_config (singleton, K2, payment_method, config_json, pull_payment_id, updated_at)
+         VALUES (1, ?, ?, ?, ?, ?)
+         ON CONFLICT(singleton) DO UPDATE SET
+           K2 = excluded.K2,
+           payment_method = excluded.payment_method,
+           config_json = excluded.config_json,
+           pull_payment_id = excluded.pull_payment_id,
+           updated_at = excluded.updated_at`
+      ).run("abcdef0123456789", "fakewallet", null, null, now);
+
+      const row = db.prepare("SELECT * FROM card_config WHERE singleton = 1").get();
+      expect(row.K2).toBe("abcdef0123456789");
+      expect(row.payment_method).toBe("fakewallet");
+    });
+
+    it("returns null when no config set", () => {
+      const row = db.prepare("SELECT * FROM card_config WHERE singleton = 1").get();
+      expect(row).toBeUndefined();
+    });
+
+    it("stores extra config as JSON", () => {
+      const now = nowSec();
+      const extra = JSON.stringify({ clnrest: { host: "https://cln.example.com", rune: "test" } });
+      db.prepare(
+        `INSERT INTO card_config (singleton, K2, payment_method, config_json, pull_payment_id, updated_at)
+         VALUES (1, ?, ?, ?, ?, ?)
+         ON CONFLICT(singleton) DO UPDATE SET
+           K2 = excluded.K2,
+           payment_method = excluded.payment_method,
+           config_json = excluded.config_json,
+           pull_payment_id = excluded.pull_payment_id,
+           updated_at = excluded.updated_at`
+      ).run(null, "clnrest", extra, null, now);
+
+      const row = db.prepare("SELECT * FROM card_config WHERE singleton = 1").get();
+      const parsed = JSON.parse(row.config_json);
+      expect(parsed.clnrest.host).toBe("https://cln.example.com");
+    });
+  });
+
+  describe("balance + transactions", () => {
+    it("credits and debits with transaction records", () => {
+      const now = nowSec();
+      db.prepare(
+        `INSERT INTO card_state (singleton, balance) VALUES (1, ?) ON CONFLICT(singleton) DO NOTHING`
+      ).run(0);
+
+      db.prepare("UPDATE card_state SET balance = ? WHERE singleton = 1").run(1000);
+      db.prepare(
+        `INSERT INTO transactions (counter, amount, balance_after, created_at, note)
+         VALUES (?, ?, ?, ?, ?)`
+      ).run(null, 1000, 1000, now, "topup");
+
+      db.prepare("UPDATE card_state SET balance = ? WHERE singleton = 1").run(700);
+      db.prepare(
+        `INSERT INTO transactions (counter, amount, balance_after, created_at, note)
+         VALUES (?, ?, ?, ?, ?)`
+      ).run(null, -300, 700, now, "payment");
+
+      const state = db.prepare("SELECT balance FROM card_state WHERE singleton = 1").get();
+      expect(state.balance).toBe(700);
+
+      const txs = db.prepare("SELECT * FROM transactions ORDER BY id").all();
+      expect(txs).toHaveLength(2);
+      expect(txs[0].amount).toBe(1000);
+      expect(txs[1].amount).toBe(-300);
+    });
+  });
+
+  describe("analytics", () => {
+    it("aggregates tap stats", () => {
+      const now = nowSec();
+      db.prepare(
+        `INSERT INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(2, "lnbc1a", "completed", 1000, null, null, now, now);
+      db.prepare(
+        `INSERT INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(3, "lnbc1b", "completed", 2000, null, null, now, now);
+      db.prepare(
+        `INSERT INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(4, "lnbc1c", "failed", 500, null, null, now, now);
+
+      const stats = db.prepare(
+        `SELECT
+           COUNT(*) as totalTaps,
+           COALESCE(SUM(CASE WHEN status = 'completed' THEN amount_msat ELSE 0 END), 0) as completedMsat,
+           COALESCE(SUM(CASE WHEN status = 'failed' THEN amount_msat ELSE 0 END), 0) as failedMsat,
+           COALESCE(SUM(CASE WHEN status = 'pending' THEN amount_msat ELSE 0 END), 0) as pendingMsat,
+           COALESCE(SUM(amount_msat), 0) as totalMsat,
+           SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completedTaps,
+           SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failedTaps,
+           SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pendingTaps
+         FROM taps`
+      ).get();
+
+      expect(stats.totalTaps).toBe(3);
+      expect(stats.completedMsat).toBe(3000);
+      expect(stats.failedMsat).toBe(500);
+      expect(stats.completedTaps).toBe(2);
+      expect(stats.failedTaps).toBe(1);
+    });
+  });
+
+  describe("update-tap-status", () => {
+    it("updates status and optional bolt11", () => {
+      const now = nowSec();
+      db.prepare(
+        `INSERT INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(2, null, "pending", null, null, null, now, now);
+
+      db.prepare(
+        `UPDATE taps SET status = ?, updated_at = ?, bolt11 = COALESCE(?, bolt11), amount_msat = COALESCE(?, amount_msat) WHERE counter = ?`
+      ).run("completed", nowSec(), "lnbc1test", 1000, 2);
+
+      const tap = db.prepare("SELECT * FROM taps WHERE counter = 2").get();
+      expect(tap.status).toBe("completed");
+      expect(tap.bolt11).toBe("lnbc1test");
+      expect(tap.amount_msat).toBe(1000);
+    });
+  });
+
+  describe("reset", () => {
+    it("clears all taps and counters", () => {
+      db.prepare("INSERT INTO replay_state (singleton, last_counter) VALUES (1, ?)").run(10);
+      const now = nowSec();
+      db.prepare(
+        `INSERT INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(5, "test", "completed", 1000, null, null, now, now);
+
+      db.exec("DELETE FROM taps");
+      db.exec("DELETE FROM replay_state WHERE singleton = 1");
+
+      expect(db.prepare("SELECT COUNT(*) as c FROM taps").get().c).toBe(0);
+      expect(db.prepare("SELECT * FROM replay_state WHERE singleton = 1").get()).toBeUndefined();
+    });
+  });
+});

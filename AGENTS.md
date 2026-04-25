@@ -140,7 +140,7 @@
 
 - Run: `npm test` (uses Jest with `--experimental-vm-modules`)
 - Deploy: `npm run deploy` (tests → build_keys → wrangler deploy)
-- **790 tests** across 51 test suites (as of 2026-04-25)
+- **809 tests** across 52 test suites (as of 2026-04-25)
 
 ## Test Inventory
 
@@ -196,6 +196,7 @@
 | `tests/identityHandler.test.js` | Identity verification, profile update, CMAC, enrollment | |
 | `tests/bulkWipePageHandler.test.js` | Bulk wipe page rendering with key fingerprints | |
 | `tests/withdrawHandler.test.js` | Withdraw response: CMAC-failed, fakewallet/clnrest amounts | |
+| `tests/cardReplayDO.test.js` | DO SQL logic via better-sqlite3 (counter, taps, state, config, balance, analytics) | |
 
 ## Test-Only Exports
 

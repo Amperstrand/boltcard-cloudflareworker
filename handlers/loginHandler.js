@@ -94,50 +94,52 @@ export async function handleLoginVerify(request, env) {
         matchedCmacValid = true;
         matchedVersion = scanVersion;
         matchedKeys = deriveKeysFromHex(uidHex, candidate.hex, scanVersion);
+      } else {
+        matchedKeys = deriveKeysFromHex(uidHex, candidate.hex, latestVersion);
+        matchedVersion = latestVersion;
+      }
 
-        const perCard = getPerCardKeys(uidHex);
-        if (perCard) {
+      const perCard = getPerCardKeys(uidHex);
+      if (perCard) {
+        const { cmac_validated: pcCmac } = validate_cmac(uidBytes, ctrBytes, cHex, hexToBytes(perCard.k2));
+        if (pcCmac) {
+          matchedCmacValid = true;
           perCardSource = perCard.card_name || "recovered";
           matchedKeys = {
             k0: perCard.k0,
             k1: perCard.k1,
             k2: perCard.k2,
-            k3: perCard.k3 || deriveKeysFromHex(uidHex, candidate.hex, scanVersion).k3,
-            k4: perCard.k4 || deriveKeysFromHex(uidHex, candidate.hex, scanVersion).k4,
+            k3: perCard.k3 || matchedKeys.k3,
+            k4: perCard.k4 || matchedKeys.k4,
           };
-          const { cmac_validated: pcCmac } = validate_cmac(uidBytes, ctrBytes, cHex, hexToBytes(perCard.k2));
-          matchedCmacValid = pcCmac;
         }
-      } else {
-        matchedKeys = deriveKeysFromHex(uidHex, candidate.hex, latestVersion);
-        matchedVersion = latestVersion;
       }
 
       debugInfo.versionScan = versionDebug;
       break;
     }
 
-    if (!matchedIssuer) {
+    if (!matchedIssuer || !matchedCmacValid) {
       for (const entry of getUniquePerCardK1s()) {
         const tryEnv = { ...env, ISSUER_KEY: entry.k1 };
         const decryption = extractUIDAndCounter(pHex, tryEnv);
         if (!decryption.success) continue;
 
-        const { uidHex, ctr } = decryption;
-        const perCard = getPerCardKeys(uidHex);
+        const { uidHex: pcUid, ctr: pcCtr } = decryption;
+        const perCard = getPerCardKeys(pcUid);
         if (!perCard) continue;
 
         const { cmac_validated } = validate_cmac(
-          hexToBytes(uidHex),
-          hexToBytes(ctr),
+          hexToBytes(pcUid),
+          hexToBytes(pcCtr),
           cHex,
           hexToBytes(perCard.k2),
         );
 
         if (cmac_validated) {
           matchedIssuer = { hex: "per-card", label: perCard.card_name || "recovered" };
-          matchedUid = uidHex;
-          matchedCtr = ctr;
+          matchedUid = pcUid;
+          matchedCtr = pcCtr;
           matchedCmacValid = true;
           perCardSource = perCard.card_name || "recovered";
           matchedKeys = {
