@@ -51,9 +51,9 @@ export function renderMenuEditorPage({ host, terminalId, menu }) {
         }
         list.innerHTML = items.map((item, i) =>
           '<div class="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-lg p-3">'
-          + '<input type="text" data-idx="' + i + '" data-field="name" value="' + item.name.replace(/"/g, '&quot;') + '" placeholder="Item name" '
+          + '<input type="text" data-idx="' + i + '" data-field="name" value="' + esc(item.name) + '" placeholder="Item name" '
           + 'class="flex-1 bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-gray-200 text-sm focus:border-emerald-500 focus:outline-none" />'
-          + '<input type="number" data-idx="' + i + '" data-field="price" value="' + item.price + '" placeholder="Price" min="0" '
+          + '<input type="number" data-idx="' + i + '" data-field="price" value="' + esc(String(item.price)) + '" placeholder="Price" min="0" '
           + 'class="w-24 bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-gray-200 text-sm text-right focus:border-emerald-500 focus:outline-none" />'
           + '<button type="button" data-remove="' + i + '" class="text-red-500 hover:text-red-400 text-lg font-bold px-1">&times;</button>'
           + '</div>'

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "@jest/globals";
-import { getCurrencyLabel, getCurrencyDecimals, formatAmount, parseAmount } from "../utils/currency.js";
+import { getCurrencyLabel, getCurrencyDecimals, formatAmount, _parseAmount } from "../utils/currency.js";
 
 function makeEnv(overrides = {}) {
   return { CURRENCY_LABEL: "credits", CURRENCY_DECIMALS: "0", ...overrides };
@@ -67,39 +67,39 @@ describe("formatAmount", () => {
   });
 });
 
-describe("parseAmount", () => {
+describe("_parseAmount", () => {
   it("parses zero-decimal input", () => {
-    expect(parseAmount("10", makeEnv())).toBe(10);
-    expect(parseAmount("0", makeEnv())).toBe(0);
-    expect(parseAmount(10, makeEnv())).toBe(10);
+    expect(_parseAmount("10", makeEnv())).toBe(10);
+    expect(_parseAmount("0", makeEnv())).toBe(0);
+    expect(_parseAmount(10, makeEnv())).toBe(10);
   });
 
   it("parses two-decimal input", () => {
     const env = makeEnv({ CURRENCY_DECIMALS: "2" });
-    expect(parseAmount("1.00", env)).toBe(100);
-    expect(parseAmount("15.50", env)).toBe(1550);
-    expect(parseAmount("0.01", env)).toBe(1);
-    expect(parseAmount("1,000.00", env)).toBe(100000);
+    expect(_parseAmount("1.00", env)).toBe(100);
+    expect(_parseAmount("15.50", env)).toBe(1550);
+    expect(_parseAmount("0.01", env)).toBe(1);
+    expect(_parseAmount("1,000.00", env)).toBe(100000);
   });
 
   it("rounds correctly", () => {
     const env = makeEnv({ CURRENCY_DECIMALS: "2" });
-    expect(parseAmount("1.005", env)).toBe(100);
-    expect(parseAmount("1.004", env)).toBe(100);
-    expect(parseAmount("1.006", env)).toBe(101);
+    expect(_parseAmount("1.005", env)).toBe(100);
+    expect(_parseAmount("1.004", env)).toBe(100);
+    expect(_parseAmount("1.006", env)).toBe(101);
   });
 
   it("returns null for invalid input", () => {
-    expect(parseAmount("", makeEnv())).toBe(null);
-    expect(parseAmount("abc", makeEnv())).toBe(null);
-    expect(parseAmount("-5", makeEnv())).toBe(null);
-    expect(parseAmount(null, makeEnv())).toBe(null);
-    expect(parseAmount(undefined, makeEnv())).toBe(null);
+    expect(_parseAmount("", makeEnv())).toBe(null);
+    expect(_parseAmount("abc", makeEnv())).toBe(null);
+    expect(_parseAmount("-5", makeEnv())).toBe(null);
+    expect(_parseAmount(null, makeEnv())).toBe(null);
+    expect(_parseAmount(undefined, makeEnv())).toBe(null);
   });
 
   it("handles comma-formatted input", () => {
-    expect(parseAmount("1,000", makeEnv())).toBe(1000);
-    expect(parseAmount("10,000", makeEnv())).toBe(10000);
+    expect(_parseAmount("1,000", makeEnv())).toBe(1000);
+    expect(_parseAmount("10,000", makeEnv())).toBe(10000);
   });
 
   it("round-trips with formatAmount", () => {
@@ -107,6 +107,6 @@ describe("parseAmount", () => {
     const original = 1550;
     const formatted = formatAmount(original, env);
     const numericPart = formatted.split(" ")[0];
-    expect(parseAmount(numericPart, env)).toBe(original);
+    expect(_parseAmount(numericPart, env)).toBe(original);
   });
 });

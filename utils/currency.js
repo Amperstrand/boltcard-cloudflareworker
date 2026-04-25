@@ -27,7 +27,7 @@ export function formatAmount(raw, env) {
   return `${formatted} ${label}`;
 }
 
-export function parseAmount(input, env) {
+export function _parseAmount(input, env) {
   if (input === undefined || input === null) return null;
   const decimals = getCurrencyDecimals(env);
   const str = String(input).trim();

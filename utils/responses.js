@@ -5,7 +5,7 @@ export function jsonResponse(data, status = 200) {
   });
 }
 
-export function buildErrorPayload(reason, extra = {}) {
+export function _buildErrorPayload(reason, extra = {}) {
   const message = reason instanceof Error ? reason.message : String(reason);
   return {
     status: "ERROR",
@@ -17,7 +17,7 @@ export function buildErrorPayload(reason, extra = {}) {
 }
 
 export function errorResponse(reason, status = 400, extra = {}) {
-  return jsonResponse(buildErrorPayload(reason, extra), status);
+  return jsonResponse(_buildErrorPayload(reason, extra), status);
 }
 
 export function htmlResponse(html, status = 200) {

@@ -3,6 +3,7 @@ import { ISSUER_KEYS_BY_DOMAIN } from '../utils/generatedKeyData.js';
 import { htmlResponse } from "../utils/responses.js";
 import { fingerprintHex } from "../utils/keyLookup.js";
 import { getRequestOrigin } from "../utils/validation.js";
+import { rawHtml, safe } from "../utils/rawTemplate.js";
 
 const KEY_FINGERPRINTS = new Map();
 
@@ -26,13 +27,13 @@ export async function handleBulkWipePage(request) {
   let keyOptionsHtml = '';
   for (const [domain, keys] of Object.entries(ISSUER_KEYS_BY_DOMAIN)) {
     const label = domain === '_default' ? 'Default / Shared' : domain;
-    keyOptionsHtml += `<optgroup label="${label}">\n`;
+    keyOptionsHtml += rawHtml`<optgroup label="${label}">` + '\n';
     for (const key of keys) {
       const fp = KEY_FINGERPRINTS.get(key.hex.toLowerCase()) || '';
-      keyOptionsHtml += `                <option value="${key.hex}" data-fingerprint="${fp}">${key.label} (${key.hex.slice(0, 8)}...)</option>\n`;
+      keyOptionsHtml += rawHtml`<option value="${key.hex}" data-fingerprint="${fp}">${key.label} (${key.hex.slice(0, 8)}...)</option>` + '\n';
     }
-    keyOptionsHtml += `              </optgroup>\n`;
+    keyOptionsHtml += `</optgroup>\n`;
   }
 
-  return htmlResponse(renderBulkWipePage({ baseUrl, keyOptionsHtml }));
+  return htmlResponse(renderBulkWipePage({ baseUrl, keyOptionsHtml: safe(keyOptionsHtml) }));
 }

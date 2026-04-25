@@ -245,7 +245,7 @@ export function renderPosPage({ host, currencyLabel }) {
           var badge = qty > 0 ? '<span class="absolute -top-1 -right-1 bg-emerald-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">' + qty + '</span>' : '';
           html += '<button type="button" data-item-idx="' + i + '" class="relative bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 rounded-lg p-3 transition-colors text-left">'
             + badge
-            + '<div class="font-semibold text-sm text-gray-200">' + item.name + '</div>'
+            + '<div class="font-semibold text-sm text-gray-200">' + esc(item.name) + '</div>'
             + '<div class="text-emerald-400 font-bold text-lg">' + item.price + '</div>'
             + '</button>';
         }
@@ -281,7 +281,7 @@ export function renderPosPage({ host, currencyLabel }) {
           var subtotal = c.price * c.qty;
           total += subtotal;
           totalQty += c.qty;
-          html += '<div class="flex justify-between text-xs text-gray-400"><span>' + c.name + ' x' + c.qty + '</span><span>' + subtotal + '</span></div>';
+          html += '<div class="flex justify-between text-xs text-gray-400"><span>' + esc(c.name) + ' x' + c.qty + '</span><span>' + subtotal + '</span></div>';
         }
         cartItemsEl.innerHTML = html;
         cartTotal.textContent = total + ' ' + ${jsString(currencyLabel || "credits")};

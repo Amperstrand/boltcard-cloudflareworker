@@ -1,6 +1,6 @@
 import { deriveKeysFromHex } from "../keygenerator.js";
 import { jsonResponse, buildBoltCardResponse, buildResetDeeplink, errorResponse } from "../utils/responses.js";
-import { getRequestOrigin } from "../utils/validation.js";
+import { getRequestOrigin, validateUid } from "../utils/validation.js";
 
 export async function handleBulkWipeKeys(request) {
   const url = new URL(request.url);
@@ -11,7 +11,7 @@ export async function handleBulkWipeKeys(request) {
     return errorResponse("Invalid version: must be a non-negative integer", 400);
   }
 
-  if (!uid || !/^[0-9a-fA-F]{14}$/.test(uid)) {
+  if (!uid || !validateUid(uid)) {
     return errorResponse("Invalid uid: must be exactly 14 hex characters.", 400);
   }
   if (!key || !/^[0-9a-fA-F]{32}$/.test(key)) {

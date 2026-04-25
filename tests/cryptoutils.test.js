@@ -1,14 +1,14 @@
 import {
   hexToBytes,
   bytesToHex,
-  bytesToDecimalString,
-  xorArrays,
-  shiftGo,
-  generateSubkeyGo,
+  _bytesToDecimalString,
+  _xorArrays,
+  _shiftGo,
+  _generateSubkeyGo,
   computeAesCmac,
-  computeKs,
-  computeCm,
-  computeAesCmacForVerification,
+  _computeKs,
+  _computeCm,
+  _computeAesCmacForVerification,
   buildVerificationData,
   decryptP,
   verifyCmac,
@@ -79,7 +79,7 @@ describe("BoltCard Crypto Tests", () => {
       expect(ct.join(", ")).toBe(expected_ct.join(", "));
 
       // Step 3: Verify CMAC
-      const computedCmac = computeAesCmacForVerification(sv2, k2Bytes);
+      const computedCmac = _computeAesCmacForVerification(sv2, k2Bytes);
       expect(bytesToHex(computedCmac)).toBe(bytesToHex(expected_ct));
     });
   });
@@ -92,21 +92,21 @@ test("hexToBytes and bytesToHex should work correctly", () => {
   expect(bytesToHex(bytes)).toBe(hex);
 });
 
-test("xorArrays should correctly XOR two byte arrays", () => {
+test("_xorArrays should correctly XOR two byte arrays", () => {
   const a = new Uint8Array([1, 2, 3]);
   const b = new Uint8Array([4, 5, 6]);
-  expect(xorArrays(a, b)).toEqual(new Uint8Array([5, 7, 5])); // (1^4, 2^5, 3^6)
+  expect(_xorArrays(a, b)).toEqual(new Uint8Array([5, 7, 5])); // (1^4, 2^5, 3^6)
 });
 
-test("xorArrays should throw an error if arrays have different lengths", () => {
+test("_xorArrays should throw an error if arrays have different lengths", () => {
   const a = new Uint8Array([1, 2]);
   const b = new Uint8Array([4, 5, 6]);
-  expect(() => xorArrays(a, b)).toThrow("xorArrays: Input arrays must have the same length");
+  expect(() => _xorArrays(a, b)).toThrow("_xorArrays: Input arrays must have the same length");
 });
 
-test("shiftGo should correctly shift bytes left", () => {
+test("_shiftGo should correctly shift bytes left", () => {
   const input = new Uint8Array([0b01000000, 0b00000001]); // [64, 1]
-  const { shifted, carry } = shiftGo(input);
+  const { shifted, carry } = _shiftGo(input);
   expect(shifted).toEqual(new Uint8Array([0b10000000, 0b00000010])); // [128, 2]
   expect(carry).toBe(0);
 });
@@ -327,8 +327,8 @@ describe("RFC 4493 §4 — AES-CMAC Test Vectors", () => {
     const L = aesEcb.encrypt(new Uint8Array(16));
 
     // Now generate subkeys from L
-    const k1 = generateSubkeyGo(L);
-    const k2 = generateSubkeyGo(k1);
+    const k1 = _generateSubkeyGo(L);
+    const k2 = _generateSubkeyGo(k1);
 
     expect(bytesToHex(k1)).toBe("fbeed618357133667c85e08f7236a8de");
     expect(bytesToHex(k2)).toBe("f7ddac306ae266ccf90bc11ee46d513b");

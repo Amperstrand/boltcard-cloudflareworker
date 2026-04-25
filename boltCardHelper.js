@@ -85,7 +85,7 @@ export function extractUIDAndCounter(pHex, env) {
  *
  * IMPORTANT: The BoltCard protocol uses a custom CMAC derivation and truncation
  * that differs from the standard NTAG424 SDM MACt (which uses S14||S12||..||S0).
- * See cryptoutils.js computeAesCmacForVerification() for details.
+ * See cryptoutils.js _computeAesCmacForVerification() for details.
  *
  * @param {Uint8Array} uidBytes - The 7-byte UID from the card.
  * @param {Uint8Array} ctr - The 3-byte SDMReadCtr (big-endian after extraction).

@@ -44,7 +44,7 @@ export function bytesToHex(bytes) {
  * @param {Uint8Array} bytes - The byte array.
  * @returns {string}
  */
-export function bytesToDecimalString(bytes) {
+export function _bytesToDecimalString(bytes) {
   return `[${Array.from(bytes).join(" ")}]`;
 }
 
@@ -54,9 +54,9 @@ export function bytesToDecimalString(bytes) {
  * @param {Uint8Array} b - Second byte array.
  * @returns {Uint8Array}
  */
-export function xorArrays(a, b) {
+export function _xorArrays(a, b) {
   if (a.length !== b.length) {
-    throw new Error("xorArrays: Input arrays must have the same length");
+    throw new Error("_xorArrays: Input arrays must have the same length");
   }
   // Return Uint8Array for type consistency with the rest of the crypto layer.
   // Array.prototype.map on a Uint8Array returns a plain Array, so we must
@@ -70,7 +70,7 @@ export function xorArrays(a, b) {
  * @param {Uint8Array} src - Source byte array.
  * @returns {{ shifted: Uint8Array, carry: number }}
  */
-export function shiftGo(src) {
+export function _shiftGo(src) {
   const shifted = new Uint8Array(src.length);
   let carry = 0;
   for (let i = src.length - 1; i >= 0; i--) {
@@ -86,8 +86,8 @@ export function shiftGo(src) {
  * @param {Uint8Array} input - Input block.
  * @returns {Uint8Array}
  */
-export function generateSubkeyGo(input) {
-  const { shifted, carry } = shiftGo(input);
+export function _generateSubkeyGo(input) {
+  const { shifted, carry } = _shiftGo(input);
   const subkey = new Uint8Array(shifted);
   if (carry) {
     subkey[subkey.length - 1] ^= 0x87;
@@ -132,18 +132,18 @@ export function computeAesCmac(message, key) {
 
   const L = aesEcb.encrypt(zeroBlock);
 
-  const K1 = generateSubkeyGo(L);
+  const K1 = _generateSubkeyGo(L);
 
   let M_last;
   if (message.length === BLOCK_SIZE) {
-    M_last = xorArrays(message, K1);
+    M_last = _xorArrays(message, K1);
   } else {
     const padded = new Uint8Array(BLOCK_SIZE);
     padded.fill(0);
     padded.set(message);
     padded[message.length] = 0x80;
-    const K2 = generateSubkeyGo(K1);
-    M_last = xorArrays(padded, K2);
+    const K2 = _generateSubkeyGo(K1);
+    M_last = _xorArrays(padded, K2);
   }
 
   const T = aesEcb.encrypt(M_last);
@@ -157,7 +157,7 @@ export function computeAesCmac(message, key) {
  * @param {Uint8Array} cmacKeyBytes - The key used for AES-CMAC.
  * @returns {Uint8Array}
  */
-export function computeKs(sv2, cmacKeyBytes) {
+export function _computeKs(sv2, cmacKeyBytes) {
   return computeAesCmac(sv2, cmacKeyBytes);
 }
 
@@ -166,15 +166,15 @@ export function computeKs(sv2, cmacKeyBytes) {
  * @param {Uint8Array} ks - The session key.
  * @returns {Uint8Array}
  */
-export function computeCm(ks) {
+export function _computeCm(ks) {
   const aesEcbKs = new AES.ModeOfOperation.ecb(ks);
   const zeroBlock = new Uint8Array(BLOCK_SIZE);
 
   const Lprime = aesEcbKs.encrypt(zeroBlock);
 
-  const K1prime = generateSubkeyGo(Lprime);
+  const K1prime = _generateSubkeyGo(Lprime);
 
-  const hk1 = generateSubkeyGo(K1prime);
+  const hk1 = _generateSubkeyGo(K1prime);
 
   const hashVal = new Uint8Array(hk1);
   hashVal[0] ^= 0x80;
@@ -196,9 +196,9 @@ export function computeCm(ks) {
  * (even-indexed bytes, reverse order). The BoltCard protocol uses a different
  * truncation — do NOT change this to match the NXP spec or all cards will fail.
  */
-export function computeAesCmacForVerification(sv2, cmacKeyBytes) {
-  const ks = computeKs(sv2, cmacKeyBytes);
-  const cm = computeCm(ks);
+export function _computeAesCmacForVerification(sv2, cmacKeyBytes) {
+  const ks = _computeKs(sv2, cmacKeyBytes);
+  const cm = _computeCm(ks);
 
   const ct = new Uint8Array([
     cm[1],
@@ -237,8 +237,8 @@ export function buildVerificationData(uidBytes, ctr, k2Bytes) {
   sv2[14] = ctr[1];
   sv2[15] = ctr[0];
 
-  const ks = computeKs(sv2, k2Bytes);
-  const cm = computeCm(ks);
+  const ks = _computeKs(sv2, k2Bytes);
+  const cm = _computeCm(ks);
 
   // Extract verification tag.
   const ct = new Uint8Array([

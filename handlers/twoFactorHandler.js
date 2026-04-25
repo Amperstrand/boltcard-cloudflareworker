@@ -7,7 +7,7 @@ import { getRequestOrigin } from "../utils/validation.js";
 import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "../templates/pageShell.js";
 import { BROWSER_NFC_HELPERS } from "../templates/browserNfc.js";
-import { errorResponse, htmlResponse } from "../utils/responses.js";
+import { errorResponse, htmlResponse, jsonResponse } from "../utils/responses.js";
 import { OTP_DOMAIN_TAG_HOTP, OTP_DOMAIN_TAG_TOTP } from "../utils/constants.js";
 
 const TOTP_DOMAIN_TAG = OTP_DOMAIN_TAG_TOTP;
@@ -30,6 +30,8 @@ export async function handleTwoFactor(request, env) {
   const { uidHex, ctr } = decryption;
   const counterValue = parseInt(ctr, 16);
 
+  let totp, hotp;
+  try {
   const config = await getUidConfig(uidHex, env);
   if (!config || !config.K2) {
     return errorResponse("Card not registered", 404);
@@ -48,10 +50,29 @@ export async function handleTwoFactor(request, env) {
   const totpSecret = deriveOtpSecret(env, uidHex, TOTP_DOMAIN_TAG);
   const hotpSecret = deriveOtpSecret(env, uidHex, HOTP_DOMAIN_TAG);
 
-  const totp = generateTOTP(totpSecret);
-  const hotp = generateHOTP(hotpSecret, counterValue);
+  totp = generateTOTP(totpSecret);
+  hotp = generateHOTP(hotpSecret, counterValue);
 
   logger.info("2FA codes generated", { uidHex, counterValue });
+  } catch (error) {
+    logger.error("2FA generation failed", { uidHex, error: error.message });
+    return errorResponse("Failed to generate 2FA codes", 500);
+  }
+
+  const accept = request.headers.get("Accept") || "";
+  if (accept.includes("application/json")) {
+    const maskedUid = uidHex.length >= 8
+      ? uidHex.substring(0, 4) + "\u00b7\u00b7\u00b7" + uidHex.substring(uidHex.length - 4)
+      : uidHex;
+    return jsonResponse({
+      uidHex,
+      maskedUid,
+      totpCode: totp.code,
+      totpSecondsRemaining: totp.secondsRemaining,
+      hotpCode: hotp,
+      counterValue,
+    });
+  }
 
   const baseUrl = getRequestOrigin(request);
 

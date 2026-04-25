@@ -5,6 +5,7 @@ import { hexToBytes } from "../cryptoutils.js";
 import { getCardState } from "../replayProtection.js";
 import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { cmacScanVersions } from "../utils/cmacScan.js";
+import { logger } from "../utils/logger.js";
 
 export async function handleIdentifyCard(request, env) {
   const body = await parseJsonBody(request).catch(() => null);
@@ -28,7 +29,9 @@ export async function handleIdentifyCard(request, env) {
   let cardState = null;
   try {
     cardState = await getCardState(env, uidHex);
-  } catch {}
+  } catch (e) {
+    logger.warn("Identify card: getCardState failed", { uidHex, error: e.message });
+  }
 
   const results = [];
 
@@ -56,7 +59,8 @@ export async function handleIdentifyCard(request, env) {
         const keys = getDeterministicKeys(uidHex, env, v);
         keyCache.set(v, keys);
         return hexToBytes(keys.k2);
-      } catch {
+      } catch (e) {
+        logger.warn("Identify card: key derivation failed", { uidHex, version: v, error: e.message });
         return new Uint8Array(16);
       }
     },

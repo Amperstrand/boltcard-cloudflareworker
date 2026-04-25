@@ -230,7 +230,7 @@ export async function handleLoginVerify(request, env) {
     });
   } catch (error) {
     logger.error("Login verification error", { error: error.message });
-    return errorResponse(error, 500);
+    return errorResponse(error.message, 500);
   }
 }
 

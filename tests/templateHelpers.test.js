@@ -1,5 +1,5 @@
 import { describe, expect, test } from "@jest/globals";
-import { buildErrorPayload, errorResponse } from "../utils/responses.js";
+import { _buildErrorPayload, errorResponse } from "../utils/responses.js";
 import { renderTailwindPage } from "../templates/pageShell.js";
 import { BROWSER_NFC_HELPERS } from "../templates/browserNfc.js";
 import { renderBulkWipePage } from "../templates/bulkWipePage.js";
@@ -10,8 +10,8 @@ import { rawHtml, safe, jsString, escapeHtml } from "../utils/rawTemplate.js";
 import { renderOperatorLoginPage } from "../templates/operatorLoginPage.js";
 
 describe("response helpers", () => {
-  test("buildErrorPayload preserves backward-compatible fields", () => {
-    expect(buildErrorPayload("boom", { uid: "abc" })).toEqual({
+  test("_buildErrorPayload preserves backward-compatible fields", () => {
+    expect(_buildErrorPayload("boom", { uid: "abc" })).toEqual({
       status: "ERROR",
       reason: "boom",
       error: "boom",

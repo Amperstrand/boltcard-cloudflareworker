@@ -1,5 +1,5 @@
 import { describe, it, expect, jest } from "@jest/globals";
-import { jsonResponse, buildErrorPayload, errorResponse, htmlResponse, buildBoltCardResponse, parseJsonBody, buildResetDeeplink } from "../utils/responses.js";
+import { jsonResponse, _buildErrorPayload, errorResponse, htmlResponse, buildBoltCardResponse, parseJsonBody, buildResetDeeplink } from "../utils/responses.js";
 
 describe("jsonResponse", () => {
   it("returns JSON with 200 status", () => {
@@ -19,9 +19,9 @@ describe("jsonResponse", () => {
   });
 });
 
-describe("buildErrorPayload", () => {
+describe("_buildErrorPayload", () => {
   it("builds error from string", () => {
-    const payload = buildErrorPayload("something failed");
+    const payload = _buildErrorPayload("something failed");
     expect(payload.status).toBe("ERROR");
     expect(payload.reason).toBe("something failed");
     expect(payload.error).toBe("something failed");
@@ -29,12 +29,12 @@ describe("buildErrorPayload", () => {
   });
 
   it("extracts message from Error object", () => {
-    const payload = buildErrorPayload(new Error("boom"));
+    const payload = _buildErrorPayload(new Error("boom"));
     expect(payload.reason).toBe("boom");
   });
 
   it("merges extra fields", () => {
-    const payload = buildErrorPayload("fail", { code: 42 });
+    const payload = _buildErrorPayload("fail", { code: 42 });
     expect(payload.code).toBe(42);
     expect(payload.status).toBe("ERROR");
   });

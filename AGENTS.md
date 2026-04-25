@@ -140,3 +140,65 @@
 
 - Run: `npm test` (uses Jest with `--experimental-vm-modules`)
 - Deploy: `npm run deploy` (tests → build_keys → wrangler deploy)
+- **607 tests** across 43 test suites (as of 2026-04-25)
+
+## Test Inventory
+
+| File | Tests | Coverage |
+|------|-------|----------|
+| `tests/cryptoutils.test.js` | AES-CMAC, hex utils, XOR, subkey generation | |
+| `tests/keygenerator.test.js` | Deterministic key derivation | |
+| `tests/bolt11.test.js` | Fake bolt11 invoice generation | |
+| `tests/otp.test.js` | HOTP/TOTP generation (RFC 4226 vectors) | |
+| `tests/responses.test.js` | All `utils/responses.js` exports | |
+| `tests/validation.test.js` | `validateUid`, `getRequestOrigin` | |
+| `tests/rateLimiter.test.js` | IP-based rate limiting with KV mock | |
+| `tests/boltCardHelper.test.js` | `decodeAndValidate` with virtual tap helper | |
+| `tests/currency.test.js` | `formatAmount`, `parseAmount`, `getCurrencyDecimals` | |
+| `tests/lightningAddress.test.js` | `resolveLightningAddress` with mocked fetch | |
+| `tests/cmacScan.test.js` | `cmacScanVersions` multi-version scan | |
+| `tests/keyLookup.test.js` | `fingerprintHex`, `getPerCardDomains`, `getIssuerKeysForDomain` | |
+| `tests/operatorAuth.test.js` | Session create/verify, PIN check, CSRF | |
+| `tests/logging.test.js` | Structured JSON logger | |
+| `tests/loginHandler.test.js` | NFC login, wipe, terminate, top-up via `/login` | |
+| `tests/getUidConfig.test.js` | Config lookup with DO mock | |
+| `tests/getKeysHandler.test.js` | Key listing handler | |
+| `tests/identifyIssuerKey.test.js` | Tap-to-detect issuer key | |
+| `tests/twoFactorHandler.test.js` | TOTP/HOTP code generation | |
+| `tests/validateCardTap.test.js` | Card tap validation (replay, CMAC, state) | |
+| `tests/balanceCheckHandler.test.js` | Balance query with valid/invalid taps | |
+| `tests/analyticsHandler.test.js` | Analytics page + data endpoint | |
+| `tests/menuEditorHandler.test.js` | Menu GET/PUT/Editor with auth | |
+| `tests/receiptHandler.test.js` | Plain-text transaction receipts | |
+| `tests/identifyCardHandler.test.js` | Card identification (config + deterministic match) | |
+| `tests/operatorLoginHandler.test.js` | PIN login, rate limiting, session, logout | |
+| `tests/securityHeaders.test.js` | X-Content-Type-Options, X-Frame-Options, etc. | |
+| `tests/bulkWipe.test.js` | Bulk wipe key candidates | |
+| `tests/operatorFlows.test.js` | Top-up, refund, POS charge (full lifecycle) | |
+| `tests/pos.test.js` | POS page rendering | |
+| `tests/smoke.test.js` | Basic route smoke tests | |
+| `tests/integration.test.js` | LNURLW flow, status, 404 handling | |
+| `tests/templateHelpers.test.js` | Template rendering, error payloads | |
+| `tests/templateIntegrity.test.js` | Page shell consistency | |
+| `tests/responsePatterns.test.js` | Response format consistency | |
+| `tests/debugIdentity.test.js` | Identity verification via debug console | |
+| `tests/lnurlPay.test.js` | LNURL-pay flow with Lightning address | |
+| `tests/logging.test.js` | Structured JSON logger | |
+| `tests/lnurlwHandler.test.js` | LNURLW tap processing: fakewallet, clnrest, replay, CMAC, card lifecycle | |
+| `tests/fetchBoltCardKeys.test.js` | Card provisioning, POS/2FA programming, reset flow | |
+| `tests/activateCardHandler.test.js` | Quick-activate UID, validation, key consistency | |
+| `tests/e2e/virtual-card.test.js` | Full E2E lifecycle: provision → tap → pay → replay | |
+
+## Test-Only Exports
+
+The following exports are prefixed with `_` and only used in tests:
+- `cryptoutils.js`: `_bytesToDecimalString`, `_xorArrays`, `_shiftGo`, `_generateSubkeyGo`, `_computeKs`, `_computeCm`, `_computeAesCmacForVerification`
+- `utils/keyLookup.js`: `_getIssuerKeysForDomain`, `_getPerCardDomains`
+- `utils/currency.js`: `_parseAmount`
+- `utils/responses.js`: `_buildErrorPayload`
+
+## Security
+
+- Security headers applied to all responses via `withSecurityHeaders()` in `index.js`: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`
+- All innerHTML assignments use `esc()` for dynamic data (41 assignments audited)
+- `/2fa` endpoint supports JSON response mode via `Accept: application/json` header (prevents raw HTML injection in debug console)

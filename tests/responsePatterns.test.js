@@ -1,7 +1,7 @@
 import worker, { handleRequest } from "../index.js";
 import { jest } from "@jest/globals";
 import { makeReplayNamespace } from "./replayNamespace.js";
-import { hexToBytes, bytesToHex, computeAesCmacForVerification } from "../cryptoutils.js";
+import { hexToBytes, bytesToHex, _computeAesCmacForVerification } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import AES from "aes-js";
 import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
@@ -562,7 +562,7 @@ describe("response patterns", () => {
       counter & 0xFF,
     ]);
     const uidBytes = hexToBytes(zeroUid);
-    const ctBytes = computeAesCmacForVerification(
+    const ctBytes = _computeAesCmacForVerification(
       // SV2 = [3C C3 00 01 00 80][UID 7][ctr[2] ctr[1] ctr[0]]
       new Uint8Array([
         0x3C, 0xC3, 0x00, 0x01, 0x00, 0x80,

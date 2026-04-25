@@ -468,10 +468,27 @@ export function renderDebugConsolePage({ host, baseUrl }) {
           return;
         }
         outputDiv.innerHTML = '<div class="text-center text-gray-500 py-4 animate-pulse">Loading\u2026</div>';
-        fetch(BASE_URL + '/2fa?p=' + encodeURIComponent(data.p) + '&c=' + encodeURIComponent(data.c))
-          .then(function(r) { return r.text(); })
-          .then(function(html) { outputDiv.innerHTML = html; })
-          .catch(function() { outputDiv.innerHTML = '<div class="text-center text-red-400 py-4">Error loading 2FA page.</div>'; });
+        fetch(BASE_URL + '/2fa?p=' + encodeURIComponent(data.p) + '&c=' + encodeURIComponent(data.c), {
+          headers: { 'Accept': 'application/json' }
+        })
+          .then(function(r) { return r.json(); })
+          .then(function(json) {
+            if (json.totpCode) {
+              outputDiv.innerHTML =
+                '<div class="space-y-4 text-center">' +
+                '<div><p class="text-xs text-gray-500 uppercase tracking-wider mb-1">TOTP</p>' +
+                '<p class="text-2xl font-mono text-emerald-400">' + esc(json.totpCode) + '</p>' +
+                '<p class="text-xs text-gray-500 mt-1">' + esc(String(json.totpSecondsRemaining)) + 's remaining</p></div>' +
+                '<div><p class="text-xs text-gray-500 uppercase tracking-wider mb-1">HOTP</p>' +
+                '<p class="text-2xl font-mono text-blue-400">' + esc(json.hotpCode) + '</p>' +
+                '<p class="text-xs text-gray-500 mt-1">Counter: ' + esc(String(json.counterValue)) + '</p></div>' +
+                '<p class="text-xs text-gray-500 font-mono">UID: ' + esc(json.maskedUid || json.uidHex || '--') + '</p>' +
+                '</div>';
+            } else {
+              outputDiv.innerHTML = '<div class="text-center text-red-400 py-4">' + esc(json.reason || json.error || 'Error') + '</div>';
+            }
+          })
+          .catch(function() { outputDiv.innerHTML = '<div class="text-center text-red-400 py-4">Error loading 2FA data.</div>'; });
       }
 
       function handleIdentityTab(data) {

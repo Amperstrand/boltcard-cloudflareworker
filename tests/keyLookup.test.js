@@ -1,9 +1,9 @@
-import { getAllIssuerKeyCandidates, getIssuerKeysForDomain, getPerCardKeys, getPerCardDomains, getUniquePerCardK1s, fingerprintHex } from "../utils/keyLookup.js";
+import { getAllIssuerKeyCandidates, _getIssuerKeysForDomain, getPerCardKeys, _getPerCardDomains, getUniquePerCardK1s, fingerprintHex } from "../utils/keyLookup.js";
 import { PERCARD_KEYS } from "../utils/generatedKeyData.js";
 
 describe("keyLookup — issuer key lookup", () => {
   test("returns default keys for unknown domain", () => {
-    const keys = getIssuerKeysForDomain("unknown.example.com");
+    const keys = _getIssuerKeysForDomain("unknown.example.com");
     expect(keys.length).toBeGreaterThanOrEqual(2);
     const hexes = keys.map((k) => k.hex);
     expect(hexes).toContain("00000000000000000000000000000000");
@@ -11,7 +11,7 @@ describe("keyLookup — issuer key lookup", () => {
   });
 
   test("returns domain-specific keys plus defaults", () => {
-    const keys = getIssuerKeysForDomain("boltcardpoc.psbt.me");
+    const keys = _getIssuerKeysForDomain("boltcardpoc.psbt.me");
     const labels = keys.map((k) => k.label);
     expect(labels).toContain("boltpoc-1");
     expect(labels).toContain("boltpoc-2");
@@ -21,7 +21,7 @@ describe("keyLookup — issuer key lookup", () => {
   });
 
   test("defaults are always appended after domain keys", () => {
-    const keys = getIssuerKeysForDomain("boltcardpoc.psbt.me");
+    const keys = _getIssuerKeysForDomain("boltcardpoc.psbt.me");
     const defaultLabels = keys.filter((k) => k.label === "all-zeros" || k.label === "dev-01");
     expect(defaultLabels.length).toBe(2);
   });
@@ -82,15 +82,15 @@ describe("keyLookup — per-card keys", () => {
   });
 });
 
-describe("keyLookup — getPerCardDomains", () => {
+describe("keyLookup — _getPerCardDomains", () => {
   test("returns array of unique non-empty card names", () => {
-    const domains = getPerCardDomains();
+    const domains = _getPerCardDomains();
     expect(Array.isArray(domains)).toBe(true);
     expect(new Set(domains).size).toBe(domains.length);
   });
 
   test("filters out empty card names", () => {
-    const domains = getPerCardDomains();
+    const domains = _getPerCardDomains();
     expect(domains.every(d => typeof d === "string" && d.length > 0)).toBe(true);
   });
 });

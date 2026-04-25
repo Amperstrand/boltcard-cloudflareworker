@@ -4,7 +4,7 @@ import { bytesToHex } from "../cryptoutils.js";
 
 const PERCARD_MAP = new Map(PERCARD_KEYS.map((entry) => [entry.uid, entry]));
 
-export function getIssuerKeysForDomain(domain) {
+export function _getIssuerKeysForDomain(domain) {
   const domainKeys = ISSUER_KEYS_BY_DOMAIN[domain] || [];
   const defaultKeys = ISSUER_KEYS_BY_DOMAIN["_default"] || [];
   return [...domainKeys, ...defaultKeys];
@@ -44,7 +44,7 @@ export function getPerCardKeys(uidHex) {
   return PERCARD_MAP.get(uidHex.toLowerCase()) || null;
 }
 
-export function getPerCardDomains() {
+export function _getPerCardDomains() {
   return [...new Set(PERCARD_KEYS.map((e) => e.card_name).filter(Boolean))];
 }
 

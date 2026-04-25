@@ -10,6 +10,7 @@ import { cmacScanVersions } from "../utils/cmacScan.js";
 const MAX_CANDIDATES = 50;
 
 export async function handleIdentifyIssuerKey(request, env) {
+  try {
   const body = await parseJsonBody(request).catch(() => null);
   if (!body) return errorResponse("Invalid JSON body", 400);
 
@@ -95,4 +96,8 @@ export async function handleIdentifyIssuerKey(request, env) {
 
   logger.info("No issuer key matched from card tap", { pHexLength: pHex?.length });
   return jsonResponse({ matched: false, uid: null });
+  } catch (error) {
+    logger.error("Identify issuer key failed", { error: error.message });
+    return errorResponse("Failed to identify issuer key", 500);
+  }
 }
