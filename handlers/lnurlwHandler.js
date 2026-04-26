@@ -7,7 +7,7 @@ import { hexToBytes } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
-import { recordTapRead, getCardState, activateCard, checkAndAdvanceCounter, discoverCard } from "../replayProtection.js";
+import { recordTapRead, getCardState, activateCard, checkAndAdvanceCounter, discoverCard, setCardK2 } from "../replayProtection.js";
 import { getRequestOrigin } from "../utils/validation.js";
 import { cmacScanVersions } from "../utils/cmacScan.js";
 import { classifyIssuerKey, getAllIssuerKeyCandidates } from "../utils/keyLookup.js";
@@ -56,6 +56,11 @@ async function discoverUnknownCard(uidHex, ctr, cHex, env) {
             });
           } catch (err) {
             logger.warn("Failed to persist card discovery", { uidHex, error: err.message });
+          }
+          try {
+            await setCardK2(env, uidHex, k2);
+          } catch (err) {
+            logger.warn("Failed to persist discovered card K2", { uidHex, error: err.message });
           }
           return { version: matchedVersion, provenance: classified };
         }

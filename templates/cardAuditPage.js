@@ -45,6 +45,10 @@ export function renderCardAuditPage() {
       No cards found in registry. Cards will appear here after they are tapped or provisioned.
     </div>
 
+    <div id="load-more-container" class="hidden text-center py-4">
+      <button type="button" id="btn-load-more" class="px-4 py-2 text-sm rounded font-bold bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors">Load More</button>
+    </div>
+
     <div id="error-display" class="hidden bg-red-900/50 border border-red-600 rounded-lg p-4" role="alert">
       <p id="error-message" class="text-red-300 text-sm"></p>
     </div>
@@ -58,6 +62,8 @@ export function renderCardAuditPage() {
     ${safe(CSRF_FETCH_HELPER)}
 
     var currentFilter = "";
+    var nextCursor = null;
+    var hasMore = false;
 
     function stateColor(state) {
       var colors = {
@@ -98,15 +104,20 @@ export function renderCardAuditPage() {
       } catch (e) { return '-'; }
     }
 
-    async function loadCards() {
-      document.getElementById('loading').classList.remove('hidden');
-      document.getElementById('cards-table').classList.add('hidden');
-      document.getElementById('no-cards').classList.add('hidden');
-      document.getElementById('error-display').classList.add('hidden');
+    async function loadCards(append) {
+      if (!append) {
+        nextCursor = null;
+        hasMore = false;
+        document.getElementById('loading').classList.remove('hidden');
+        document.getElementById('cards-table').classList.add('hidden');
+        document.getElementById('no-cards').classList.add('hidden');
+        document.getElementById('error-display').classList.add('hidden');
+      }
 
       try {
         var url = '/operator/cards/data?limit=100';
         if (currentFilter) url += '&state=' + encodeURIComponent(currentFilter);
+        if (append && nextCursor) url += '&cursor=' + encodeURIComponent(nextCursor);
         var resp = await fetch(url);
         var data = await resp.json();
 
@@ -118,14 +129,18 @@ export function renderCardAuditPage() {
         }
 
         var cards = data.cards || [];
-        if (cards.length === 0) {
+        hasMore = !!data.cursor;
+        nextCursor = data.cursor || null;
+
+        if (!append && cards.length === 0) {
           document.getElementById('no-cards').classList.remove('hidden');
+          document.getElementById('load-more-container').classList.add('hidden');
           return;
         }
 
         document.getElementById('cards-table').classList.remove('hidden');
         var list = document.getElementById('cards-list');
-        list.innerHTML = cards.map(function(card) {
+        var html = cards.map(function(card) {
           return '<div class="grid grid-cols-6 gap-2 px-4 py-3 text-sm hover:bg-gray-700/30 transition-colors">' +
             '<span class="font-mono text-gray-300 text-xs">' + esc(card.uid) + '</span>' +
             '<span class="font-mono ' + stateColor(card.state) + '">' + esc(card.state) + '</span>' +
@@ -135,6 +150,18 @@ export function renderCardAuditPage() {
             '<span class="text-right"><a href="/experimental/analytics?uid=' + encodeURIComponent(card.uid) + '" class="text-emerald-500 hover:text-emerald-400 text-xs">analytics</a></span>' +
             '</div>';
         }).join('');
+
+        if (append) {
+          list.innerHTML += html;
+        } else {
+          list.innerHTML = html;
+        }
+
+        if (hasMore) {
+          document.getElementById('load-more-container').classList.remove('hidden');
+        } else {
+          document.getElementById('load-more-container').classList.add('hidden');
+        }
       } catch (err) {
         document.getElementById('loading').classList.add('hidden');
         showError('Failed to load card registry');
@@ -151,13 +178,15 @@ export function renderCardAuditPage() {
         currentFilter = this.getAttribute('data-filter');
         document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('ring-2', 'ring-emerald-500'); });
         this.classList.add('ring-2', 'ring-emerald-500');
-        loadCards();
+        loadCards(false);
       });
     });
 
-    document.getElementById('btn-refresh').addEventListener('click', loadCards);
+    document.getElementById('btn-refresh').addEventListener('click', function() { loadCards(false); });
 
-    loadCards();
+    document.getElementById('btn-load-more').addEventListener('click', function() { loadCards(true); });
+
+    loadCards(false);
   </script>
   `;
 

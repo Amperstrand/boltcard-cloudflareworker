@@ -572,8 +572,6 @@ describe("handleLnurlw", () => {
       const recoveryKeys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: recoveryKey }, 1);
       const replay = makeReplayNamespace({}, {});
 
-      replay.__cardConfigs.set(discoveryUid, { K2: recoveryKeys.k2, payment_method: "fakewallet" });
-
       const env = {
         ISSUER_KEY: "cccccccccccccccccccccccccccccccc",
         RECOVERY_ISSUER_KEYS: recoveryKey,
@@ -666,7 +664,6 @@ describe("handleLnurlw", () => {
         key_label: null,
         first_seen_at: null,
       });
-      replay.__cardConfigs.set(discoveryUid, { K2: keys.k2, payment_method: "fakewallet" });
 
       const env = {
         ISSUER_KEY,
@@ -679,6 +676,39 @@ describe("handleLnurlw", () => {
       const res = await handleLnurlw(req, env);
 
       expect(res.status).toBe(200);
+    });
+
+    it("persists K2 during discovery for subsequent taps", async () => {
+      const discoveryUid = "ff000000000010";
+      const recoveryKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      const mainKey = "cccccccccccccccccccccccccccccccc";
+      const recoveryKeys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: recoveryKey }, 1);
+      const replay = makeReplayNamespace({}, {});
+
+      const env = {
+        ISSUER_KEY: mainKey,
+        RECOVERY_ISSUER_KEYS: recoveryKey,
+        BOLT_CARD_K1: recoveryKeys.k1,
+        CARD_REPLAY: replay,
+        UID_CONFIG: { get: async () => null, put: async () => {} },
+      };
+
+      const req1 = tapRequest(discoveryUid, 1, recoveryKeys.k1, recoveryKeys.k2);
+      const res1 = await handleLnurlw(req1, env);
+      expect(res1.status).toBe(200);
+
+      const cardState = replay.__cardStates.get(discoveryUid);
+      expect(cardState.state).toBe("discovered");
+
+      const cardConfig = replay.__cardConfigs.get(discoveryUid);
+      expect(cardConfig).toBeDefined();
+      expect(cardConfig.K2).toBe(recoveryKeys.k2);
+
+      const req2 = tapRequest(discoveryUid, 2, recoveryKeys.k1, recoveryKeys.k2);
+      const res2 = await handleLnurlw(req2, env);
+      expect(res2.status).toBe(200);
+      const body = await res2.json();
+      expect(body.tag).toBe("withdrawRequest");
     });
   });
 });

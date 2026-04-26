@@ -266,6 +266,15 @@ export async function setCardConfig(env, uidHex, config) {
   await doPost(stub, "/set-config", config);
 }
 
+export async function setCardK2(env, uidHex, k2) {
+  if (!env?.CARD_REPLAY) {
+    return;
+  }
+
+  const stub = getCardStub(env, uidHex);
+  await doPost(stub, "/set-k2", { K2: k2 });
+}
+
 export async function debitCard(env, uidHex, counter, amount, note) {
   if (!env?.CARD_REPLAY) return { ok: false, reason: "DO not available" };
   const stub = getCardStub(env, uidHex);

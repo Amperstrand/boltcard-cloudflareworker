@@ -120,4 +120,34 @@ describe("handleCardAuditData", () => {
     const res = await handleCardAuditData(req, env);
     expect(res.status).toBe(302);
   });
+
+  it("passes cursor parameter to listIndexedCards", async () => {
+    const store = {};
+    store["card_idx:ff000000000001"] = JSON.stringify({ uid: "ff000000000001", state: "active" });
+    let capturedCursor = "UNSET";
+    const env = buildCardTestEnv({
+      uid: "ff000000000001",
+      issuerKey: "00000000000000000000000000000001",
+      operatorAuth: true,
+    });
+    Object.assign(env, TEST_OPERATOR_AUTH);
+    env.UID_CONFIG = {
+      get: async (key) => store[key] ?? null,
+      put: async (key, val) => { store[key] = val; },
+      list: async (opts) => {
+        capturedCursor = opts.cursor;
+        return {
+          keys: Object.keys(store).map(k => ({ name: k })),
+          list_complete: true,
+        };
+      },
+    };
+
+    const req = new Request("https://test.local/operator/cards/data?cursor=abc123", {
+      headers: { Cookie: "op_session=test" },
+    });
+    const res = await handleCardAuditData(req, env);
+    expect(res.status).toBe(200);
+    expect(capturedCursor).toBe("abc123");
+  });
 });

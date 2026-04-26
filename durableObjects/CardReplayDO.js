@@ -165,6 +165,10 @@ export class CardReplayDO extends DurableObject {
       return this.handleDiscover(request);
     }
 
+    if (request.method === "POST" && url.pathname === "/set-k2") {
+      return this.handleSetK2(request);
+    }
+
     return new Response("Not found", { status: 404 });
   }
 
@@ -579,6 +583,30 @@ export class CardReplayDO extends DurableObject {
         k2, method, configJson, pullPaymentId, now
       );
 
+      return Response.json({ ok: true });
+    });
+  }
+
+  handleSetK2(request) {
+    return request.json().then(({ K2 }) => {
+      const k2 = K2 || null;
+      const now = nowSec();
+      const existing = this.sql.exec(
+        `SELECT payment_method, config_json, pull_payment_id FROM card_config WHERE singleton = 1`
+      ).toArray();
+      if (existing.length > 0) {
+        const row = existing[0];
+        this.sql.exec(
+          `UPDATE card_config SET K2 = ?, updated_at = ? WHERE singleton = 1`,
+          k2, now
+        );
+      } else {
+        this.sql.exec(
+          `INSERT INTO card_config (singleton, K2, payment_method, config_json, pull_payment_id, updated_at)
+           VALUES (1, ?, 'fakewallet', NULL, NULL, ?)`,
+          k2, now
+        );
+      }
       return Response.json({ ok: true });
     });
   }

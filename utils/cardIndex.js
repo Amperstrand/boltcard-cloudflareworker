@@ -60,16 +60,26 @@ export async function listIndexedCards(env, { state, prefix, limit = 100, cursor
     });
 
     const cards = [];
-    for (const key of listResult.keys) {
-      try {
-        const raw = await env.UID_CONFIG.get(key.name);
-        if (raw) {
-          const card = JSON.parse(raw);
-          if (!state || card.state === state) {
-            cards.push(card);
+    const values = await Promise.all(
+      listResult.keys.map((key) =>
+        env.UID_CONFIG.get(key.name).then((raw) => {
+          if (!raw) return null;
+          try {
+            return JSON.parse(raw);
+          } catch (e) {
+            logger.warn("Failed to parse indexed card", { key: key.name, error: e.message });
+            return null;
           }
-        }
-      } catch (_) {}
+        }).catch((e) => {
+          logger.warn("Failed to read indexed card", { key: key.name, error: e.message });
+          return null;
+        })
+      )
+    );
+    for (const card of values) {
+      if (card && (!state || card.state === state)) {
+        cards.push(card);
+      }
     }
 
     return {

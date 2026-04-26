@@ -69,6 +69,17 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
           return Response.json({ ok: true });
         }
 
+        if (request.method === "POST" && url.pathname === "/set-k2") {
+          const { K2 } = await request.json();
+          const existing = cardConfigs.get(idStr);
+          if (existing) {
+            cardConfigs.set(idStr, { ...existing, K2: K2 || null });
+          } else {
+            cardConfigs.set(idStr, { payment_method: "fakewallet", K2: K2 || null });
+          }
+          return Response.json({ ok: true });
+        }
+
         if (request.method === "GET" && url.pathname === "/balance") {
           const state = cardStates.get(idStr) || getDefaultState();
           return Response.json({ balance: state.balance ?? 0 });

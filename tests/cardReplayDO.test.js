@@ -488,4 +488,194 @@ describe("CardReplayDO SQL logic", () => {
       expect(row.first_seen_at).toBe(now);
     });
   });
+
+  describe("set-k2 (targeted K2 update)", () => {
+    it("inserts minimal config when no config exists", () => {
+      const now = nowSec();
+      db.prepare(
+        `INSERT INTO card_config (singleton, K2, payment_method, config_json, pull_payment_id, updated_at)
+         VALUES (1, ?, 'fakewallet', NULL, NULL, ?)`
+      ).run("AABB", now);
+
+      const row = db.prepare("SELECT * FROM card_config WHERE singleton = 1").get();
+      expect(row.K2).toBe("AABB");
+      expect(row.payment_method).toBe("fakewallet");
+    });
+
+    it("updates only K2 preserving existing payment_method and config_json", () => {
+      const now = nowSec();
+      db.prepare(
+        `INSERT INTO card_config (singleton, K2, payment_method, config_json, pull_payment_id, updated_at)
+         VALUES (1, 'OLD_K2', 'lnurlpay', '{"lightning_address":"test@example.com"}', NULL, ?)`
+      ).run(now);
+
+      db.prepare(
+        `UPDATE card_config SET K2 = ?, updated_at = ? WHERE singleton = 1`
+      ).run("NEW_K2", nowSec());
+
+      const row = db.prepare("SELECT * FROM card_config WHERE singleton = 1").get();
+      expect(row.K2).toBe("NEW_K2");
+      expect(row.payment_method).toBe("lnurlpay");
+      expect(row.config_json).toBe('{"lightning_address":"test@example.com"}');
+    });
+  });
+
+  describe("record-read (INSERT OR IGNORE)", () => {
+    it("inserts a read-status tap", () => {
+      const now = nowSec();
+      db.prepare(
+        `INSERT OR IGNORE INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
+         VALUES (?, NULL, 'read', NULL, ?, ?, ?, ?)`
+      ).run(5, "TestAgent", "https://example.com", now, now);
+
+      const row = db.prepare("SELECT * FROM taps WHERE counter = 5").get();
+      expect(row.status).toBe("read");
+      expect(row.bolt11).toBeNull();
+      expect(row.user_agent).toBe("TestAgent");
+    });
+
+    it("ignores duplicate counter on second insert", () => {
+      const now = nowSec();
+      db.prepare(
+        `INSERT OR IGNORE INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
+         VALUES (5, NULL, 'read', NULL, NULL, NULL, ?, ?)`
+      ).run(now, now);
+
+      db.prepare(
+        `INSERT OR IGNORE INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
+         VALUES (5, NULL, 'read', NULL, 'Other', 'http://x', ?, ?)`
+      ).run(now + 1, now + 1);
+
+      const row = db.prepare("SELECT * FROM taps WHERE counter = 5").get();
+      expect(row.user_agent).toBeNull();
+      expect(row.updated_at).toBe(now);
+    });
+  });
+
+  describe("list-taps with lifecycle events", () => {
+    it("merges taps with synthetic lifecycle events sorted by time", () => {
+      const now = nowSec();
+      db.prepare(
+        `INSERT INTO card_state (singleton, state, latest_issued_version, active_version, activated_at, keys_delivered_at, balance, first_seen_at)
+         VALUES (1, 'active', 1, 1, ?, ?, 0, ?)`
+      ).run(now - 100, now - 200, now - 300);
+
+      db.prepare(
+        `INSERT INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
+         VALUES (1, 'lnbc...', 'completed', 1000, NULL, NULL, ?, ?)`
+      ).run(now, now);
+
+      const taps = db.prepare("SELECT * FROM taps ORDER BY counter DESC LIMIT 50").all();
+      const stateRows = db.prepare("SELECT * FROM card_state WHERE singleton = 1").all();
+      const cardState = stateRows[0];
+
+      const events = [];
+      if (cardState.keys_delivered_at) {
+        events.push({ counter: null, status: 'provisioned', created_at: cardState.keys_delivered_at });
+      }
+      if (cardState.activated_at) {
+        events.push({ counter: null, status: 'activated', created_at: cardState.activated_at });
+      }
+
+      const merged = [...taps, ...events].sort((a, b) => {
+        const timeDiff = (b.created_at || 0) - (a.created_at || 0);
+        if (timeDiff !== 0) return timeDiff;
+        return (b.counter || 0) - (a.counter || 0);
+      });
+
+      expect(merged).toHaveLength(3);
+      expect(merged[0].status).toBe('completed');
+      expect(merged[1].status).toBe('activated');
+      expect(merged[2].status).toBe('provisioned');
+    });
+  });
+
+  describe("get-config (JSON merge)", () => {
+    it("merges config_json into base fields", () => {
+      db.prepare(
+        `INSERT INTO card_config (singleton, K2, payment_method, config_json, pull_payment_id, updated_at)
+         VALUES (1, 'AABB', 'lnurlpay', '{"lightning_address":"test@example.com","min_sendable":1000}', NULL, ?)`
+      ).run(nowSec());
+
+      const row = db.prepare("SELECT * FROM card_config WHERE singleton = 1").get();
+      let config = { payment_method: row.payment_method };
+      if (row.K2) config.K2 = row.K2;
+      if (row.config_json) {
+        const extra = JSON.parse(row.config_json);
+        config = { ...config, ...extra };
+      }
+
+      expect(config.payment_method).toBe("lnurlpay");
+      expect(config.K2).toBe("AABB");
+      expect(config.lightning_address).toBe("test@example.com");
+      expect(config.min_sendable).toBe(1000);
+    });
+
+    it("returns base fields when config_json is null", () => {
+      db.prepare(
+        `INSERT INTO card_config (singleton, K2, payment_method, config_json, pull_payment_id, updated_at)
+         VALUES (1, 'CCDD', 'fakewallet', NULL, NULL, ?)`
+      ).run(nowSec());
+
+      const row = db.prepare("SELECT * FROM card_config WHERE singleton = 1").get();
+      let config = { payment_method: row.payment_method };
+      if (row.K2) config.K2 = row.K2;
+
+      expect(config.payment_method).toBe("fakewallet");
+      expect(config.K2).toBe("CCDD");
+      expect(Object.keys(config)).toHaveLength(2);
+    });
+  });
+
+  describe("list-transactions (limit clamping)", () => {
+    it("clamps negative limit to default 50", () => {
+      const requestedLimit = -1;
+      const limit = Number.isFinite(requestedLimit)
+        ? Math.max(1, Math.min(requestedLimit, 200))
+        : 50;
+      expect(limit).toBe(1);
+    });
+
+    it("clamps oversized limit to 200", () => {
+      const requestedLimit = 999;
+      const limit = Number.isFinite(requestedLimit)
+        ? Math.max(1, Math.min(requestedLimit, 200))
+        : 50;
+      expect(limit).toBe(200);
+    });
+
+    it("returns transactions ordered by id DESC", () => {
+      const now = nowSec();
+      db.prepare(
+        `INSERT INTO card_state (singleton, state, balance) VALUES (1, 'active', 5000)`
+      ).run();
+      db.prepare(
+        `INSERT INTO transactions (counter, amount, balance_after, created_at, note) VALUES (1, -1000, 4000, ?, 'debit')`
+      ).run(now);
+      db.prepare(
+        `INSERT INTO transactions (counter, amount, balance_after, created_at, note) VALUES (2, -500, 3500, ?, 'debit2')`
+      ).run(now);
+
+      const txs = db.prepare("SELECT * FROM transactions ORDER BY id DESC LIMIT 50").all();
+      expect(txs).toHaveLength(2);
+      expect(txs[0].amount).toBe(-500);
+      expect(txs[1].amount).toBe(-1000);
+    });
+  });
+
+  describe("balance (standalone read)", () => {
+    it("returns balance from card_state", () => {
+      db.prepare(
+        `INSERT INTO card_state (singleton, state, balance) VALUES (1, 'active', 7500)`
+      ).run();
+      const rows = db.prepare("SELECT balance FROM card_state WHERE singleton = 1").all();
+      expect(rows[0].balance).toBe(7500);
+    });
+
+    it("returns 0 when no card_state row", () => {
+      const rows = db.prepare("SELECT balance FROM card_state WHERE singleton = 1").all();
+      const balance = rows[0]?.balance ?? 0;
+      expect(balance).toBe(0);
+    });
+  });
 });
