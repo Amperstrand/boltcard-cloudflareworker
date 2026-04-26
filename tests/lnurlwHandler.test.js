@@ -2,6 +2,7 @@ import { jest } from "@jest/globals";
 import { handleLnurlw } from "../handlers/lnurlwHandler.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { virtualTap, buildCardTestEnv } from "./testHelpers.js";
+import { makeReplayNamespace } from "./replayNamespace.js";
 
 const UID = "04a39493cc8680";
 const ISSUER_KEY = "00000000000000000000000000000001";
@@ -423,5 +424,124 @@ describe("handleLnurlw", () => {
     const req = tapRequest(UID, 2, keys.k1, keys.k2);
     const res = await handleLnurlw(req, env);
     expect(res.status).toBe(500);
+  });
+
+  describe("auto-discovery for unknown cards", () => {
+    it("discovers unknown card with public issuer key on first tap", async () => {
+      const discoveryUid = "ff000000000001";
+      const env = buildCardTestEnv({
+        uid: discoveryUid,
+        issuerKey: ISSUER_KEY,
+        paymentMethod: "fakewallet",
+        cardState: "new",
+        cardConfig: null,
+      });
+
+      const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY }, 1);
+      const req = tapRequest(discoveryUid, 1, keys.k1, keys.k2);
+
+      const res = await handleLnurlw(req, env);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.tag).toBe("withdrawRequest");
+
+      const cardState = env.CARD_REPLAY.__cardStates.get(discoveryUid);
+      expect(cardState).toBeDefined();
+      expect(cardState.state).toBe("discovered");
+      expect(cardState.key_provenance).toBe("public_issuer");
+      expect(cardState.active_version).toBe(1);
+    });
+
+    it("discovers unknown card even without prior DO row", async () => {
+      const discoveryUid = "ff000000000002";
+      const replay = makeReplayNamespace({}, {});
+      const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY }, 1);
+
+      const env = {
+        ISSUER_KEY,
+        BOLT_CARD_K1: keys.k1,
+        CARD_REPLAY: replay,
+        UID_CONFIG: { get: async () => null, put: async () => {} },
+      };
+
+      const req = tapRequest(discoveryUid, 1, keys.k1, keys.k2);
+      const res = await handleLnurlw(req, env);
+
+      expect(res.status).toBe(200);
+      const cardState = replay.__cardStates.get(discoveryUid);
+      expect(cardState).toBeDefined();
+      expect(cardState.state).toBe("discovered");
+      expect(cardState.key_provenance).toBe("public_issuer");
+    });
+
+    it("handles discovered card on subsequent tap without re-discovery", async () => {
+      const discoveryUid = "ff000000000003";
+      const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY }, 1);
+      const replay = makeReplayNamespace({}, {});
+
+      replay.__cardStates.set(discoveryUid, {
+        state: "discovered",
+        latest_issued_version: 1,
+        active_version: 1,
+        activated_at: null,
+        terminated_at: null,
+        keys_delivered_at: null,
+        wipe_keys_fetched_at: null,
+        balance: 0,
+        key_provenance: "public_issuer",
+        key_fingerprint: null,
+        key_label: "dev-01",
+        first_seen_at: Math.floor(Date.now() / 1000),
+      });
+      replay.__cardConfigs.set(discoveryUid, { payment_method: "fakewallet", K2: keys.k2 });
+
+      const env = {
+        ISSUER_KEY,
+        BOLT_CARD_K1: keys.k1,
+        CARD_REPLAY: replay,
+        UID_CONFIG: { get: async () => null, put: async () => {} },
+      };
+
+      const req = tapRequest(discoveryUid, 2, keys.k1, keys.k2);
+
+      const res = await handleLnurlw(req, env);
+      expect(res.status).toBe(200);
+    });
+
+    it("upgrades pending card to discovered on tap", async () => {
+      const discoveryUid = "ff000000000004";
+      const env = buildCardTestEnv({
+        uid: discoveryUid,
+        issuerKey: ISSUER_KEY,
+        paymentMethod: "fakewallet",
+        cardState: "new",
+        cardConfig: null,
+      });
+
+      env.CARD_REPLAY.__cardStates.set(discoveryUid, {
+        state: "pending",
+        latest_issued_version: 0,
+        active_version: null,
+        activated_at: null,
+        terminated_at: null,
+        keys_delivered_at: null,
+        wipe_keys_fetched_at: null,
+        balance: 0,
+        key_provenance: null,
+        key_fingerprint: null,
+        key_label: null,
+        first_seen_at: Math.floor(Date.now() / 1000),
+      });
+
+      const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY }, 1);
+      const req = tapRequest(discoveryUid, 1, keys.k1, keys.k2);
+
+      const res = await handleLnurlw(req, env);
+      expect(res.status).toBe(200);
+
+      const cardState = env.CARD_REPLAY.__cardStates.get(discoveryUid);
+      expect(cardState.state).toBe("discovered");
+      expect(cardState.active_version).toBe(1);
+    });
   });
 });

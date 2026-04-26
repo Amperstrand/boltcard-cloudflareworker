@@ -7,9 +7,10 @@ import { hexToBytes } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
-import { recordTapRead, getCardState, activateCard, checkAndAdvanceCounter } from "../replayProtection.js";
+import { recordTapRead, getCardState, activateCard, checkAndAdvanceCounter, discoverCard } from "../replayProtection.js";
 import { getRequestOrigin } from "../utils/validation.js";
 import { cmacScanVersions } from "../utils/cmacScan.js";
+import { classifyIssuerKey, getAllIssuerKeyCandidates } from "../utils/keyLookup.js";
 import { CARD_STATE, PAYMENT_METHOD, VERSION_SCAN_RANGE } from "../utils/constants.js";
 
 async function detectCardVersion(uidHex, ctr, cHex, env, latestVersion) {
@@ -21,6 +22,49 @@ async function detectCardVersion(uidHex, ctr, cHex, env, latestVersion) {
     lowVersion: Math.max(1, latestVersion - VERSION_SCAN_RANGE),
   });
   return matchedVersion;
+}
+
+async function discoverUnknownCard(uidHex, ctr, cHex, env) {
+  const uidBytes = hexToBytes(uidHex);
+  const ctrBytes = hexToBytes(ctr);
+  const candidates = getAllIssuerKeyCandidates(env);
+
+  for (const candidate of candidates) {
+    for (let version = 1; version <= VERSION_SCAN_RANGE; version++) {
+      try {
+        const tempEnv = { ...env, ISSUER_KEY: candidate.hex };
+        const k2 = getDeterministicKeys(uidHex, tempEnv, version).k2;
+        const { matchedVersion } = await cmacScanVersions(uidBytes, ctrBytes, cHex, {
+          k2ForVersion: () => hexToBytes(k2),
+          highVersion: version,
+          lowVersion: version,
+        });
+        if (matchedVersion !== null) {
+          const classified = classifyIssuerKey(env, candidate.hex);
+          logger.info("Discovered unknown card", {
+            uidHex,
+            version: matchedVersion,
+            provenance: classified.provenance,
+            label: classified.label,
+          });
+          try {
+            await discoverCard(env, uidHex, {
+              key_provenance: classified.provenance,
+              key_fingerprint: classified.fingerprint,
+              key_label: classified.label,
+              active_version: matchedVersion,
+            });
+          } catch (err) {
+            logger.warn("Failed to persist card discovery", { uidHex, error: err.message });
+          }
+          return { version: matchedVersion, provenance: classified };
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+  }
+  return null;
 }
 
 async function checkReplayAndRecordTap(env, uidHex, counterValue, request, fireAndForget = true) {
@@ -106,10 +150,26 @@ export async function handleLnurlw(request, env) {
       logger.error("Card activation failed", { uidHex, activeVersion, error: error.message });
       return errorResponse("Card activation failed", 500);
     }
-  } else if (cardState.state === CARD_STATE.ACTIVE) {
+  } else if (cardState.state === CARD_STATE.ACTIVE || cardState.state === CARD_STATE.DISCOVERED) {
     activeVersion = cardState.active_version || 1;
+  } else if (cardState.state === CARD_STATE.PENDING) {
+    const discovery = await discoverUnknownCard(uidHex, ctr, cHex, env);
+    if (!discovery) {
+      return errorResponse("Unable to identify card key", 403);
+    }
+    activeVersion = discovery.version;
   } else {
-    activeVersion = 1;
+    const isNew = cardState.state === CARD_STATE.NEW || cardState.state === CARD_STATE.LEGACY;
+    if (isNew) {
+      const discovery = await discoverUnknownCard(uidHex, ctr, cHex, env);
+      if (discovery) {
+        activeVersion = discovery.version;
+      } else {
+        activeVersion = 1;
+      }
+    } else {
+      activeVersion = 1;
+    }
   }
 
   const config = await getUidConfig(uidHex, env, activeVersion);
