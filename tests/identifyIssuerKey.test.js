@@ -138,11 +138,11 @@ describe("POST /api/identify-issuer-key", () => {
 
   test("clamps candidates to MAX_CANDIDATES (50)", async () => {
     const env = makeEnv();
-    let extraKeys = "";
+    const keys = [];
     for (let i = 0; i < 60; i++) {
-      extraKeys += `,${(i + 2).toString().padStart(32, "0")}`;
+      keys.push(i.toString(16).padStart(32, '0'));
     }
-    env.BOLT_CARD_K1 = BOLT_CARD_K1 + extraKeys;
+    env.RECOVERY_ISSUER_KEYS = keys.join(',');
     const resp = await makeRequest("/api/identify-issuer-key", "POST", { p: pHex, c: cHex }, env);
     expect(resp.status).toBe(200);
     const json = await resp.json();

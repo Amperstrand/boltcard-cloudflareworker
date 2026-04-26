@@ -2,6 +2,8 @@ import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { logger } from "../utils/logger.js";
 
+const Logger = logger.constructor;
+
 const LEGACY_UID_CONFIGS = {
   "04996c6a926980": JSON.stringify({
     K2: "B45775776CB224C75BCDE7CA3704E933",
@@ -358,6 +360,23 @@ describe("Logging and Observability", () => {
         expect(warnLog).toBeUndefined();
       } finally {
         console.warn = originalWarn;
+      }
+    });
+  });
+
+  describe("Logger constructor", () => {
+    it("falls back to info level for unknown level string", () => {
+      const testLogger = new Logger("nonexistent");
+      const logs = [];
+      const origLog = console.log;
+      console.log = (...args) => logs.push(args.join(" "));
+      try {
+        testLogger.info("visible");
+        testLogger.debug("hidden");
+        expect(logs.find(l => l.includes("visible"))).toBeDefined();
+        expect(logs.find(l => l.includes("hidden"))).toBeUndefined();
+      } finally {
+        console.log = origLog;
       }
     });
   });

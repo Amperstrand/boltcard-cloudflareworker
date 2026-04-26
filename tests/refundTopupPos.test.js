@@ -98,6 +98,86 @@ describe("handleRefundApply", () => {
     const res = await handleRefundApply(makeRequest({ p: "", c: "", amount: 100 }), env, { shiftId: "test" });
     expect(res.status).toBe(400);
   });
+
+  it("returns 500 when debitCard returns failure", async () => {
+    const env = buildEnv(1000);
+    const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
+    env.CARD_REPLAY.get = (id) => {
+      const obj = origGet(id);
+      const origFetch = obj.fetch.bind(obj);
+      return {
+        fetch: async (request) => {
+          const url = new URL(request.url);
+          if (request.method === "POST" && url.pathname === "/debit") {
+            return Response.json({ ok: false, reason: "Storage error" });
+          }
+          return origFetch(request);
+        },
+      };
+    };
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" });
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.reason).toContain("Storage error");
+  });
+
+  it("returns 500 when debitCard throws", async () => {
+    const env = buildEnv(1000);
+    const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
+    env.CARD_REPLAY.get = (id) => {
+      const obj = origGet(id);
+      const origFetch = obj.fetch.bind(obj);
+      return {
+        fetch: async (request) => {
+          const url = new URL(request.url);
+          if (url.pathname === "/debit") throw new Error("DO connection lost");
+          return origFetch(request);
+        },
+      };
+    };
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" });
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.reason).toContain("Refund failed");
+  });
+
+  it("uses 'unknown' shiftId when session has no shiftId", async () => {
+    const env = buildEnv(1000);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 3, keys.k1, keys.k2);
+    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, {});
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.note).toContain("refund:unknown");
+  });
+
+  it("returns fallback message when debitCard fails without reason", async () => {
+    const env = buildEnv(1000);
+    const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
+    env.CARD_REPLAY.get = (id) => {
+      const obj = origGet(id);
+      const origFetch = obj.fetch.bind(obj);
+      return {
+        fetch: async (request) => {
+          const url = new URL(request.url);
+          if (request.method === "POST" && url.pathname === "/debit") {
+            return Response.json({ ok: false });
+          }
+          return origFetch(request);
+        },
+      };
+    };
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 4, keys.k1, keys.k2);
+    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" });
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.reason).toContain("Refund failed");
+  });
 });
 
 describe("handleTopupPage", () => {
@@ -164,6 +244,86 @@ describe("handleTopupApply", () => {
     const env = buildEnv();
     const res = await handleTopupApply(makeRequest({ p: "", c: "", amount: 100 }), env, { shiftId: "test" });
     expect(res.status).toBe(400);
+  });
+
+  it("returns 500 when creditCard returns failure", async () => {
+    const env = buildEnv();
+    const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
+    env.CARD_REPLAY.get = (id) => {
+      const obj = origGet(id);
+      const origFetch = obj.fetch.bind(obj);
+      return {
+        fetch: async (request) => {
+          const url = new URL(request.url);
+          if (request.method === "POST" && url.pathname === "/credit") {
+            return Response.json({ ok: false, reason: "Storage error" });
+          }
+          return origFetch(request);
+        },
+      };
+    };
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" });
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.reason).toContain("Storage error");
+  });
+
+  it("returns 500 when creditCard throws", async () => {
+    const env = buildEnv();
+    const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
+    env.CARD_REPLAY.get = (id) => {
+      const obj = origGet(id);
+      const origFetch = obj.fetch.bind(obj);
+      return {
+        fetch: async (request) => {
+          const url = new URL(request.url);
+          if (url.pathname === "/credit") throw new Error("DO connection lost");
+          return origFetch(request);
+        },
+      };
+    };
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" });
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.reason).toContain("Top-up failed");
+  });
+
+  it("returns 500 with fallback message when creditCard fails without reason", async () => {
+    const env = buildEnv();
+    const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
+    env.CARD_REPLAY.get = (id) => {
+      const obj = origGet(id);
+      const origFetch = obj.fetch.bind(obj);
+      return {
+        fetch: async (request) => {
+          const url = new URL(request.url);
+          if (request.method === "POST" && url.pathname === "/credit") {
+            return Response.json({ ok: false });
+          }
+          return origFetch(request);
+        },
+      };
+    };
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" });
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.reason).toContain("Credit failed");
+  });
+
+  it("uses 'unknown' shiftId when session has no shiftId", async () => {
+    const env = buildEnv();
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, {});
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.note).toContain("topup:unknown");
   });
 });
 
@@ -292,6 +452,6 @@ describe("handlePosCharge", () => {
     const res = await handlePosCharge(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" });
     expect(res.status).toBe(500);
     const body = await res.json();
-    expect(body.error).toContain("DO connection failed");
+    expect(body.reason).toContain("Charge failed");
   });
 });

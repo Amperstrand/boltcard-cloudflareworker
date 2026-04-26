@@ -166,6 +166,24 @@ describe("GET /api/bulk-wipe-keys", () => {
 
     expect(jsonA.boltcard_response.K1).not.toBe(jsonB.boltcard_response.K1);
   });
+
+  test("POST with JSON body key produces same result as GET", async () => {
+    const getRes = await makeRequest(
+      `/api/bulk-wipe-keys?uid=${VALID_UID}&key=${VALID_KEY}`
+    );
+    const getJson = await getRes.json();
+
+    const postRes = await makeRequest(
+      `/api/bulk-wipe-keys?uid=${VALID_UID}`,
+      "POST",
+      { key: VALID_KEY }
+    );
+    const postJson = await postRes.json();
+
+    expect(postRes.status).toBe(200);
+    expect(postJson.boltcard_response.K0).toBe(getJson.boltcard_response.K0);
+    expect(postJson.boltcard_response.K2).toBe(getJson.boltcard_response.K2);
+  });
 });
 
 describe("GET /experimental/bulkwipe", () => {

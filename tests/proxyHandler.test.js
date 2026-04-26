@@ -118,4 +118,11 @@ describe("handleProxy", () => {
     const res = await handleProxy(req, UID, "p", "c", "https://backend.example.com/tap", {});
     expect(res.status).toBe(200);
   });
+
+  it("works without verification parameter (default)", async () => {
+    const req = new Request("https://test.local/?p=ABCD&c=EFGH");
+    const res = await handleProxy(req, UID, "ABCD", "EFGH", "https://backend.example.com/tap");
+    expect(res.status).toBe(200);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
 });

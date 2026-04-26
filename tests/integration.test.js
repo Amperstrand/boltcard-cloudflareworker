@@ -3,10 +3,14 @@
  * Tests complete NFC payment processing from request to payment completion
  */
 
-import { handleRequest } from '../index.js';
+import indexModule, { handleRequest as _handleRequest } from '../index.js';
 import { logger } from '../utils/logger.js';
+import { createSession } from '../middleware/operatorAuth.js';
 import { makeReplayNamespace } from './replayNamespace.js';
-import { TEST_OPERATOR_AUTH } from './testHelpers.js';
+import { TEST_OPERATOR_AUTH, buildCardTestEnv } from './testHelpers.js';
+
+const handleRequest = _handleRequest;
+const defaultFetch = indexModule.fetch.bind(indexModule);
 
 const LEGACY_UID_CONFIGS = {
   '04996c6a926980': JSON.stringify({
@@ -331,3 +335,115 @@ describe('Complete Payment Flow Integration', () => {
       expect(true).toBe(true);
     });
   });
+
+describe('Rate Limiting', () => {
+  it('returns 429 when rate limit is exceeded', async () => {
+    const env = {
+      ...mockEnv,
+      RATE_LIMITS: {
+        get: async () => '100',
+        put: async () => {},
+      },
+    };
+    const request = new Request('https://test.local/status', {
+      headers: { 'CF-Connecting-IP': '1.2.3.4' },
+    });
+    const response = await defaultFetch(request, env, {});
+    expect(response.status).toBe(429);
+    expect(response.headers.get('Retry-After')).toBeDefined();
+    expect(response.headers.get('X-RateLimit-Remaining')).toBe('0');
+  });
+
+  it('passes through when under rate limit', async () => {
+    const env = {
+      ...mockEnv,
+      RATE_LIMITS: {
+        get: async () => '0',
+        put: async () => {},
+      },
+    };
+    const request = new Request('https://test.local/status', {
+      headers: { 'CF-Connecting-IP': '1.2.3.4' },
+    });
+    const response = await defaultFetch(request, env, {});
+    expect(response.status).toBe(200);
+  });
+
+  it('skips rate limiting when no RATE_LIMITS binding', async () => {
+    const env = { ...mockEnv };
+    delete env.RATE_LIMITS;
+    const request = new Request('https://test.local/status');
+    const response = await defaultFetch(request, env, {});
+    expect(response.status).toBe(200);
+  });
+});
+
+describe('CSRF Validation', () => {
+  it('rejects POST to operator endpoint with mismatched CSRF token', async () => {
+    const env = buildCardTestEnv({ operatorAuth: true, extraEnv: { BOLT_CARD_K1: '55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d', WORKER_ENV: 'production', OPERATOR_SESSION_SECRET: 'test-prod-secret-12345678' } });
+    const session = createSession(env);
+    const sessionCookie = session.cookie;
+    const req = new Request('https://test.local/api/keys', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': `${sessionCookie}; op_csrf=token-a`,
+        'X-CSRF-Token': 'token-b',
+      },
+      body: JSON.stringify({}),
+    });
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.reason).toContain('CSRF');
+  });
+
+  it('sets CSRF cookie on GET when none present', async () => {
+    const env = buildCardTestEnv({ operatorAuth: true, extraEnv: { BOLT_CARD_K1: '55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d' } });
+    const session = TEST_OPERATOR_AUTH.__TEST_OPERATOR_SESSION;
+    const sessionCookie = `op_session=${encodeURIComponent(JSON.stringify(session))}`;
+    const req = new Request('https://test.local/api/keys', {
+      method: 'GET',
+      headers: {
+        'Cookie': sessionCookie,
+      },
+    });
+    const res = await handleRequest(req, env);
+    const setCookie = res.headers.get('Set-Cookie');
+    expect(setCookie).toContain('op_csrf=');
+  });
+
+  it('skips CSRF cookie when already present', async () => {
+    const env = buildCardTestEnv({ operatorAuth: true, extraEnv: { BOLT_CARD_K1: '55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d' } });
+    const session = TEST_OPERATOR_AUTH.__TEST_OPERATOR_SESSION;
+    const sessionCookie = `op_session=${encodeURIComponent(JSON.stringify(session))}; op_csrf=existing-token`;
+    const req = new Request('https://test.local/api/keys', {
+      method: 'GET',
+      headers: {
+        'Cookie': sessionCookie,
+      },
+    });
+    const res = await handleRequest(req, env);
+    const setCookie = res.headers.get('Set-Cookie');
+    expect(setCookie).toBeNull();
+  });
+});
+
+describe('Unhandled Error', () => {
+  it('returns 500 when checkRateLimit throws', async () => {
+    const env = {
+      ...mockEnv,
+      RATE_LIMITS: {
+        get: async () => { throw new Error('KV timeout'); },
+        put: async () => {},
+      },
+    };
+    const req = new Request('https://test.local/status', {
+      headers: { 'CF-Connecting-IP': '1.2.3.4' },
+    });
+    const res = await defaultFetch(req, env, {});
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.reason).toContain('Internal server error');
+  });
+});

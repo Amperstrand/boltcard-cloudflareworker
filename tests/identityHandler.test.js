@@ -161,6 +161,28 @@ describe("identityHandler branch coverage", () => {
     expect(res.status).toBe(500);
   });
 
+  it("returns verified:false when getUidConfig returns null (production, no issuer key)", async () => {
+    const devKey = "00000000000000000000000000000001";
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY: devKey }, 1);
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const env = buildCardTestEnv({
+      uid: UID,
+      issuerKey: devKey,
+      kvData: null,
+      cardState: "new",
+      extraEnv: {
+        WORKER_ENV: "production",
+      },
+    });
+    delete env.ISSUER_KEY;
+    const req = new Request(`https://test.local/api/verify-identity?p=${pHex}&c=${cHex}`);
+    const res = await handleIdentityVerify(req, env);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.verified).toBe(false);
+    expect(body.reason).toContain("Card not recognized");
+  });
+
   it("returns 400 when decryption fails", async () => {
     const env = buildEnv(JSON.stringify({}));
     const req = new Request("https://test.local/api/verify-identity?p=AABBCCDD11223344AABBCCDD11223344&c=1122334455667788");

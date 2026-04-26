@@ -338,5 +338,44 @@ describe("LNURL-pay POS card flow", () => {
       );
       expect(callbackCall).toBeDefined();
     });
+
+    test("returns 500 when recordTap throws", async () => {
+      const replay = makeReplayNamespace();
+      replay.__cardConfigs.set("04d070fa967380", POS_UID_CONFIG_OBJECT);
+      const origGet = replay.get.bind(replay);
+      replay.get = (id) => {
+        const obj = origGet(id);
+        const origFetch = obj.fetch.bind(obj);
+        return {
+          fetch: async (request) => {
+            const url = new URL(request.url);
+            if (url.pathname === "/record-tap") throw new Error("DO unavailable");
+            return origFetch(request);
+          },
+        };
+      };
+      const env = { ...baseEnv, CARD_REPLAY: replay };
+      const response = await makeRequest(
+        `/lnurlp/cb?p=${PAY_COUNTER_1}&c=${PAY_CMAC_1}&amount=1000`,
+        "GET", null, env
+      );
+      expect(response.status).toBe(500);
+      const json = await response.json();
+      expect(json.reason).toContain("Replay protection unavailable");
+    });
+
+    test("returns 500 on outer catch when resolveLightningAddress throws", async () => {
+      const env = makePayEnv();
+      global.fetch = jest.fn().mockRejectedValue(new Error("DNS failure"));
+      try {
+        const response = await makeRequest(
+          `/lnurlp/cb?p=${PAY_COUNTER_1}&c=${PAY_CMAC_1}&amount=1000`,
+          "GET", null, env
+        );
+        expect(response.status).toBe(500);
+      } finally {
+        global.fetch.mockRestore();
+      }
+    });
   });
 });

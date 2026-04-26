@@ -189,4 +189,98 @@ describe("fetchBoltCardKeys", () => {
     const body = await res.json();
     expect(body.reason).toContain("UID");
   });
+
+  it("resets via LNURLW without onExisting param", async () => {
+    const env = buildEnv("active", {
+      K2: getDeterministicKeys(UID, { ISSUER_KEY }, 1).k2,
+      payment_method: "fakewallet",
+    });
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const lnurlw = `lnurlw://boltcardpoc.psbt.me/lnurl?p=${pHex}&c=${cHex}`;
+
+    const req = postRequest(
+      "https://test.local/api/v1/pull-payments/test/boltcards",
+      { LNURLW: lnurlw }
+    );
+    const res = await fetchBoltCardKeys(req, env);
+    expect(res.status).toBe(200);
+  });
+
+  it("reset flow rejects keys_delivered card state", async () => {
+    const env = buildEnv("active", {
+      K2: getDeterministicKeys(UID, { ISSUER_KEY }, 1).k2,
+      payment_method: "fakewallet",
+    });
+    env.CARD_REPLAY.__cardStates.get(UID).state = "keys_delivered";
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const lnurlw = `lnurlw://boltcardpoc.psbt.me/lnurl?p=${pHex}&c=${cHex}`;
+
+    const req = postRequest(
+      "https://test.local/api/v1/pull-payments/test/boltcards?onExisting=KeepVersion",
+      { LNURLW: lnurlw }
+    );
+    const res = await fetchBoltCardKeys(req, env);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.reason).toContain("active or terminated");
+  });
+
+  it("reset flow rejects invalid CMAC", async () => {
+    const env = buildEnv("active", {
+      K2: getDeterministicKeys(UID, { ISSUER_KEY }, 1).k2,
+      payment_method: "fakewallet",
+    });
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const lnurlw = `lnurlw://boltcardpoc.psbt.me/lnurl?p=${pHex}&c=DEADBEEFDEADBEEF`;
+
+    const req = postRequest(
+      "https://test.local/api/v1/pull-payments/test/boltcards?onExisting=KeepVersion",
+      { LNURLW: lnurlw }
+    );
+    const res = await fetchBoltCardKeys(req, env);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.reason).toContain("CMAC");
+  });
+
+  it("reset flow handles terminated card", async () => {
+    const env = buildEnv("active", {
+      K2: getDeterministicKeys(UID, { ISSUER_KEY }, 1).k2,
+      payment_method: "fakewallet",
+    });
+    env.CARD_REPLAY.__cardStates.get(UID).state = "terminated";
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const lnurlw = `lnurlw://boltcardpoc.psbt.me/lnurl?p=${pHex}&c=${cHex}`;
+
+    const req = postRequest(
+      "https://test.local/api/v1/pull-payments/test/boltcards?onExisting=KeepVersion",
+      { LNURLW: lnurlw }
+    );
+    const res = await fetchBoltCardKeys(req, env);
+    expect(res.status).toBe(200);
+  });
+
+  it("reset flow rejects LNURLW missing p param", async () => {
+    const env = buildEnv();
+    const lnurlw = "lnurlw://example.com/?c=ABCDEF";
+    const req = postRequest(
+      "https://test.local/api/v1/pull-payments/test/boltcards?onExisting=KeepVersion",
+      { LNURLW: lnurlw }
+    );
+    const res = await fetchBoltCardKeys(req, env);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.reason).toContain("p");
+  });
+
+  it("rejects GET request", async () => {
+    const env = buildEnv();
+    const req = new Request("https://test.local/api/v1/pull-payments/test/boltcards", { method: "GET" });
+    const res = await fetchBoltCardKeys(req, env);
+    expect(res.status).toBe(405);
+  });
 });

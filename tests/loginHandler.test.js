@@ -2,6 +2,7 @@ import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
 import { getDeterministicKeys, deriveKeysFromHex } from "../keygenerator.js";
+import { handleTerminateAction, handleRequestWipeAction, handleTopUpAction, normalizeSubmittedUid } from "../handlers/loginActions.js";
 import aesjs from "aes-js";
 
 const env = {
@@ -368,8 +369,8 @@ describe("POST /login (handleLoginVerify)", () => {
     expect(json).toMatchObject({
       status: "ERROR",
       success: false,
-      error: "exploded issuer key lookup",
-      reason: "exploded issuer key lookup",
+      error: "Internal error",
+      reason: "Internal error",
     });
   });
 
@@ -389,8 +390,8 @@ describe("POST /login (handleLoginVerify)", () => {
       error: expect.any(String),
       reason: expect.any(String),
     });
-    expect(json.error).toMatch(/invalid hex string/i);
-    expect(json.reason).toMatch(/invalid hex string/i);
+    expect(json.error).toMatch(/internal error/i);
+    expect(json.reason).toMatch(/internal error/i);
   });
 
   test("request-wipe without ISSUER_KEY returns error", async () => {
@@ -412,8 +413,8 @@ describe("POST /login (handleLoginVerify)", () => {
       error: expect.any(String),
       reason: expect.any(String),
     });
-    expect(json.error).toMatch(/invalid hex string/i);
-    expect(json.reason).toMatch(/invalid hex string/i);
+    expect(json.error).toMatch(/internal error/i);
+    expect(json.reason).toMatch(/internal error/i);
   });
 
   test("UID-only login with DO config returns deployed=true", async () => {
@@ -1017,5 +1018,69 @@ describe("POST /login (handleLoginVerify)", () => {
         console.error = origError;
       }
     });
+  });
+});
+
+describe("loginActions branch coverage", () => {
+  test("normalizeSubmittedUid handles non-string input", () => {
+    expect(normalizeSubmittedUid(null)).toBeNull();
+    expect(normalizeSubmittedUid(undefined)).toBeNull();
+    expect(normalizeSubmittedUid(123)).toBeNull();
+  });
+
+  test("normalizeSubmittedUid strips colons from valid UID", () => {
+    expect(normalizeSubmittedUid("04:a3:94:93:cc:86:80")).toBe("04a39493cc8680");
+  });
+
+  test("terminate returns keyVersion fallback when latest_issued_version is null", async () => {
+    const replay = makeReplayNamespace();
+    replay.__activate(ACTION_UID, 1);
+    const state = replay.__cardStates.get(ACTION_UID);
+    state.active_version = 2;
+    state.latest_issued_version = null;
+    const testEnv = makeEnv(replay);
+    const req = new Request("https://test.local/login");
+    const res = await handleTerminateAction(ACTION_UID, testEnv, req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.keyVersion).toBe(2);
+  });
+
+  test("request-wipe uses version 1 when active_version is null", async () => {
+    const replay = makeReplayNamespace();
+    replay.__activate(ACTION_UID, 1);
+    const state = replay.__cardStates.get(ACTION_UID);
+    state.active_version = null;
+    const testEnv = makeEnv(replay);
+    const req = new Request("https://test.local/login");
+    const res = await handleRequestWipeAction(ACTION_UID, testEnv, req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.keyVersion).toBe(1);
+  });
+
+  test("top-up returns fallback message when creditCard fails without reason", async () => {
+    const replay = makeReplayNamespace();
+    replay.__activate(ACTION_UID, 1);
+    const testEnv = makeEnv(replay);
+    const origGet = testEnv.CARD_REPLAY.get.bind(testEnv.CARD_REPLAY);
+    testEnv.CARD_REPLAY.get = (id) => {
+      const obj = origGet(id);
+      const origFetch = obj.fetch.bind(obj);
+      return {
+        fetch: async (request) => {
+          const url = new URL(request.url);
+          if (request.method === "POST" && url.pathname === "/credit") {
+            return Response.json({ ok: false });
+          }
+          return origFetch(request);
+        },
+      };
+    };
+    const req = new Request("https://test.local/login");
+    const res = await handleTopUpAction(ACTION_UID, "500", testEnv, req);
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.reason).toContain("Top-up failed");
   });
 });
