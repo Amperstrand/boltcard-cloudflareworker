@@ -76,7 +76,13 @@ export async function validateCardTap(request, env, { pHex, cHex, context = "tap
     }
   }
 
-  const replayResult = await checkAndAdvanceCounter(env, uidHex, counterValue);
+  let replayResult;
+  try {
+    replayResult = await checkAndAdvanceCounter(env, uidHex, counterValue);
+  } catch (error) {
+    logger.error(`${context}: replay protection check failed`, { uidHex, counterValue, error: error.message });
+    return { ok: false, status: 503, error: "Replay protection unavailable" };
+  }
   if (!replayResult.accepted) {
     logger.warn(`${context}: replay detected`, { uidHex, counterValue });
     return { ok: false, status: 400, error: "Card already used — tap rejected" };

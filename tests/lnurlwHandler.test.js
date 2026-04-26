@@ -400,4 +400,28 @@ describe("handleLnurlw", () => {
     const res = await handleLnurlw(req, env);
     expect(res.status).toBe(500);
   });
+
+  it("returns 500 when card activation fails for keys_delivered card", async () => {
+    const env = buildEnv("fakewallet");
+    env.CARD_REPLAY.__cardStates.get(UID).state = "keys_delivered";
+    env.CARD_REPLAY.__cardStates.get(UID).latest_issued_version = 1;
+    env.CARD_REPLAY.__cardStates.get(UID).active_version = null;
+    const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
+    env.CARD_REPLAY.get = (id) => {
+      const obj = origGet(id);
+      return {
+        fetch: async (request) => {
+          const url = new URL(request.url);
+          if (url.pathname === "/activate") {
+            return Response.json({ ok: false, error: "DO error" }, { status: 500 });
+          }
+          return obj.fetch(request);
+        },
+      };
+    };
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const req = tapRequest(UID, 2, keys.k1, keys.k2);
+    const res = await handleLnurlw(req, env);
+    expect(res.status).toBe(500);
+  });
 });

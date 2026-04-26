@@ -100,7 +100,12 @@ export async function handleLnurlw(request, env) {
     if (activeVersion === null) {
       return errorResponse("Unable to verify card. Version mismatch.", 403);
     }
-    await activateCard(env, uidHex, activeVersion);
+    try {
+      await activateCard(env, uidHex, activeVersion);
+    } catch (error) {
+      logger.error("Card activation failed", { uidHex, activeVersion, error: error.message });
+      return errorResponse("Card activation failed", 500);
+    }
   } else if (cardState.state === CARD_STATE.ACTIVE) {
     activeVersion = cardState.active_version || 1;
   } else {
@@ -160,10 +165,10 @@ export async function handleLnurlw(request, env) {
 
   if (config.payment_method === PAYMENT_METHOD.LNURLPAY) {
     const baseUrl = getRequestOrigin(request);
-    await recordTapRead(env, uidHex, counterValue, {
+    recordTapRead(env, uidHex, counterValue, {
       userAgent: request.headers.get("User-Agent") || null,
       requestUrl: request.url,
-    });
+    }).catch(e => logger.warn("recordTapRead failed", { uidHex, counterValue, error: e.message }));
     return jsonResponse(constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, config, env));
   }
 

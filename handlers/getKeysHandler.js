@@ -16,7 +16,12 @@ async function findFirstKeyset(normalizedUid, env) {
     };
   }
 
-  const cardState = await getCardState(env, normalizedUid);
+  let cardState;
+  try {
+    cardState = await getCardState(env, normalizedUid);
+  } catch (e) {
+    logger.warn("getCardState failed in findFirstKeyset", { uid: normalizedUid, error: e.message });
+  }
   const activeVersion = cardState?.active_version || cardState?.latest_issued_version;
   const versions = activeVersion && activeVersion > 1
     ? [activeVersion, activeVersion - 1, 1, 0]
@@ -101,7 +106,12 @@ export async function handleGetKeys(request, env) {
   }
 
   const issuerCandidates = getAllIssuerKeyCandidates(env);
-  const cardStateDetail = await getCardState(env, validatedUid);
+  let cardStateDetail;
+  try {
+    cardStateDetail = await getCardState(env, validatedUid);
+  } catch (e) {
+    logger.warn("getCardState failed in keyset builder", { uid: validatedUid, error: e.message });
+  }
   const activeVersionDetail = cardStateDetail?.active_version || cardStateDetail?.latest_issued_version;
   const detailVersions = activeVersionDetail && activeVersionDetail > 1
     ? [activeVersionDetail, activeVersionDetail - 1, 1, 0]

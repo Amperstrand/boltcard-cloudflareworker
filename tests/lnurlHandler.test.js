@@ -250,6 +250,27 @@ describe("handleLnurlpPayment", () => {
     expect(tap.status).toBe("failed");
   });
 
+  it("returns 500 when tap recording fails", async () => {
+    const env = buildEnv(10000);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
+    env.CARD_REPLAY.get = (id) => {
+      const obj = origGet(id);
+      return {
+        fetch: async (request) => {
+          const url = new URL(request.url);
+          if (url.pathname === "/record-tap") {
+            return Response.json({ ok: false, error: "DO down" }, { status: 500 });
+          }
+          return obj.fetch(request);
+        },
+      };
+    };
+    const { pHex, cHex } = virtualTap(UID, 9, keys.k1, keys.k2);
+    const res = await handleLnurlpPayment(new Request(callbackUrl(pHex, cHex, { amount: 500 })), env);
+    expect(res.status).toBe(500);
+  });
+
   it("rejects k1 with invalid format (missing p and c)", async () => {
     const env = buildEnv();
     const req = new Request("https://test.local/boltcards/api/v1/lnurl/cb?k1=invaliddata&pr=lnbc10n1test");

@@ -108,6 +108,7 @@ export async function handleLnurlpPayment(request, env) {
         }
       } catch (error) {
         logger.error("Tap recording failed", { uidHex: normalizedUidHex, counterValue, error: error.message });
+        return errorResponse("Replay protection unavailable", 500);
       }
 
       const withdrawalResponse = await processWithdrawalPayment(normalizedUidHex, invoice || null, env, counterValue, explicitAmount ? parseInt(explicitAmount, 10) : undefined);
@@ -155,7 +156,13 @@ async function processWithdrawalPayment(uid, pr, env, counterValue, explicitAmou
 
   if (config.payment_method === PAYMENT_METHOD.FAKEWALLET) {
     const amount = explicitAmount != null ? explicitAmount : (decodeBolt11Amount(pr) || 0);
-    const result = await debitCard(env, uid, counterValue, amount, `Payment: ${amount} units`);
+    let result;
+    try {
+      result = await debitCard(env, uid, counterValue, amount, `Payment: ${amount} units`);
+    } catch (error) {
+      logger.error("Fakewallet debit threw", { uid, amount, error: error.message });
+      return jsonResponse({ status: "ERROR", reason: "Debit failed" }, 500);
+    }
     if (result.ok) {
       logger.info("Fakewallet payment processed", { uid, amount, balance: result.balance });
       return jsonResponse({ status: "OK", message: "Payment processed", balance: result.balance }, 200);
