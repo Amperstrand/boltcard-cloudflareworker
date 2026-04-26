@@ -1,4 +1,4 @@
-import { handleCardPage, handleCardInfo } from "../handlers/cardDashboardHandler.js";
+import { handleCardPage, handleCardInfo, handleCardLock } from "../handlers/cardDashboardHandler.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { virtualTap, buildCardTestEnv } from "./testHelpers.js";
 
@@ -80,7 +80,7 @@ describe("handleCardInfo", () => {
   describe("valid tap", () => {
     it("returns card info for valid tap with full response", async () => {
       const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
-      setCardState(env, UID, { key_provenance: "public_issuer", key_label: "dev-01", key_fingerprint: "abc123" });
+      setCardState(env, UID, { key_provenance: "public_issuer", key_label: "dev-01" });
 
       const res = await handleCardInfo(makeTapRequest(UID, ISSUER_KEY, 1), env);
       expect(res.status).toBe(200);
@@ -90,12 +90,15 @@ describe("handleCardInfo", () => {
       expect(body.maskedUid).toBeDefined();
       expect(body.state).toBe("active");
       expect(body.balance).toBeDefined();
-      expect(body.recentTaps).toBeDefined();
+      expect(body.history).toBeDefined();
+      expect(Array.isArray(body.history)).toBe(true);
+      expect(body.analytics).toBeDefined();
       expect(body.programmingRecommended).toBe(true);
       expect(body.keyProvenance).toBe("public_issuer");
       expect(body.keyLabel).toBe("dev-01");
-      expect(body.keyFingerprint).toBe("abc123");
       expect(body.activeVersion).toBeDefined();
+      expect(body.paymentMethod).toBe("fakewallet");
+      expect(body.paymentMethodLabel).toBe("Internal Wallet");
       expect(body.firstSeenAt).toBeNull();
     });
   });
@@ -112,7 +115,9 @@ describe("handleCardInfo", () => {
       expect(body.state).toBe("terminated");
       expect(body.programmingRecommended).toBe(false);
       expect(body.balance).toBe(0);
-      expect(body.recentTaps).toEqual([]);
+      expect(body.history).toEqual([]);
+      expect(body.analytics).toBeNull();
+      expect(body.paymentMethod).toBeNull();
     });
 
     it("returns info for discovered card", async () => {
@@ -153,7 +158,7 @@ describe("handleCardInfo", () => {
       expect(body.state).toBe("new");
       expect(body.programmingRecommended).toBe(false);
       expect(body.balance).toBe(0);
-      expect(body.recentTaps).toEqual([]);
+      expect(body.history).toEqual([]);
     });
 
     it("returns partial info for keys_delivered card with no K2 in config", async () => {
@@ -229,18 +234,27 @@ describe("handleCardInfo", () => {
   });
 
   describe("graceful degradation", () => {
-    it("returns balance 0 when getBalance fails", async () => {
-      const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
-      env.CARD_REPLAY.__cardStates.get(UID).key_provenance = "env_issuer";
-
-      const originalFetch = env.CARD_REPLAY.get(env.CARD_REPLAY.idFromName(UID)).fetch;
-      env.CARD_REPLAY.get(env.CARD_REPLAY.idFromName(UID)).fetch = async (req) => {
-        const url = new URL(req.url);
-        if (url.pathname === "/balance") {
-          return new Response("Internal error", { status: 500 });
-        }
-        return originalFetch(req);
+    function interceptDo(env, uid, pathToBlock) {
+      const originalGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
+      env.CARD_REPLAY.get = (id) => {
+        const stub = originalGet(id);
+        const origFetch = stub.fetch;
+        return {
+          fetch: async (req) => {
+            const url = new URL(req.url);
+            if (String(id).toLowerCase() === uid && url.pathname === pathToBlock) {
+              return new Response("Internal error", { status: 500 });
+            }
+            return origFetch(req);
+          },
+        };
       };
+    }
+
+    it("returns balance 0 when getBalance fails", async () => {
+      const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet", balance: 5000 });
+      env.CARD_REPLAY.__cardStates.get(UID).key_provenance = "env_issuer";
+      interceptDo(env, UID, "/balance");
 
       const res = await handleCardInfo(makeTapRequest(UID, ISSUER_KEY, 1), env);
       expect(res.status).toBe(200);
@@ -249,24 +263,16 @@ describe("handleCardInfo", () => {
       expect(body.balance).toBe(0);
     });
 
-    it("returns empty taps when listTaps fails", async () => {
+    it("returns empty history when listTaps fails", async () => {
       const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
       env.CARD_REPLAY.__cardStates.get(UID).key_provenance = "env_issuer";
-
-      const originalFetch = env.CARD_REPLAY.get(env.CARD_REPLAY.idFromName(UID)).fetch;
-      env.CARD_REPLAY.get(env.CARD_REPLAY.idFromName(UID)).fetch = async (req) => {
-        const url = new URL(req.url);
-        if (url.pathname === "/list-taps") {
-          return new Response("Internal error", { status: 500 });
-        }
-        return originalFetch(req);
-      };
+      interceptDo(env, UID, "/list-taps");
 
       const res = await handleCardInfo(makeTapRequest(UID, ISSUER_KEY, 1), env);
       expect(res.status).toBe(200);
 
       const body = await res.json();
-      expect(body.recentTaps).toEqual([]);
+      expect(body.history).toEqual([]);
     });
 
     it("returns 500 when card state DO is unreachable", async () => {
@@ -284,5 +290,138 @@ describe("handleCardInfo", () => {
       const body = await res.json();
       expect(body.reason).toBe("Card state unavailable");
     });
+  });
+});
+
+describe("handleCardLock", () => {
+  function makeLockRequest(uid, issuerKey, counter) {
+    const keys = getDeterministicKeys(uid, { ISSUER_KEY: issuerKey }, 1);
+    const { pHex, cHex } = virtualTap(uid, counter, keys.k1, keys.k2);
+    return new Request("https://test.local/api/card/lock", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ p: pHex, c: cHex }),
+    });
+  }
+
+  it("locks an active card", async () => {
+    const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
+    const res = await handleCardLock(makeLockRequest(UID, ISSUER_KEY, 1), env);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.state).toBe("terminated");
+
+    const state = env.CARD_REPLAY.__cardStates.get(UID);
+    expect(state.state).toBe("terminated");
+  });
+
+  it("locks a discovered card", async () => {
+    const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
+    setCardState(env, UID, { state: "discovered" });
+
+    const res = await handleCardLock(makeLockRequest(UID, ISSUER_KEY, 1), env);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.success).toBe(true);
+  });
+
+  it("rejects GET request", async () => {
+    const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY });
+    const req = new Request("https://test.local/api/card/lock", { method: "GET" });
+    const res = await handleCardLock(req, env);
+    expect(res.status).toBe(405);
+  });
+
+  it("rejects missing body", async () => {
+    const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY });
+    const req = new Request("https://test.local/api/card/lock", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    const res = await handleCardLock(req, env);
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects invalid JSON", async () => {
+    const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY });
+    const req = new Request("https://test.local/api/card/lock", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "not json",
+    });
+    const res = await handleCardLock(req, env);
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects already terminated card", async () => {
+    const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY });
+    setCardState(env, UID, { state: "terminated" });
+
+    const res = await handleCardLock(makeLockRequest(UID, ISSUER_KEY, 1), env);
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body.reason).toBe("Card is already locked");
+  });
+
+  it("rejects pending card", async () => {
+    const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY });
+    setCardState(env, UID, { state: "pending" });
+
+    const res = await handleCardLock(makeLockRequest(UID, ISSUER_KEY, 1), env);
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body.reason).toContain("pending");
+  });
+
+  it("rejects invalid CMAC", async () => {
+    const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex } = virtualTap(UID, 1, keys.k1, keys.k2);
+
+    const req = new Request("https://test.local/api/card/lock", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ p: pHex, c: "00000000000000000000000000000000" }),
+    });
+    const res = await handleCardLock(req, env);
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects invalid card data", async () => {
+    const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY });
+    const req = new Request("https://test.local/api/card/lock", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ p: "deadbeef", c: "cafe" }),
+    });
+    const res = await handleCardLock(req, env);
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 500 when DO terminate fails", async () => {
+    const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
+    const originalGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
+    env.CARD_REPLAY.get = (id) => {
+      const stub = originalGet(id);
+      const origFetch = stub.fetch;
+      return {
+        fetch: async (req) => {
+          const url = new URL(req.url);
+          if (String(id).toLowerCase() === UID && url.pathname === "/terminate") {
+            return new Response("Internal error", { status: 500 });
+          }
+          return origFetch(req);
+        },
+      };
+    };
+
+    const res = await handleCardLock(makeLockRequest(UID, ISSUER_KEY, 1), env);
+    expect(res.status).toBe(500);
   });
 });

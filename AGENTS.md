@@ -117,7 +117,8 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | GET | `/debug` | `handleDebugPage()` | Tabbed debug console (Console, Identify, Wipe, 2FA, Identity, POS) |
 | GET | `/identity` | `handleIdentityPage()` | Identity/access control demo |
 | GET | `/card` | `handleCardPage()` | Cardholder dashboard (NFC scan) |
-| GET | `/card/info` | `handleCardInfo()` | Card status API (JSON) |
+| GET | `/card/info` | `handleCardInfo()` | Card status API (JSON) — returns unified history, analytics, payment method |
+| POST | `/api/card/lock` | `handleCardLock()` | Cardholder self-service card lock (CMAC auth) |
 | GET | `/api/fake-invoice` | inline | Generate fake bolt11 for fakewallet |
 | GET | `/api/verify-identity` | `handleIdentityVerify()` | Identity verification API |
 | POST | `/api/identity/profile` | `handleIdentityProfileUpdate()` | Identity profile update |
@@ -197,7 +198,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 
 - Run: `npm test` (uses Jest with `--experimental-vm-modules`)
 - Deploy: `npm run deploy` (tests → build_keys → wrangler deploy)
-- **1081 tests** across 59 test suites (as of 2026-04-26)
+- **1091 tests** across 59 test suites (as of 2026-04-26)
 - Coverage: ~87% statements, ~79% branches, ~85% functions
 
 ## Test Inventory
@@ -256,7 +257,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | `tests/bulkWipePageHandler.test.js` | Bulk wipe page rendering with key fingerprints | |
 | `tests/withdrawHandler.test.js` | Withdraw response: CMAC-failed, fakewallet/clnrest amounts | |
 | `tests/cardReplayDO.test.js` | DO SQL logic via better-sqlite3 (counter, taps, state, config, balance, analytics, provenance, discovery, set-k2, list-taps merge, record-read, transactions, discover branching) | |
-| `tests/cardDashboardHandler.test.js` | Cardholder dashboard: page rendering, info API, provenance banner, state handling, NFC/manual input | |
+| `tests/cardDashboardHandler.test.js` | Cardholder dashboard: page rendering, info API (unified history, analytics, payment method), provenance, state handling, self-service lock, NFC/manual input | |
 | `tests/cardIndex.test.js` | KV card registry: indexCard, deindexCard, getIndexedCard, listIndexedCards, edge cases | |
 | `tests/cardAuditHandler.test.js` | Operator audit page: auth redirect, data endpoint, state filtering | |
 | `tests/auditLog.test.js` | Audit log: record events, list sorted, corrupted entries, KV errors | |

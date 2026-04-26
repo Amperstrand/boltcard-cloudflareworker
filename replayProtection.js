@@ -129,10 +129,6 @@ export async function getAnalytics(env, uidHex) {
 
   const result = await response.json();
 
-  await indexCard(env, uidHex, {
-    state: CARD_STATE.WIPE_REQUESTED,
-  });
-
   return result;
 }
 

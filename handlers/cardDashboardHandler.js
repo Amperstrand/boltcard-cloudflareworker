@@ -3,10 +3,19 @@ import { getUidConfig } from "../getUidConfig.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { logger } from "../utils/logger.js";
 import { htmlResponse, jsonResponse, errorResponse } from "../utils/responses.js";
-import { getCardState, getBalance, listTaps } from "../replayProtection.js";
+import { getCardState, getCardConfig, getBalance, getAnalytics, terminateCard } from "../replayProtection.js";
 import { buildMaskedUid } from "../utils/validation.js";
 import { renderCardDashboardPage } from "../templates/cardDashboardPage.js";
-import { CARD_STATE, KEY_PROVENANCE } from "../utils/constants.js";
+import { CARD_STATE, KEY_PROVENANCE, PAYMENT_METHOD } from "../utils/constants.js";
+import { getUnifiedHistory } from "../utils/history.js";
+
+const PAYMENT_METHOD_LABELS = {
+  [PAYMENT_METHOD.FAKEWALLET]: "Internal Wallet",
+  [PAYMENT_METHOD.CLNREST]: "Lightning Node",
+  [PAYMENT_METHOD.PROXY]: "Proxy Relay",
+  [PAYMENT_METHOD.LNURLPAY]: "POS Card",
+  [PAYMENT_METHOD.TWOFACTOR]: "2FA Token",
+};
 
 export async function handleCardPage(request, env) {
   return htmlResponse(renderCardDashboardPage());
@@ -27,7 +36,6 @@ export async function handleCardInfo(request, env) {
   }
 
   const { uidHex, ctr } = decryption;
-  const counterValue = parseInt(ctr, 16);
 
   let cardState;
   try {
@@ -45,7 +53,11 @@ export async function handleCardInfo(request, env) {
       keyProvenance: cardState.key_provenance || null,
       programmingRecommended: false,
       balance: 0,
-      recentTaps: [],
+      history: [],
+      analytics: null,
+      paymentMethod: null,
+      paymentMethodLabel: null,
+      activatedAt: cardState.activated_at || null,
     });
   }
 
@@ -60,7 +72,11 @@ export async function handleCardInfo(request, env) {
       keyProvenance: cardState.key_provenance || null,
       programmingRecommended: cardState.key_provenance === KEY_PROVENANCE.PUBLIC_ISSUER,
       balance: 0,
-      recentTaps: [],
+      history: [],
+      analytics: null,
+      paymentMethod: null,
+      paymentMethodLabel: null,
+      activatedAt: cardState.activated_at || null,
     });
   }
 
@@ -83,17 +99,31 @@ export async function handleCardInfo(request, env) {
     logger.warn("Balance fetch failed in /card/info", { uidHex, error: e.message });
   }
 
-  let recentTaps = [];
+  let history = [];
   try {
-    const tapResult = await listTaps(env, uidHex, 5);
-    recentTaps = (tapResult.taps || []).map(t => ({
-      counter: t.counter,
-      status: t.status,
-      amountMsat: t.amount_msat || 0,
-      createdAt: t.created_at,
-    }));
+    history = await getUnifiedHistory(env, uidHex);
   } catch (e) {
-    logger.warn("Tap listing failed in /card/info", { uidHex, error: e.message });
+    logger.warn("History fetch failed in /card/info", { uidHex, error: e.message });
+  }
+
+  let analytics = null;
+  try {
+    analytics = await getAnalytics(env, uidHex);
+  } catch (e) {
+    logger.warn("Analytics fetch failed in /card/info", { uidHex, error: e.message });
+  }
+
+  let paymentMethod = null;
+  let paymentMethodLabel = null;
+  let cardConfig = null;
+  try {
+    cardConfig = await getCardConfig(env, uidHex);
+    if (cardConfig) {
+      paymentMethod = cardConfig.payment_method || null;
+      paymentMethodLabel = PAYMENT_METHOD_LABELS[paymentMethod] || paymentMethod;
+    }
+  } catch (e) {
+    logger.warn("Config fetch failed in /card/info", { uidHex, error: e.message });
   }
 
   const programmingRecommended = cardState.key_provenance === KEY_PROVENANCE.PUBLIC_ISSUER;
@@ -108,9 +138,80 @@ export async function handleCardInfo(request, env) {
     keyLabel: cardState.key_label || null,
     keyFingerprint: cardState.key_fingerprint || null,
     firstSeenAt: cardState.first_seen_at || null,
+    activatedAt: cardState.activated_at || null,
     activeVersion,
     programmingRecommended,
     balance,
-    recentTaps,
+    history,
+    analytics,
+    paymentMethod,
+    paymentMethodLabel,
   });
+}
+
+export async function handleCardLock(request, env) {
+  if (request.method !== "POST") {
+    return errorResponse("Method not allowed", 405);
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse("Invalid JSON body", 400);
+  }
+
+  const { p: pHex, c: cHex } = body;
+  if (!pHex || !cHex) {
+    return errorResponse("Missing p or c parameters", 400);
+  }
+
+  const decryption = extractUIDAndCounter(pHex, env);
+  if (!decryption.success) {
+    return errorResponse("Invalid card data", 400);
+  }
+
+  const { uidHex, ctr } = decryption;
+
+  let cardState;
+  try {
+    cardState = await getCardState(env, uidHex);
+  } catch (error) {
+    logger.error("Card state lookup failed in /api/card/lock", { uidHex, error: error.message });
+    return errorResponse("Card state unavailable", 500);
+  }
+
+  if (cardState.state === CARD_STATE.TERMINATED) {
+    return errorResponse("Card is already locked", 400);
+  }
+
+  if (cardState.state !== CARD_STATE.ACTIVE && cardState.state !== CARD_STATE.DISCOVERED) {
+    return errorResponse(`Card in '${cardState.state}' state cannot be locked`, 400);
+  }
+
+  const activeVersion = cardState.active_version || cardState.latest_issued_version || 1;
+  const config = await getUidConfig(uidHex, env, activeVersion);
+  if (!config || !config.K2) {
+    return errorResponse("Card configuration unavailable", 500);
+  }
+
+  const { cmac_validated } = validate_cmac(
+    hexToBytes(uidHex),
+    hexToBytes(ctr),
+    cHex,
+    hexToBytes(config.K2)
+  );
+
+  if (!cmac_validated) {
+    return errorResponse("CMAC validation failed", 403);
+  }
+
+  try {
+    await terminateCard(env, uidHex);
+    logger.info("Card locked by cardholder", { uidHex });
+    return jsonResponse({ success: true, state: "terminated" });
+  } catch (err) {
+    logger.error("Card lock failed", { uidHex, error: err.message });
+    return errorResponse("Failed to lock card", 500);
+  }
 }

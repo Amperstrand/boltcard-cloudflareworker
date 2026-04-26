@@ -64,6 +64,10 @@ export function renderCardDashboardPage() {
             <span class="text-gray-400">State</span>
             <span id="card-state" class="font-mono"></span>
           </div>
+          <div id="method-row" class="flex justify-between hidden">
+            <span class="text-gray-400">Type</span>
+            <span id="card-method" class="text-gray-200 font-mono text-xs"></span>
+          </div>
           <div class="flex justify-between">
             <span class="text-gray-400">Key Origin</span>
             <span id="card-provenance" class="font-mono"></span>
@@ -71,10 +75,6 @@ export function renderCardDashboardPage() {
           <div id="key-label-row" class="flex justify-between hidden">
             <span class="text-gray-400">Key Label</span>
             <span id="card-key-label" class="text-gray-200 font-mono"></span>
-          </div>
-          <div id="key-fingerprint-row" class="flex justify-between hidden">
-            <span class="text-gray-400">Key Fingerprint</span>
-            <span id="card-key-fingerprint" class="text-gray-200 font-mono text-xs"></span>
           </div>
           <div id="version-row" class="flex justify-between hidden">
             <span class="text-gray-400">Key Version</span>
@@ -84,6 +84,10 @@ export function renderCardDashboardPage() {
             <span class="text-gray-400">Balance</span>
             <span id="card-balance" class="text-emerald-400 font-bold"></span>
           </div>
+          <div id="activated-row" class="flex justify-between hidden">
+            <span class="text-gray-400">Activated</span>
+            <span id="card-activated" class="text-gray-400 text-xs"></span>
+          </div>
           <div id="first-seen-row" class="flex justify-between hidden">
             <span class="text-gray-400">First Seen</span>
             <span id="card-first-seen" class="text-gray-400 text-xs"></span>
@@ -91,11 +95,40 @@ export function renderCardDashboardPage() {
         </div>
       </div>
 
-      <div id="taps-section" class="bg-gray-800 border border-gray-700 rounded-lg p-4">
-        <p class="text-xs text-gray-500 uppercase tracking-wider mb-3">Recent Taps</p>
-        <div id="taps-list" class="space-y-2">
-          <p class="text-gray-500 text-xs text-center">No tap history</p>
+      <div id="analytics-section" class="hidden grid grid-cols-3 gap-3 mb-4">
+        <div class="bg-gray-800 border border-gray-700 rounded-lg p-3 text-center">
+          <div class="text-xs text-gray-500 uppercase">Total Spent</div>
+          <div id="analytics-spent" class="text-sm font-bold text-red-400 mt-1">0</div>
         </div>
+        <div class="bg-gray-800 border border-gray-700 rounded-lg p-3 text-center">
+          <div class="text-xs text-gray-500 uppercase">Taps</div>
+          <div id="analytics-taps" class="text-sm font-bold text-cyan-400 mt-1">0</div>
+        </div>
+        <div class="bg-gray-800 border border-gray-700 rounded-lg p-3 text-center">
+          <div class="text-xs text-gray-500 uppercase">Success</div>
+          <div id="analytics-rate" class="text-sm font-bold text-emerald-400 mt-1">-</div>
+        </div>
+      </div>
+
+      <div id="history-section" class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wider mb-3">Activity</p>
+        <div id="history-list" class="space-y-1">
+          <p class="text-gray-500 text-xs text-center">No activity</p>
+        </div>
+      </div>
+
+      <div id="lock-section" class="hidden mb-4">
+        <button id="btn-lock" type="button" class="w-full bg-red-900/50 hover:bg-red-800/50 border border-red-600/50 text-red-300 font-bold py-3 px-4 rounded-lg text-sm transition-colors">
+          Lock Card
+        </button>
+        <div id="lock-confirm" class="hidden bg-red-900/30 border border-red-600/50 rounded-lg p-4 mt-2">
+          <p class="text-red-200 text-sm mb-3">This will permanently lock your card. You will not be able to use it again. An operator can re-activate it later.</p>
+          <div class="flex gap-3">
+            <button id="btn-lock-confirm" type="button" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded text-sm transition-colors">Confirm Lock</button>
+            <button id="btn-lock-cancel" type="button" class="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-200 font-bold py-2 px-4 rounded text-sm transition-colors">Cancel</button>
+          </div>
+        </div>
+        <div id="lock-status" class="hidden mt-2 text-center text-sm"></div>
       </div>
 
       <div class="mt-4 text-center">
@@ -175,12 +208,33 @@ export function renderCardDashboardPage() {
       } catch (e) { return iso; }
     }
 
-    function renderTaps(taps) {
-      var el = document.getElementById('taps-list');
-      if (!taps || taps.length === 0) {
-        el.innerHTML = '<p class="text-gray-500 text-xs text-center">No tap history</p>';
+    function renderHistory(items) {
+      var el = document.getElementById('history-list');
+      if (!items || items.length === 0) {
+        el.innerHTML = '<p class="text-gray-500 text-xs text-center">No activity</p>';
         return;
       }
+      el.innerHTML = items.slice(0, 15).map(function(item) {
+        var status = item.status || 'unknown';
+        var icon, color;
+        if (status === 'completed') { icon = '\u2713'; color = 'text-emerald-400'; }
+        else if (status === 'failed') { icon = '\u2717'; color = 'text-red-400'; }
+        else if (status === 'topup') { icon = '+'; color = 'text-cyan-400'; }
+        else if (status === 'payment') { icon = '\u2192'; color = 'text-amber-400'; }
+        else if (status === 'read') { icon = '\u2022'; color = 'text-gray-500'; }
+        else { icon = '?'; color = 'text-gray-500'; }
+        var amt = item.amount_msat || item.amountMsat;
+        var time = formatTime(item.created_at || item.createdAt);
+        var note = item.note ? ' <span class="text-gray-600">(' + esc(item.note) + ')</span>' : '';
+        return '<div class="flex items-center gap-2 text-xs py-1.5 border-b border-gray-700/30 last:border-0">' +
+          '<span class="' + color + ' w-4 text-center font-bold">' + icon + '</span>' +
+          '<span class="text-gray-400 font-mono w-12 text-[10px]">ctr ' + esc(item.counter || '-') + '</span>' +
+          '<span class="' + color + ' flex-1">' + esc(status) + note + '</span>' +
+          (amt ? '<span class="text-gray-300 font-mono">' + esc(formatBalance(amt)) + '</span>' : '') +
+          (time ? '<span class="text-gray-600 text-[10px] w-28 text-right">' + esc(time) + '</span>' : '') +
+          '</div>';
+      }).join('');
+    }
       el.innerHTML = taps.map(function(t) {
         var statusColor = t.status === 'completed' ? 'text-emerald-400' : t.status === 'failed' ? 'text-red-400' : 'text-yellow-400';
         var time = formatTime(t.createdAt);
@@ -240,13 +294,6 @@ export function renderCardDashboardPage() {
           document.getElementById('key-label-row').classList.add('hidden');
         }
 
-        if (data.keyFingerprint) {
-          document.getElementById('key-fingerprint-row').classList.remove('hidden');
-          document.getElementById('card-key-fingerprint').textContent = data.keyFingerprint;
-        } else {
-          document.getElementById('key-fingerprint-row').classList.add('hidden');
-        }
-
         if (data.activeVersion && data.activeVersion > 1) {
           document.getElementById('version-row').classList.remove('hidden');
           document.getElementById('card-version').textContent = data.activeVersion;
@@ -254,7 +301,26 @@ export function renderCardDashboardPage() {
           document.getElementById('version-row').classList.add('hidden');
         }
 
+        if (data.paymentMethodLabel) {
+          document.getElementById('method-row').classList.remove('hidden');
+          document.getElementById('card-method').textContent = data.paymentMethodLabel;
+        } else {
+          document.getElementById('method-row').classList.add('hidden');
+        }
+
         document.getElementById('card-balance').textContent = formatBalance(data.balance);
+
+        if (data.activatedAt) {
+          var fmtAct = formatTime(data.activatedAt);
+          if (fmtAct) {
+            document.getElementById('activated-row').classList.remove('hidden');
+            document.getElementById('card-activated').textContent = fmtAct;
+          } else {
+            document.getElementById('activated-row').classList.add('hidden');
+          }
+        } else {
+          document.getElementById('activated-row').classList.add('hidden');
+        }
 
         if (data.firstSeenAt) {
           var formattedFirstSeen = formatTime(data.firstSeenAt);
@@ -277,7 +343,26 @@ export function renderCardDashboardPage() {
           document.getElementById('provenance-banner').classList.add('hidden');
         }
 
-        renderTaps(data.recentTaps);
+        if (data.analytics && data.analytics.totalTaps > 0) {
+          document.getElementById('analytics-section').classList.remove('hidden');
+          document.getElementById('analytics-spent').textContent = formatBalance(data.analytics.completedMsat || 0);
+          document.getElementById('analytics-taps').textContent = data.analytics.totalTaps;
+          var rate = data.analytics.totalTaps > 0 ? Math.round((data.analytics.completedTaps / data.analytics.totalTaps) * 100) : 0;
+          document.getElementById('analytics-rate').textContent = rate + '%';
+        } else {
+          document.getElementById('analytics-section').classList.add('hidden');
+        }
+
+        renderHistory(data.history);
+
+        var canLock = data.state === 'active' || data.state === 'discovered';
+        if (canLock) {
+          document.getElementById('lock-section').classList.remove('hidden');
+        } else {
+          document.getElementById('lock-section').classList.add('hidden');
+        }
+        document.getElementById('lock-confirm').classList.add('hidden');
+        document.getElementById('lock-status').classList.add('hidden');
 
         var newUrl = window.location.pathname + '?p=' + encodeURIComponent(p) + '&c=' + encodeURIComponent(c);
         window.history.replaceState(null, '', newUrl);
@@ -388,6 +473,53 @@ export function renderCardDashboardPage() {
     document.getElementById('btn-retry').addEventListener('click', function() {
       resetView();
       cardScanner.restart();
+    });
+
+    document.getElementById('btn-lock').addEventListener('click', function() {
+      document.getElementById('lock-confirm').classList.remove('hidden');
+    });
+
+    document.getElementById('btn-lock-cancel').addEventListener('click', function() {
+      document.getElementById('lock-confirm').classList.add('hidden');
+    });
+
+    document.getElementById('btn-lock-confirm').addEventListener('click', async function() {
+      if (!lastP || !lastC) return;
+      var btn = document.getElementById('btn-lock-confirm');
+      btn.disabled = true;
+      btn.textContent = 'Locking...';
+      try {
+        var resp = await fetch('/api/card/lock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ p: lastP, c: lastC }),
+        });
+        var data = await resp.json();
+        if (resp.ok && data.success) {
+          document.getElementById('lock-confirm').classList.add('hidden');
+          document.getElementById('btn-lock').disabled = true;
+          document.getElementById('btn-lock').textContent = 'Card Locked';
+          document.getElementById('btn-lock').classList.remove('hover:bg-red-800/50');
+          document.getElementById('lock-status').classList.remove('hidden');
+          document.getElementById('lock-status').className = 'mt-2 text-center text-sm text-red-400';
+          document.getElementById('lock-status').textContent = 'Your card has been locked.';
+          var stateEl = document.getElementById('card-state');
+          stateEl.textContent = stateLabel('terminated');
+          stateEl.className = 'font-mono ' + stateColor('terminated');
+        } else {
+          document.getElementById('lock-status').classList.remove('hidden');
+          document.getElementById('lock-status').className = 'mt-2 text-center text-sm text-red-400';
+          document.getElementById('lock-status').textContent = data.reason || data.error || 'Lock failed';
+          btn.disabled = false;
+          btn.textContent = 'Confirm Lock';
+        }
+      } catch (err) {
+        document.getElementById('lock-status').classList.remove('hidden');
+        document.getElementById('lock-status').className = 'mt-2 text-center text-sm text-red-400';
+        document.getElementById('lock-status').textContent = 'Network error';
+        btn.disabled = false;
+        btn.textContent = 'Confirm Lock';
+      }
     });
 
     (function init() {
