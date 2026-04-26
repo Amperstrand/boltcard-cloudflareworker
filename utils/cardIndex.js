@@ -85,7 +85,7 @@ export async function listIndexedCards(env, { state, prefix, limit = 100, cursor
     return {
       cards,
       cursor: listResult.list_complete ? null : listResult.cursor,
-      total: cards.length,
+      total: listResult.keys.length,
     };
   } catch (e) {
     logger.warn("Failed to list indexed cards", { error: e.message });

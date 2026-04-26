@@ -107,14 +107,15 @@ describe("cardIndex", () => {
   });
 
   describe("listIndexedCards", () => {
-    it("returns all indexed cards", async () => {
+    it("returns total as KV key count (pre-filter)", async () => {
       const env = makeKvEnv({
         "card_idx:ff000000000001": JSON.stringify({ uid: "ff000000000001", state: "active" }),
         "card_idx:ff000000000002": JSON.stringify({ uid: "ff000000000002", state: "discovered" }),
+        "card_idx:ff000000000003": JSON.stringify({ uid: "ff000000000003", state: "active" }),
       });
-      const result = await listIndexedCards(env);
+      const result = await listIndexedCards(env, { state: "active" });
       expect(result.cards).toHaveLength(2);
-      expect(result.total).toBe(2);
+      expect(result.total).toBe(3);
     });
 
     it("filters by state", async () => {

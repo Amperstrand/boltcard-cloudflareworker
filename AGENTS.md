@@ -136,6 +136,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | GET | `/operator` | redirect → `/operator/pos` | Operator dashboard |
 | GET | `/operator/cards` | `handleCardAuditPage()` | Card registry audit page |
 | GET | `/operator/cards/data` | `handleCardAuditData()` | Card registry data (JSON) |
+| POST | `/operator/cards/batch` | `handleCardBatchAction()` | Batch card operations (terminate/wipe/activate) |
 | GET | `/operator/pos` | `handlePosPage()` | POS terminal |
 | POST | `/operator/pos/charge` | `handlePosCharge()` | POS charge submit |
 | GET | `/operator/pos/menu` | `handleMenuEditorPage()` | Menu editor page |
@@ -195,7 +196,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 
 - Run: `npm test` (uses Jest with `--experimental-vm-modules`)
 - Deploy: `npm run deploy` (tests → build_keys → wrangler deploy)
-- **1016 tests** across 56 test suites (as of 2026-04-26)
+- **1061 tests** across 58 test suites (as of 2026-04-26)
 - Coverage: ~87% statements, ~79% branches, ~85% functions
 
 ## Test Inventory
@@ -256,6 +257,8 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | `tests/cardDashboardHandler.test.js` | Cardholder dashboard: page rendering, info API, provenance banner, state handling, NFC/manual input | |
 | `tests/cardIndex.test.js` | KV card registry: indexCard, deindexCard, getIndexedCard, listIndexedCards, edge cases | |
 | `tests/cardAuditHandler.test.js` | Operator audit page: auth redirect, data endpoint, state filtering | |
+| `tests/cardBatchHandler.test.js` | Batch terminate/wipe/activate: validation, state checks, mixed results | |
+| `tests/e2e/pages.test.js` | Page rendering, security headers, auth flows, redirects, /card/info API | |
 
 ## Test-Only Exports
 

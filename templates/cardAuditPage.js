@@ -4,7 +4,7 @@ import { CSRF_FETCH_HELPER } from "./browserNfc.js";
 
 export function renderCardAuditPage() {
   const content = rawHtml`
-  <div class="max-w-4xl w-full space-y-6">
+  <div class="max-w-5xl w-full space-y-6">
     <div class="flex items-center justify-between border-b border-gray-700 pb-4">
       <h1 class="text-2xl md:text-3xl font-bold text-emerald-500 tracking-tight">CARD REGISTRY</h1>
       <span class="px-3 py-1 bg-emerald-500/10 text-emerald-500 text-sm font-mono rounded border border-emerald-500/20">AUDIT</span>
@@ -24,13 +24,27 @@ export function renderCardAuditPage() {
       </div>
     </div>
 
+    <div id="batch-bar" class="hidden bg-gray-800 border border-cyan-700/50 rounded-lg p-3">
+      <div class="flex flex-wrap items-center gap-3">
+        <span id="batch-count" class="text-xs font-mono text-cyan-300">0 selected</span>
+        <button type="button" id="btn-select-all" class="px-3 py-1 text-xs rounded font-mono bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors">Select all</button>
+        <button type="button" id="btn-deselect-all" class="px-3 py-1 text-xs rounded font-mono bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors">Deselect all</button>
+        <div class="ml-auto flex gap-2">
+          <button type="button" id="btn-batch-terminate" class="px-3 py-1.5 text-xs rounded font-bold bg-red-700 hover:bg-red-600 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed" disabled>Terminate</button>
+          <button type="button" id="btn-batch-wipe" class="px-3 py-1.5 text-xs rounded font-bold bg-orange-700 hover:bg-orange-600 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed" disabled>Wipe</button>
+          <button type="button" id="btn-batch-activate" class="px-3 py-1.5 text-xs rounded font-bold bg-emerald-700 hover:bg-emerald-600 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed" disabled>Activate</button>
+        </div>
+      </div>
+    </div>
+
     <div id="loading" class="hidden text-center py-8">
       <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse mx-auto mb-3"></div>
       <p class="text-gray-400 text-sm">Loading card registry...</p>
     </div>
 
     <div id="cards-table" class="hidden bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
-      <div class="grid grid-cols-6 gap-2 px-4 py-3 bg-gray-900/50 text-xs text-gray-500 uppercase tracking-wider font-bold border-b border-gray-700">
+      <div class="grid grid-cols-7 gap-2 px-4 py-3 bg-gray-900/50 text-xs text-gray-500 uppercase tracking-wider font-bold border-b border-gray-700">
+        <div class="w-5"><input type="checkbox" id="select-all-checkbox" class="rounded" /></div>
         <div>UID</div>
         <div>State</div>
         <div>Provenance</div>
@@ -49,6 +63,11 @@ export function renderCardAuditPage() {
       <button type="button" id="btn-load-more" class="px-4 py-2 text-sm rounded font-bold bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors">Load More</button>
     </div>
 
+    <div id="batch-result" class="hidden bg-gray-800 border border-gray-700 rounded-lg p-4">
+      <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Batch Result</div>
+      <div id="batch-result-content" class="text-sm text-gray-300"></div>
+    </div>
+
     <div id="error-display" class="hidden bg-red-900/50 border border-red-600 rounded-lg p-4" role="alert">
       <p id="error-message" class="text-red-300 text-sm"></p>
     </div>
@@ -64,6 +83,10 @@ export function renderCardAuditPage() {
     var currentFilter = "";
     var nextCursor = null;
     var hasMore = false;
+    var allCards = [];
+    var selectedUids = new Set();
+
+    function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
     function stateColor(state) {
       var colors = {
@@ -104,14 +127,42 @@ export function renderCardAuditPage() {
       } catch (e) { return '-'; }
     }
 
+    function updateBatchBar() {
+      var bar = document.getElementById('batch-bar');
+      var count = selectedUids.size;
+      document.getElementById('batch-count').textContent = count + ' selected';
+      document.getElementById('btn-batch-terminate').disabled = count === 0;
+      document.getElementById('btn-batch-wipe').disabled = count === 0;
+      document.getElementById('btn-batch-activate').disabled = count === 0;
+      if (count > 0) {
+        bar.classList.remove('hidden');
+      } else {
+        bar.classList.add('hidden');
+      }
+      document.getElementById('select-all-checkbox').checked = allCards.length > 0 && selectedUids.size === allCards.length;
+    }
+
+    function toggleCard(uid) {
+      if (selectedUids.has(uid)) {
+        selectedUids.delete(uid);
+      } else {
+        selectedUids.add(uid);
+      }
+      updateBatchBar();
+    }
+
     async function loadCards(append) {
       if (!append) {
         nextCursor = null;
         hasMore = false;
+        allCards = [];
+        selectedUids.clear();
+        updateBatchBar();
         document.getElementById('loading').classList.remove('hidden');
         document.getElementById('cards-table').classList.add('hidden');
         document.getElementById('no-cards').classList.add('hidden');
         document.getElementById('error-display').classList.add('hidden');
+        document.getElementById('batch-result').classList.add('hidden');
       }
 
       try {
@@ -129,6 +180,7 @@ export function renderCardAuditPage() {
         }
 
         var cards = data.cards || [];
+        allCards = append ? allCards.concat(cards) : cards;
         hasMore = !!data.cursor;
         nextCursor = data.cursor || null;
 
@@ -139,23 +191,7 @@ export function renderCardAuditPage() {
         }
 
         document.getElementById('cards-table').classList.remove('hidden');
-        var list = document.getElementById('cards-list');
-        var html = cards.map(function(card) {
-          return '<div class="grid grid-cols-6 gap-2 px-4 py-3 text-sm hover:bg-gray-700/30 transition-colors">' +
-            '<span class="font-mono text-gray-300 text-xs">' + esc(card.uid) + '</span>' +
-            '<span class="font-mono ' + stateColor(card.state) + '">' + esc(card.state) + '</span>' +
-            '<span class="font-mono text-xs ' + provenanceColor(card.keyProvenance) + '">' + esc(provenanceLabel(card.keyProvenance)) + '</span>' +
-            '<span class="font-mono text-xs text-gray-400">' + esc(card.keyLabel || '-') + '</span>' +
-            '<span class="text-xs text-gray-500">' + esc(formatTime(card.updatedAt)) + '</span>' +
-            '<span class="text-right"><a href="/experimental/analytics?uid=' + encodeURIComponent(card.uid) + '" class="text-emerald-500 hover:text-emerald-400 text-xs">analytics</a></span>' +
-            '</div>';
-        }).join('');
-
-        if (append) {
-          list.innerHTML += html;
-        } else {
-          list.innerHTML = html;
-        }
+        renderCards();
 
         if (hasMore) {
           document.getElementById('load-more-container').classList.remove('hidden');
@@ -165,6 +201,87 @@ export function renderCardAuditPage() {
       } catch (err) {
         document.getElementById('loading').classList.add('hidden');
         showError('Failed to load card registry');
+      }
+    }
+
+    function renderCards() {
+      var list = document.getElementById('cards-list');
+      var html = allCards.map(function(card) {
+        var checked = selectedUids.has(card.uid) ? 'checked' : '';
+        return '<div class="grid grid-cols-7 gap-2 px-4 py-3 text-sm hover:bg-gray-700/30 transition-colors">' +
+          '<div class="w-5"><input type="checkbox" class="card-checkbox rounded" data-uid="' + esc(card.uid) + '" ' + checked + ' /></div>' +
+          '<span class="font-mono text-gray-300 text-xs">' + esc(card.uid) + '</span>' +
+          '<span class="font-mono ' + stateColor(card.state) + '">' + esc(card.state) + '</span>' +
+          '<span class="font-mono text-xs ' + provenanceColor(card.keyProvenance) + '">' + esc(provenanceLabel(card.keyProvenance)) + '</span>' +
+          '<span class="font-mono text-xs text-gray-400">' + esc(card.keyLabel || '-') + '</span>' +
+          '<span class="text-xs text-gray-500">' + esc(formatTime(card.updatedAt)) + '</span>' +
+          '<span class="text-right"><a href="/experimental/analytics?uid=' + encodeURIComponent(card.uid) + '" class="text-emerald-500 hover:text-emerald-400 text-xs">analytics</a></span>' +
+          '</div>';
+      }).join('');
+      list.innerHTML = html;
+
+      list.querySelectorAll('.card-checkbox').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+          toggleCard(this.getAttribute('data-uid'));
+        });
+      });
+    }
+
+    async function batchAction(action) {
+      if (selectedUids.size === 0) return;
+      var uids = Array.from(selectedUids);
+      var btnMap = { terminate: 'btn-batch-terminate', wipe: 'btn-batch-wipe', activate: 'btn-batch-activate' };
+      var btn = document.getElementById(btnMap[action]);
+      var origText = btn.textContent;
+      btn.textContent = 'Working...';
+      btn.disabled = true;
+
+      try {
+        var resp = await csrfFetch('/operator/cards/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uids: uids, action: action }),
+        });
+        var data = await resp.json();
+
+        var resultDiv = document.getElementById('batch-result');
+        var contentDiv = document.getElementById('batch-result-content');
+
+        if (!resp.ok) {
+          showError(data.reason || 'Batch action failed');
+          return;
+        }
+
+        var succeeded = data.results.filter(function(r) { return r.status !== 'skipped'; }).length;
+        var skipped = data.results.filter(function(r) { return r.status === 'skipped'; }).length;
+        var failed = (data.errors || []).length;
+
+        var html = '<div class="space-y-1">' +
+          '<p class="text-emerald-300 font-semibold">' + succeeded + ' card(s) processed: ' + esc(action) + '</p>';
+        if (skipped > 0) {
+          html += '<p class="text-yellow-300">' + skipped + ' card(s) skipped</p>';
+          data.results.filter(function(r) { return r.status === 'skipped'; }).forEach(function(r) {
+            html += '<p class="text-xs text-gray-500 ml-3">' + esc(r.uid) + ': ' + esc(r.reason) + '</p>';
+          });
+        }
+        if (failed > 0) {
+          html += '<p class="text-red-300">' + failed + ' card(s) failed</p>';
+          data.errors.forEach(function(e) {
+            html += '<p class="text-xs text-gray-500 ml-3">' + esc(e.uid) + ': ' + esc(e.error) + '</p>';
+          });
+        }
+        html += '</div>';
+        contentDiv.innerHTML = html;
+        resultDiv.classList.remove('hidden');
+
+        selectedUids.clear();
+        updateBatchBar();
+        loadCards(false);
+      } catch (err) {
+        showError('Batch action failed: ' + err.message);
+      } finally {
+        btn.textContent = origText;
+        btn.disabled = selectedUids.size === 0;
       }
     }
 
@@ -183,8 +300,33 @@ export function renderCardAuditPage() {
     });
 
     document.getElementById('btn-refresh').addEventListener('click', function() { loadCards(false); });
-
     document.getElementById('btn-load-more').addEventListener('click', function() { loadCards(true); });
+
+    document.getElementById('select-all-checkbox').addEventListener('change', function() {
+      var checked = this.checked;
+      allCards.forEach(function(c) {
+        if (checked) selectedUids.add(c.uid);
+        else selectedUids.delete(c.uid);
+      });
+      updateBatchBar();
+      renderCards();
+    });
+
+    document.getElementById('btn-select-all').addEventListener('click', function() {
+      allCards.forEach(function(c) { selectedUids.add(c.uid); });
+      updateBatchBar();
+      renderCards();
+    });
+
+    document.getElementById('btn-deselect-all').addEventListener('click', function() {
+      selectedUids.clear();
+      updateBatchBar();
+      renderCards();
+    });
+
+    document.getElementById('btn-batch-terminate').addEventListener('click', function() { batchAction('terminate'); });
+    document.getElementById('btn-batch-wipe').addEventListener('click', function() { batchAction('wipe'); });
+    document.getElementById('btn-batch-activate').addEventListener('click', function() { batchAction('activate'); });
 
     loadCards(false);
   </script>
