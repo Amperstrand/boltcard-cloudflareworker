@@ -268,3 +268,38 @@ export async function listTransactions(env, uidHex, limit = DEFAULT_TXN_LIMIT) {
   const resp = await doGet(stub, `/transactions?limit=${limit}`);
   return resp.json();
 }
+
+export async function markPending(env, uidHex, { key_provenance, key_fingerprint, key_label } = {}) {
+  requireDo(env);
+  const stub = getCardStub(env, uidHex);
+  const response = await doPost(stub, "/mark-pending", {
+    key_provenance: key_provenance || null,
+    key_fingerprint: key_fingerprint || null,
+    key_label: key_label || null,
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || "Mark pending failed");
+  }
+
+  return response.json();
+}
+
+export async function discoverCard(env, uidHex, { key_provenance, key_fingerprint, key_label, active_version } = {}) {
+  requireDo(env);
+  const stub = getCardStub(env, uidHex);
+  const response = await doPost(stub, "/discover", {
+    key_provenance: key_provenance || null,
+    key_fingerprint: key_fingerprint || null,
+    key_label: key_label || null,
+    active_version: active_version || null,
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || "Discover card failed");
+  }
+
+  return response.json();
+}

@@ -1,4 +1,4 @@
-import { recordTap, updateTapStatus, listTaps, resetReplayProtection, getCardState, deliverKeys, activateCard, terminateCard, requestWipe, getCardConfig, setCardConfig, debitCard, creditCard, getBalance, listTransactions, recordTapRead, getAnalytics, checkAndAdvanceCounter } from "../replayProtection.js";
+import { recordTap, updateTapStatus, listTaps, resetReplayProtection, getCardState, deliverKeys, activateCard, terminateCard, requestWipe, getCardConfig, setCardConfig, debitCard, creditCard, getBalance, listTransactions, recordTapRead, getAnalytics, checkAndAdvanceCounter, markPending, discoverCard } from "../replayProtection.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 
 const UID = "04a39493cc8680";
@@ -390,6 +390,78 @@ describe("replayProtection", () => {
 
     it("setCardConfig does nothing when CARD_REPLAY missing", async () => {
       await expect(setCardConfig({}, UID, { foo: "bar" })).resolves.toBeUndefined();
+    });
+  });
+
+  describe("markPending", () => {
+    it("creates pending row with provenance", async () => {
+      const freshUid = "ff000000000001";
+      const env = { CARD_REPLAY: makeReplayNamespace({}, {}) };
+      const result = await markPending(env, freshUid, {
+        key_provenance: "public_issuer",
+        key_fingerprint: "abc123",
+        key_label: "test-key",
+      });
+      expect(result.state).toBe("pending");
+      expect(result.key_provenance).toBe("public_issuer");
+      expect(result.key_fingerprint).toBe("abc123");
+      expect(result.key_label).toBe("test-key");
+      expect(result.first_seen_at).toBeDefined();
+    });
+
+    it("returns already_exists when row exists", async () => {
+      const env = makeEnv();
+      const result = await markPending(env, UID, { key_provenance: "public_issuer" });
+      expect(result.already_exists).toBe(true);
+    });
+
+    it("throws when CARD_REPLAY missing", async () => {
+      await expect(markPending({}, UID, {})).rejects.toThrow("not configured");
+    });
+
+    it("throws on server error", async () => {
+      const env = makeErrorEnv(500, "pending fail");
+      await expect(markPending(env, UID, {})).rejects.toThrow("pending fail");
+    });
+  });
+
+  describe("discoverCard", () => {
+    it("creates discovered row from scratch", async () => {
+      const freshUid = "ff000000000002";
+      const env = { CARD_REPLAY: makeReplayNamespace({}, {}) };
+      const result = await discoverCard(env, freshUid, {
+        key_provenance: "public_issuer",
+        key_fingerprint: "abc",
+        key_label: "test-key",
+        active_version: 1,
+      });
+      expect(result.state).toBe("discovered");
+      expect(result.key_provenance).toBe("public_issuer");
+      expect(result.active_version).toBe(1);
+      expect(result.first_seen_at).toBeDefined();
+    });
+
+    it("upgrades pending to discovered", async () => {
+      const freshUid = "ff000000000003";
+      const env = { CARD_REPLAY: makeReplayNamespace({}, {}) };
+      await markPending(env, freshUid, { key_provenance: "public_issuer" });
+      const result = await discoverCard(env, freshUid, {
+        key_provenance: "public_issuer",
+        key_fingerprint: "abc",
+        key_label: "test-key",
+        active_version: 1,
+      });
+      expect(result.state).toBe("discovered");
+      expect(result.already_exists).toBe(true);
+    });
+
+    it("throws when CARD_REPLAY missing", async () => {
+      await expect(discoverCard({}, UID, {})).rejects.toThrow("not configured");
+    });
+
+    it("throws on server error", async () => {
+      const env = makeErrorEnv(500, "discover fail");
+      await expect(discoverCard(env, UID, {})).rejects.toThrow("discover fail");
     });
   });
 });

@@ -36,6 +36,10 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
     keys_delivered_at: null,
     wipe_keys_fetched_at: null,
     balance: 0,
+    key_provenance: null,
+    key_fingerprint: null,
+    key_label: null,
+    first_seen_at: null,
   });
 
   return {
@@ -363,6 +367,73 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
           return Response.json({ taps: tapList });
         }
 
+        if (request.method === "POST" && url.pathname === "/mark-pending") {
+          const { key_provenance, key_fingerprint, key_label } = await request.json();
+          if (cardStates.has(idStr)) {
+            return Response.json({
+              state: cardStates.get(idStr).state,
+              already_exists: true,
+            });
+          }
+          const now = Math.floor(Date.now() / 1000);
+          cardStates.set(idStr, {
+            ...getDefaultState(),
+            state: "pending",
+            key_provenance: key_provenance || null,
+            key_fingerprint: key_fingerprint || null,
+            key_label: key_label || null,
+            first_seen_at: now,
+          });
+          return Response.json({
+            state: "pending",
+            key_provenance: key_provenance || null,
+            key_fingerprint: key_fingerprint || null,
+            key_label: key_label || null,
+            first_seen_at: now,
+          });
+        }
+
+        if (request.method === "POST" && url.pathname === "/discover") {
+          const { key_provenance, key_fingerprint, key_label, active_version } = await request.json();
+          const version = active_version || 1;
+          const now = Math.floor(Date.now() / 1000);
+
+          if (cardStates.has(idStr)) {
+            const current = cardStates.get(idStr);
+            if (current.state === "pending") {
+              cardStates.set(idStr, {
+                ...current,
+                state: "discovered",
+                active_version: version,
+                key_provenance: key_provenance || current.key_provenance,
+                key_fingerprint: key_fingerprint || current.key_fingerprint,
+                key_label: key_label || current.key_label,
+              });
+            }
+            return Response.json({ ...cardStates.get(idStr), already_exists: true });
+          }
+
+          cardStates.set(idStr, {
+            ...getDefaultState(),
+            state: "discovered",
+            latest_issued_version: version,
+            active_version: version,
+            key_provenance: key_provenance || null,
+            key_fingerprint: key_fingerprint || null,
+            key_label: key_label || null,
+            first_seen_at: now,
+          });
+          return Response.json({
+            state: "discovered",
+            latest_issued_version: version,
+            active_version: version,
+            key_provenance: key_provenance || null,
+            key_fingerprint: key_fingerprint || null,
+            key_label: key_label || null,
+            first_seen_at: now,
+          });
+        }
+
         return new Response("Not found", { status: 404 });
       },
     }),
@@ -381,6 +452,10 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
         keys_delivered_at: null,
         wipe_keys_fetched_at: null,
         balance: 0,
+        key_provenance: null,
+        key_fingerprint: null,
+        key_label: null,
+        first_seen_at: null,
       });
     },
   };
