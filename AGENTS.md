@@ -20,11 +20,45 @@
 
 ## Card Lifecycle States
 
-`new` → `keys_delivered` → `active` → (`wipe_requested` → `active`) | `terminated` | `legacy`
+```
+(no DO row) ──────────────────────────────────────────────→ legacy (fallback)
+     │                                                         │
+     │ key fetch (fetchBoltCardKeys)                            │ first tap with known issuer key
+     ↓                                                         ↓
+   pending ──────── first tap (CMAC validates) ──────→ discovered
+     │                                                         │
+     │ operator programs via /experimental/activate             │ treated like active for taps
+     ↓                                                         │
+   keys_delivered ──── first tap ────→ active
+     │                                    │
+     │                                    ├── wipe_requested → active (re-provisioned)
+     │                                    ├── terminated
+     │                                    └── legacy (no longer created for new cards)
+     └── active_version set on activation
+```
 
 - `getUidConfig()` falls back to deterministic key generation if no DO config exists — cards always resolve
-- `new` state cards get `activeVersion=1` (legacy path)
+- `new`/`legacy` state: no DO row, first tap triggers auto-discovery via CMAC scan
+- `pending`: keys fetched but card never tapped — upgraded to `discovered` on first tap
+- `discovered`: card tapped with known issuer key, not user-provisioned — treated like `active`
+- `keys_delivered`: operator has programmed keys, first tap activates
 - `wipe_requested` is a transient state; card returns to `active` after re-provisioning
+
+### Key Provenance
+
+Every card DO row tracks `key_provenance` indicating where its keys came from:
+
+| Provenance | Meaning | `programmingRecommended` |
+|---|---|---|
+| `public_issuer` | Key is in `generatedKeyData.js` (git-tracked) | `true` |
+| `env_issuer` | Matches `env.ISSUER_KEY` and not public | `false` |
+| `percard` | Per-card import from CSV | `false` |
+| `user_provisioned` | Explicitly programmed by user | `false` |
+| `unknown` | Neither public nor env key | `false` |
+
+- `classifyIssuerKey(env, hex)` from `utils/keyLookup.js` — classifies any issuer key hex
+- `fingerprintHex(hex)` — first 16 chars of sha256(key_hex), used as stable identifier
+- Provenance stored in DO `card_state` table: `key_provenance`, `key_fingerprint`, `key_label`
 
 ## Dependencies — Known Quirks
 
@@ -82,6 +116,8 @@
 | GET | `/pos` | redirect → `/operator/pos` | Fakewallet POS payment |
 | GET | `/debug` | `handleDebugPage()` | Tabbed debug console (Console, Identify, Wipe, 2FA, Identity, POS) |
 | GET | `/identity` | `handleIdentityPage()` | Identity/access control demo |
+| GET | `/card` | `handleCardPage()` | Cardholder dashboard (NFC scan) |
+| GET | `/card/info` | `handleCardInfo()` | Card status API (JSON) |
 | GET | `/api/fake-invoice` | inline | Generate fake bolt11 for fakewallet |
 | GET | `/api/verify-identity` | `handleIdentityVerify()` | Identity verification API |
 | POST | `/api/identity/profile` | `handleIdentityProfileUpdate()` | Identity profile update |
@@ -137,6 +173,8 @@
 - `CARD_STATE` and `PAYMENT_METHOD` enums from `utils/constants.js` — use instead of raw strings
 - `constantTimeEqual()` from `utils/cookies.js` for timing-safe string comparison (CSRF tokens, PINs)
 - `checkReplayAndRecordTap()` from `handlers/lnurlwHandler.js` for replay check + tap recording (shared by proxy and fakewallet/clnrest paths)
+- `discoverUnknownCard()` from `handlers/lnurlwHandler.js` for auto-discovery of unknown cards via CMAC scan across all issuer key candidates
+- `markPending()` and `discoverCard()` from `replayProtection.js` for DO row creation during key fetch and first tap
 - `getCardProgrammingEndpoint()` from `handlers/loginActions.js` for card config → pull payment → programming endpoint lookup (shared by 4 call sites)
 - `safeGetBalance()` local to `handlers/loginHandler.js` — graceful balance fetch fallback
 - All DO callers must wrap in try/catch with specific error messages (see #10 audit)
@@ -150,7 +188,7 @@
 
 - Run: `npm test` (uses Jest with `--experimental-vm-modules`)
 - Deploy: `npm run deploy` (tests → build_keys → wrangler deploy)
-- **918 tests** across 53 test suites (as of 2026-04-26)
+- **952 tests** across 54 test suites (as of 2026-04-26)
 - Coverage: ~87% statements, ~79% branches, ~85% functions
 
 ## Test Inventory
@@ -168,7 +206,7 @@
 | `tests/currency.test.js` | `formatAmount`, `parseAmount`, `getCurrencyDecimals` | |
 | `tests/lightningAddress.test.js` | `resolveLightningAddress` with mocked fetch | |
 | `tests/cmacScan.test.js` | `cmacScanVersions` multi-version scan | |
-| `tests/keyLookup.test.js` | `fingerprintHex`, `getPerCardDomains`, `getIssuerKeysForDomain` | |
+| `tests/keyLookup.test.js` | `fingerprintHex`, `getPerCardDomains`, `getIssuerKeysForDomain`, `classifyIssuerKey` | |
 | `tests/operatorAuth.test.js` | Session create/verify, PIN check, CSRF | |
 | `tests/logging.test.js` | Structured JSON logger | |
 | `tests/loginHandler.test.js` | NFC login, wipe, terminate, top-up via `/login` | |
@@ -194,9 +232,9 @@
 | `tests/responsePatterns.test.js` | Response format consistency | |
 | `tests/debugIdentity.test.js` | Identity verification via debug console | |
 | `tests/lnurlPay.test.js` | LNURL-pay flow with Lightning address | |
-| `tests/lnurlwHandler.test.js` | LNURLW tap processing: fakewallet, clnrest, proxy, lnurlpay, replay, CMAC, card lifecycle | |
+| `tests/lnurlwHandler.test.js` | LNURLW tap processing: fakewallet, clnrest, proxy, lnurlpay, replay, CMAC, card lifecycle, auto-discovery | |
 | `tests/lnurlHandler.test.js` | LNURL callback: fakewallet debit, clnrest (success/error/network), replay, tap status | |
-| `tests/replayProtection.test.js` | All replayProtection.js exports: counter checks, tap recording, card state, config, balance, analytics | |
+| `tests/replayProtection.test.js` | All replayProtection.js exports: counter checks, tap recording, card state, config, balance, analytics, markPending, discoverCard | |
 | `tests/proxyHandler.test.js` | Proxy relay: headers, CMAC validation/deferred, POST body, error handling | |
 | `tests/refundTopupPos.test.js` | Refund (full/partial/zero), top-up (amount/MAX), POS charge (balance/items) | |
 | `tests/wipeResetHandler.test.js` | Wipe page, card reset (active/terminated/new/keys_delivered) | |
@@ -204,10 +242,11 @@
 | `tests/activateCardHandler.test.js` | Quick-activate UID, validation, key consistency | |
 | `tests/tapTracking.test.js` | Two-step tap flow: read → callback → completed, tap history | |
 | `tests/e2e/virtual-card.test.js` | Full E2E lifecycle: provision → tap → pay → replay | |
-| `tests/identityHandler.test.js` | Identity verification, profile update, CMAC, enrollment | |
+| `tests/identityHandler.test.js` | Identity verification, profile update, CMAC, enrollment, provenance | |
 | `tests/bulkWipePageHandler.test.js` | Bulk wipe page rendering with key fingerprints | |
 | `tests/withdrawHandler.test.js` | Withdraw response: CMAC-failed, fakewallet/clnrest amounts | |
-| `tests/cardReplayDO.test.js` | DO SQL logic via better-sqlite3 (counter, taps, state, config, balance, analytics) | |
+| `tests/cardReplayDO.test.js` | DO SQL logic via better-sqlite3 (counter, taps, state, config, balance, analytics, provenance, discovery) | |
+| `tests/cardDashboardHandler.test.js` | Cardholder dashboard: page rendering, info API, provenance banner, state handling | |
 
 ## Test-Only Exports
 
