@@ -88,10 +88,10 @@ export async function handleLnurlPayCallback(request, env) {
       return errorResponse("K2 key not available for local CMAC validation");
     }
 
-   const lightningAddress = pickRandomAddress(config, env);
-   if (typeof lightningAddress !== "string" || !lightningAddress) {
-     return errorResponse("No Lightning Address available", 503);
-   }
+    const lightningAddress = pickRandomAddress(config, env);
+    if (typeof lightningAddress !== "string" || !lightningAddress) {
+      return errorResponse("No Lightning Address available", 503);
+    }
 
     const minSendable = config.lnurlpay?.min_sendable ?? 1000;
     const maxSendable = config.lnurlpay?.max_sendable ?? 1000;

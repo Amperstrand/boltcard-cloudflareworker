@@ -83,7 +83,8 @@ router.get("/api/fake-invoice", (request, env) => {
     const invoice = generateFakeBolt11(amountMsat);
     return jsonResponse({ pr: invoice });
   } catch (err) {
-    return errorResponse(err.message, 500);
+    logger.error("Fake invoice generation failed", { error: err.message });
+    return errorResponse("Internal error", 500);
   }
 });
 router.get("/status", (request, env) => handleStatus(request, env));

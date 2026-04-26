@@ -11,6 +11,15 @@ import { handleTerminateAction, handleRequestWipeAction, handleTopUpAction, reso
 import { matchCardIssuer } from "../utils/cardMatching.js";
 import { requireOperator } from "../middleware/operatorAuth.js";
 
+async function safeGetBalance(env, uidHex) {
+  try {
+    return await getBalance(env, uidHex);
+  } catch (e) {
+    logger.warn("Could not fetch balance", { uidHex, error: e.message });
+    return { balance: 0 };
+  }
+}
+
 export function handleLoginPage(request) {
   const host = getRequestOrigin(request);
   const defaultProgrammingEndpoint = `${host}/api/v1/pull-payments/${DEFAULT_PULL_PAYMENT_ID}/boltcards?onExisting=UpdateVersion`;
@@ -114,12 +123,7 @@ export async function handleLoginVerify(request, env) {
 
     const tapHistory = await getUnifiedHistory(env, uidHex);
 
-    let balanceData = { balance: 0 };
-    try {
-      balanceData = await getBalance(env, uidHex);
-    } catch (e) {
-      logger.warn("Could not fetch balance", { uidHex, error: e.message });
-    }
+    const balanceData = await safeGetBalance(env, uidHex);
 
     recordTapRead(env, uidHex, counterValue, {
       userAgent: request.headers.get("user-agent"),
@@ -191,12 +195,7 @@ async function handleUidOnlyLogin(rawUid, env, request) {
 
   const tapHistory = await getUnifiedHistory(env, uidHex);
 
-  let balanceData = { balance: 0 };
-  try {
-    balanceData = await getBalance(env, uidHex);
-  } catch (e) {
-    logger.warn("Could not fetch balance", { uidHex, error: e.message });
-  }
+  const balanceData = await safeGetBalance(env, uidHex);
 
   recordTapRead(env, uidHex, null, {
     userAgent: request.headers.get("user-agent"),

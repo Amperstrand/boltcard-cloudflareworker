@@ -284,7 +284,7 @@ export class CardReplayDO extends DurableObject {
 
   handleUpdateTapStatus(request) {
     return request.json().then(({ counter, status, bolt11, amountMsat }) => {
-      if (!counter || !status) {
+      if (counter == null || !status) {
         return Response.json({ error: "Missing counter or status" }, { status: 400 });
       }
 

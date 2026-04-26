@@ -3,6 +3,7 @@ import { getPerCardKeys, getAllIssuerKeyCandidates } from "../utils/keyLookup.js
 import { jsonResponse, buildBoltCardResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { getCardState } from "../replayProtection.js";
 import { validateUid, getRequestOrigin } from "../utils/validation.js";
+import { logger } from "../utils/logger.js";
 
 async function findFirstKeyset(normalizedUid, env) {
   const perCard = getPerCardKeys(normalizedUid);
@@ -37,6 +38,7 @@ async function findFirstKeyset(normalizedUid, env) {
           };
         }
       } catch (e) {
+        logger.warn("Key derivation failed for candidate", { error: e.message });
         continue;
       }
     }
@@ -117,6 +119,7 @@ export async function handleGetKeys(request, env) {
           version, source: "deterministic", label: candidate.label, card_key: k.cardKey,
         });
       } catch (e) {
+        logger.warn("Key derivation failed for bulk key candidate", { error: e.message });
         continue;
       }
     }

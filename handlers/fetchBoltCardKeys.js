@@ -157,7 +157,7 @@ async function handleResetFlow(lnurlw, env, baseUrl) {
       return errorResponse(validation.cmac_error || "CMAC validation failed");
     }
 
-  if (cardState.state === CARD_STATE.ACTIVE) {
+    if (cardState.state === CARD_STATE.ACTIVE) {
       await requestWipe(env, uidHex);
     }
 

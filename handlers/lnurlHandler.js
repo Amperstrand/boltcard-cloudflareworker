@@ -211,7 +211,7 @@ async function processWithdrawalPayment(uid, pr, env, counterValue, explicitAmou
       return jsonResponse({ status: "ERROR", reason: errorReason }, response.status);
     } catch (error) {
       logger.error("CLN REST pay request failed", { uid, error: error.message });
-      return jsonResponse({ status: "ERROR", reason: `CLN REST Pay Request Failed: ${error.message}` }, 500);
+      return jsonResponse({ status: "ERROR", reason: "Payment request failed" }, 500);
     }
   }
 

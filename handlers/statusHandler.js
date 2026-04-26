@@ -17,7 +17,7 @@ export async function handleStatus(request, env) {
       return jsonResponse({
         status: 'ERROR',
         kv_status: 'error',
-        error: error.message
+        error: 'KV health check failed'
       });
     }
   }
