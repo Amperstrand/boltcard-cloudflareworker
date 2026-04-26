@@ -1,14 +1,20 @@
 import { deriveKeysFromHex } from "../keygenerator.js";
-import { jsonResponse, buildBoltCardResponse, buildResetDeeplink, errorResponse } from "../utils/responses.js";
+import { jsonResponse, buildBoltCardResponse, buildResetDeeplink, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { getRequestOrigin, validateUid } from "../utils/validation.js";
+import { logger } from "../utils/logger.js";
 
 export async function handleBulkWipeKeys(request) {
   const url = new URL(request.url);
   const uid = url.searchParams.get("uid");
-  const key = url.searchParams.get("key");
   const version = url.searchParams.has("version") ? parseInt(url.searchParams.get("version"), 10) : 1;
   if (isNaN(version) || version < 0) {
     return errorResponse("Invalid version: must be a non-negative integer", 400);
+  }
+
+  let key = url.searchParams.get("key");
+  if (request.method === "POST") {
+    const body = await parseJsonBody(request).catch(() => null);
+    if (body?.key) key = body.key;
   }
 
   if (!uid || !validateUid(uid)) {
@@ -39,6 +45,7 @@ export async function handleBulkWipeKeys(request) {
 
     return jsonResponse({ uid, boltcard_response, wipe_json, reset_deeplink }, 200);
   } catch (err) {
-    return errorResponse(err.message, 500);
+    logger.error("Bulk wipe handler error", { error: err.message });
+    return errorResponse("Internal error", 500);
   }
 }

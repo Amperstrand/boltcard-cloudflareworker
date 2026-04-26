@@ -1,7 +1,7 @@
 import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { hexToBytes } from "../cryptoutils.js";
-import { DEFAULT_FALLBACK_HOST } from "../utils/constants.js";
+import { DEFAULT_FALLBACK_HOST, PAYMENT_METHOD } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { recordTap, updateTapStatus } from "../replayProtection.js";
@@ -80,7 +80,7 @@ export async function handleLnurlPayCallback(request, env) {
       return errorResponse("UID not found in config");
     }
 
-    if (config.payment_method !== "lnurlpay") {
+    if (config.payment_method !== PAYMENT_METHOD.LNURLPAY) {
       return errorResponse(`Unsupported payment method: ${config.payment_method}`);
     }
 
@@ -142,6 +142,6 @@ export async function handleLnurlPayCallback(request, env) {
     return jsonResponse(invoice);
   } catch (error) {
     logger.error("Error handling LNURL-pay callback", { error: error.message });
-    return errorResponse(error.message, 500);
+    return errorResponse("Internal error", 500);
   }
 }

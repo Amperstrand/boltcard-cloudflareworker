@@ -5,7 +5,7 @@ import { getUidConfig } from "../getUidConfig.js";
 import { resetReplayProtection, getCardState, deliverKeys, setCardConfig, requestWipe } from "../replayProtection.js";
 import { jsonResponse, buildBoltCardResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { getRequestOrigin, validateUid } from "../utils/validation.js";
-import { DEFAULT_PULL_PAYMENT_ID, DEFAULT_FALLBACK_HOST } from "../utils/constants.js";
+import { DEFAULT_PULL_PAYMENT_ID, DEFAULT_FALLBACK_HOST, CARD_STATE, PAYMENT_METHOD } from "../utils/constants.js";
 
 export async function fetchBoltCardKeys(request, env) {
   if (request.method !== "POST") {
@@ -52,7 +52,8 @@ export async function fetchBoltCardKeys(request, env) {
 
     return errorResponse("Must provide UID for programming, or LNURLW for reset");
   } catch (err) {
-    return errorResponse(err.message, 500);
+    logger.error("fetchBoltCardKeys error", { error: err.message });
+    return errorResponse("Internal error", 500);
   }
 }
 
@@ -62,10 +63,10 @@ async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddre
 
   const cardState = await getCardState(env, normalizedUid);
 
-  if (cardState.state === "active") {
+  if (cardState.state === CARD_STATE.ACTIVE) {
     return errorResponse("Card is active. Terminate (wipe) the card before reprogramming.", 409);
   }
-  if (cardState.state === "keys_delivered") {
+  if (cardState.state === CARD_STATE.KEYS_DELIVERED) {
     // Card provisioned but not yet written — re-deliver same keys (idempotent)
     const version = cardState.latest_issued_version || 1;
     return generateKeyResponse(normalizedUid, env, baseUrl, cardType, version);
@@ -92,7 +93,7 @@ async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddre
   if (cardType === "pos") {
     config = {
       K2: keys.k2,
-      payment_method: "lnurlpay",
+      payment_method: PAYMENT_METHOD.LNURLPAY,
       lnurlpay: {
         lightning_address: lightningAddress,
         min_sendable: minSendable,
@@ -102,12 +103,12 @@ async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddre
   } else if (cardType === "2fa") {
     config = {
       K2: keys.k2,
-      payment_method: "twofactor",
+      payment_method: PAYMENT_METHOD.TWOFACTOR,
     };
   } else {
     config = {
       K2: keys.k2,
-      payment_method: "fakewallet",
+      payment_method: PAYMENT_METHOD.FAKEWALLET,
     };
   }
 
@@ -134,7 +135,7 @@ async function handleResetFlow(lnurlw, env, baseUrl) {
 
     const cardState = await getCardState(env, uidHex);
 
-    if (cardState.state !== "active" && cardState.state !== "terminated" && cardState.state !== "new" && cardState.state !== "wipe_requested") {
+    if (cardState.state !== CARD_STATE.ACTIVE && cardState.state !== CARD_STATE.TERMINATED && cardState.state !== CARD_STATE.NEW && cardState.state !== CARD_STATE.WIPE_REQUESTED) {
       return errorResponse("Card must be active or terminated to retrieve wipe keys");
     }
 
@@ -155,13 +156,14 @@ async function handleResetFlow(lnurlw, env, baseUrl) {
       return errorResponse(validation.cmac_error || "CMAC validation failed");
     }
 
-    if (cardState.state === "active") {
+  if (cardState.state === CARD_STATE.ACTIVE) {
       await requestWipe(env, uidHex);
     }
 
     return generateKeyResponse(uidHex, env, baseUrl, "withdraw", wipeVersion);
   } catch (err) {
-    return errorResponse("Error in generating keys: " + err.message, 500);
+    logger.error("fetchBoltCardKeys reset flow error", { error: err.message });
+    return errorResponse("Internal error", 500);
   }
 }
 

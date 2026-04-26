@@ -53,6 +53,6 @@ export async function handlePosCharge(request, env, session) {
     });
   } catch (error) {
     logger.error("POS charge: unexpected error", { uidHex: tap.uidHex, amount: parsedAmount, error: error.message });
-    return errorResponse("Charge failed: " + error.message, 500);
+    return errorResponse("Charge failed", 500);
   }
 }

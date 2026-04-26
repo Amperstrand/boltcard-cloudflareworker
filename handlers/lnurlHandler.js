@@ -5,6 +5,7 @@ import { logger } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { recordTap, updateTapStatus, debitCard, listTaps } from "../replayProtection.js";
 import { decodeBolt11Amount } from "../utils/bolt11.js";
+import { PAYMENT_METHOD } from "../utils/constants.js";
 
 export async function handleLnurlpPayment(request, env) {
   try {
@@ -127,7 +128,7 @@ export async function handleLnurlpPayment(request, env) {
     }
   } catch (err) {
     logger.error("Error processing LNURL withdraw request", { error: err.message });
-    return errorResponse(err.message, 500);
+    return errorResponse("Internal error", 500);
   }
 }
 
@@ -152,7 +153,7 @@ async function processWithdrawalPayment(uid, pr, env, counterValue, explicitAmou
     return jsonResponse({ status: "ERROR", reason: "UID configuration not found" }, 400);
   }
 
-  if (config.payment_method === "fakewallet") {
+  if (config.payment_method === PAYMENT_METHOD.FAKEWALLET) {
     const amount = explicitAmount != null ? explicitAmount : (decodeBolt11Amount(pr) || 0);
     const result = await debitCard(env, uid, counterValue, amount, `Payment: ${amount} units`);
     if (result.ok) {
@@ -168,7 +169,7 @@ async function processWithdrawalPayment(uid, pr, env, counterValue, explicitAmou
   // Success: HTTP 201 with JSON body containing status "complete" or "pending"
   // See: https://docs.corelightning.org/reference/pay
   // See: https://docs.corelightning.org/reference/post_rpc_method_resource
-  if (config.payment_method === "clnrest") {
+  if (config.payment_method === PAYMENT_METHOD.CLNREST) {
     if (!config.clnrest || !config.clnrest.rune) {
       logger.error("Missing CLN REST configuration or rune", { uid });
       return jsonResponse({ status: "ERROR", reason: "Invalid CLN REST configuration" }, 400);

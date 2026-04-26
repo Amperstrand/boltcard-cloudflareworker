@@ -4,6 +4,7 @@ import { renderActivateCardPage } from "../templates/activatePage.js";
 import { logger } from "../utils/logger.js";
 import { htmlResponse, jsonResponse, parseJsonBody } from "../utils/responses.js";
 import { validateUid } from "../utils/validation.js";
+import { PAYMENT_METHOD } from "../utils/constants.js";
 
 export function handleActivateCardPage() {
   return htmlResponse(renderActivateCardPage());
@@ -37,19 +38,19 @@ export async function handleActivateCardSubmit(request, env) {
     await resetReplayProtection(env, uid);
   } catch (error) {
     logger.error("Error resetting replay protection during activation", { uid, error: error.message });
-    return jsonResponse({ status: "ERROR", reason: `Server error: ${error.message}` }, 500);
+    return jsonResponse({ status: "ERROR", reason: "Server error" }, 500);
   }
   
   const config = {
     K2: keys.k2,
-    payment_method: "fakewallet"
+    payment_method: PAYMENT_METHOD.FAKEWALLET
   };
   
   try {
     await setCardConfig(env, uid, config);
   } catch (error) {
     logger.error("Error writing card config during activation", { uid, error: error.message });
-    return jsonResponse({ status: "ERROR", reason: `Failed to save card config: ${error.message}` }, 500);
+    return jsonResponse({ status: "ERROR", reason: "Failed to save card config" }, 500);
   }
   logger.debug("Activated card config written to DO", { uid });
 

@@ -55,6 +55,6 @@ export async function handleTopupApply(request, env, session) {
     });
   } catch (error) {
     logger.error("Top-up: unexpected error", { uidHex: tap.uidHex, amount: parsedAmount, error: error.message });
-    return errorResponse("Top-up failed: " + error.message, 500);
+    return errorResponse("Top-up failed", 500);
   }
 }

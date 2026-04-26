@@ -1,17 +1,15 @@
-import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
-import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { renderLoginPage } from "../templates/loginPage.js";
 import { logger } from "../utils/logger.js";
 import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
-import { getAllIssuerKeyCandidates, getPerCardKeys, getUniquePerCardK1s } from "../utils/keyLookup.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
 import { getCardState, getCardConfig, recordTapRead, getBalance } from "../replayProtection.js";
 import { getRequestOrigin } from "../utils/validation.js";
-import { cmacScanVersions } from "../utils/cmacScan.js";
-import { DEFAULT_PULL_PAYMENT_ID } from "../utils/constants.js";
+import { DEFAULT_PULL_PAYMENT_ID, CARD_STATE, PAYMENT_METHOD } from "../utils/constants.js";
 import { getUnifiedHistory } from "../utils/history.js";
 import { handleTerminateAction, handleRequestWipeAction, handleTopUpAction, resolvePullPaymentId, buildProgrammingEndpoint, normalizeSubmittedUid } from "./loginActions.js";
+import { matchCardIssuer } from "../utils/cardMatching.js";
+import { getPerCardKeys } from "../utils/keyLookup.js";
 
 export function handleLoginPage(request) {
   const host = getRequestOrigin(request);
@@ -44,112 +42,43 @@ export async function handleLoginVerify(request, env) {
       return errorResponse("Missing p or c", 400);
     }
 
-    const candidates = getAllIssuerKeyCandidates(env);
+    const result = await matchCardIssuer(pHex, cHex, env);
 
-    let matchedIssuer = null;
-    let matchedUid = null;
-    let matchedCtr = null;
-    let matchedKeys = null;
-    let matchedCmacValid = false;
-    let perCardSource = null;
-    let keyVersion = 1;
-    let matchedVersion = null;
-    let debugInfo = { versionScan: [] };
-
-    for (const candidate of candidates) {
-      const tryEnv = { ...env, ISSUER_KEY: candidate.hex };
-      const decryption = extractUIDAndCounter(pHex, tryEnv);
-      if (!decryption.success) continue;
-
-      const { uidHex, ctr } = decryption;
-
-      matchedIssuer = candidate;
-      matchedUid = uidHex;
-      matchedCtr = ctr;
-
-      const cardState = await getCardState(env, uidHex);
-      const latestVersion = cardState?.latest_issued_version || cardState?.active_version || 1;
-      const uidBytes = hexToBytes(uidHex);
-      const ctrBytes = hexToBytes(ctr);
-
-      const { matchedVersion: scanVersion, attempts: versionDebug } = await cmacScanVersions(
-        uidBytes, ctrBytes, cHex, {
-          k2ForVersion: (v) => hexToBytes(deriveKeysFromHex(uidHex, candidate.hex, v).k2),
-          highVersion: latestVersion,
-          lowVersion: Math.max(1, latestVersion - 10),
-        }
-      );
-
-      if (scanVersion !== null) {
-        matchedCmacValid = true;
-        matchedVersion = scanVersion;
-        matchedKeys = deriveKeysFromHex(uidHex, candidate.hex, scanVersion);
-      } else {
-        matchedKeys = deriveKeysFromHex(uidHex, candidate.hex, latestVersion);
-        matchedVersion = latestVersion;
-      }
-
-      const perCard = getPerCardKeys(uidHex);
-      if (perCard) {
-        const { cmac_validated: pcCmac } = validate_cmac(uidBytes, ctrBytes, cHex, hexToBytes(perCard.k2));
-        if (pcCmac) {
-          matchedCmacValid = true;
-          perCardSource = perCard.card_name || "recovered";
-          matchedKeys = {
-            k0: perCard.k0,
-            k1: perCard.k1,
-            k2: perCard.k2,
-            k3: perCard.k3 || matchedKeys.k3,
-            k4: perCard.k4 || matchedKeys.k4,
-          };
-        }
-      }
-
-      debugInfo.versionScan = versionDebug;
-      break;
-    }
-
-    if (!matchedIssuer || !matchedCmacValid) {
-      for (const entry of getUniquePerCardK1s()) {
-        const tryEnv = { ...env, ISSUER_KEY: entry.k1 };
-        const decryption = extractUIDAndCounter(pHex, tryEnv);
-        if (!decryption.success) continue;
-
-        const { uidHex: pcUid, ctr: pcCtr } = decryption;
-        const perCard = getPerCardKeys(pcUid);
-        if (!perCard) continue;
-
-        const { cmac_validated } = validate_cmac(
-          hexToBytes(pcUid),
-          hexToBytes(pcCtr),
-          cHex,
-          hexToBytes(perCard.k2),
-        );
-
-        if (cmac_validated) {
-          matchedIssuer = { hex: "per-card", label: perCard.card_name || "recovered" };
-          matchedUid = pcUid;
-          matchedCtr = pcCtr;
-          matchedCmacValid = true;
-          perCardSource = perCard.card_name || "recovered";
-          matchedKeys = {
-            k0: perCard.k0,
-            k1: perCard.k1,
-            k2: perCard.k2,
-            k3: perCard.k1,
-            k4: perCard.k2,
-          };
-          break;
-        }
-      }
-    }
-
-    if (!matchedIssuer) {
+    if (!result.matched && !result.issuerKey) {
       return errorResponse("Could not decrypt card with any known key", 400);
     }
 
-    const uidHex = matchedUid;
-    const counterValue = parseInt(matchedCtr, 16);
+    let matchedKeys;
+    let matchedVersion;
+    let perCardSource = null;
+
+    if (result.matched && result.perCardOverride) {
+      const perCard = result.perCard;
+      const baseKeys = deriveKeysFromHex(result.uidHex, result.issuerKey, result.latestVersion);
+      matchedKeys = {
+        k0: perCard.k0,
+        k1: perCard.k1,
+        k2: perCard.k2,
+        k3: perCard.k3 || baseKeys.k3,
+        k4: perCard.k4 || baseKeys.k4,
+      };
+      matchedVersion = result.matchedVersion;
+      perCardSource = result.perCardSource;
+    } else if (result.matched) {
+      matchedKeys = deriveKeysFromHex(result.uidHex, result.issuerKey, result.matchedVersion);
+      matchedVersion = result.matchedVersion;
+    } else {
+      matchedKeys = deriveKeysFromHex(result.uidHex, result.issuerKey, result.latestVersion);
+      matchedVersion = result.latestVersion;
+    }
+
+    const matchedIssuer = result.issuerKey ? { hex: result.issuerKey, label: result.issuerLabel } : null;
+    const matchedCmacValid = result.cmacValid;
+    const debugInfo = { versionScan: result.versionAttempts || [] };
+    const keyVersion = result.matchedVersion || result.latestVersion || 1;
+
+    const uidHex = result.uidHex;
+    const counterValue = parseInt(result.ctr, 16);
 
     const config = await getUidConfig(uidHex, env);
     const pm = config?.payment_method || "unknown";
@@ -158,12 +87,11 @@ export async function handleLoginVerify(request, env) {
     const cardConfig = await getCardConfig(env, uidHex);
     const hasDoConfig = cardConfig !== null;
     const deployed = hasDoConfig || !!perCardSource;
-    keyVersion = cardState?.active_version || cardState?.latest_issued_version || 1;
     const pullPaymentId = resolvePullPaymentId(env, cardConfig);
     const programmingEndpoint = buildProgrammingEndpoint(requestOrigin, pullPaymentId);
 
     const host = new URL(request.url).host;
-    const path = pm === "twofactor" ? "/2fa" : "/";
+    const path = pm === PAYMENT_METHOD.TWOFACTOR ? "/2fa" : "/";
     const ndefUrl = `https://${host}${path}?p=${pHex}&c=${cHex}`;
 
     logger.info("NFC login", {
@@ -207,9 +135,9 @@ export async function handleLoginVerify(request, env) {
       compromised: !!perCardSource,
       public: !!perCardSource,
       deployed,
-      cardState: cardState?.state || "new",
+      cardState: cardState?.state || CARD_STATE.NEW,
       balance: balanceData.balance,
-      programmingEndpoint: cardState?.state === "keys_delivered" ? programmingEndpoint : undefined,
+      programmingEndpoint: cardState?.state === CARD_STATE.KEYS_DELIVERED ? programmingEndpoint : undefined,
       keysDeliveredAt: cardState?.keys_delivered_at || null,
       keyVersion,
       debug: {
@@ -222,7 +150,7 @@ export async function handleLoginVerify(request, env) {
     });
   } catch (error) {
     logger.error("Login verification error", { error: error.message });
-    return errorResponse(error.message, 500);
+    return errorResponse("Internal error", 500);
   }
 }
 
@@ -237,7 +165,7 @@ async function handleUidOnlyLogin(rawUid, env, request) {
   const cardConfig = await getCardConfig(env, uidHex);
   const hasDoConfig = cardConfig !== null;
   const config = await getUidConfig(uidHex, env);
-  const pm = config?.payment_method || "fakewallet";
+  const pm = config?.payment_method || PAYMENT_METHOD.FAKEWALLET;
   const pullPaymentId = resolvePullPaymentId(env, cardConfig);
   const programmingEndpoint = buildProgrammingEndpoint(requestOrigin, pullPaymentId);
 
@@ -275,8 +203,8 @@ async function handleUidOnlyLogin(rawUid, env, request) {
     cardType: pm,
     cmacValid: false,
     deployed: hasDoConfig,
-    cardState: cardState?.state || "new",
-    awaitingProgramming: cardState?.state === "keys_delivered",
+    cardState: cardState?.state || CARD_STATE.NEW,
+    awaitingProgramming: cardState?.state === CARD_STATE.KEYS_DELIVERED,
     balance: balanceData.balance,
     keysDeliveredAt: cardState?.keys_delivered_at || null,
     programmingEndpoint,

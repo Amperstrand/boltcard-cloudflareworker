@@ -5,7 +5,7 @@ import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
 import { getCardState, getCardConfig, terminateCard, requestWipe, creditCard } from "../replayProtection.js";
 import { validateUid, getRequestOrigin } from "../utils/validation.js";
-import { DEFAULT_PULL_PAYMENT_ID } from "../utils/constants.js";
+import { DEFAULT_PULL_PAYMENT_ID, CARD_STATE } from "../utils/constants.js";
 
 function resolvePullPaymentId(env, cardConfig) {
   return cardConfig?.pull_payment_id || env.DEFAULT_PULL_PAYMENT_ID || DEFAULT_PULL_PAYMENT_ID;
@@ -27,7 +27,7 @@ export async function handleTerminateAction(rawUid, env, request) {
   }
 
   const cardState = await getCardState(env, uidHex);
-  if (cardState.state !== "active" && cardState.state !== "wipe_requested") {
+  if (cardState.state !== CARD_STATE.ACTIVE && cardState.state !== CARD_STATE.WIPE_REQUESTED) {
     return errorResponse(`Card is in '${cardState.state}' state, cannot terminate. Only active or wipe_requested cards can be terminated.`, 400);
   }
 
@@ -57,7 +57,7 @@ export async function handleRequestWipeAction(rawUid, env, request) {
   }
 
   const cardState = await getCardState(env, uidHex);
-  if (cardState.state !== "active") {
+  if (cardState.state !== CARD_STATE.ACTIVE) {
     return errorResponse(`Card is in '${cardState.state}' state. Only active cards can request wipe keys.`, 400);
   }
 
@@ -76,7 +76,7 @@ export async function handleRequestWipeAction(rawUid, env, request) {
   return jsonResponse({
     success: true,
     uidHex,
-    cardState: "wipe_requested",
+    cardState: CARD_STATE.WIPE_REQUESTED,
     keyVersion: version,
       k0: keys.k0,
       k1: keys.k1,
@@ -115,7 +115,7 @@ export async function handleTopUpAction(rawUid, rawAmount, env, request) {
     return errorResponse(result.reason || "Top-up failed", 500);
   } catch (e) {
     logger.error("Top-up failed", { uidHex, amount, error: e.message });
-    return errorResponse("Top-up failed: " + e.message, 500);
+    return errorResponse("Top-up failed", 500);
   }
 }
 

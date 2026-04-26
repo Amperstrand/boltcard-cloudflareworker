@@ -64,6 +64,6 @@ export async function handleRefundApply(request, env, session) {
     });
   } catch (error) {
     logger.error("Refund: unexpected error", { uidHex: tap.uidHex, amount: refundAmount, error: error.message });
-    return errorResponse("Refund failed: " + error.message, 500);
+    return errorResponse("Refund failed", 500);
   }
 }
