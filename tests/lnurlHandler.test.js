@@ -277,7 +277,7 @@ describe("handleLnurlpPayment", () => {
     const res = await handleLnurlpPayment(req, env);
     expect(res.status).toBe(202);
     const body = await res.json();
-    expect(body.reason).toContain("pending");
+    expect(body.reason).toContain("not completed");
     globalThis.fetch.mockRestore();
   });
 

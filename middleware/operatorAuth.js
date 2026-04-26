@@ -3,6 +3,13 @@ import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { getCookieValue, constantTimeEqual } from "../utils/cookies.js";
 import { OPERATOR_SESSION_MAX_AGE, OPERATOR_CSRF_MAX_AGE } from "../utils/constants.js";
+import { redirect } from "../utils/responses.js";
+
+function authRedirect(request) {
+  const url = new URL(request.url);
+  const returnUrl = encodeURIComponent(url.pathname + url.search);
+  return redirect(`/operator/login?return=${returnUrl}`);
+}
 
 const COOKIE_NAME = "op_session";
 const CSRF_COOKIE_NAME = "op_csrf";
@@ -82,28 +89,12 @@ export function requireOperator(request, env) {
 
   const sessionCookie = getSessionCookie(request);
   if (!sessionCookie) {
-    const url = new URL(request.url);
-    const returnUrl = encodeURIComponent(url.pathname + url.search);
-    return {
-      authorized: false,
-      response: new Response(null, {
-        status: 302,
-        headers: { Location: `/operator/login?return=${returnUrl}` },
-      }),
-    };
+    return { authorized: false, response: authRedirect(request) };
   }
 
   const session = verifyAndParseSession(sessionCookie, secret);
   if (!session) {
-    const url = new URL(request.url);
-    const returnUrl = encodeURIComponent(url.pathname + url.search);
-    return {
-      authorized: false,
-      response: new Response(null, {
-        status: 302,
-        headers: { Location: `/operator/login?return=${returnUrl}` },
-      }),
-    };
+    return { authorized: false, response: authRedirect(request) };
   }
 
   return { authorized: true, session };

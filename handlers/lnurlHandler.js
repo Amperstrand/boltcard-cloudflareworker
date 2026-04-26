@@ -203,12 +203,11 @@ async function processWithdrawalPayment(uid, pr, env, counterValue, explicitAmou
           return jsonResponse({ status: "OK", message: "Payment processed successfully" }, 200);
         }
         logger.warn("CLN payment not complete", { uid, status: responseBody.status });
-        return jsonResponse({ status: "ERROR", reason: `Payment status: ${responseBody.status}` }, 202);
+        return jsonResponse({ status: "ERROR", reason: "Payment not completed" }, 202);
       }
 
-      const errorReason = `${response.status}: ${JSON.stringify(responseBody)}`;
-      logger.error("CLN REST error", { uid, status: response.status });
-      return jsonResponse({ status: "ERROR", reason: errorReason }, response.status);
+      logger.error("CLN REST error", { uid, status: response.status, body: JSON.stringify(responseBody) });
+      return jsonResponse({ status: "ERROR", reason: `Payment failed with status ${response.status}` }, response.status);
     } catch (error) {
       logger.error("CLN REST pay request failed", { uid, error: error.message });
       return jsonResponse({ status: "ERROR", reason: "Payment request failed" }, 500);
