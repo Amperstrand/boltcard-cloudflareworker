@@ -2,10 +2,11 @@ import { getDeterministicKeys } from "../keygenerator.js";
 import { decodeAndValidate, extractUIDAndCounter } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
-import { resetReplayProtection, getCardState, deliverKeys, setCardConfig, requestWipe } from "../replayProtection.js";
+import { resetReplayProtection, getCardState, deliverKeys, setCardConfig, requestWipe, markPending } from "../replayProtection.js";
 import { jsonResponse, buildBoltCardResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { getRequestOrigin, validateUid } from "../utils/validation.js";
 import { DEFAULT_PULL_PAYMENT_ID, DEFAULT_FALLBACK_HOST, CARD_STATE, PAYMENT_METHOD } from "../utils/constants.js";
+import { classifyIssuerKey } from "../utils/keyLookup.js";
 import { logger } from "../utils/logger.js";
 
 export async function fetchBoltCardKeys(request, env) {
@@ -68,9 +69,21 @@ async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddre
     return errorResponse("Card is active. Terminate (wipe) the card before reprogramming.", 409);
   }
   if (cardState.state === CARD_STATE.KEYS_DELIVERED) {
-    // Card provisioned but not yet written — re-deliver same keys (idempotent)
     const version = cardState.latest_issued_version || 1;
     return generateKeyResponse(normalizedUid, env, baseUrl, cardType, version);
+  }
+
+  if (cardState.state === CARD_STATE.NEW || cardState.state === CARD_STATE.LEGACY || cardState.state === CARD_STATE.PENDING || cardState.state === CARD_STATE.DISCOVERED) {
+    const classified = classifyIssuerKey(env, env.ISSUER_KEY);
+    try {
+      await markPending(env, normalizedUid, {
+        key_provenance: classified.provenance,
+        key_fingerprint: classified.fingerprint,
+        key_label: classified.label,
+      });
+    } catch (err) {
+      logger.warn("Failed to mark pending during programming", { uid: normalizedUid, error: err.message });
+    }
   }
 
   const delivered = await deliverKeys(env, normalizedUid);
