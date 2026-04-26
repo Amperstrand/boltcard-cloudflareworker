@@ -100,12 +100,12 @@ You need a physical NTAG424 card programmed for this worker's issuer key. Cards 
 | From | To | Type |
 |---|---|---|
 | `/pos` | `/operator/pos` | 302 |
-| `/nfc` | `/experimental/nfc` | 301 |
-| `/activate` | `/experimental/activate` | 301 |
-| `/activate/form` | `/experimental/activate/form` | 301 |
-| `/wipe` | `/experimental/wipe` | 301 |
-| `/bulkwipe` | `/experimental/bulkwipe` | 301 |
-| `/analytics` | `/experimental/analytics` | 301 |
+| `/nfc` | `/debug#console` | 302 |
+| `/activate` | `/experimental/activate` | 302 |
+| `/activate/form` | `/experimental/activate/form` | 302 |
+| `/wipe` | `/experimental/wipe` | 302 |
+| `/bulkwipe` | `/experimental/bulkwipe` | 302 |
+| `/analytics` | `/experimental/analytics` | 302 |
 
 ## Closed-Loop Event Mode
 
@@ -294,6 +294,9 @@ See [docs/VENUE-DEPLOYMENT.md](docs/VENUE-DEPLOYMENT.md) for the full guide.
 - **Card validation**: AES-ECB decrypt + AES-CMAC authenticate (RFC 4493) on every tap
 - **Replay protection**: Durable Object with SQLite — atomic counter check, strongly consistent, fails closed
 - **Operator auth**: HMAC-SHA256 signed session cookies, constant-time PIN comparison, 12h expiry
+- **CSRF protection**: Double-submit cookie pattern on all mutating operator endpoints
+- **Error sanitization**: Internal error details logged server-side; generic messages returned to clients
+- **Header filtering**: Proxy relay filters request/response headers to prevent credential and server-info leakage
 - **Rate limiting**: IP-based fixed-window (login: 5 req/15min; default: 100 req/min; optional via KV)
 - **No offline mode**: If the worker is unreachable, taps fail
 
@@ -338,15 +341,22 @@ See [docs/VENUE-DEPLOYMENT.md](docs/VENUE-DEPLOYMENT.md) for the full guide.
 ## Testing
 
 ```bash
-npm test                              # Run all tests
+npm test                              # Run all 918 tests
 npm test -- --testNamePattern="pos"   # Run specific test pattern
 npm test -- --watch                   # Watch mode
+npm run deploy                        # tests → build_keys → wrangler deploy
 ```
+
+### Test Infrastructure
+
+- **`tests/testHelpers.js`**: `virtualTap(uid, counter, k1, k2)`, `buildCardTestEnv(options)`, `TEST_OPERATOR_AUTH`
+- **`tests/replayNamespace.js`**: In-memory Durable Object mock with `__activate`, `__taps`, `__cardConfigs`, `__cardStates`
+- **`tests/e2e/virtual-card.test.js`**: Full E2E lifecycle: provision → tap → pay → replay
 
 ## Project Structure
 
 ```
-├── index.js                     # Router + LNURL-withdraw handler
+├── index.js                     # Router + security headers + error handling
 ├── boltCardHelper.js            # Card decrypt + CMAC validation
 ├── cryptoutils.js               # AES-ECB + AES-CMAC primitives
 ├── getUidConfig.js              # Card config lookup (DO → deterministic fallback)
@@ -357,36 +367,55 @@ npm test -- --watch                   # Watch mode
 │   └── operatorAuth.js          # PIN auth, session cookies, requireOperator()
 ├── handlers/
 │   ├── operatorLoginHandler.js  # PIN login/logout
+│   ├── loginHandler.js          # Customer NFC key recovery + privileged actions
+│   ├── loginActions.js          # Terminate, wipe, top-up action handlers
 │   ├── topupHandler.js          # Top-up desk (credit card)
 │   ├── posChargeHandler.js      # POS direct debit
 │   ├── posHandler.js            # POS page render
 │   ├── refundHandler.js         # Full/partial refund
+│   ├── lnurlwHandler.js         # LNURL-withdraw tap processing
+│   ├── lnurlHandler.js          # LNURL-withdraw callback (payment processing)
+│   ├── lnurlPayHandler.js       # LNURL-pay flow
+│   ├── proxyHandler.js          # Downstream LNBits relay (with header filtering)
+│   ├── fetchBoltCardKeys.js     # Card provisioning + key delivery
+│   ├── withdrawHandler.js       # Withdraw response construction
+│   ├── activateCardHandler.js   # Quick-activate UID
+│   ├── resetHandler.js          # Card wipe/reset
+│   ├── bulkWipeHandler.js       # Bulk wipe key candidates
 │   ├── balanceCheckHandler.js   # Read-only balance check
-│   ├── menuHandler.js           # KV-backed menu CRUD
 │   ├── menuEditorHandler.js     # Menu editor page + API
 │   ├── receiptHandler.js        # Plain-text receipt
 │   ├── debugHandler.js          # Debug dashboard
-│   ├── identityHandler.js       # Identity demo
+│   ├── identityHandler.js       # Identity/access control demo
 │   ├── twoFactorHandler.js      # 2FA TOTP/HOTP
-│   ├── loginHandler.js          # Customer NFC key recovery
-│   ├── lnurlHandler.js          # LNURL-withdraw callback
-│   ├── lnurlPayHandler.js       # LNURL-pay flow
-│   └── ...
-├── templates/                   # HTML pages (Tailwind CSS)
-│   ├── topupPage.js             # Top-up keypad + NFC
+│   └── getKeysHandler.js        # Key listing + bulk wipe
+├── templates/                   # HTML pages (Tailwind CSS, rawHtml tagged template)
+│   ├── browserNfc.js            # Shared NFC scanner + CSRF + esc() helpers
+│   ├── loginPage.js             # NFC key recovery page
+│   ├── operatorLoginPage.js     # PIN login form
 │   ├── posPage.js               # POS with free-amount + menu modes
+│   ├── topupPage.js             # Top-up keypad + NFC
 │   ├── refundPage.js            # Refund desk
 │   ├── menuEditorPage.js        # Menu editor
-│   ├── operatorLoginPage.js     # PIN login form
+│   ├── twoFactorPage.js         # 2FA codes display
 │   ├── debugPage.js             # Debug dashboard
 │   └── ...
 ├── utils/
 │   ├── bolt11.js                # BOLT11 invoice generation (@noble/secp256k1)
+│   ├── cardMatching.js          # Shared card issuer detection
+│   ├── cmacScan.js              # Multi-version CMAC scan engine
+│   ├── constants.js             # CARD_STATE, PAYMENT_METHOD, and numeric constants
+│   ├── cookies.js               # Cookie parsing + constantTimeEqual
 │   ├── currency.js              # Currency label formatting/parsing
-│   └── ...
+│   ├── history.js               # Unified tap + transaction history
+│   ├── keyLookup.js             # Issuer key candidates + per-card key lookup
+│   ├── lightningAddress.js      # Lightning address resolution
+│   ├── logger.js                # Structured JSON logger
+│   ├── responses.js             # Shared response builders (errorResponse, redirect, etc.)
+│   └── validateCardTap.js       # Card tap validation for operator handlers
 ├── durableObjects/
 │   └── CardReplayDO.js          # Per-card SQLite DO (balance, txns, counter)
-├── tests/                       # Tests across 25+ suites
+├── tests/                       # 918 tests across 53 suites
 ├── keys/                        # Key recovery CSV files
 ├── docs/
 │   ├── VENUE-DEPLOYMENT.md      # Venue setup guide

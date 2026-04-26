@@ -136,6 +136,11 @@
 - `matchCardIssuer()` from `utils/cardMatching.js` for shared card issuer detection across loginHandler and identifyIssuerKeyHandler
 - `CARD_STATE` and `PAYMENT_METHOD` enums from `utils/constants.js` — use instead of raw strings
 - `constantTimeEqual()` from `utils/cookies.js` for timing-safe string comparison (CSRF tokens, PINs)
+- `checkReplayAndRecordTap()` from `handlers/lnurlwHandler.js` for replay check + tap recording (shared by proxy and fakewallet/clnrest paths)
+- `getCardProgrammingEndpoint()` from `handlers/loginActions.js` for card config → pull payment → programming endpoint lookup (shared by 4 call sites)
+- `safeGetBalance()` local to `handlers/loginHandler.js` — graceful balance fetch fallback
+- All DO callers must wrap in try/catch with specific error messages (see #10 audit)
+- `processWithdrawalPayment` uses `normalizedUid` local variable — never mutate parameters
 - Tests use `makeReplayNamespace()` (in-memory DO mock) from `tests/replayNamespace.js`
 - Commit style: semantic (`feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`)
 - Never commit without explicit user request
@@ -145,7 +150,8 @@
 
 - Run: `npm test` (uses Jest with `--experimental-vm-modules`)
 - Deploy: `npm run deploy` (tests → build_keys → wrangler deploy)
-- **914 tests** across 53 test suites (as of 2026-04-26)
+- **918 tests** across 53 test suites (as of 2026-04-26)
+- Coverage: ~87% statements, ~79% branches, ~85% functions
 
 ## Test Inventory
 
@@ -218,3 +224,13 @@ The following exports are prefixed with `_` and only used in tests:
 - `POST /login` privileged actions (top-up, terminate, request-wipe) require operator session auth
 - All innerHTML assignments use `esc()` for dynamic data (41 assignments audited)
 - `/2fa` endpoint supports JSON response mode via `Accept: application/json` header (prevents raw HTML injection in debug console)
+- Proxy handler filters request/response headers via allow-list (`proxyHandler.js`)
+- CSRF: double-submit cookie pattern with timing-safe comparison
+- All replayProtection callers wrap DO calls in try/catch with appropriate error responses
+
+## Error Handling Policy
+
+- **Handlers**: All async handler functions wrap DO calls in try/catch, log via `logger.error()`, and return `errorResponse("Internal error", 500)` or a specific error
+- **Fire-and-forget**: `recordTapRead()` uses `.catch()` with `logger.warn()` — tap recording never blocks the response
+- **Graceful degradation**: `safeGetBalance()` returns `{balance: 0}` on failure; `getUidConfig()` falls back to deterministic keys; `history.js` returns empty arrays
+- **Never expose**: Raw `err.message`, DO internals, CLN REST response bodies, or KV error details to clients
