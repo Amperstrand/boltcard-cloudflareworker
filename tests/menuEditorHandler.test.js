@@ -246,6 +246,25 @@ describe("GET /operator/pos/menu", () => {
     const html = await res.text();
     expect(html).toContain("Menu Editor");
   });
+
+  it("renders editor with items that have special characters in names", async () => {
+    await env.UID_CONFIG.put("pos_menu:default", JSON.stringify({
+      items: [
+        { name: 'Coffee "Special" <test>', price: 50 },
+        { name: "Tea & Biscuits", price: 30 },
+      ],
+    }));
+    const res = await handleRequest(
+      new Request("https://test.local/operator/pos/menu", {
+        headers: { Cookie: "op_session=test" },
+      }),
+      env,
+    );
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Menu Editor");
+    expect(html).not.toContain("<test>");
+  });
 });
 
 describe("GET /api/pos/menu error handling", () => {

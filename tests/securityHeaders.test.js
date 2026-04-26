@@ -66,4 +66,47 @@ describe("Security headers", () => {
     );
     expect(res.headers.get("X-Request-Id")).toBeTruthy();
   });
+
+  it("sets Content-Security-Policy", async () => {
+    const res = await defaultExport.fetch(
+      new Request("https://test.local/login"),
+      makeEnv(),
+      {},
+    );
+    const csp = res.headers.get("Content-Security-Policy");
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).toContain("frame-ancestors 'none'");
+  });
+
+  it("sets security headers on 404 responses", async () => {
+    const res = await defaultExport.fetch(
+      new Request("https://test.local/nonexistent-path"),
+      makeEnv(),
+      {},
+    );
+    expect(res.status).toBe(404);
+    expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(res.headers.get("X-Frame-Options")).toBe("DENY");
+  });
+
+  it("sets security headers on status endpoint", async () => {
+    const env = { BOLT_CARD_K1, UID_CONFIG: { get: async () => null } };
+    const res = await defaultExport.fetch(
+      new Request("https://test.local/status"),
+      env,
+      {},
+    );
+    expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+  });
+
+  it("sets X-RateLimit-Remaining on successful responses", async () => {
+    const res = await defaultExport.fetch(
+      new Request("https://test.local/login"),
+      makeEnv(),
+      {},
+    );
+    const remaining = res.headers.get("X-RateLimit-Remaining");
+    expect(remaining).toBeTruthy();
+    expect(parseInt(remaining, 10)).toBeGreaterThan(0);
+  });
 });

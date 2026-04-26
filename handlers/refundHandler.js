@@ -5,6 +5,7 @@ import { debitCard, getBalance } from "../replayProtection.js";
 import { validateCardTap } from "../utils/validateCardTap.js";
 import { logger } from "../utils/logger.js";
 import { getRequestOrigin } from "../utils/validation.js";
+import { recordAuditEvent } from "../utils/auditLog.js";
 
 export function handleRefundPage(request, env) {
   const host = getRequestOrigin(request);
@@ -67,6 +68,7 @@ export async function handleRefundApply(request, env, session) {
 
     const balanceData = await getBalance(env, tap.uidHex);
     logger.info("Refund successful", { uidHex: tap.uidHex, amount: refundAmount, newBalance: balanceData.balance, shiftId, fullRefund });
+    await recordAuditEvent(env, { action: "refund", uidHex: tap.uidHex, operatorShiftId: shiftId, details: { amount: refundAmount, balance: balanceData.balance, fullRefund } });
 
     return jsonResponse({
       success: true,

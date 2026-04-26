@@ -3,10 +3,11 @@ import { terminateCard, requestWipe, getCardState } from "../replayProtection.js
 import { validateUid } from "../utils/validation.js";
 import { CARD_STATE } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
+import { recordAuditEvent } from "../utils/auditLog.js";
 
 const VALID_ACTIONS = ["terminate", "wipe", "activate"];
 
-export async function handleCardBatchAction(request, env) {
+export async function handleCardBatchAction(request, env, session) {
   if (request.method !== "POST") {
     return errorResponse("Method not allowed", 405);
   }
@@ -80,6 +81,15 @@ export async function handleCardBatchAction(request, env) {
       logger.error("Batch action failed for card", { uid, action, error: err.message });
       errors.push({ uid, error: err.message });
     }
+  }
+
+  const succeeded = results.filter(r => r.status !== "skipped");
+  if (succeeded.length > 0) {
+    await recordAuditEvent(env, {
+      action: `batch_${action}`,
+      operatorShiftId: session?.shiftId,
+      details: { count: succeeded.length, uids: succeeded.map(r => r.uid) },
+    });
   }
 
   return jsonResponse({

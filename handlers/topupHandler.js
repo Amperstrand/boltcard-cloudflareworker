@@ -5,6 +5,7 @@ import { validateCardTap } from "../utils/validateCardTap.js";
 import { logger } from "../utils/logger.js";
 import { renderTopupPage } from "../templates/topupPage.js";
 import { getRequestOrigin } from "../utils/validation.js";
+import { recordAuditEvent } from "../utils/auditLog.js";
 
 export function handleTopupPage(request, env) {
   const host = getRequestOrigin(request);
@@ -47,6 +48,7 @@ export async function handleTopupApply(request, env, session) {
     const newBalance = balanceData.balance;
 
     logger.info("Top-up successful", { uidHex: tap.uidHex, amount: parsedAmount, newBalance, shiftId });
+    await recordAuditEvent(env, { action: "topup", uidHex: tap.uidHex, operatorShiftId: shiftId, details: { amount: parsedAmount, balance: newBalance } });
     return jsonResponse({
       success: true,
       amount: parsedAmount,

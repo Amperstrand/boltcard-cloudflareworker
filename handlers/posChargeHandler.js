@@ -2,6 +2,7 @@ import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.j
 import { debitCard, getBalance } from "../replayProtection.js";
 import { validateCardTap } from "../utils/validateCardTap.js";
 import { logger } from "../utils/logger.js";
+import { recordAuditEvent } from "../utils/auditLog.js";
 
 export async function handlePosCharge(request, env, session) {
   const body = await parseJsonBody(request).catch(() => null);
@@ -43,6 +44,7 @@ export async function handlePosCharge(request, env, session) {
 
     const postBalance = await getBalance(env, tap.uidHex);
     logger.info("POS charge successful", { uidHex: tap.uidHex, amount: parsedAmount, newBalance: postBalance.balance, shiftId, terminalId });
+    await recordAuditEvent(env, { action: "pos_charge", uidHex: tap.uidHex, operatorShiftId: shiftId, details: { amount: parsedAmount, balance: postBalance.balance, terminalId } });
 
     return jsonResponse({
       success: true,

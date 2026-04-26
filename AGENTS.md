@@ -183,6 +183,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 - DO `/set-k2` endpoint for targeted K2-only update (preserves existing `payment_method` and `config_json`); called via `setCardK2()` during card discovery
 - `indexCard()`, `deindexCard()`, `getIndexedCard()`, `listIndexedCards()` from `utils/cardIndex.js` for KV-backed card registry (prefix `card_idx:`, TTL 7 days)
 - `replayProtection.js` calls `await indexCard()` on all 6 state transitions: `markPending`, `discoverCard`, `deliverKeys`, `activateCard`, `terminateCard`, `requestWipe`
+- `recordAuditEvent()` from `utils/auditLog.js` for persistent operator action log (prefix `audit_log:`, TTL 90 days). Called from topup, refund, POS charge, batch operations.
 - `getCardProgrammingEndpoint()` from `handlers/loginActions.js` for card config → pull payment → programming endpoint lookup (shared by 4 call sites)
 - `safeGetBalance()` local to `handlers/loginHandler.js` — graceful balance fetch fallback
 - All DO callers must wrap in try/catch with specific error messages (see #10 audit)
@@ -196,7 +197,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 
 - Run: `npm test` (uses Jest with `--experimental-vm-modules`)
 - Deploy: `npm run deploy` (tests → build_keys → wrangler deploy)
-- **1061 tests** across 58 test suites (as of 2026-04-26)
+- **1081 tests** across 59 test suites (as of 2026-04-26)
 - Coverage: ~87% statements, ~79% branches, ~85% functions
 
 ## Test Inventory
@@ -258,6 +259,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | `tests/cardDashboardHandler.test.js` | Cardholder dashboard: page rendering, info API, provenance banner, state handling, NFC/manual input | |
 | `tests/cardIndex.test.js` | KV card registry: indexCard, deindexCard, getIndexedCard, listIndexedCards, edge cases | |
 | `tests/cardAuditHandler.test.js` | Operator audit page: auth redirect, data endpoint, state filtering | |
+| `tests/auditLog.test.js` | Audit log: record events, list sorted, corrupted entries, KV errors | |
 | `tests/cardBatchHandler.test.js` | Batch terminate/wipe/activate: validation, state checks, mixed results | |
 | `tests/e2e/pages.test.js` | Page rendering, security headers, auth flows, redirects, /card/info API | |
 
