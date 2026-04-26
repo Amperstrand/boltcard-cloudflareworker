@@ -24,11 +24,21 @@ export const OTP_DOMAIN_TAG_TOTP = "2d003f81";
 
 export const CARD_STATE = {
   NEW: "new",
+  PENDING: "pending",
+  DISCOVERED: "discovered",
   KEYS_DELIVERED: "keys_delivered",
   ACTIVE: "active",
   WIPE_REQUESTED: "wipe_requested",
   TERMINATED: "terminated",
   LEGACY: "legacy",
+};
+
+export const KEY_PROVENANCE = {
+  UNKNOWN: "unknown",
+  PUBLIC_ISSUER: "public_issuer",
+  ENV_ISSUER: "env_issuer",
+  PERCARD: "percard",
+  USER_PROVISIONED: "user_provisioned",
 };
 
 export const PAYMENT_METHOD = {
