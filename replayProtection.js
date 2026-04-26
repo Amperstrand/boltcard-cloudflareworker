@@ -129,7 +129,7 @@ export async function getAnalytics(env, uidHex) {
 
   const result = await response.json();
 
-  indexCard(env, uidHex, {
+  await indexCard(env, uidHex, {
     state: CARD_STATE.WIPE_REQUESTED,
   });
 
@@ -172,7 +172,7 @@ export async function deliverKeys(env, uidHex) {
 
   const result = await response.json();
 
-  indexCard(env, uidHex, {
+  await indexCard(env, uidHex, {
     state: CARD_STATE.KEYS_DELIVERED,
   });
 
@@ -195,7 +195,7 @@ export async function activateCard(env, uidHex, activeVersion) {
 
   const result = await response.json();
 
-  indexCard(env, uidHex, {
+  await indexCard(env, uidHex, {
     state: CARD_STATE.ACTIVE,
   });
 
@@ -218,7 +218,7 @@ export async function terminateCard(env, uidHex) {
 
   const result = await response.json();
 
-  indexCard(env, uidHex, {
+  await indexCard(env, uidHex, {
     state: CARD_STATE.TERMINATED,
   });
 
@@ -310,7 +310,7 @@ export async function markPending(env, uidHex, { key_provenance, key_fingerprint
 
   const result = await response.json();
 
-  indexCard(env, uidHex, {
+  await indexCard(env, uidHex, {
     state: CARD_STATE.PENDING,
     keyProvenance: key_provenance,
     keyLabel: key_label,
@@ -337,7 +337,7 @@ export async function discoverCard(env, uidHex, { key_provenance, key_fingerprin
 
   const result = await response.json();
 
-  indexCard(env, uidHex, {
+  await indexCard(env, uidHex, {
     state: CARD_STATE.DISCOVERED,
     keyProvenance: key_provenance,
     keyLabel: key_label,
