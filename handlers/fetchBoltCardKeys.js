@@ -63,7 +63,13 @@ async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddre
   const normalizedUid = uid.toLowerCase();
   const defaultPullPaymentId = env.DEFAULT_PULL_PAYMENT_ID || DEFAULT_PULL_PAYMENT_ID;
 
-  const cardState = await getCardState(env, normalizedUid);
+  let cardState;
+  try {
+    cardState = await getCardState(env, normalizedUid);
+  } catch (err) {
+    logger.error("Failed to get card state during programming", { uid: normalizedUid, error: err.message });
+    return errorResponse("Internal error", 500);
+  }
 
   if (cardState.state === CARD_STATE.ACTIVE) {
     return errorResponse("Card is active. Terminate (wipe) the card before reprogramming.", 409);
@@ -86,20 +92,26 @@ async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddre
     }
   }
 
-  const delivered = await deliverKeys(env, normalizedUid);
-  const version = typeof delivered === "number"
-    ? delivered
-    : delivered?.version ?? delivered?.latest_issued_version ?? delivered?.active_version;
+  let version;
+  try {
+    const delivered = await deliverKeys(env, normalizedUid);
+    version = typeof delivered === "number"
+      ? delivered
+      : delivered?.version ?? delivered?.latest_issued_version ?? delivered?.active_version;
 
-  if (!Number.isInteger(version) || version < 1) {
-    throw new Error("Invalid version returned from key delivery");
+    if (!Number.isInteger(version) || version < 1) {
+      throw new Error("Invalid version returned from key delivery");
+    }
+
+    await setCardConfig(env, normalizedUid, {
+      pull_payment_id: defaultPullPaymentId,
+    });
+
+    await resetReplayProtection(env, normalizedUid);
+  } catch (err) {
+    logger.error("Programming flow: key delivery or config failed", { uid: normalizedUid, error: err.message });
+    return errorResponse("Internal error", 500);
   }
-
-  await setCardConfig(env, normalizedUid, {
-    pull_payment_id: defaultPullPaymentId,
-  });
-
-  await resetReplayProtection(env, normalizedUid);
 
   const keys = getDeterministicKeys(normalizedUid, env, version);
 
@@ -128,7 +140,12 @@ async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddre
 
   config.pull_payment_id = defaultPullPaymentId;
 
-  await setCardConfig(env, normalizedUid, config);
+  try {
+    await setCardConfig(env, normalizedUid, config);
+  } catch (err) {
+    logger.error("Programming flow: final config set failed", { uid: normalizedUid, error: err.message });
+    return errorResponse("Internal error", 500);
+  }
 
   return generateKeyResponse(normalizedUid, env, baseUrl, cardType, version);
 }

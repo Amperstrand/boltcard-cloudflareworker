@@ -39,6 +39,8 @@ export function renderMenuEditorPage({ host, terminalId, menu }) {
     </div>
 
     <script>
+      function esc(s) { if (s == null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
       let items = ${safe(itemsJson ? itemsJson.replace(/</g, '\\u003c') : '[]')};
       const terminalId = ${jsString(terminalId)};
       const API_HOST = ${jsString(host)};

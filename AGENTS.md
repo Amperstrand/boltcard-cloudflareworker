@@ -220,6 +220,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | `tests/loginHandler.test.js` | NFC login, wipe, terminate, top-up via `/login` | |
 | `tests/getUidConfig.test.js` | Config lookup with DO mock | |
 | `tests/getKeysHandler.test.js` | Key listing handler | |
+| `tests/history.test.js` | Tap/payment history merge and unified history | |
 | `tests/identifyIssuerKey.test.js` | Tap-to-detect issuer key | |
 | `tests/twoFactorHandler.test.js` | TOTP/HOTP code generation | |
 | `tests/validateCardTap.test.js` | Card tap validation (replay, CMAC, state, auto-activate) | |

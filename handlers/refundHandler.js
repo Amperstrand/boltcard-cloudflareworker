@@ -28,14 +28,26 @@ export async function handleRefundApply(request, env, session) {
 
   let refundAmount;
   if (fullRefund) {
-    const balanceData = await getBalance(env, tap.uidHex);
+    let balanceData;
+    try {
+      balanceData = await getBalance(env, tap.uidHex);
+    } catch (err) {
+      logger.error("Refund: balance check failed", { uidHex: tap.uidHex, error: err.message });
+      return errorResponse("Balance check failed", 500);
+    }
     refundAmount = balanceData.balance;
     if (!refundAmount || refundAmount <= 0) {
       return jsonResponse({ success: true, amount: 0, balance: 0, note: "refund:zero" });
     }
   } else {
     refundAmount = parseInt(amount, 10);
-    const balanceData = await getBalance(env, tap.uidHex);
+    let balanceData;
+    try {
+      balanceData = await getBalance(env, tap.uidHex);
+    } catch (err) {
+      logger.error("Refund: balance check failed", { uidHex: tap.uidHex, error: err.message });
+      return errorResponse("Balance check failed", 500);
+    }
     if (refundAmount > balanceData.balance) {
       return errorResponse(`Refund amount (${refundAmount}) exceeds balance (${balanceData.balance})`, 400, {
         currentBalance: balanceData.balance,

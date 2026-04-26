@@ -32,25 +32,30 @@ export async function handleTerminateAction(rawUid, env, request) {
     return errorResponse("Invalid UID format", 400);
   }
 
-  const cardState = await getCardState(env, uidHex);
-  if (cardState.state !== CARD_STATE.ACTIVE && cardState.state !== CARD_STATE.WIPE_REQUESTED) {
-    return errorResponse(`Card is in '${cardState.state}' state, cannot terminate. Only active or wipe_requested cards can be terminated.`, 400);
+  try {
+    const cardState = await getCardState(env, uidHex);
+    if (cardState.state !== CARD_STATE.ACTIVE && cardState.state !== CARD_STATE.WIPE_REQUESTED) {
+      return errorResponse(`Card is in '${cardState.state}' state, cannot terminate. Only active or wipe_requested cards can be terminated.`, 400);
+    }
+
+    await terminateCard(env, uidHex);
+
+    const newState = await getCardState(env, uidHex);
+    const { programmingEndpoint } = await getCardProgrammingEndpoint(env, uidHex, requestOrigin);
+
+    logger.info("Card terminated via wipe confirmation", { uidHex, previousVersion: cardState.active_version, newVersion: newState.latest_issued_version });
+
+    return jsonResponse({
+      success: true,
+      uidHex,
+      cardState: newState.state,
+      keyVersion: newState.latest_issued_version || (cardState.active_version || 1),
+      programmingEndpoint,
+    });
+  } catch (err) {
+    logger.error("Terminate action failed", { uidHex, error: err.message });
+    return errorResponse("Internal error", 500);
   }
-
-  await terminateCard(env, uidHex);
-
-  const newState = await getCardState(env, uidHex);
-  const { programmingEndpoint } = await getCardProgrammingEndpoint(env, uidHex, requestOrigin);
-
-  logger.info("Card terminated via wipe confirmation", { uidHex, previousVersion: cardState.active_version, newVersion: newState.latest_issued_version });
-
-  return jsonResponse({
-    success: true,
-    uidHex,
-    cardState: newState.state,
-    keyVersion: newState.latest_issued_version || (cardState.active_version || 1),
-    programmingEndpoint,
-  });
 }
 
 export async function handleRequestWipeAction(rawUid, env, request) {
@@ -60,43 +65,48 @@ export async function handleRequestWipeAction(rawUid, env, request) {
     return errorResponse("Invalid UID format", 400);
   }
 
-  const cardState = await getCardState(env, uidHex);
-  if (cardState.state !== CARD_STATE.ACTIVE) {
-    return errorResponse(`Card is in '${cardState.state}' state. Only active cards can request wipe keys.`, 400);
+  try {
+    const cardState = await getCardState(env, uidHex);
+    if (cardState.state !== CARD_STATE.ACTIVE) {
+      return errorResponse(`Card is in '${cardState.state}' state. Only active cards can request wipe keys.`, 400);
+    }
+
+    const version = cardState.active_version || 1;
+    const keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY, version);
+
+    await requestWipe(env, uidHex);
+
+    const endpointUrl = `${requestOrigin}/api/keys?uid=${uidHex}&format=boltcard`;
+    const { programmingEndpoint } = await getCardProgrammingEndpoint(env, uidHex, requestOrigin);
+
+    logger.info("Wipe keys fetched", { uidHex, version });
+
+    return jsonResponse({
+      success: true,
+      uidHex,
+      cardState: CARD_STATE.WIPE_REQUESTED,
+      keyVersion: version,
+      k0: keys.k0,
+      k1: keys.k1,
+      k2: keys.k2,
+      k3: keys.k3,
+      k4: keys.k4,
+      programmingEndpoint,
+      wipeDeeplink: `boltcard://reset?url=${encodeURIComponent(endpointUrl)}`,
+      wipeJson: JSON.stringify({
+        version: version,
+        action: "wipe",
+        k0: keys.k0.toLowerCase(),
+        k1: keys.k1.toLowerCase(),
+        k2: keys.k2.toLowerCase(),
+        k3: keys.k3.toLowerCase(),
+        k4: keys.k4.toLowerCase(),
+      }, null, 2),
+    });
+  } catch (err) {
+    logger.error("Wipe action failed", { uidHex, error: err.message });
+    return errorResponse("Internal error", 500);
   }
-
-  const version = cardState.active_version || 1;
-  const keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY, version);
-
-  await requestWipe(env, uidHex);
-
-  const endpointUrl = `${requestOrigin}/api/keys?uid=${uidHex}&format=boltcard`;
-  const { programmingEndpoint } = await getCardProgrammingEndpoint(env, uidHex, requestOrigin);
-
-  logger.info("Wipe keys fetched", { uidHex, version });
-
-  return jsonResponse({
-    success: true,
-    uidHex,
-    cardState: CARD_STATE.WIPE_REQUESTED,
-    keyVersion: version,
-    k0: keys.k0,
-    k1: keys.k1,
-    k2: keys.k2,
-    k3: keys.k3,
-    k4: keys.k4,
-    programmingEndpoint,
-    wipeDeeplink: `boltcard://reset?url=${encodeURIComponent(endpointUrl)}`,
-    wipeJson: JSON.stringify({
-      version: version,
-      action: "wipe",
-      k0: keys.k0.toLowerCase(),
-      k1: keys.k1.toLowerCase(),
-      k2: keys.k2.toLowerCase(),
-      k3: keys.k3.toLowerCase(),
-      k4: keys.k4.toLowerCase(),
-    }, null, 2),
-  });
 }
 
 export async function handleTopUpAction(rawUid, rawAmount, env, request) {
