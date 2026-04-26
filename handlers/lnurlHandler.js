@@ -141,16 +141,16 @@ async function processWithdrawalPayment(uid, pr, env, counterValue, explicitAmou
 
   logger.debug("Processing LNURL payment", { uid });
 
-  uid = uid.toLowerCase(); // Ensure UID is in lowercase for lookup
-  const config = await getUidConfig(uid, env);
+  const normalizedUid = uid.toLowerCase();
+  const config = await getUidConfig(normalizedUid, env);
   logger.trace("Loaded payment config", {
-    uid,
+    uid: normalizedUid,
     paymentMethod: config?.payment_method,
     hasConfig: Boolean(config),
   });
 
   if (!config) {
-    logger.error("No configuration found for UID", { uid });
+    logger.error("No configuration found for UID", { uid: normalizedUid });
     return jsonResponse({ status: "ERROR", reason: "UID configuration not found" }, 400);
   }
 
@@ -158,27 +158,22 @@ async function processWithdrawalPayment(uid, pr, env, counterValue, explicitAmou
     const amount = explicitAmount != null ? explicitAmount : (decodeBolt11Amount(pr) || 0);
     let result;
     try {
-      result = await debitCard(env, uid, counterValue, amount, `Payment: ${amount} units`);
+      result = await debitCard(env, normalizedUid, counterValue, amount, `Payment: ${amount} units`);
     } catch (error) {
-      logger.error("Fakewallet debit threw", { uid, amount, error: error.message });
+      logger.error("Fakewallet debit threw", { uid: normalizedUid, amount, error: error.message });
       return jsonResponse({ status: "ERROR", reason: "Debit failed" }, 500);
     }
     if (result.ok) {
-      logger.info("Fakewallet payment processed", { uid, amount, balance: result.balance });
+      logger.info("Fakewallet payment processed", { uid: normalizedUid, amount, balance: result.balance });
       return jsonResponse({ status: "OK", message: "Payment processed", balance: result.balance }, 200);
     }
-    logger.error("Fakewallet debit failed", { uid, amount, reason: result.reason });
+    logger.error("Fakewallet debit failed", { uid: normalizedUid, amount, reason: result.reason });
     return jsonResponse({ status: "ERROR", reason: result.reason || "Debit failed" }, 500);
   }
 
-  // Handle CLN REST payment method
-  // CLN REST API: POST /v1/pay with {bolt11: invoice}, Rune auth header
-  // Success: HTTP 201 with JSON body containing status "complete" or "pending"
-  // See: https://docs.corelightning.org/reference/pay
-  // See: https://docs.corelightning.org/reference/post_rpc_method_resource
   if (config.payment_method === PAYMENT_METHOD.CLNREST) {
     if (!config.clnrest || !config.clnrest.rune) {
-      logger.error("Missing CLN REST configuration or rune", { uid });
+      logger.error("Missing CLN REST configuration or rune", { uid: normalizedUid });
       return jsonResponse({ status: "ERROR", reason: "Invalid CLN REST configuration" }, 400);
     }
 
@@ -192,7 +187,7 @@ async function processWithdrawalPayment(uid, pr, env, counterValue, explicitAmou
 
       const requestBody = JSON.stringify({ bolt11: pr });
       logger.info("Calling CLN REST pay endpoint", {
-        uid,
+        uid: normalizedUid,
         endpoint: `${clnrest_endpoint}/v1/pay`,
       });
 
@@ -206,22 +201,21 @@ async function processWithdrawalPayment(uid, pr, env, counterValue, explicitAmou
 
       if (response.status === 201) {
         if (responseBody.status === "complete") {
-          logger.info("CLN payment complete", { uid, status: responseBody.status });
+          logger.info("CLN payment complete", { uid: normalizedUid, status: responseBody.status });
           return jsonResponse({ status: "OK", message: "Payment processed successfully" }, 200);
         }
-        logger.warn("CLN payment not complete", { uid, status: responseBody.status });
+        logger.warn("CLN payment not complete", { uid: normalizedUid, status: responseBody.status });
         return jsonResponse({ status: "ERROR", reason: "Payment not completed" }, 202);
       }
 
-      logger.error("CLN REST error", { uid, status: response.status, body: JSON.stringify(responseBody) });
+      logger.error("CLN REST error", { uid: normalizedUid, status: response.status, body: JSON.stringify(responseBody) });
       return jsonResponse({ status: "ERROR", reason: `Payment failed with status ${response.status}` }, response.status);
     } catch (error) {
-      logger.error("CLN REST pay request failed", { uid, error: error.message });
+      logger.error("CLN REST pay request failed", { uid: normalizedUid, error: error.message });
       return jsonResponse({ status: "ERROR", reason: "Payment request failed" }, 500);
     }
   }
 
-  // If the payment_method is neither fakewallet nor clnrest, return an error.
-  logger.error("Unsupported payment method", { uid, paymentMethod: config.payment_method });
+  logger.error("Unsupported payment method", { uid: normalizedUid, paymentMethod: config.payment_method });
   return jsonResponse({ status: "ERROR", reason: `Unsupported payment method: ${config.payment_method}` }, 400);
 }
