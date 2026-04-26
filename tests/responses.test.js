@@ -1,5 +1,5 @@
 import { describe, it, expect, jest } from "@jest/globals";
-import { jsonResponse, _buildErrorPayload, errorResponse, htmlResponse, buildBoltCardResponse, parseJsonBody, buildResetDeeplink } from "../utils/responses.js";
+import { jsonResponse, _buildErrorPayload, errorResponse, htmlResponse, buildBoltCardResponse, parseJsonBody, buildResetDeeplink, redirect } from "../utils/responses.js";
 
 describe("jsonResponse", () => {
   it("returns JSON with 200 status", () => {
@@ -140,5 +140,24 @@ describe("buildResetDeeplink", () => {
   it("handles simple URL", () => {
     const result = buildResetDeeplink("https://example.com/wipe");
     expect(result).toBe("boltcard://reset?url=https%3A%2F%2Fexample.com%2Fwipe");
+  });
+});
+
+describe("redirect", () => {
+  it("returns 302 redirect by default", () => {
+    const res = redirect("/operator/pos");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe("/operator/pos");
+  });
+
+  it("supports custom status code", () => {
+    const res = redirect("/login", 301);
+    expect(res.status).toBe(301);
+    expect(res.headers.get("Location")).toBe("/login");
+  });
+
+  it("returns null body", () => {
+    const res = redirect("/test");
+    expect(res.body).toBeNull();
   });
 });

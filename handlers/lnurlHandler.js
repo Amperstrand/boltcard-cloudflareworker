@@ -82,7 +82,7 @@ export async function handleLnurlpPayment(request, env) {
       try {
         const tapResult = await recordTap(env, normalizedUidHex, counterValue, {
           bolt11: invoice || null,
-          amountMsat: explicitAmount != null ? parseInt(explicitAmount, 10) : decodeBolt11Amount(invoice),
+          amountMsat: explicitAmount !== null ? parseInt(explicitAmount, 10) : decodeBolt11Amount(invoice),
           userAgent: request.headers.get("User-Agent") || null,
           requestUrl: request.url,
         });
@@ -103,7 +103,7 @@ export async function handleLnurlpPayment(request, env) {
           });
           await updateTapStatus(env, normalizedUidHex, counterValue, "pending", {
             bolt11: invoice || null,
-            amountMsat: explicitAmount != null ? parseInt(explicitAmount, 10) : decodeBolt11Amount(invoice),
+            amountMsat: explicitAmount !== null ? parseInt(explicitAmount, 10) : decodeBolt11Amount(invoice),
           });
         }
       } catch (error) {
