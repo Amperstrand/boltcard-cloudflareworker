@@ -40,19 +40,14 @@ export class CardReplayDO extends DurableObject {
           activated_at INTEGER,
           terminated_at INTEGER,
           keys_delivered_at INTEGER,
-          wipe_keys_fetched_at INTEGER
+          wipe_keys_fetched_at INTEGER,
+          balance INTEGER NOT NULL DEFAULT 0,
+          key_provenance TEXT,
+          key_fingerprint TEXT,
+          key_label TEXT,
+          first_seen_at INTEGER
         )
       `);
-      try {
-        this.sql.exec(`ALTER TABLE card_state ADD COLUMN wipe_keys_fetched_at INTEGER`);
-      } catch (e) {
-        // Column already exists — expected on subsequent initializations
-      }
-      try {
-        this.sql.exec(`ALTER TABLE card_state ADD COLUMN balance INTEGER NOT NULL DEFAULT 0`);
-      } catch (e) {
-        // Column already exists — expected on subsequent initializations
-      }
       this.sql.exec(`
         CREATE TABLE IF NOT EXISTS card_config (
           singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
@@ -160,6 +155,14 @@ export class CardReplayDO extends DurableObject {
       this.sql.exec("DELETE FROM taps");
       this.sql.exec("DELETE FROM replay_state WHERE singleton = 1");
       return Response.json({ reset: true });
+    }
+
+    if (request.method === "POST" && url.pathname === "/mark-pending") {
+      return this.handleMarkPending(request);
+    }
+
+    if (request.method === "POST" && url.pathname === "/discover") {
+      return this.handleDiscover(request);
     }
 
     return new Response("Not found", { status: 404 });
@@ -316,7 +319,7 @@ export class CardReplayDO extends DurableObject {
     ).toArray();
 
     const stateRows = this.sql.exec(
-      `SELECT state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at
+      `SELECT state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, key_provenance, key_fingerprint, key_label, first_seen_at
        FROM card_state WHERE singleton = 1`
     ).toArray();
     const cardState = stateRows[0] || null;
@@ -413,7 +416,7 @@ export class CardReplayDO extends DurableObject {
 
   handleGetCardState() {
     const rows = this.sql.exec(
-      `SELECT state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance
+      `SELECT state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance, key_provenance, key_fingerprint, key_label, first_seen_at
        FROM card_state WHERE singleton = 1`
     ).toArray();
     if (rows.length === 0) {
@@ -426,6 +429,10 @@ export class CardReplayDO extends DurableObject {
         keys_delivered_at: null,
         wipe_keys_fetched_at: null,
         balance: 0,
+        key_provenance: null,
+        key_fingerprint: null,
+        key_label: null,
+        first_seen_at: null,
       });
     }
     return Response.json(rows[0]);
@@ -443,9 +450,10 @@ export class CardReplayDO extends DurableObject {
           terminated_at,
           keys_delivered_at,
           wipe_keys_fetched_at,
-          balance
+          balance,
+          first_seen_at
         )
-       VALUES (1, 'keys_delivered', 1, NULL, NULL, NULL, ?, NULL, 0)
+       VALUES (1, 'keys_delivered', 1, NULL, NULL, NULL, ?, NULL, 0, COALESCE((SELECT first_seen_at FROM card_state WHERE singleton = 1), ?))
        ON CONFLICT(singleton) DO UPDATE SET
          state = 'keys_delivered',
          latest_issued_version = card_state.latest_issued_version + 1,
@@ -454,8 +462,8 @@ export class CardReplayDO extends DurableObject {
          terminated_at = NULL,
          keys_delivered_at = excluded.keys_delivered_at,
           wipe_keys_fetched_at = NULL
-       RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance`,
-      now
+       RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance, key_provenance, key_fingerprint, key_label, first_seen_at`,
+      now, now
     );
     const cardState = rows.toArray()[0];
     return Response.json({ ...cardState, version: cardState.latest_issued_version });
@@ -485,7 +493,7 @@ export class CardReplayDO extends DurableObject {
              active_version = excluded.active_version,
              activated_at = excluded.activated_at,
              terminated_at = NULL
-         RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance`,
+         RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance, key_provenance, key_fingerprint, key_label, first_seen_at`,
         active_version,
         active_version,
         now
@@ -501,7 +509,7 @@ export class CardReplayDO extends DurableObject {
           state = 'wipe_requested',
           wipe_keys_fetched_at = ?
         WHERE singleton = 1
-        RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance`,
+        RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance, key_provenance, key_fingerprint, key_label, first_seen_at`,
       now
     );
     const result = rows.toArray();
@@ -520,7 +528,7 @@ export class CardReplayDO extends DurableObject {
            state = 'terminated',
            latest_issued_version = 0,
            terminated_at = excluded.terminated_at
-       RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance`,
+       RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance, key_provenance, key_fingerprint, key_label, first_seen_at`,
       now
     );
     this.sql.exec("DELETE FROM taps");
@@ -668,5 +676,93 @@ export class CardReplayDO extends DurableObject {
        ON CONFLICT(singleton) DO NOTHING`,
       balance
     );
+  }
+
+  handleMarkPending(request) {
+    return request.json().then(({ key_provenance, key_fingerprint, key_label }) => {
+      const now = nowSec();
+      const existing = this.sql.exec(
+        `SELECT state FROM card_state WHERE singleton = 1`
+      ).toArray();
+
+      if (existing.length > 0) {
+        return Response.json({
+          state: existing[0].state,
+          already_exists: true,
+        });
+      }
+
+      this.sql.exec(
+        `INSERT INTO card_state (singleton, state, balance, key_provenance, key_fingerprint, key_label, first_seen_at)
+         VALUES (1, 'pending', 0, ?, ?, ?, ?)`,
+        key_provenance || null,
+        key_fingerprint || null,
+        key_label || null,
+        now
+      );
+
+      return Response.json({
+        state: "pending",
+        key_provenance: key_provenance || null,
+        key_fingerprint: key_fingerprint || null,
+        key_label: key_label || null,
+        first_seen_at: now,
+      });
+    });
+  }
+
+  handleDiscover(request) {
+    return request.json().then(({ key_provenance, key_fingerprint, key_label, active_version }) => {
+      const now = nowSec();
+      const version = active_version || 1;
+
+      const existing = this.sql.exec(
+        `SELECT state, key_provenance, key_fingerprint, key_label, first_seen_at FROM card_state WHERE singleton = 1`
+      ).toArray();
+
+      if (existing.length > 0) {
+        const current = existing[0];
+        if (current.state === "pending") {
+          this.sql.exec(
+            `UPDATE card_state SET
+               state = 'discovered',
+               active_version = ?,
+               key_provenance = COALESCE(?, key_provenance),
+               key_fingerprint = COALESCE(?, key_fingerprint),
+               key_label = COALESCE(?, key_label)
+             WHERE singleton = 1`,
+            version,
+            key_provenance || null,
+            key_fingerprint || null,
+            key_label || null
+          );
+        }
+        const updated = this.sql.exec(
+          `SELECT state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance, key_provenance, key_fingerprint, key_label, first_seen_at FROM card_state WHERE singleton = 1`
+        ).toArray();
+        return Response.json({ ...updated[0], already_exists: true });
+      }
+
+      this.sql.exec(
+        `INSERT INTO card_state (singleton, state, latest_issued_version, active_version, balance, key_provenance, key_fingerprint, key_label, first_seen_at)
+         VALUES (1, 'discovered', ?, ?, 0, ?, ?, ?, ?)`,
+        version,
+        version,
+        key_provenance || null,
+        key_fingerprint || null,
+        key_label || null,
+        now
+      );
+
+      return Response.json({
+        state: "discovered",
+        latest_issued_version: version,
+        active_version: version,
+        key_provenance: key_provenance || null,
+        key_fingerprint: key_fingerprint || null,
+        key_label: key_label || null,
+        first_seen_at: now,
+      });
+    });
   }
 }

@@ -28,7 +28,11 @@ function createDoDb() {
     terminated_at INTEGER,
     keys_delivered_at INTEGER,
     wipe_keys_fetched_at INTEGER,
-    balance INTEGER NOT NULL DEFAULT 0
+    balance INTEGER NOT NULL DEFAULT 0,
+    key_provenance TEXT,
+    key_fingerprint TEXT,
+    key_label TEXT,
+    first_seen_at INTEGER
   )`);
   db.exec(`CREATE TABLE IF NOT EXISTS card_config (
     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
@@ -141,8 +145,8 @@ describe("CardReplayDO SQL logic", () => {
     it("deliver-keys transitions to keys_delivered", () => {
       const now = nowSec();
       const row = db.prepare(
-        `INSERT INTO card_state (singleton, state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance)
-         VALUES (1, 'keys_delivered', 1, NULL, NULL, NULL, ?, NULL, 0)
+        `INSERT INTO card_state (singleton, state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance, first_seen_at)
+         VALUES (1, 'keys_delivered', 1, NULL, NULL, NULL, ?, NULL, 0, COALESCE((SELECT first_seen_at FROM card_state WHERE singleton = 1), ?))
          ON CONFLICT(singleton) DO UPDATE SET
            state = 'keys_delivered',
            latest_issued_version = card_state.latest_issued_version + 1,
@@ -152,7 +156,7 @@ describe("CardReplayDO SQL logic", () => {
            keys_delivered_at = excluded.keys_delivered_at,
            wipe_keys_fetched_at = NULL
          RETURNING *`
-      ).get(now);
+      ).get(now, now);
       expect(row.state).toBe("keys_delivered");
       expect(row.latest_issued_version).toBe(1);
     });
@@ -182,9 +186,9 @@ describe("CardReplayDO SQL logic", () => {
          VALUES (?, ?, 'pending', ?, ?, ?, ?, ?)`
       ).run(5, "lnbc_test", 1000, null, null, now, now);
       db.prepare(
-        `INSERT INTO card_state (singleton, state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance)
-         VALUES (1, 'active', 1, 1, ?, NULL, NULL, NULL, 0)`
-      ).run(now);
+        `INSERT INTO card_state (singleton, state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance, key_provenance, key_fingerprint, key_label, first_seen_at)
+         VALUES (1, 'active', 1, 1, ?, NULL, NULL, NULL, 0, NULL, NULL, NULL, ?)`
+      ).run(now, now);
 
       db.prepare(
         `INSERT INTO card_state (singleton, state, latest_issued_version, terminated_at, balance)
@@ -363,6 +367,125 @@ describe("CardReplayDO SQL logic", () => {
 
       expect(db.prepare("SELECT COUNT(*) as c FROM taps").get().c).toBe(0);
       expect(db.prepare("SELECT * FROM replay_state WHERE singleton = 1").get()).toBeUndefined();
+    });
+  });
+
+  describe("mark-pending", () => {
+    it("creates pending row with provenance", () => {
+      const now = nowSec();
+      db.prepare(
+        `INSERT INTO card_state (singleton, state, balance, key_provenance, key_fingerprint, key_label, first_seen_at)
+         VALUES (1, 'pending', 0, ?, ?, ?, ?)`
+      ).run("public_issuer", "abc123", "test-key-0", now);
+
+      const row = db.prepare("SELECT * FROM card_state WHERE singleton = 1").get();
+      expect(row.state).toBe("pending");
+      expect(row.key_provenance).toBe("public_issuer");
+      expect(row.key_fingerprint).toBe("abc123");
+      expect(row.key_label).toBe("test-key-0");
+      expect(row.first_seen_at).toBe(now);
+    });
+
+    it("is idempotent when row already exists", () => {
+      const now = nowSec();
+      db.prepare(
+        `INSERT INTO card_state (singleton, state, balance, key_provenance, key_fingerprint, key_label, first_seen_at)
+         VALUES (1, 'pending', 0, 'public_issuer', 'abc', 'label', ?)`
+      ).run(now);
+
+      const existing = db.prepare("SELECT state FROM card_state WHERE singleton = 1").get();
+      expect(existing.state).toBe("pending");
+
+      const insertResult = db.prepare(
+        `INSERT INTO card_state (singleton, state, balance, key_provenance, key_fingerprint, key_label, first_seen_at)
+         VALUES (1, 'pending', 0, 'env_issuer', 'def', 'other', ?)
+         ON CONFLICT(singleton) DO NOTHING`
+      ).run(now);
+      expect(insertResult.changes).toBe(0);
+    });
+  });
+
+  describe("discover", () => {
+    it("creates discovered row from scratch", () => {
+      const now = nowSec();
+      db.prepare(
+        `INSERT INTO card_state (singleton, state, latest_issued_version, active_version, balance, key_provenance, key_fingerprint, key_label, first_seen_at)
+         VALUES (1, 'discovered', 1, 1, 0, 'public_issuer', 'abc123', 'test-key-0', ?)`
+      ).run(now);
+
+      const row = db.prepare("SELECT * FROM card_state WHERE singleton = 1").get();
+      expect(row.state).toBe("discovered");
+      expect(row.active_version).toBe(1);
+      expect(row.key_provenance).toBe("public_issuer");
+      expect(row.key_fingerprint).toBe("abc123");
+      expect(row.first_seen_at).toBe(now);
+    });
+
+    it("upgrades pending to discovered", () => {
+      const now = nowSec();
+      db.prepare(
+        `INSERT INTO card_state (singleton, state, balance, key_provenance, key_fingerprint, key_label, first_seen_at)
+         VALUES (1, 'pending', 0, 'public_issuer', 'abc', 'label', ?)`
+      ).run(now);
+
+      db.prepare(
+        `UPDATE card_state SET
+           state = 'discovered',
+           active_version = 1,
+           key_provenance = COALESCE(?, key_provenance),
+           key_fingerprint = COALESCE(?, key_fingerprint),
+           key_label = COALESCE(?, key_label)
+         WHERE singleton = 1`
+      ).run("public_issuer", "abc", "test-key-0");
+
+      const row = db.prepare("SELECT * FROM card_state WHERE singleton = 1").get();
+      expect(row.state).toBe("discovered");
+      expect(row.active_version).toBe(1);
+      expect(row.key_provenance).toBe("public_issuer");
+      expect(row.first_seen_at).toBe(now);
+    });
+
+    it("preserves first_seen_at from pending when upgrading", () => {
+      const pendingTime = 1000000;
+      db.prepare(
+        `INSERT INTO card_state (singleton, state, balance, key_provenance, key_fingerprint, key_label, first_seen_at)
+         VALUES (1, 'pending', 0, 'public_issuer', 'abc', 'label', ?)`
+      ).run(pendingTime);
+
+      db.prepare(
+        `UPDATE card_state SET state = 'discovered', active_version = 1 WHERE singleton = 1`
+      ).run();
+
+      const row = db.prepare("SELECT first_seen_at FROM card_state WHERE singleton = 1").get();
+      expect(row.first_seen_at).toBe(pendingTime);
+    });
+  });
+
+  describe("deliver-keys preserves provenance", () => {
+    it("preserves provenance when upgrading from discovered", () => {
+      const now = nowSec();
+      db.prepare(
+        `INSERT INTO card_state (singleton, state, latest_issued_version, active_version, balance, key_provenance, key_fingerprint, key_label, first_seen_at)
+         VALUES (1, 'discovered', 1, 1, 0, 'public_issuer', 'abc', 'test-key', ?)`
+      ).run(now);
+
+      db.prepare(
+        `INSERT INTO card_state (singleton, state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance, first_seen_at)
+         VALUES (1, 'keys_delivered', 1, NULL, NULL, NULL, ?, NULL, 0, COALESCE((SELECT first_seen_at FROM card_state WHERE singleton = 1), ?))
+         ON CONFLICT(singleton) DO UPDATE SET
+           state = 'keys_delivered',
+           latest_issued_version = card_state.latest_issued_version + 1,
+           active_version = NULL,
+           activated_at = NULL,
+           terminated_at = NULL,
+           keys_delivered_at = excluded.keys_delivered_at,
+           wipe_keys_fetched_at = NULL`
+      ).run(now, now);
+
+      const row = db.prepare("SELECT * FROM card_state WHERE singleton = 1").get();
+      expect(row.state).toBe("keys_delivered");
+      expect(row.key_provenance).toBe("public_issuer");
+      expect(row.first_seen_at).toBe(now);
     });
   });
 });
