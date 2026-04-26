@@ -399,3 +399,71 @@ describe("E2E: Virtual card — login and tap history", () => {
     expect(json.tapHistory.length).toBeLessThanOrEqual(25);
   });
 });
+
+// ── E2E: Auto-discovery lifecycle ────────────────────────────────────────────
+
+describe("E2E: Virtual card — auto-discovery lifecycle", () => {
+  const UID = "04a555fa967380";
+  const ISSUER_KEY = "00000000000000000000000000000001";
+
+  function makeDiscoveryEnv() {
+    const replay = makeReplayNamespace();
+    return {
+      BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
+      ISSUER_KEY,
+      CARD_REPLAY: replay,
+      UID_CONFIG: {
+        get: async () => null,
+        put: async () => {},
+      },
+    };
+  }
+
+  test("unknown card → first tap → discovered → callback → payment → second tap", async () => {
+    const env = makeDiscoveryEnv();
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+
+    // No DO row exists for this UID
+    expect(env.CARD_REPLAY.__cardStates.has(UID)).toBe(false);
+
+    // Step 1: First tap auto-discovers the card
+    const tap1 = virtualTap(UID, 1, k1Hex, keys.k2);
+    const res1 = await makeRequest(`/?p=${tap1.pHex}&c=${tap1.cHex}`, "GET", null, env);
+    expect(res1.status).toBe(200);
+    const json1 = await res1.json();
+    expect(json1.tag).toBe("withdrawRequest");
+
+    // Card is now discovered
+    const state = env.CARD_REPLAY.__cardStates.get(UID);
+    expect(state).toBeDefined();
+    expect(state.state).toBe("discovered");
+    expect(state.key_provenance).toBe("public_issuer");
+    expect(state.active_version).toBe(1);
+    expect(state.first_seen_at).toBeGreaterThan(0);
+
+    // Step 2: Callback processes payment
+    const cb1 = await makeRequest(
+      `/boltcards/api/v1/lnurl/cb/${tap1.pHex}?k1=${tap1.cHex}&pr=lnbc10n1discovered`,
+      "GET",
+      null,
+      env
+    );
+    expect(cb1.status).toBe(200);
+
+    // Step 3: Second tap with incremented counter works normally
+    const tap2 = virtualTap(UID, 2, k1Hex, keys.k2);
+    const res2 = await makeRequest(`/?p=${tap2.pHex}&c=${tap2.cHex}`, "GET", null, env);
+    expect(res2.status).toBe(200);
+    const json2 = await res2.json();
+    expect(json2.tag).toBe("withdrawRequest");
+
+    // State remains discovered
+    const state2 = env.CARD_REPLAY.__cardStates.get(UID);
+    expect(state2.state).toBe("discovered");
+
+    // Step 4: Replay is rejected
+    const res3 = await makeRequest(`/?p=${tap1.pHex}&c=${tap1.cHex}`, "GET", null, env);
+    expect(res3.status).toBe(400);
+  });
+});

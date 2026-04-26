@@ -543,5 +543,142 @@ describe("handleLnurlw", () => {
       expect(cardState.state).toBe("discovered");
       expect(cardState.active_version).toBe(1);
     });
+
+    it("discovers card with env_issuer provenance (non-public key)", async () => {
+      const discoveryUid = "ff000000000005";
+      const nonPublicKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      const replay = makeReplayNamespace({}, {});
+      const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: nonPublicKey }, 1);
+
+      const env = {
+        ISSUER_KEY: nonPublicKey,
+        BOLT_CARD_K1: keys.k1,
+        CARD_REPLAY: replay,
+        UID_CONFIG: { get: async () => null, put: async () => {} },
+      };
+
+      const req = tapRequest(discoveryUid, 1, keys.k1, keys.k2);
+      const res = await handleLnurlw(req, env);
+
+      expect(res.status).toBe(200);
+      const cardState = replay.__cardStates.get(discoveryUid);
+      expect(cardState.state).toBe("discovered");
+      expect(cardState.key_provenance).toBe("env_issuer");
+    });
+
+    it("discovers card via RECOVERY_ISSUER_KEYS (second candidate)", async () => {
+      const discoveryUid = "ff000000000006";
+      const recoveryKey = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+      const recoveryKeys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: recoveryKey }, 1);
+      const replay = makeReplayNamespace({}, {});
+
+      replay.__cardConfigs.set(discoveryUid, { K2: recoveryKeys.k2, payment_method: "fakewallet" });
+
+      const env = {
+        ISSUER_KEY: "cccccccccccccccccccccccccccccccc",
+        RECOVERY_ISSUER_KEYS: recoveryKey,
+        BOLT_CARD_K1: recoveryKeys.k1,
+        CARD_REPLAY: replay,
+        UID_CONFIG: { get: async () => null, put: async () => {} },
+      };
+
+      const req = tapRequest(discoveryUid, 1, recoveryKeys.k1, recoveryKeys.k2);
+      const res = await handleLnurlw(req, env);
+
+      expect(res.status).toBe(200);
+      const cardState = replay.__cardStates.get(discoveryUid);
+      expect(cardState).toBeDefined();
+      expect(cardState.state).toBe("discovered");
+      expect(cardState.key_provenance).toBe("unknown");
+    });
+
+    it("returns 403 when pending card has no matching key candidate", async () => {
+      const discoveryUid = "ff000000000007";
+      const wrongKey = "dddddddddddddddddddddddddddddddd";
+      const wrongKeys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: wrongKey }, 1);
+      const replay = makeReplayNamespace({}, {});
+
+      replay.__cardStates.set(discoveryUid, {
+        state: "pending",
+        latest_issued_version: 0,
+        active_version: null,
+        activated_at: null,
+        terminated_at: null,
+        keys_delivered_at: null,
+        wipe_keys_fetched_at: null,
+        balance: 0,
+        key_provenance: null,
+        key_fingerprint: null,
+        key_label: null,
+        first_seen_at: Math.floor(Date.now() / 1000),
+      });
+
+      const env = {
+        ISSUER_KEY: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        BOLT_CARD_K1: wrongKeys.k1,
+        CARD_REPLAY: replay,
+        UID_CONFIG: { get: async () => null, put: async () => {} },
+      };
+
+      const req = tapRequest(discoveryUid, 1, wrongKeys.k1, wrongKeys.k2);
+      const res = await handleLnurlw(req, env);
+
+      expect(res.status).toBe(403);
+      const body = await res.json();
+      expect(body.reason).toContain("Unable to identify card key");
+    });
+
+    it("returns error for new card with no matching key (CMAC fails)", async () => {
+      const discoveryUid = "ff000000000008";
+      const unknownKey = "ffffffffffffffffffffffffffffffff";
+      const unknownKeys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: unknownKey }, 1);
+      const replay = makeReplayNamespace({}, {});
+
+      const env = {
+        ISSUER_KEY: "11111111111111111111111111111111",
+        BOLT_CARD_K1: unknownKeys.k1,
+        CARD_REPLAY: replay,
+        UID_CONFIG: { get: async () => null, put: async () => {} },
+      };
+
+      const req = tapRequest(discoveryUid, 1, unknownKeys.k1, unknownKeys.k2);
+      const res = await handleLnurlw(req, env);
+
+      expect(res.status).toBe(400);
+    });
+
+    it("discovers legacy card on first tap", async () => {
+      const discoveryUid = "ff000000000009";
+      const replay = makeReplayNamespace({}, {});
+      const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY }, 1);
+
+      replay.__cardStates.set(discoveryUid, {
+        state: "legacy",
+        latest_issued_version: 0,
+        active_version: null,
+        activated_at: null,
+        terminated_at: null,
+        keys_delivered_at: null,
+        wipe_keys_fetched_at: null,
+        balance: 0,
+        key_provenance: null,
+        key_fingerprint: null,
+        key_label: null,
+        first_seen_at: null,
+      });
+      replay.__cardConfigs.set(discoveryUid, { K2: keys.k2, payment_method: "fakewallet" });
+
+      const env = {
+        ISSUER_KEY,
+        BOLT_CARD_K1: keys.k1,
+        CARD_REPLAY: replay,
+        UID_CONFIG: { get: async () => null, put: async () => {} },
+      };
+
+      const req = tapRequest(discoveryUid, 1, keys.k1, keys.k2);
+      const res = await handleLnurlw(req, env);
+
+      expect(res.status).toBe(200);
+    });
   });
 });

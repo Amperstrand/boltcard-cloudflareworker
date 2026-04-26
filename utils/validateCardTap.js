@@ -51,7 +51,7 @@ export async function validateCardTap(request, env, { pHex, cHex, context = "tap
     } else {
       return { ok: false, status: 403, error: "Card version mismatch — try again or re-program card" };
     }
-  } else if (cardState.state === CARD_STATE.ACTIVE) {
+  } else if (cardState.state === CARD_STATE.ACTIVE || cardState.state === CARD_STATE.DISCOVERED) {
     activeVersion = cardState.active_version || 1;
   } else {
     activeVersion = 1;

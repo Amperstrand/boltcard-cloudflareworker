@@ -400,7 +400,7 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
 
           if (cardStates.has(idStr)) {
             const current = cardStates.get(idStr);
-            if (current.state === "pending") {
+            if (current.state === "pending" || current.state === "legacy" || current.state === "new") {
               cardStates.set(idStr, {
                 ...current,
                 state: "discovered",

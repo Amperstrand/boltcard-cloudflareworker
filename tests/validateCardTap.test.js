@@ -180,4 +180,91 @@ describe("validateCardTap", () => {
     expect(result.status).toBe(400);
     expect(result.error).toContain("decryption");
   });
+
+  it("uses active_version for discovered cards", async () => {
+    const env = makeTestEnv();
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    env.CARD_REPLAY.__cardStates.get(UID).state = "discovered";
+    env.CARD_REPLAY.__cardStates.get(UID).active_version = 1;
+    env.CARD_REPLAY.__cardConfigs.set(UID, { K2: keys.k2, payment_method: "fakewallet" });
+
+    const { pHex, cHex } = virtualTap(UID, 3, keys.k1, keys.k2);
+    const result = await validateCardTap(makeTestRequest(), env, { pHex, cHex });
+    expect(result.ok).toBe(true);
+    expect(result.activeVersion).toBe(1);
+  });
+
+  it("uses active_version for discovered card with version > 1", async () => {
+    const replay = makeReplayNamespace({}, {});
+    const keysV2 = getDeterministicKeys(UID, { ISSUER_KEY }, 2);
+    replay.__cardStates.set(UID, {
+      state: "discovered",
+      latest_issued_version: 2,
+      active_version: 2,
+      activated_at: null,
+      terminated_at: null,
+      keys_delivered_at: null,
+      wipe_keys_fetched_at: null,
+      balance: 0,
+      key_provenance: "env_issuer",
+      key_fingerprint: null,
+      key_label: null,
+      first_seen_at: Math.floor(Date.now() / 1000),
+    });
+    replay.__cardConfigs.set(UID, { K2: keysV2.k2, payment_method: "fakewallet" });
+    const env = { CARD_REPLAY: replay, BOLT_CARD_K1, ISSUER_KEY };
+
+    const { pHex, cHex } = virtualTap(UID, 1, keysV2.k1, keysV2.k2);
+    const result = await validateCardTap(makeTestRequest(), env, { pHex, cHex });
+    expect(result.ok).toBe(true);
+    expect(result.activeVersion).toBe(2);
+  });
+
+  it("accepts pending state card with version 1", async () => {
+    const env = makeTestEnv();
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    env.CARD_REPLAY.__cardStates.get(UID).state = "pending";
+    env.CARD_REPLAY.__cardStates.get(UID).active_version = null;
+    env.CARD_REPLAY.__cardConfigs.set(UID, { K2: keys.k2, payment_method: "fakewallet" });
+
+    const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const result = await validateCardTap(makeTestRequest(), env, { pHex, cHex });
+    expect(result.ok).toBe(true);
+    expect(result.activeVersion).toBe(1);
+  });
+
+  it("accepts new state card (no DO row) with deterministic keys", async () => {
+    const replay = makeReplayNamespace({}, {});
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const env = { CARD_REPLAY: replay, BOLT_CARD_K1, ISSUER_KEY };
+
+    const { pHex, cHex } = virtualTap(UID, 1, keys.k1, keys.k2);
+    const result = await validateCardTap(makeTestRequest(), env, { pHex, cHex });
+    expect(result.ok).toBe(true);
+    expect(result.activeVersion).toBe(1);
+  });
+
+  it("returns 503 when card state DO is unreachable", async () => {
+    const env = {
+      CARD_REPLAY: {
+        idFromName: () => "test",
+        get: () => ({ fetch: async () => new Response("error", { status: 500 }) }),
+      },
+      BOLT_CARD_K1,
+      ISSUER_KEY,
+    };
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex, cHex } = virtualTap(UID, 1, keys.k1, keys.k2);
+
+    const result = await validateCardTap(makeTestRequest(), env, { pHex, cHex });
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe(503);
+  });
+
+  it("uses context parameter in log messages", async () => {
+    const env = makeTestEnv();
+    const result = await validateCardTap(makeTestRequest(), env, { pHex: "0000", cHex: "ABCDEF0123456789", context: "balance-check" });
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe(400);
+  });
 });
