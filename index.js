@@ -36,6 +36,7 @@ import { handleReceipt } from "./handlers/receiptHandler.js";
 import { handleMenuEditorPage, handleMenuGet, handleMenuPut } from "./handlers/menuEditorHandler.js";
 import { handleIdentifyCard } from "./handlers/identifyCardHandler.js";
 import { handleIdentifyIssuerKey } from "./handlers/identifyIssuerKeyHandler.js";
+import { handleCardAuditPage, handleCardAuditData } from "./handlers/cardAuditHandler.js";
 
 const router = Router();
 
@@ -111,6 +112,8 @@ router.post("/api/identify-card", withOperatorAuth((request, env) => handleIdent
 router.post("/api/identify-issuer-key", withOperatorAuth((request, env) => handleIdentifyIssuerKey(request, env)));
 router.post("/operator/logout", (request, env) => handleOperatorLogout(request, env));
 router.get("/operator", withOperatorAuth(() => redirect("/operator/pos")));
+router.get("/operator/cards", withOperatorAuth((request, env) => handleCardAuditPage(request, env)));
+router.get("/operator/cards/data", withOperatorAuth((request, env) => handleCardAuditData(request, env)));
 router.get("/operator/topup", withOperatorAuth((request, env) => handleTopupPage(request, env)));
 router.post("/operator/topup/apply", withOperatorAuth((request, env, session) => handleTopupApply(request, env, session)));
 router.get("/operator/refund", withOperatorAuth((request, env) => handleRefundPage(request, env)));

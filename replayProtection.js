@@ -1,5 +1,6 @@
 import { logger } from "./utils/logger.js";
 import { DEFAULT_TAP_LIMIT, DEFAULT_TXN_LIMIT, CARD_STATE } from "./utils/constants.js";
+import { indexCard } from "./utils/cardIndex.js";
 
 const legacyCardState = {
   state: CARD_STATE.LEGACY,
@@ -126,7 +127,13 @@ export async function getAnalytics(env, uidHex) {
     return { totalMsat: 0, completedMsat: 0, failedMsat: 0, totalTaps: 0, completedTaps: 0, failedTaps: 0, pendingTaps: 0 };
   }
 
-  return response.json();
+  const result = await response.json();
+
+  indexCard(env, uidHex, {
+    state: CARD_STATE.WIPE_REQUESTED,
+  }).catch(() => {});
+
+  return result;
 }
 
 export async function getCardState(env, uidHex) {
@@ -163,7 +170,13 @@ export async function deliverKeys(env, uidHex) {
     throw new Error(payload.error || "Key delivery failed");
   }
 
-  return response.json();
+  const result = await response.json();
+
+  indexCard(env, uidHex, {
+    state: CARD_STATE.KEYS_DELIVERED,
+  }).catch(() => {});
+
+  return result;
 }
 
 export async function activateCard(env, uidHex, activeVersion) {
@@ -180,7 +193,13 @@ export async function activateCard(env, uidHex, activeVersion) {
     throw new Error(payload.error || "Card activation failed");
   }
 
-  return response.json();
+  const result = await response.json();
+
+  indexCard(env, uidHex, {
+    state: CARD_STATE.ACTIVE,
+  }).catch(() => {});
+
+  return result;
 }
 
 export async function terminateCard(env, uidHex) {
@@ -197,7 +216,13 @@ export async function terminateCard(env, uidHex) {
     throw new Error(payload.error || "Card termination failed");
   }
 
-  return response.json();
+  const result = await response.json();
+
+  indexCard(env, uidHex, {
+    state: CARD_STATE.TERMINATED,
+  }).catch(() => {});
+
+  return result;
 }
 
 export async function requestWipe(env, uidHex) {
@@ -283,7 +308,16 @@ export async function markPending(env, uidHex, { key_provenance, key_fingerprint
     throw new Error(payload.error || "Mark pending failed");
   }
 
-  return response.json();
+  const result = await response.json();
+
+  indexCard(env, uidHex, {
+    state: CARD_STATE.PENDING,
+    keyProvenance: key_provenance,
+    keyLabel: key_label,
+    keyFingerprint: key_fingerprint,
+  }).catch(() => {});
+
+  return result;
 }
 
 export async function discoverCard(env, uidHex, { key_provenance, key_fingerprint, key_label, active_version } = {}) {
@@ -301,5 +335,14 @@ export async function discoverCard(env, uidHex, { key_provenance, key_fingerprin
     throw new Error(payload.error || "Discover card failed");
   }
 
-  return response.json();
+  const result = await response.json();
+
+  indexCard(env, uidHex, {
+    state: CARD_STATE.DISCOVERED,
+    keyProvenance: key_provenance,
+    keyLabel: key_label,
+    keyFingerprint: key_fingerprint,
+  }).catch(() => {});
+
+  return result;
 }
