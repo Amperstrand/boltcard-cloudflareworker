@@ -6,7 +6,7 @@ import { getCardState } from "../replayProtection.js";
 import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { cmacScanVersions } from "../utils/cmacScan.js";
 import { logger } from "../utils/logger.js";
-import { CARD_STATE } from "../utils/constants.js";
+import { CARD_STATE, VERSION_SCAN_RANGE } from "../utils/constants.js";
 
 export async function handleIdentifyCard(request, env) {
   const body = await parseJsonBody(request).catch(() => null);
@@ -65,7 +65,7 @@ export async function handleIdentifyCard(request, env) {
         return new Uint8Array(16);
       }
     },
-    highVersion: 10,
+    highVersion: VERSION_SCAN_RANGE,
     lowVersion: 0,
     stopOnFirst: false,
   });

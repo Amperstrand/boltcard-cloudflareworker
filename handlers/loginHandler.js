@@ -3,11 +3,11 @@ import { renderLoginPage } from "../templates/loginPage.js";
 import { logger } from "../utils/logger.js";
 import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
-import { getCardState, getCardConfig, recordTapRead, getBalance } from "../replayProtection.js";
+import { getCardState, recordTapRead, getBalance } from "../replayProtection.js";
 import { getRequestOrigin } from "../utils/validation.js";
 import { DEFAULT_PULL_PAYMENT_ID, CARD_STATE, PAYMENT_METHOD } from "../utils/constants.js";
 import { getUnifiedHistory } from "../utils/history.js";
-import { handleTerminateAction, handleRequestWipeAction, handleTopUpAction, resolvePullPaymentId, buildProgrammingEndpoint, normalizeSubmittedUid } from "./loginActions.js";
+import { handleTerminateAction, handleRequestWipeAction, handleTopUpAction, getCardProgrammingEndpoint, normalizeSubmittedUid } from "./loginActions.js";
 import { matchCardIssuer } from "../utils/cardMatching.js";
 import { requireOperator } from "../middleware/operatorAuth.js";
 
@@ -100,11 +100,9 @@ export async function handleLoginVerify(request, env) {
     const pm = config?.payment_method || "unknown";
 
     const cardState = await getCardState(env, uidHex);
-    const cardConfig = await getCardConfig(env, uidHex);
+    const { cardConfig, programmingEndpoint } = await getCardProgrammingEndpoint(env, uidHex, requestOrigin);
     const hasDoConfig = cardConfig !== null;
     const deployed = hasDoConfig || !!perCardSource;
-    const pullPaymentId = resolvePullPaymentId(env, cardConfig);
-    const programmingEndpoint = buildProgrammingEndpoint(requestOrigin, pullPaymentId);
 
     const host = new URL(request.url).host;
     const path = pm === PAYMENT_METHOD.TWOFACTOR ? "/2fa" : "/";
@@ -173,12 +171,10 @@ async function handleUidOnlyLogin(rawUid, env, request) {
   }
 
   const cardState = await getCardState(env, uidHex);
-  const cardConfig = await getCardConfig(env, uidHex);
+  const { cardConfig, programmingEndpoint } = await getCardProgrammingEndpoint(env, uidHex, requestOrigin);
   const hasDoConfig = cardConfig !== null;
   const config = await getUidConfig(uidHex, env);
   const pm = config?.payment_method || PAYMENT_METHOD.FAKEWALLET;
-  const pullPaymentId = resolvePullPaymentId(env, cardConfig);
-  const programmingEndpoint = buildProgrammingEndpoint(requestOrigin, pullPaymentId);
 
   let keyVersion = 1;
   let keys;

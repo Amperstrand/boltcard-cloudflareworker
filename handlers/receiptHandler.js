@@ -2,6 +2,7 @@ import { errorResponse } from "../utils/responses.js";
 import { listTransactions } from "../replayProtection.js";
 import { getCurrencyLabel, getCurrencyDecimals } from "../utils/currency.js";
 import { logger } from "../utils/logger.js";
+import { RECEIPT_TXN_LOOKUP_LIMIT } from "../utils/constants.js";
 
 export async function handleReceipt(request, env) {
   const url = new URL(request.url);
@@ -18,7 +19,7 @@ export async function handleReceipt(request, env) {
   }
 
   try {
-    const txData = await listTransactions(env, uid, 200);
+    const txData = await listTransactions(env, uid, RECEIPT_TXN_LOOKUP_LIMIT);
     const transactions = txData.transactions || [];
     const txn = transactions.find(t => String(t.id) === txnId);
 

@@ -15,6 +15,12 @@ function buildProgrammingEndpoint(requestOrigin, pullPaymentId) {
   return `${requestOrigin}/api/v1/pull-payments/${pullPaymentId}/boltcards?onExisting=UpdateVersion`;
 }
 
+async function getCardProgrammingEndpoint(env, uidHex, requestOrigin) {
+  const cardConfig = await getCardConfig(env, uidHex);
+  const pullPaymentId = resolvePullPaymentId(env, cardConfig);
+  return { cardConfig, pullPaymentId, programmingEndpoint: buildProgrammingEndpoint(requestOrigin, pullPaymentId) };
+}
+
 function normalizeSubmittedUid(rawUid) {
   return validateUid(typeof rawUid === "string" ? rawUid.replace(/:/g, "") : "");
 }
@@ -34,9 +40,7 @@ export async function handleTerminateAction(rawUid, env, request) {
   await terminateCard(env, uidHex);
 
   const newState = await getCardState(env, uidHex);
-  const cardConfig = await getCardConfig(env, uidHex);
-  const pullPaymentId = resolvePullPaymentId(env, cardConfig);
-  const programmingEndpoint = buildProgrammingEndpoint(requestOrigin, pullPaymentId);
+  const { programmingEndpoint } = await getCardProgrammingEndpoint(env, uidHex, requestOrigin);
 
   logger.info("Card terminated via wipe confirmation", { uidHex, previousVersion: cardState.active_version, newVersion: newState.latest_issued_version });
 
@@ -67,9 +71,7 @@ export async function handleRequestWipeAction(rawUid, env, request) {
   await requestWipe(env, uidHex);
 
   const endpointUrl = `${requestOrigin}/api/keys?uid=${uidHex}&format=boltcard`;
-  const cardConfig = await getCardConfig(env, uidHex);
-  const pullPaymentId = resolvePullPaymentId(env, cardConfig);
-  const programmingEndpoint = buildProgrammingEndpoint(requestOrigin, pullPaymentId);
+  const { programmingEndpoint } = await getCardProgrammingEndpoint(env, uidHex, requestOrigin);
 
   logger.info("Wipe keys fetched", { uidHex, version });
 
@@ -119,4 +121,4 @@ export async function handleTopUpAction(rawUid, rawAmount, env, request) {
   }
 }
 
-export { resolvePullPaymentId, buildProgrammingEndpoint, normalizeSubmittedUid };
+export { resolvePullPaymentId, buildProgrammingEndpoint, normalizeSubmittedUid, getCardProgrammingEndpoint };

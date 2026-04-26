@@ -10,7 +10,7 @@ import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { recordTapRead, getCardState, activateCard, checkAndAdvanceCounter } from "../replayProtection.js";
 import { getRequestOrigin } from "../utils/validation.js";
 import { cmacScanVersions } from "../utils/cmacScan.js";
-import { CARD_STATE, PAYMENT_METHOD } from "../utils/constants.js";
+import { CARD_STATE, PAYMENT_METHOD, VERSION_SCAN_RANGE } from "../utils/constants.js";
 
 async function detectCardVersion(uidHex, ctr, cHex, env, latestVersion) {
   const uidBytes = hexToBytes(uidHex);
@@ -18,9 +18,34 @@ async function detectCardVersion(uidHex, ctr, cHex, env, latestVersion) {
   const { matchedVersion } = await cmacScanVersions(uidBytes, ctrBytes, cHex, {
     k2ForVersion: (v) => hexToBytes(getDeterministicKeys(uidHex, env, v).k2),
     highVersion: latestVersion,
-    lowVersion: Math.max(1, latestVersion - 10),
+    lowVersion: Math.max(1, latestVersion - VERSION_SCAN_RANGE),
   });
   return matchedVersion;
+}
+
+async function checkReplayAndRecordTap(env, uidHex, counterValue, request, fireAndForget = true) {
+  try {
+    const replayResult = await checkAndAdvanceCounter(env, uidHex, counterValue);
+    if (!replayResult.accepted) {
+      logger.warn("Counter replay detected", { uidHex, counterValue });
+      return { ok: false, response: errorResponse(replayResult.reason || "Counter replay detected — tap rejected") };
+    }
+  } catch (error) {
+    logger.error("Replay protection check failed", { uidHex, counterValue, error: error.message });
+    return { ok: false, response: errorResponse("Replay protection unavailable", 500) };
+  }
+
+  logger.info("LNURLW request accepted", { uidHex, counterValue });
+  const tapPromise = recordTapRead(env, uidHex, counterValue, {
+    userAgent: request.headers.get("User-Agent") || null,
+    requestUrl: request.url,
+  });
+  if (fireAndForget) {
+    tapPromise.catch(e => logger.warn("recordTapRead failed", { uidHex, counterValue, error: e.message }));
+  } else {
+    await tapPromise;
+  }
+  return { ok: true };
 }
 
 export async function handleLnurlw(request, env) {
@@ -125,26 +150,8 @@ export async function handleLnurlw(request, env) {
   }
 
   if (proxyRelayMode) {
-    try {
-      const replayResult = await checkAndAdvanceCounter(env, uidHex, counterValue);
-      if (!replayResult.accepted) {
-        logger.warn("Counter replay detected", { uidHex, counterValue });
-        return errorResponse(replayResult.reason || "Counter replay detected — tap rejected");
-      }
-    } catch (error) {
-      logger.error("Replay protection check failed", {
-        uidHex,
-        counterValue,
-        error: error.message,
-      });
-      return errorResponse("Replay protection unavailable", 500);
-    }
-
-    logger.info("LNURLW request accepted", { uidHex, counterValue });
-    recordTapRead(env, uidHex, counterValue, {
-      userAgent: request.headers.get("User-Agent") || null,
-      requestUrl: request.url,
-    }).catch(e => logger.warn("recordTapRead failed", { uidHex, counterValue, error: e.message }));
+    const replay = await checkReplayAndRecordTap(env, uidHex, counterValue, request);
+    if (!replay.ok) return replay.response;
     return handleProxy(request, uidHex, pHex, cHex, config.proxy.baseurl, {
       cmacValidated: cmac_validated,
       validationDeferred: !hasK2,
@@ -161,26 +168,8 @@ export async function handleLnurlw(request, env) {
   }
 
   if (config.payment_method === PAYMENT_METHOD.CLNREST || config.payment_method === PAYMENT_METHOD.FAKEWALLET) {
-    try {
-      const replayResult = await checkAndAdvanceCounter(env, uidHex, counterValue);
-      if (!replayResult.accepted) {
-        logger.warn("Counter replay detected", { uidHex, counterValue });
-        return errorResponse(replayResult.reason || "Counter replay detected — tap rejected");
-      }
-    } catch (error) {
-      logger.error("Replay protection check failed", {
-        uidHex,
-        counterValue,
-        error: error.message,
-      });
-      return errorResponse("Replay protection unavailable", 500);
-    }
-
-    logger.info("LNURLW request accepted", { uidHex, counterValue });
-    recordTapRead(env, uidHex, counterValue, {
-      userAgent: request.headers.get("User-Agent") || null,
-      requestUrl: request.url,
-    }).catch(e => logger.warn("recordTapRead failed", { uidHex, counterValue, error: e.message }));
+    const replay = await checkReplayAndRecordTap(env, uidHex, counterValue, request);
+    if (!replay.ok) return replay.response;
     const baseUrl = getRequestOrigin(request);
     const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated, baseUrl, config.payment_method);
     if (responsePayload.status === "ERROR") return errorResponse(responsePayload.reason);

@@ -21,6 +21,7 @@ import { handleAnalyticsPage, handleAnalyticsData } from "./handlers/analyticsHa
 import { generateFakeBolt11 } from "./utils/bolt11.js";
 import { logger } from "./utils/logger.js";
 import { jsonResponse, errorResponse, redirect } from "./utils/responses.js";
+import { REQUEST_ID_LENGTH } from "./utils/constants.js";
 import { checkRateLimit } from "./rateLimiter.js";
 import { requireOperator, buildCsrfCookie, CSRF_COOKIE_NAME } from "./middleware/operatorAuth.js";
 import { getRequestOrigin } from "./utils/validation.js";
@@ -205,7 +206,7 @@ export { CardReplayDO } from "./durableObjects/CardReplayDO.js";
 
 export default {
   async fetch(request, env, ctx) {
-    const requestId = crypto.randomUUID().slice(0, 8);
+    const requestId = crypto.randomUUID().slice(0, REQUEST_ID_LENGTH);
     const startTime = Date.now();
     const url = new URL(request.url);
 

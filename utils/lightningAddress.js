@@ -1,4 +1,5 @@
 import { logger } from "./logger.js";
+import { FETCH_TIMEOUT_MS } from "./constants.js";
 
 function parseLightningAddress(lightningAddress) {
   if (typeof lightningAddress !== "string") {
@@ -47,7 +48,7 @@ async function parseJsonResponse(response, url, errorPrefix) {
 
 async function fetchJson(url, errorPrefix) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
   let response;
 

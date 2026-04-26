@@ -123,8 +123,8 @@ export async function handleLnurlpPayment(request, env) {
         return withdrawalResponse;
       }
       
-      // Fallback if no response was provided from processWithdrawalPayment.
-      return jsonResponse({ status: "-1" }, 200);
+      logger.error("processWithdrawalPayment returned unexpected value", { uidHex: normalizedUidHex });
+      return errorResponse("Payment processing failed", 500);
     }
   } catch (err) {
     logger.error("Error processing LNURL withdraw request", { error: err.message });

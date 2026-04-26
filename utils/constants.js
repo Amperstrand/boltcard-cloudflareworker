@@ -3,6 +3,11 @@ export const DEFAULT_FALLBACK_HOST = "https://boltcardpoc.psbt.me";
 
 export const DEFAULT_TAP_LIMIT = 50;
 export const DEFAULT_TXN_LIMIT = 50;
+export const RECEIPT_TXN_LOOKUP_LIMIT = 200;
+export const HISTORY_LIMIT = 25;
+export const VERSION_SCAN_RANGE = 10;
+export const REQUEST_ID_LENGTH = 8;
+export const FETCH_TIMEOUT_MS = 10000;
 
 export const WITHDRAW_MIN_MSAT = 1000;
 export const WITHDRAW_MAX_MSAT_FAKWALLET = 1000000;

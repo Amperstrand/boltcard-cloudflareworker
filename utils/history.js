@@ -1,5 +1,6 @@
 import { listTaps, listTransactions } from "../replayProtection.js";
 import { logger } from "./logger.js";
+import { HISTORY_LIMIT } from "./constants.js";
 
 export function mergeHistory(taps, transactions) {
   const txEntries = (transactions || []).map((tx) => ({
@@ -22,20 +23,20 @@ export function mergeHistory(taps, transactions) {
     return (b.counter || 0) - (a.counter || 0);
   });
 
-  return merged.slice(0, 25);
+  return merged.slice(0, HISTORY_LIMIT);
 }
 
 export async function getUnifiedHistory(env, uidHex) {
   let taps = [];
   let transactions = [];
   try {
-    const tapData = await listTaps(env, uidHex, 25);
+    const tapData = await listTaps(env, uidHex, HISTORY_LIMIT);
     taps = tapData.taps || [];
   } catch (e) {
     logger.warn("Could not load tap history", { uidHex, error: e.message });
   }
   try {
-    const txData = await listTransactions(env, uidHex, 25);
+    const txData = await listTransactions(env, uidHex, HISTORY_LIMIT);
     transactions = txData.transactions || [];
   } catch (e) {
     logger.warn("Could not load transactions", { uidHex, error: e.message });
