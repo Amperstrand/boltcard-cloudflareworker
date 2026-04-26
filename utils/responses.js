@@ -58,3 +58,7 @@ export async function parseJsonBody(request) {
 export function buildResetDeeplink(endpointUrl) {
   return `boltcard://reset?url=${encodeURIComponent(endpointUrl)}`;
 }
+
+export function redirect(url, status = 302) {
+  return new Response(null, { status, headers: { Location: url } });
+}

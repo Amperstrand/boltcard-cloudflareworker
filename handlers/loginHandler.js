@@ -9,7 +9,7 @@ import { DEFAULT_PULL_PAYMENT_ID, CARD_STATE, PAYMENT_METHOD } from "../utils/co
 import { getUnifiedHistory } from "../utils/history.js";
 import { handleTerminateAction, handleRequestWipeAction, handleTopUpAction, resolvePullPaymentId, buildProgrammingEndpoint, normalizeSubmittedUid } from "./loginActions.js";
 import { matchCardIssuer } from "../utils/cardMatching.js";
-import { getPerCardKeys } from "../utils/keyLookup.js";
+import { requireOperator } from "../middleware/operatorAuth.js";
 
 export function handleLoginPage(request) {
   const host = getRequestOrigin(request);
@@ -26,6 +26,13 @@ export async function handleLoginVerify(request, env) {
     const requestOrigin = getRequestOrigin(request);
 
     if (rawUid && !pHex && !cHex) {
+      const privilegedActions = ["request-wipe", "terminate", "top-up"];
+      if (privilegedActions.includes(body.action)) {
+        const auth = requireOperator(request, env);
+        if (!auth.authorized) {
+          return errorResponse("Operator authentication required", 401);
+        }
+      }
       if (body.action === "request-wipe") {
         return await handleRequestWipeAction(rawUid, env, request);
       }

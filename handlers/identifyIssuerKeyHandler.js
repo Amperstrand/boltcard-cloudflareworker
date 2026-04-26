@@ -1,5 +1,3 @@
-import { deriveKeysFromHex } from "../keygenerator.js";
-import { getPerCardKeys } from "../utils/keyLookup.js";
 import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { logger } from "../utils/logger.js";
 import { matchCardIssuer } from "../utils/cardMatching.js";

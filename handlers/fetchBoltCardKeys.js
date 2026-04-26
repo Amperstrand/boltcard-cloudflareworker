@@ -6,6 +6,7 @@ import { resetReplayProtection, getCardState, deliverKeys, setCardConfig, reques
 import { jsonResponse, buildBoltCardResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { getRequestOrigin, validateUid } from "../utils/validation.js";
 import { DEFAULT_PULL_PAYMENT_ID, DEFAULT_FALLBACK_HOST, CARD_STATE, PAYMENT_METHOD } from "../utils/constants.js";
+import { logger } from "../utils/logger.js";
 
 export async function fetchBoltCardKeys(request, env) {
   if (request.method !== "POST") {

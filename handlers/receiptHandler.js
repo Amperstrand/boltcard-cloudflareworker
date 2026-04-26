@@ -1,6 +1,6 @@
-import { jsonResponse, errorResponse } from "../utils/responses.js";
+import { errorResponse } from "../utils/responses.js";
 import { listTransactions } from "../replayProtection.js";
-import { getCurrencyLabel, getCurrencyDecimals, formatAmount } from "../utils/currency.js";
+import { getCurrencyLabel, getCurrencyDecimals } from "../utils/currency.js";
 import { logger } from "../utils/logger.js";
 
 export async function handleReceipt(request, env) {

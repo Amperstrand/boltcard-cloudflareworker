@@ -479,11 +479,6 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
       return Number(value).toLocaleString();
     }
 
-    function esc(s) {
-      if (!s) return '';
-      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-    }
-
     function statusBadge(status) {
       var map = {
         read:        'bg-sky-500/10 text-sky-400 border-sky-500/30',

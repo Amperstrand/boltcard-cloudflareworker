@@ -20,7 +20,7 @@ import { handleBulkWipePage } from "./handlers/bulkWipePageHandler.js";
 import { handleAnalyticsPage, handleAnalyticsData } from "./handlers/analyticsHandler.js";
 import { generateFakeBolt11 } from "./utils/bolt11.js";
 import { logger } from "./utils/logger.js";
-import { jsonResponse, errorResponse } from "./utils/responses.js";
+import { jsonResponse, errorResponse, redirect } from "./utils/responses.js";
 import { checkRateLimit } from "./rateLimiter.js";
 import { requireOperator, buildCsrfCookie, CSRF_COOKIE_NAME } from "./middleware/operatorAuth.js";
 import { getRequestOrigin } from "./utils/validation.js";
@@ -34,8 +34,6 @@ import { handleReceipt } from "./handlers/receiptHandler.js";
 import { handleMenuEditorPage, handleMenuGet, handleMenuPut } from "./handlers/menuEditorHandler.js";
 import { handleIdentifyCard } from "./handlers/identifyCardHandler.js";
 import { handleIdentifyIssuerKey } from "./handlers/identifyIssuerKeyHandler.js";
-
-const redirect = (url, code = 302) => new Response(null, { status: code, headers: { Location: url } });
 
 const router = Router();
 

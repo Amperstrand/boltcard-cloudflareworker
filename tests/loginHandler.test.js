@@ -20,6 +20,7 @@ function makeEnv(replay = makeReplayNamespace()) {
   return {
     ...env,
     CARD_REPLAY: replay,
+    __TEST_OPERATOR_SESSION: { shiftId: "test-shift" },
   };
 }
 
@@ -28,6 +29,7 @@ function makeEnvWithoutIssuerKey(replay = makeReplayNamespace()) {
   return {
     ...envWithoutKey,
     CARD_REPLAY: replay,
+    __TEST_OPERATOR_SESSION: { shiftId: "test-shift" },
   };
 }
 
@@ -208,6 +210,24 @@ describe("POST /login (handleLoginVerify)", () => {
     });
     expect(json.k0).toMatch(/^[0-9a-f]{32}$/);
     expect(json.k4).toMatch(/^[0-9a-f]{32}$/);
+  });
+
+  test("privileged actions reject without operator auth", async () => {
+    const replay = makeReplayNamespace();
+    replay.__activate(ACTION_UID, 2);
+    const unauthorizedEnv = {
+      ...env,
+      CARD_REPLAY: replay,
+    };
+    for (const action of ["request-wipe", "terminate", "top-up"]) {
+      const body = action === "top-up"
+        ? { uid: ACTION_UID, action, amount: 100 }
+        : { uid: ACTION_UID, action };
+      const response = await makeRequest("/login", "POST", body, unauthorizedEnv);
+      expect(response.status).toBe(401);
+      const json = await response.json();
+      expect(json.error).toMatch(/operator authentication required/i);
+    }
   });
 
   test("request-wipe rejects non-active cards with standardized error", async () => {

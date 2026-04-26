@@ -1,5 +1,5 @@
 import { renderOperatorLoginPage } from "../templates/operatorLoginPage.js";
-import { htmlResponse, errorResponse } from "../utils/responses.js";
+import { htmlResponse, errorResponse, redirect } from "../utils/responses.js";
 import {
   requireOperator,
   validatePinConfig,
@@ -51,13 +51,9 @@ export async function handleOperatorLogin(request, env) {
     const { cookie, shiftId } = createSession(env);
     logger.info("Operator logged in", { shiftId });
 
-    return new Response(null, {
-      status: 302,
-      headers: {
-        "Location": returnUrl,
-        "Set-Cookie": cookie,
-      },
-    });
+    const resp = redirect(returnUrl);
+    resp.headers.append("Set-Cookie", cookie);
+    return resp;
   } catch (error) {
     logger.error("Session creation failed", { error: error.message });
     return errorResponse("Session error", 500);
@@ -67,11 +63,7 @@ export async function handleOperatorLogin(request, env) {
 export function handleOperatorLogout(request, env) {
   requireOperator(request, env);
   logger.info("Operator logged out");
-  return new Response(null, {
-    status: 302,
-    headers: {
-      "Location": "/operator/login",
-      "Set-Cookie": buildExpiredCookie(),
-    },
-  });
+  const resp = redirect("/operator/login");
+  resp.headers.append("Set-Cookie", buildExpiredCookie());
+  return resp;
 }

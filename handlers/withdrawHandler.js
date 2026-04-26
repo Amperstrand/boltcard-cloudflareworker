@@ -1,5 +1,5 @@
 import { logger } from "../utils/logger.js";
-import { DEFAULT_FALLBACK_HOST, WITHDRAW_MIN_MSAT, WITHDRAW_MAX_MSAT_FAKWALLET, WITHDRAW_MAX_MSAT_DEFAULT, PAYMENT_METHOD } from "../utils/constants.js";
+import { DEFAULT_FALLBACK_HOST, WITHDRAW_MIN_MSAT, WITHDRAW_MAX_MSAT_FAKWALLET, PAYMENT_METHOD } from "../utils/constants.js";
 
 export const constructWithdrawResponse = (uidHex, pHex, cHex, ctr, cmac_validated, baseUrl, paymentMethod = PAYMENT_METHOD.FAKEWALLET) => {
   if (!cmac_validated) {
