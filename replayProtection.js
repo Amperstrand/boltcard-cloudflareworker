@@ -131,7 +131,7 @@ export async function getAnalytics(env, uidHex) {
 
   indexCard(env, uidHex, {
     state: CARD_STATE.WIPE_REQUESTED,
-  }).catch(() => {});
+  });
 
   return result;
 }
@@ -174,7 +174,7 @@ export async function deliverKeys(env, uidHex) {
 
   indexCard(env, uidHex, {
     state: CARD_STATE.KEYS_DELIVERED,
-  }).catch(() => {});
+  });
 
   return result;
 }
@@ -197,7 +197,7 @@ export async function activateCard(env, uidHex, activeVersion) {
 
   indexCard(env, uidHex, {
     state: CARD_STATE.ACTIVE,
-  }).catch(() => {});
+  });
 
   return result;
 }
@@ -220,7 +220,7 @@ export async function terminateCard(env, uidHex) {
 
   indexCard(env, uidHex, {
     state: CARD_STATE.TERMINATED,
-  }).catch(() => {});
+  });
 
   return result;
 }
@@ -315,7 +315,7 @@ export async function markPending(env, uidHex, { key_provenance, key_fingerprint
     keyProvenance: key_provenance,
     keyLabel: key_label,
     keyFingerprint: key_fingerprint,
-  }).catch(() => {});
+  });
 
   return result;
 }
@@ -342,7 +342,7 @@ export async function discoverCard(env, uidHex, { key_provenance, key_fingerprin
     keyProvenance: key_provenance,
     keyLabel: key_label,
     keyFingerprint: key_fingerprint,
-  }).catch(() => {});
+  });
 
   return result;
 }

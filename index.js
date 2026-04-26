@@ -236,7 +236,7 @@ export default {
         return withSecurityHeaders(response);
       }
 
-      const response = await router.fetch(request, env);
+      const response = await router.fetch(request, { ...env, ctx }, ctx);
       response.headers.set("X-RateLimit-Remaining", String(remaining));
       response.headers.set("X-Request-Id", requestId);
       logger.info("Request completed", { requestId, status: response.status, duration: Date.now() - startTime, pathname: url.pathname });

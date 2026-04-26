@@ -7,6 +7,16 @@ function indexKey(uidHex) {
   return KEY_PREFIX + uidHex.toLowerCase();
 }
 
+function scheduleWrite(env, promise) {
+  if (env?.ctx?.waitUntil) {
+    env.ctx.waitUntil(promise.catch((e) => {
+      logger.warn("Background KV write failed", { error: e.message });
+    }));
+  } else {
+    promise.catch(() => {});
+  }
+}
+
 export async function indexCard(env, uidHex, metadata) {
   if (!env?.UID_CONFIG || !uidHex) return;
   try {
@@ -20,9 +30,10 @@ export async function indexCard(env, uidHex, metadata) {
       balance: metadata.balance ?? 0,
       updatedAt: Date.now(),
     };
-    await env.UID_CONFIG.put(indexKey(uidHex), JSON.stringify(record), {
+    const promise = env.UID_CONFIG.put(indexKey(uidHex), JSON.stringify(record), {
       expirationTtl: TTL_SECONDS,
     });
+    scheduleWrite(env, promise);
   } catch (e) {
     logger.warn("Failed to index card", { uidHex, error: e.message });
   }
@@ -31,7 +42,8 @@ export async function indexCard(env, uidHex, metadata) {
 export async function deindexCard(env, uidHex) {
   if (!env?.UID_CONFIG || !uidHex) return;
   try {
-    await env.UID_CONFIG.delete(indexKey(uidHex));
+    const promise = env.UID_CONFIG.delete(indexKey(uidHex));
+    scheduleWrite(env, promise);
   } catch (e) {
     logger.warn("Failed to deindex card", { uidHex, error: e.message });
   }
@@ -50,7 +62,7 @@ export async function getIndexedCard(env, uidHex) {
 }
 
 export async function listIndexedCards(env, { state, prefix, limit = 100, cursor } = {}) {
-  if (!env?.UID_CONFIG) return { cards: [], cursor: null };
+  if (!env?.UID_CONFIG) return { cards: [], cursor: null, total: 0 };
   try {
     const listResult = await env.UID_CONFIG.list({
       prefix: KEY_PREFIX + (prefix || ""),
