@@ -6,6 +6,7 @@ import { getCardState } from "../replayProtection.js";
 import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { cmacScanVersions } from "../utils/cmacScan.js";
 import { logger } from "../utils/logger.js";
+import { CARD_STATE } from "../utils/constants.js";
 
 export async function handleIdentifyCard(request, env) {
   const body = await parseJsonBody(request).catch(() => null);
@@ -35,7 +36,7 @@ export async function handleIdentifyCard(request, env) {
 
   const results = [];
 
-  if (cardState && cardState.state !== "terminated") {
+  if (cardState && cardState.state !== CARD_STATE.TERMINATED) {
     const activeVersion = cardState.active_version || 1;
     const config = await getUidConfig(uidHex, env, activeVersion);
 

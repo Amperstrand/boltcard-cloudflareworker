@@ -4,6 +4,7 @@ import { getUidConfig } from "../getUidConfig.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { getCardState, activateCard, checkAndAdvanceCounter, recordTapRead } from "../replayProtection.js";
 import { logger } from "../utils/logger.js";
+import { CARD_STATE } from "./constants.js";
 
 export async function validateCardTap(request, env, { pHex, cHex, context = "tap" }) {
   if (!pHex || !cHex) {
@@ -27,16 +28,16 @@ export async function validateCardTap(request, env, { pHex, cHex, context = "tap
     return { ok: false, status: 503, error: "Card state unavailable" };
   }
 
-  if (cardState.state === "terminated") {
+  if (cardState.state === CARD_STATE.TERMINATED) {
     return { ok: false, status: 403, error: "Card has been terminated" };
   }
 
-  if (cardState.state === "wipe_requested") {
+  if (cardState.state === CARD_STATE.WIPE_REQUESTED) {
     return { ok: false, status: 403, error: "Card is pending wipe — re-program before use" };
   }
 
   let activeVersion;
-  if (cardState.state === "keys_delivered") {
+  if (cardState.state === CARD_STATE.KEYS_DELIVERED) {
     const keys = getDeterministicKeys(uidHex, env, cardState.latest_issued_version);
     const { cmac_validated } = validate_cmac(
       hexToBytes(uidHex),
@@ -50,7 +51,7 @@ export async function validateCardTap(request, env, { pHex, cHex, context = "tap
     } else {
       return { ok: false, status: 403, error: "Card version mismatch — try again or re-program card" };
     }
-  } else if (cardState.state === "active") {
+  } else if (cardState.state === CARD_STATE.ACTIVE) {
     activeVersion = cardState.active_version || 1;
   } else {
     activeVersion = 1;

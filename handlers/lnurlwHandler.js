@@ -10,6 +10,7 @@ import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { recordTapRead, getCardState, activateCard, checkAndAdvanceCounter } from "../replayProtection.js";
 import { getRequestOrigin } from "../utils/validation.js";
 import { cmacScanVersions } from "../utils/cmacScan.js";
+import { CARD_STATE, PAYMENT_METHOD } from "../utils/constants.js";
 
 async function detectCardVersion(uidHex, ctr, cHex, env, latestVersion) {
   const uidBytes = hexToBytes(uidHex);
@@ -63,19 +64,19 @@ export async function handleLnurlw(request, env) {
     return errorResponse("Card state unavailable", 503);
   }
 
-  if (cardState.state === "terminated") {
+  if (cardState.state === CARD_STATE.TERMINATED) {
     return errorResponse("Card has been terminated. Re-activate to use.", 403);
   }
 
   let activeVersion;
 
-  if (cardState.state === "keys_delivered") {
+  if (cardState.state === CARD_STATE.KEYS_DELIVERED) {
     activeVersion = await detectCardVersion(uidHex, ctr, cHex, env, cardState.latest_issued_version);
     if (activeVersion === null) {
       return errorResponse("Unable to verify card. Version mismatch.", 403);
     }
     await activateCard(env, uidHex, activeVersion);
-  } else if (cardState.state === "active") {
+  } else if (cardState.state === CARD_STATE.ACTIVE) {
     activeVersion = cardState.active_version || 1;
   } else {
     activeVersion = 1;
@@ -94,7 +95,7 @@ export async function handleLnurlw(request, env) {
     return errorResponse("UID not found in config");
   }
 
-  const proxyRelayMode = config.payment_method === "proxy" && !!config.proxy?.baseurl;
+  const proxyRelayMode = config.payment_method === PAYMENT_METHOD.PROXY && !!config.proxy?.baseurl;
   const hasK2 = typeof config.K2 === "string" && config.K2.length > 0;
 
   let cmac_validated = false;
@@ -150,7 +151,7 @@ export async function handleLnurlw(request, env) {
     });
   }
 
-  if (config.payment_method === "lnurlpay") {
+  if (config.payment_method === PAYMENT_METHOD.LNURLPAY) {
     const baseUrl = getRequestOrigin(request);
     await recordTapRead(env, uidHex, counterValue, {
       userAgent: request.headers.get("User-Agent") || null,
@@ -159,7 +160,7 @@ export async function handleLnurlw(request, env) {
     return jsonResponse(constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, config, env));
   }
 
-  if (config.payment_method === "clnrest" || config.payment_method === "fakewallet") {
+  if (config.payment_method === PAYMENT_METHOD.CLNREST || config.payment_method === PAYMENT_METHOD.FAKEWALLET) {
     try {
       const replayResult = await checkAndAdvanceCounter(env, uidHex, counterValue);
       if (!replayResult.accepted) {

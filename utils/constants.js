@@ -16,3 +16,20 @@ export const OPERATOR_CSRF_MAX_AGE = 12 * 60 * 60;
 
 export const OTP_DOMAIN_TAG_HOTP = "2d003f80";
 export const OTP_DOMAIN_TAG_TOTP = "2d003f81";
+
+export const CARD_STATE = {
+  NEW: "new",
+  KEYS_DELIVERED: "keys_delivered",
+  ACTIVE: "active",
+  WIPE_REQUESTED: "wipe_requested",
+  TERMINATED: "terminated",
+  LEGACY: "legacy",
+};
+
+export const PAYMENT_METHOD = {
+  FAKEWALLET: "fakewallet",
+  CLNREST: "clnrest",
+  PROXY: "proxy",
+  LNURLPAY: "lnurlpay",
+  TWOFACTOR: "twofactor",
+};

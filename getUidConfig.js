@@ -3,6 +3,7 @@ import { computeAesCmac, hexToBytes } from './cryptoutils.js';
 import { logger } from './utils/logger.js';
 import { getDeterministicKeys } from "./keygenerator.js";
 import { getCardConfig } from "./replayProtection.js";
+import { PAYMENT_METHOD } from "./utils/constants.js";
 
 // BOLT_CARD_K1 from environment/secrets (secure for production)
 // Falls back to development keys for local testing
@@ -90,7 +91,7 @@ export async function getUidConfig(uidHex, env, version = 1) {
     const keys = getDeterministicKeys(normalizedUid, env, version);
     if (keys && keys.k2) {
       const defaultConfig = { 
-        payment_method: "fakewallet", 
+        payment_method: PAYMENT_METHOD.FAKEWALLET, 
         K2: keys.k2 
       };
       logger.debug("Using deterministic fallback config", {

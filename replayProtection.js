@@ -1,8 +1,8 @@
 import { logger } from "./utils/logger.js";
-import { DEFAULT_TAP_LIMIT, DEFAULT_TXN_LIMIT } from "./utils/constants.js";
+import { DEFAULT_TAP_LIMIT, DEFAULT_TXN_LIMIT, CARD_STATE } from "./utils/constants.js";
 
 const legacyCardState = {
-  state: "legacy",
+  state: CARD_STATE.LEGACY,
   latest_issued_version: 0,
   active_version: null,
   activated_at: null,
@@ -131,7 +131,7 @@ export async function getAnalytics(env, uidHex) {
 
 export async function getCardState(env, uidHex) {
   if (!env?.CARD_REPLAY) {
-    return { state: "new", latest_issued_version: 0, active_version: null, activated_at: null, terminated_at: null, keys_delivered_at: null, wipe_keys_fetched_at: null, balance: 0 };
+    return { state: CARD_STATE.NEW, latest_issued_version: 0, active_version: null, activated_at: null, terminated_at: null, keys_delivered_at: null, wipe_keys_fetched_at: null, balance: 0 };
   }
 
   const stub = getCardStub(env, uidHex);
@@ -155,7 +155,7 @@ export async function deliverKeys(env, uidHex) {
   const response = await doPost(stub, "/deliver-keys", {});
 
   if (response.status === 404) {
-    return { ...legacyCardState, state: "keys_delivered", latest_issued_version: 1, version: 1 };
+    return { ...legacyCardState, state: CARD_STATE.KEYS_DELIVERED, latest_issued_version: 1, version: 1 };
   }
 
   if (!response.ok) {
@@ -172,7 +172,7 @@ export async function activateCard(env, uidHex, activeVersion) {
   const response = await doPost(stub, "/activate", { active_version: activeVersion });
 
   if (response.status === 404) {
-    return { ...legacyCardState, state: "active", active_version: activeVersion };
+    return { ...legacyCardState, state: CARD_STATE.ACTIVE, active_version: activeVersion };
   }
 
   if (!response.ok) {
@@ -189,7 +189,7 @@ export async function terminateCard(env, uidHex) {
   const response = await doPost(stub, "/terminate", {});
 
   if (response.status === 404) {
-    return { ...legacyCardState, state: "terminated" };
+    return { ...legacyCardState, state: CARD_STATE.TERMINATED };
   }
 
   if (!response.ok) {
@@ -206,7 +206,7 @@ export async function requestWipe(env, uidHex) {
   const response = await doPost(stub, "/request-wipe", {});
 
   if (response.status === 404) {
-    return { state: "new" };
+    return { state: CARD_STATE.NEW };
   }
 
   if (!response.ok) {
