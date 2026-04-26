@@ -125,12 +125,17 @@
 ## Conventions
 
 - `errorResponse()` from `utils/responses.js` for all error paths
+- `redirect()` from `utils/responses.js` for all HTTP redirects
 - `renderTailwindPage()` + `rawHtml` tagged template for all HTML pages (auto-escapes interpolations; use `safe()` for known-safe HTML, `jsString()` for JS contexts)
 - `validateCardTap()` from `utils/validateCardTap.js` for card-tap validation in operator handlers
-- `BROWSER_NFC_HELPERS` + `BROWSER_VALIDATE_UID_HELPER` from `templates/browserNfc.js` for NFC pages (includes `CSRF_FETCH_HELPER` for automatic CSRF token injection, `createNfcScanner()` for shared scan-loop wrapper)
+- `BROWSER_NFC_HELPERS` + `BROWSER_VALIDATE_UID_HELPER` from `templates/browserNfc.js` for NFC pages (includes `CSRF_FETCH_HELPER` for automatic CSRF token injection, `createNfcScanner()` for shared scan-loop wrapper, `esc()` for HTML escaping)
 - All NFC pages auto-start scanning on page load; `/operator/pos` auto-starts after amount is entered (debounced 1s)
 - CSRF: double-submit cookie (`op_csrf`) on operator pages; `withOperatorAuth` validates on mutating methods; test bypass via `__TEST_OPERATOR_SESSION`
+- `POST /login` privileged actions (top-up, terminate, request-wipe) require operator auth via `requireOperator()`
 - LNURLW replay: Step 1 (`GET /`) atomically advances counter via `checkAndAdvanceCounter`; callback detects replay via `listTaps` bolt11 check
+- `matchCardIssuer()` from `utils/cardMatching.js` for shared card issuer detection across loginHandler and identifyIssuerKeyHandler
+- `CARD_STATE` and `PAYMENT_METHOD` enums from `utils/constants.js` — use instead of raw strings
+- `constantTimeEqual()` from `utils/cookies.js` for timing-safe string comparison (CSRF tokens, PINs)
 - Tests use `makeReplayNamespace()` (in-memory DO mock) from `tests/replayNamespace.js`
 - Commit style: semantic (`feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`)
 - Never commit without explicit user request
@@ -140,7 +145,7 @@
 
 - Run: `npm test` (uses Jest with `--experimental-vm-modules`)
 - Deploy: `npm run deploy` (tests → build_keys → wrangler deploy)
-- **809 tests** across 52 test suites (as of 2026-04-25)
+- **914 tests** across 53 test suites (as of 2026-04-26)
 
 ## Test Inventory
 
@@ -208,6 +213,8 @@ The following exports are prefixed with `_` and only used in tests:
 
 ## Security
 
-- Security headers applied to all responses via `withSecurityHeaders()` in `index.js`: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`
+- Security headers applied to all responses via `withSecurityHeaders()` in `index.js`: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Content-Security-Policy`
+- All error responses sanitized — internal error details logged server-side, generic `"Internal error"` returned to client
+- `POST /login` privileged actions (top-up, terminate, request-wipe) require operator session auth
 - All innerHTML assignments use `esc()` for dynamic data (41 assignments audited)
 - `/2fa` endpoint supports JSON response mode via `Accept: application/json` header (prevents raw HTML injection in debug console)
