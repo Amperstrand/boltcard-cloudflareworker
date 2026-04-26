@@ -190,6 +190,22 @@ CURRENCY_LABEL = "credits"
 CURRENCY_DECIMALS = "0"
 ```
 
+## Post-Deploy Checklist
+
+After deploying, verify the following:
+
+1. Open `https://pay.<your-domain>.com/status` — should return `{"ok":true}`
+2. Log in at `/operator/login` with your PIN
+3. Verify the POS terminal at `/operator/pos` loads correctly
+4. Program a test card via `/experimental/activate`
+5. Top up the card at `/operator/topup`
+6. Charge at `/operator/pos`
+7. Check the card appears in the registry at `/operator/cards`
+8. View per-card analytics at `/experimental/analytics?uid=<UID>`
+9. Refund the card at `/operator/refund`
+
+Attendees can also check their own card balance at `/card` by tapping on an NFC-enabled phone.
+
 ## Security Notes
 
 - The operator PIN is shared among all operators at a venue. Change it between shifts or events.

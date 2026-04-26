@@ -459,6 +459,45 @@ describe("CardReplayDO SQL logic", () => {
       const row = db.prepare("SELECT first_seen_at FROM card_state WHERE singleton = 1").get();
       expect(row.first_seen_at).toBe(pendingTime);
     });
+
+    it("upgrades new state to discovered", () => {
+      const now = nowSec();
+      db.prepare(
+        `INSERT INTO card_state (singleton, state, balance, first_seen_at)
+         VALUES (1, 'new', 0, ?)`
+      ).run(now);
+
+      db.prepare(
+        `UPDATE card_state SET
+           state = 'discovered',
+           active_version = 1,
+           key_provenance = COALESCE(?, key_provenance),
+           key_fingerprint = COALESCE(?, key_fingerprint),
+           key_label = COALESCE(?, key_label)
+         WHERE singleton = 1`
+      ).run("env_issuer", "def", "test");
+
+      const row = db.prepare("SELECT state, active_version, key_provenance FROM card_state WHERE singleton = 1").get();
+      expect(row.state).toBe("discovered");
+      expect(row.active_version).toBe(1);
+      expect(row.key_provenance).toBe("env_issuer");
+    });
+
+    it("upgrades legacy state to discovered", () => {
+      const now = nowSec();
+      db.prepare(
+        `INSERT INTO card_state (singleton, state, balance, first_seen_at)
+         VALUES (1, 'legacy', 0, ?)`
+      ).run(now);
+
+      db.prepare(
+        `UPDATE card_state SET state = 'discovered', active_version = 2 WHERE singleton = 1`
+      ).run();
+
+      const row = db.prepare("SELECT state, active_version FROM card_state WHERE singleton = 1").get();
+      expect(row.state).toBe("discovered");
+      expect(row.active_version).toBe(2);
+    });
   });
 
   describe("deliver-keys preserves provenance", () => {

@@ -178,6 +178,8 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 - `discoverUnknownCard()` from `handlers/lnurlwHandler.js` for auto-discovery of unknown cards via CMAC scan across all issuer key candidates
 - `setCardK2()` from `replayProtection.js` for targeted K2-only update in DO card_config (used during discovery to persist correct K2 without overwriting payment_method)
 - `markPending()` and `discoverCard()` from `replayProtection.js` for DO row creation during key fetch and first tap
+- DO `handleDiscover` upgrades `pending`, `new`, and `legacy` states to `discovered`; `new`/`legacy` with no DO row take the INSERT path instead
+- DO `/set-k2` endpoint for targeted K2-only update (preserves existing `payment_method` and `config_json`); called via `setCardK2()` during card discovery
 - `indexCard()`, `deindexCard()`, `getIndexedCard()`, `listIndexedCards()` from `utils/cardIndex.js` for KV-backed card registry (prefix `card_idx:`, TTL 7 days)
 - `replayProtection.js` calls `await indexCard()` on all 6 state transitions: `markPending`, `discoverCard`, `deliverKeys`, `activateCard`, `terminateCard`, `requestWipe`
 - `getCardProgrammingEndpoint()` from `handlers/loginActions.js` for card config → pull payment → programming endpoint lookup (shared by 4 call sites)
@@ -193,7 +195,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 
 - Run: `npm test` (uses Jest with `--experimental-vm-modules`)
 - Deploy: `npm run deploy` (tests → build_keys → wrangler deploy)
-- **1014 tests** across 56 test suites (as of 2026-04-26)
+- **1016 tests** across 56 test suites (as of 2026-04-26)
 - Coverage: ~87% statements, ~79% branches, ~85% functions
 
 ## Test Inventory
@@ -250,7 +252,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | `tests/identityHandler.test.js` | Identity verification, profile update, CMAC, enrollment, provenance | |
 | `tests/bulkWipePageHandler.test.js` | Bulk wipe page rendering with key fingerprints | |
 | `tests/withdrawHandler.test.js` | Withdraw response: CMAC-failed, fakewallet/clnrest amounts | |
-| `tests/cardReplayDO.test.js` | DO SQL logic via better-sqlite3 (counter, taps, state, config, balance, analytics, provenance, discovery, set-k2, list-taps merge, record-read, transactions) | |
+| `tests/cardReplayDO.test.js` | DO SQL logic via better-sqlite3 (counter, taps, state, config, balance, analytics, provenance, discovery, set-k2, list-taps merge, record-read, transactions, discover branching) | |
 | `tests/cardDashboardHandler.test.js` | Cardholder dashboard: page rendering, info API, provenance banner, state handling, NFC/manual input | |
 | `tests/cardIndex.test.js` | KV card registry: indexCard, deindexCard, getIndexedCard, listIndexedCards, edge cases | |
 | `tests/cardAuditHandler.test.js` | Operator audit page: auth redirect, data endpoint, state filtering | |

@@ -750,7 +750,7 @@ export class CardReplayDO extends DurableObject {
 
       if (existing.length > 0) {
         const current = existing[0];
-        if (current.state === "pending") {
+        if (current.state === "pending" || current.state === "new" || current.state === "legacy") {
           this.sql.exec(
             `UPDATE card_state SET
                state = 'discovered',

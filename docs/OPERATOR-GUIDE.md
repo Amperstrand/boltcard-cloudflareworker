@@ -109,9 +109,24 @@ The refund desk handles cash-back for attendees leaving the event.
 | Status | Meaning | Action |
 |---|---|---|
 | `new` | Card was programmed but never tapped | Will auto-activate on first tap at top-up or POS |
+| `pending` | Keys fetched but card never tapped | Will upgrade to `discovered` on first tap |
+| `discovered` | Card tapped and auto-recognized by key | Working — treated like `active` |
+| `keys_delivered` | Operator programmed keys, awaiting first tap | Will auto-activate on first tap |
 | `active` | Card is working normally | No action needed |
 | `terminated` | Card has been wiped | Must be reprogrammed |
 | `wipe_requested` | Card wipe is pending | Must be reprogrammed |
+
+## Card Registry
+
+The card registry at `/operator/cards` shows all cards that have been indexed by the system. Cards are automatically indexed when they transition between states (provisioned, discovered, activated, wiped, terminated).
+
+Use this page to:
+- See all known cards and their current states
+- Filter by state (active, discovered, terminated, etc.)
+- Navigate to per-card analytics
+- Monitor card provenance (where keys came from)
+
+Note: The registry may lag up to 60 seconds due to KV eventual consistency.
 
 ## Quick Reference: All Operator URLs
 
@@ -123,7 +138,9 @@ The refund desk handles cash-back for attendees leaving the event.
 | `/operator/pos` | POS terminal |
 | `/operator/pos/menu` | Menu editor |
 | `/operator/refund` | Refund desk |
+| `/operator/cards` | Card registry audit |
 | `/operator/logout` | Log out |
+| `/card` | Cardholder dashboard (public — tap to see balance) |
 | `/debug` | Card debug tools (advanced) |
 | `/experimental/activate` | Card programming |
 | `/experimental/analytics` | Per-card analytics |

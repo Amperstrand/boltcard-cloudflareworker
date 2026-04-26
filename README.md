@@ -47,6 +47,7 @@ You need a physical NTAG424 card programmed for this worker's issuer key. Cards 
 | [/operator/pos](https://boltcardpoc.psbt.me/operator/pos) | POS terminal — free-amount or menu mode |
 | [/operator/pos/menu](https://boltcardpoc.psbt.me/operator/pos/menu) | Menu editor — add/edit/remove items per terminal |
 | [/operator/refund](https://boltcardpoc.psbt.me/operator/refund) | Refund desk — full or partial cash-back |
+| [/operator/cards](https://boltcardpoc.psbt.me/operator/cards) | Card registry — view all indexed cards and their states |
 | [/operator](https://boltcardpoc.psbt.me/operator) | Redirects to POS |
 
 ### Debug & Experimental Tools (auth required)
@@ -66,6 +67,7 @@ You need a physical NTAG424 card programmed for this worker's issuer key. Cards 
 |---|---|
 | [/](https://boltcardpoc.psbt.me/) | Card tap entry point — LNURL-withdraw step 1 (or login page if no params) |
 | [/login](https://boltcardpoc.psbt.me/login) | Customer NFC login — key recovery for bolt card owners |
+| [/card](https://boltcardpoc.psbt.me/card) | Cardholder dashboard — tap to see balance, state, provenance |
 | [/identity](https://boltcardpoc.psbt.me/identity) | Identity demo — NFC-based access control with fake profiles |
 | [/2fa](https://boltcardpoc.psbt.me/2fa) | 2FA demo — TOTP/HOTP codes from NFC card |
 
@@ -86,6 +88,8 @@ You need a physical NTAG424 card programmed for this worker's issuer key. Cards 
 | POST | `/api/identify-issuer-key` | Yes | Tap-to-detect issuer key + version |
 | GET | `/api/receipt/:txnId` | Yes | Plain-text receipt for a transaction |
 | GET | `/api/fake-invoice?amount=N` | No | Generate fake BOLT11 invoice |
+| GET | `/card/info` | No | Card status JSON (tap to check state, balance) |
+| GET | `/operator/cards/data` | Yes | Card registry data (JSON, paginated) |
 | GET | `/api/verify-identity?p=X&c=Y` | No | Verify card identity |
 | POST | `/api/identity/profile` | No | Update identity profile |
 | POST | `/api/v1/pull-payments/:id/boltcards` | Yes | Card programming keys |
@@ -206,10 +210,26 @@ Config example:
 ## Card Lifecycle
 
 ```
-new → keys_delivered → active → (wipe_requested → active) | terminated
+(no DO row) ──────────────────────────────────────────→ legacy (fallback)
+     │                                                      │
+     │ key fetch (fetchBoltCardKeys)                         │ first tap with known issuer key
+     ↓                                                      ↓
+   pending ──────── first tap (CMAC validates) ──────→ discovered
+     │                                                      │
+     │ operator programs via /experimental/activate          │ treated like active for taps
+     ↓                                                      ↓
+   keys_delivered ──── first tap ────→ active
+     │                                    │
+     │                                    ├── wipe_requested → active (re-provisioned)
+     │                                    └── terminated
+     └── active_version set on activation
 ```
 
-- `new` cards auto-activate on first tap (get `activeVersion=1`)
+- `new`/`legacy` state: no DO row, first tap triggers auto-discovery via CMAC scan
+- `pending`: keys fetched but card never tapped — upgraded to `discovered` on first tap
+- `discovered`: card tapped with known issuer key, not user-provisioned — treated like `active`
+- `keys_delivered`: operator has programmed keys, first tap activates
+- `wipe_requested` is a transient state; card returns to `active` after re-provisioning
 - Cards can be wiped via `/experimental/wipe` and reprogrammed
 - Replay counters reset on wipe
 
@@ -218,6 +238,22 @@ new → keys_delivered → active → (wipe_requested → active) | terminated
 This service helps bolt card owners recover cards from defunct services. Tap a card on [/login](https://boltcardpoc.psbt.me/login) — if we have the issuer keys, you'll see them and get a link to wipe and reprogram.
 
 To submit keys for a service, add a CSV file to `keys/` and run `node scripts/build_keys.js`. See [VENUE-DEPLOYMENT.md](docs/VENUE-DEPLOYMENT.md) or [guide.md](guide.md) for details.
+
+## Card Registry & Provenance
+
+Every card that enters the system is automatically indexed in a KV-backed registry (`card_idx:` prefix, 7-day TTL). This powers the card audit dashboard at `/operator/cards` where operators can view all known cards, filter by state, and navigate to per-card analytics.
+
+Each card tracks **key provenance** — where its encryption keys came from:
+
+| Provenance | Meaning |
+|---|---|
+| `public_issuer` | Key is in `generatedKeyData.js` (git-tracked dev keys) |
+| `env_issuer` | Matches `env.ISSUER_KEY` and not public |
+| `percard` | Per-card import from CSV |
+| `user_provisioned` | Explicitly programmed by user |
+| `unknown` | Neither public nor env key |
+
+The cardholder dashboard at `/card` shows this provenance info alongside balance and state, giving card owners visibility into how their card was set up.
 
 ## Architecture
 
@@ -251,10 +287,11 @@ To submit keys for a service, add a CSV file to `keys/` and run `node scripts/bu
 │  ┌──────▼──────────────────────────────────────┐  │
 │  │          Storage Layer                       │  │
 │  │  ┌─────────────┐  ┌──────────────────────┐  │  │
-│  │  │ KV          │  │ Durable Object       │  │  │
-│  │  │ • card cfg  │  │ CardReplayDO         │  │  │
-│  │  │ • menus     │  │ • SQLite (per-card)  │  │  │
-│  │  │ • rate limit│  │ • balance + txns     │  │  │
+  │  │  │ KV          │  │ Durable Object       │  │  │
+  │  │  │ • card cfg  │  │ CardReplayDO         │  │  │
+  │  │  │ • card idx  │  │ • SQLite (per-card)  │  │  │
+  │  │  │ • menus     │  │ • balance + txns     │  │  │
+  │  │  │ • rate limit│  │ • replay counter     │  │  │
 │  │  └─────────────┘  │ • replay counter     │  │  │
 │  │                   └──────────────────────┘  │  │
 │  └────────────────────────────────────────────┘  │
@@ -341,7 +378,7 @@ See [docs/VENUE-DEPLOYMENT.md](docs/VENUE-DEPLOYMENT.md) for the full guide.
 ## Testing
 
 ```bash
-npm test                              # Run all 918 tests
+npm test                              # Run all 1014 tests
 npm test -- --testNamePattern="pos"   # Run specific test pattern
 npm test -- --watch                   # Watch mode
 npm run deploy                        # tests → build_keys → wrangler deploy
@@ -385,12 +422,16 @@ npm run deploy                        # tests → build_keys → wrangler deploy
 │   ├── balanceCheckHandler.js   # Read-only balance check
 │   ├── menuEditorHandler.js     # Menu editor page + API
 │   ├── receiptHandler.js        # Plain-text receipt
+│   ├── cardAuditHandler.js      # Card registry audit page + data API
+│   ├── cardDashboardHandler.js  # Cardholder dashboard (NFC scan)
 │   ├── debugHandler.js          # Debug dashboard
 │   ├── identityHandler.js       # Identity/access control demo
 │   ├── twoFactorHandler.js      # 2FA TOTP/HOTP
 │   └── getKeysHandler.js        # Key listing + bulk wipe
 ├── templates/                   # HTML pages (Tailwind CSS, rawHtml tagged template)
 │   ├── browserNfc.js            # Shared NFC scanner + CSRF + esc() helpers
+│   ├── cardAuditPage.js         # Card registry audit page
+│   ├── cardDashboardPage.js     # Cardholder dashboard page
 │   ├── loginPage.js             # NFC key recovery page
 │   ├── operatorLoginPage.js     # PIN login form
 │   ├── posPage.js               # POS with free-amount + menu modes
@@ -402,6 +443,7 @@ npm run deploy                        # tests → build_keys → wrangler deploy
 │   └── ...
 ├── utils/
 │   ├── bolt11.js                # BOLT11 invoice generation (@noble/secp256k1)
+│   ├── cardIndex.js              # KV-backed card registry (indexCard, listIndexedCards)
 │   ├── cardMatching.js          # Shared card issuer detection
 │   ├── cmacScan.js              # Multi-version CMAC scan engine
 │   ├── constants.js             # CARD_STATE, PAYMENT_METHOD, and numeric constants
@@ -415,7 +457,7 @@ npm run deploy                        # tests → build_keys → wrangler deploy
 │   └── validateCardTap.js       # Card tap validation for operator handlers
 ├── durableObjects/
 │   └── CardReplayDO.js          # Per-card SQLite DO (balance, txns, counter)
-├── tests/                       # 918 tests across 53 suites
+├── tests/                       # 1014 tests across 56 suites
 ├── keys/                        # Key recovery CSV files
 ├── docs/
 │   ├── VENUE-DEPLOYMENT.md      # Venue setup guide
