@@ -1,4 +1,3 @@
-import { describe, it, expect, jest, beforeEach } from "@jest/globals";
 import {
   requireOperator,
   validatePinConfig,
@@ -124,13 +123,13 @@ describe("requireOperator", () => {
   });
 
   it("returns unauthorized for expired session", async () => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     const sessionValue = await createTestSession(makeEnv());
-    jest.advanceTimersByTime(13 * 60 * 60 * 1000);
+    vi.advanceTimersByTime(13 * 60 * 60 * 1000);
     const request = makeRequest({ op_session: sessionValue });
     const result = await requireOperator(request, makeEnv());
     expect(result.authorized).toBe(false);
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it("returns unauthorized for tampered cookie", async () => {

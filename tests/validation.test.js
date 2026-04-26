@@ -1,4 +1,4 @@
-import { describe, it, expect } from "@jest/globals";
+
 import { validateUid, getRequestOrigin } from "../utils/validation.js";
 
 describe("validateUid", () => {

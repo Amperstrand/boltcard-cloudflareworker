@@ -8,7 +8,7 @@
  */
 
 import { handleRequest } from "../../index.js";
-import { jest } from "@jest/globals";
+;
 import { makeReplayNamespace } from "../replayNamespace.js";
 import { TEST_OPERATOR_AUTH, virtualTap } from "../testHelpers.js";
 import { getDeterministicKeys } from "../../keygenerator.js";
@@ -239,7 +239,7 @@ describe("E2E: Virtual card — LNURL-pay (POS)", () => {
     keys = result.keys;
 
     originalFetch = global.fetch;
-    global.fetch = jest.fn(async (url) => {
+    global.fetch = vi.fn(async (url) => {
       const urlStr = url.toString();
       if (urlStr.includes(".well-known/lnurlp")) {
         return new Response(

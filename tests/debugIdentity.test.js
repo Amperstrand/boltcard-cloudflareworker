@@ -1,4 +1,3 @@
-import { describe, test, expect } from "@jest/globals";
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { hexToBytes, bytesToHex } from "../cryptoutils.js";

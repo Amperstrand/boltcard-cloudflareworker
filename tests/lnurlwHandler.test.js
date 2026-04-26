@@ -1,4 +1,4 @@
-import { jest } from "@jest/globals";
+;
 import { handleLnurlw } from "../handlers/lnurlwHandler.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { virtualTap, buildCardTestEnv } from "./testHelpers.js";
@@ -204,7 +204,7 @@ describe("handleLnurlw", () => {
     delete env.CARD_REPLAY.__cardConfigs.get(UID).K2;
 
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ status: "OK" }), { status: 200 })
     );
 
@@ -223,7 +223,7 @@ describe("handleLnurlw", () => {
     });
 
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ status: "OK" }), { status: 200 })
     );
 
@@ -244,7 +244,7 @@ describe("handleLnurlw", () => {
       proxy: { baseurl: "https://backend.example.com/tap" },
     });
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ status: "OK" }), { status: 200 })
     );
 
@@ -305,7 +305,7 @@ describe("handleLnurlw", () => {
     const req1 = tapRequest(UID, 2, keys.k1, keys.k2);
 
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ status: "OK" }), { status: 200 })
     );
     const res1 = await handleLnurlw(req1, env);

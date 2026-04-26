@@ -1,5 +1,5 @@
 import { handleRequest } from "../index.js";
-import { jest } from "@jest/globals";
+;
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { hexToBytes, bytesToHex, computeAesCmac } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
@@ -117,7 +117,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
     const cHex = computeRealC(POS_UID, ctrHex, keys.k2);
 
     const originalFetch = global.fetch;
-    global.fetch = jest.fn(async (url) => {
+    global.fetch = vi.fn(async (url) => {
       const urlStr = url.toString();
       if (urlStr.includes(".well-known/lnurlp")) {
         return new Response(JSON.stringify({
@@ -175,7 +175,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
     const cHex = computeRealC(POS_UID, ctrHex, keys.k2);
 
     const originalFetch = global.fetch;
-    global.fetch = jest.fn(async (url) => {
+    global.fetch = vi.fn(async (url) => {
       const urlStr = url.toString();
       if (urlStr.includes(".well-known/lnurlp")) {
         return new Response(JSON.stringify({
@@ -263,7 +263,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
 
     // Step 3: Wallet calls callback with amount
     const originalFetch = global.fetch;
-    global.fetch = jest.fn(async (url) => {
+    global.fetch = vi.fn(async (url) => {
       const urlStr = url.toString();
       if (urlStr.includes(".well-known/lnurlp")) {
         return new Response(JSON.stringify({

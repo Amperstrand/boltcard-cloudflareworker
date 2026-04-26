@@ -1,4 +1,3 @@
-import { describe, it, expect, jest } from "@jest/globals";
 import { jsonResponse, _buildErrorPayload, errorResponse, htmlResponse, buildBoltCardResponse, parseJsonBody, buildResetDeeplink, redirect } from "../utils/responses.js";
 
 describe("jsonResponse", () => {
@@ -120,13 +119,13 @@ describe("buildBoltCardResponse", () => {
 
 describe("parseJsonBody", () => {
   it("parses valid JSON body", async () => {
-    const request = { json: jest.fn().mockResolvedValue({ foo: "bar" }) };
+    const request = { json: vi.fn().mockResolvedValue({ foo: "bar" }) };
     const result = await parseJsonBody(request);
     expect(result).toEqual({ foo: "bar" });
   });
 
   it("propagates JSON parse errors", async () => {
-    const request = { json: jest.fn().mockRejectedValue(new Error("invalid json")) };
+    const request = { json: vi.fn().mockRejectedValue(new Error("invalid json")) };
     await expect(parseJsonBody(request)).rejects.toThrow("invalid json");
   });
 });

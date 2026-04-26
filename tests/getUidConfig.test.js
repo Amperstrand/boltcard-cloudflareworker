@@ -4,7 +4,6 @@ import {
   getUidConfig
 } from '../getUidConfig.js';
 import { logger } from '../utils/logger.js';
-import { jest } from '@jest/globals';
 import { makeReplayNamespace } from './replayNamespace.js';
 
 // Suppress logger output during tests
@@ -166,7 +165,7 @@ describe('getBoltCardK1', () => {
   describe('dev fallback warning', () => {
     it('warns when using dev fallback', () => {
       // Mock logger.warn instead of spying on console.warn (logger is suppressed at error level)
-      const loggerWarnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
+      const loggerWarnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
       const keys = getBoltCardK1({});
       expect(keys).toHaveLength(2);
       // Verify that logger.warn was called with the fallback warning message
@@ -177,7 +176,7 @@ describe('getBoltCardK1', () => {
     });
 
     it('does not warn when keys are properly configured', () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn');
+      const consoleWarnSpy = vi.spyOn(console, 'warn');
       const keys = getBoltCardK1({
         WORKER_ENV: 'production',
         BOLT_CARD_K1: 'aaaa,bbbb',
@@ -256,7 +255,7 @@ describe('getUidConfig', () => {
 
   it('normalizes UID to lowercase for DO lookup', async () => {
     const doStub = makeReplayNamespace({}, { '04a39493cc8680': 1 });
-    const getSpy = jest.spyOn(doStub, 'get');
+    const getSpy = vi.spyOn(doStub, 'get');
     const env = { CARD_REPLAY: doStub, ISSUER_KEY };
     await getUidConfig('04A39493CC8680', env);
     expect(getSpy).toHaveBeenCalledWith('04a39493cc8680');

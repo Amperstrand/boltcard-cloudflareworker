@@ -1,4 +1,4 @@
-import { jest } from "@jest/globals";
+;
 import { handleLnurlpPayment } from "../handlers/lnurlHandler.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { virtualTap, buildCardTestEnv } from "./testHelpers.js";
@@ -133,7 +133,7 @@ describe("handleLnurlpPayment", () => {
       },
     });
 
-    globalThis.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ status: "complete" }), { status: 201 })
     );
 
@@ -159,7 +159,7 @@ describe("handleLnurlpPayment", () => {
       },
     });
 
-    globalThis.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ error: "insufficient balance" }), { status: 500 })
     );
 
@@ -182,7 +182,7 @@ describe("handleLnurlpPayment", () => {
       },
     });
 
-    globalThis.fetch = jest.fn().mockRejectedValue(new Error("Network error"));
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
 
     const { pHex, cHex } = virtualTap(UID, 4, keys.k1, keys.k2);
     const req = new Request(callbackUrl(pHex, cHex, { pr: "lnbc10n1test" }));
@@ -289,7 +289,7 @@ describe("handleLnurlpPayment", () => {
       clnrest: { host: "https://cln.example.com", rune: "test-rune" },
     });
 
-    globalThis.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ status: "pending" }), { status: 201 })
     );
 

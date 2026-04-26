@@ -1,4 +1,3 @@
-import { describe, expect, test } from "@jest/globals";
 import { _buildErrorPayload, errorResponse } from "../utils/responses.js";
 import { renderTailwindPage } from "../templates/pageShell.js";
 import { BROWSER_NFC_HELPERS } from "../templates/browserNfc.js";

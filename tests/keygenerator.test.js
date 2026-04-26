@@ -1,5 +1,4 @@
 import { getDeterministicKeys } from "../keygenerator.js"; // Ensure correct path
-import { expect, test } from "@jest/globals";
 import { bytesToHex } from "../cryptoutils.js";
 import { extractUIDAndCounter } from "../boltCardHelper.js";
 import { getBoltCardK1 } from "../getUidConfig.js";

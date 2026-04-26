@@ -1,5 +1,5 @@
 import worker, { handleRequest } from "../index.js";
-import { jest } from "@jest/globals";
+;
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { hexToBytes, bytesToHex, _computeAesCmacForVerification } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
@@ -596,7 +596,7 @@ describe("response patterns", () => {
 
   test("proxy responses preserve upstream JSON content type and shape through router", async () => {
     const originalFetch = global.fetch;
-    global.fetch = jest.fn(async () => new Response(JSON.stringify({ status: "OK" }), {
+    global.fetch = vi.fn(async () => new Response(JSON.stringify({ status: "OK" }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     }));

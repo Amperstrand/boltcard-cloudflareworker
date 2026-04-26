@@ -1,4 +1,4 @@
-import { describe, it, expect } from "@jest/globals";
+
 import { getCurrencyLabel, getCurrencyDecimals, formatAmount, _parseAmount } from "../utils/currency.js";
 
 function makeEnv(overrides = {}) {

@@ -1,5 +1,5 @@
 import { handleRequest } from "../index.js";
-import { jest } from "@jest/globals";
+;
 import { makeReplayNamespace } from "./replayNamespace.js";
 
 const POS_UID_CONFIG_OBJECT = {
@@ -116,7 +116,7 @@ describe("LNURL-pay POS card flow", () => {
     beforeEach(() => {
       originalFetch = global.fetch;
       // Mock Lightning Address resolution
-      global.fetch = jest.fn(async (url) => {
+      global.fetch = vi.fn(async (url) => {
         const urlStr = typeof url === "string" ? url : url.toString();
 
         // .well-known/lnurlp resolution
@@ -366,7 +366,7 @@ describe("LNURL-pay POS card flow", () => {
 
     test("returns 500 on outer catch when resolveLightningAddress throws", async () => {
       const env = makePayEnv();
-      global.fetch = jest.fn().mockRejectedValue(new Error("DNS failure"));
+      global.fetch = vi.fn().mockRejectedValue(new Error("DNS failure"));
       try {
         const response = await makeRequest(
           `/lnurlp/cb?p=${PAY_COUNTER_1}&c=${PAY_CMAC_1}&amount=1000`,

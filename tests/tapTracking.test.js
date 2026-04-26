@@ -4,7 +4,7 @@ import { hexToBytes, bytesToHex } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { buildVerificationData } from "../cryptoutils.js";
 import { getCardState } from "../replayProtection.js";
-import { jest } from "@jest/globals";
+;
 import aesjs from "aes-js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
@@ -483,7 +483,7 @@ describe("Tap tracking — login response", () => {
 
 describe("getCardState error handling", () => {
   test("getCardState throws on DO error (fail-closed)", async () => {
-    const mockFetch = jest.fn(() => Promise.reject(new Error("DO connection failed")));
+    const mockFetch = vi.fn(() => Promise.reject(new Error("DO connection failed")));
     const mockStub = {
       fetch: mockFetch,
     };

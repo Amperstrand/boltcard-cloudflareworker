@@ -1,11 +1,10 @@
-import { describe, it, expect, jest } from "@jest/globals";
 import { checkRateLimit } from "../rateLimiter.js";
 
 function createMockKV() {
   const store = new Map();
   return {
-    get: jest.fn((key) => Promise.resolve(store.get(key) || null)),
-    put: jest.fn((key, value) => { store.set(key, value); return Promise.resolve(); }),
+    get: vi.fn((key) => Promise.resolve(store.get(key) || null)),
+    put: vi.fn((key, value) => { store.set(key, value); return Promise.resolve(); }),
   };
 }
 

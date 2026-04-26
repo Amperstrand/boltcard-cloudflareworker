@@ -1,4 +1,4 @@
-import { describe, it, expect } from "@jest/globals";
+
 import { validate_cmac } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { validateCardTap } from "../utils/validateCardTap.js";

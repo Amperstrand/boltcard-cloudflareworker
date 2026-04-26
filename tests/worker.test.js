@@ -1,5 +1,5 @@
 import { handleRequest } from "../index.js"; // Import the handleRequest function for testing
-import { jest } from "@jest/globals";
+;
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
 
@@ -188,7 +188,7 @@ describe("Cloudflare Worker Tests", () => {
 
   test("should proxy relay with DO-backed proxy config", async () => {
     const originalFetch = global.fetch;
-    global.fetch = jest.fn(async () => new Response(JSON.stringify({ status: "OK" }), {
+    global.fetch = vi.fn(async () => new Response(JSON.stringify({ status: "OK" }), {
       status: 200,
       headers: { "Content-Type": "application/json" }
     }));

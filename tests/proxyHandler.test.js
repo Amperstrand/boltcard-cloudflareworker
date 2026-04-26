@@ -1,11 +1,11 @@
-import { jest } from "@jest/globals";
+;
 import { handleProxy } from "../handlers/proxyHandler.js";
 
 const UID = "04a39493cc8680";
 
 describe("handleProxy", () => {
   beforeEach(() => {
-    globalThis.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ status: "OK" }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -58,7 +58,7 @@ describe("handleProxy", () => {
 
   it("returns proxy response body and status", async () => {
     const body = JSON.stringify({ tag: "withdrawRequest", k1: "test" });
-    globalThis.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(body, { status: 200, headers: { "Content-Type": "application/json" } })
     );
 
@@ -70,7 +70,7 @@ describe("handleProxy", () => {
   });
 
   it("returns 500 on proxy fetch error", async () => {
-    globalThis.fetch = jest.fn().mockRejectedValue(new Error("Connection refused"));
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error("Connection refused"));
 
     const req = new Request("https://test.local/");
     const res = await handleProxy(req, UID, "p", "c", "https://backend.example.com/tap", {});
@@ -80,7 +80,7 @@ describe("handleProxy", () => {
   });
 
   it("passes through non-200 status from backend", async () => {
-    globalThis.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = vi.fn().mockResolvedValue(
       new Response("Not Found", { status: 404 })
     );
 
@@ -147,7 +147,7 @@ describe("handleProxy", () => {
   });
 
   it("filters upstream response headers", async () => {
-    globalThis.fetch = jest.fn().mockResolvedValue(
+    globalThis.fetch = vi.fn().mockResolvedValue(
       new Response("OK", {
         status: 200,
         headers: {

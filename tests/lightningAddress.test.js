@@ -1,4 +1,3 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from "@jest/globals";
 import { resolveLightningAddress } from "../utils/lightningAddress.js";
 
 describe("resolveLightningAddress", () => {
@@ -43,7 +42,7 @@ describe("resolveLightningAddress", () => {
   });
 
   it("rejects non-JSON response", async () => {
-    globalThis.fetch = jest.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.reject(new Error("not json")),
     });
@@ -51,7 +50,7 @@ describe("resolveLightningAddress", () => {
   });
 
   it("rejects HTTP error with reason", async () => {
-    globalThis.fetch = jest.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false, status: 404,
       json: async () => ({ reason: "not found" }),
     });
@@ -59,7 +58,7 @@ describe("resolveLightningAddress", () => {
   });
 
   it("rejects LNURL ERROR status", async () => {
-    globalThis.fetch = jest.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ status: "ERROR", reason: "user not found" }),
     });
@@ -67,7 +66,7 @@ describe("resolveLightningAddress", () => {
   });
 
   it("rejects invalid tag", async () => {
-    globalThis.fetch = jest.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => payRequest({ tag: "withdrawRequest" }),
     });
@@ -75,7 +74,7 @@ describe("resolveLightningAddress", () => {
   });
 
   it("rejects missing callback", async () => {
-    globalThis.fetch = jest.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => payRequest({ callback: undefined }),
     });
@@ -83,7 +82,7 @@ describe("resolveLightningAddress", () => {
   });
 
   it("rejects amount below minSendable", async () => {
-    globalThis.fetch = jest.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => payRequest({ minSendable: 10000 }),
     });
@@ -91,7 +90,7 @@ describe("resolveLightningAddress", () => {
   });
 
   it("rejects amount above maxSendable", async () => {
-    globalThis.fetch = jest.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => payRequest({ maxSendable: 1000 }),
     });
@@ -99,7 +98,7 @@ describe("resolveLightningAddress", () => {
   });
 
   it("rejects invalid callback URL", async () => {
-    globalThis.fetch = jest.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => payRequest({ callback: "not-a-url" }),
     });
@@ -107,7 +106,7 @@ describe("resolveLightningAddress", () => {
   });
 
   it("rejects missing minSendable/maxSendable", async () => {
-    globalThis.fetch = jest.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => payRequest({ minSendable: undefined, maxSendable: undefined }),
     });
@@ -115,26 +114,26 @@ describe("resolveLightningAddress", () => {
   });
 
   it("rejects missing pr in invoice response", async () => {
-    globalThis.fetch = jest.fn()
+    globalThis.fetch = vi.fn()
       .mockResolvedValueOnce({ ok: true, json: async () => payRequest() })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ routes: [] }) });
     await expect(resolveLightningAddress("user@example.com", 1000)).rejects.toThrow("missing pr");
   });
 
   it("rejects HTTP error from callback", async () => {
-    globalThis.fetch = jest.fn()
+    globalThis.fetch = vi.fn()
       .mockResolvedValueOnce({ ok: true, json: async () => payRequest() })
       .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) });
     await expect(resolveLightningAddress("user@example.com", 1000)).rejects.toThrow("Lightning Address callback failed");
   });
 
   it("handles network failure", async () => {
-    globalThis.fetch = jest.fn().mockRejectedValue(new TypeError("fetch failed"));
+    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
     await expect(resolveLightningAddress("user@example.com", 1000)).rejects.toThrow("failed to fetch");
   });
 
   it("returns invoice on success", async () => {
-    globalThis.fetch = jest.fn()
+    globalThis.fetch = vi.fn()
       .mockResolvedValueOnce({ ok: true, json: async () => payRequest() })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ pr: "lnbc1000u1p3hkx7e", routes: [] }) });
 
@@ -147,7 +146,7 @@ describe("resolveLightningAddress", () => {
   });
 
   it("encodes special characters in user part", async () => {
-    globalThis.fetch = jest.fn()
+    globalThis.fetch = vi.fn()
       .mockResolvedValueOnce({ ok: true, json: async () => payRequest() })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ pr: "lnbc...", routes: [] }) });
 

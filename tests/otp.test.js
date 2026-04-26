@@ -1,4 +1,3 @@
-import { describe, it, expect, jest, afterEach } from "@jest/globals";
 import { deriveOtpSecret, generateHOTP, generateTOTP } from "../utils/otp.js";
 
 describe("deriveOtpSecret", () => {
