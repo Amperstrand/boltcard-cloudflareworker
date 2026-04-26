@@ -12,6 +12,7 @@ import { handleReset } from "./handlers/resetHandler.js";
 import { handleActivatePage } from "./handlers/activatePageHandler.js";
 import { handleTwoFactor } from "./handlers/twoFactorHandler.js";
 import { handleLoginPage, handleLoginVerify } from "./handlers/loginHandler.js";
+import { handleCardPage, handleCardInfo } from "./handlers/cardDashboardHandler.js";
 import { handlePosPage } from "./handlers/posHandler.js";
 import { handleWipePage } from "./handlers/wipePageHandler.js";
 import { handleGetKeys } from "./handlers/getKeysHandler.js";
@@ -138,6 +139,9 @@ router.all("/api/v1/pull-payments/:pullPaymentId/boltcards", withOperatorAuth((r
 router.get("/api/bulk-wipe-keys", withOperatorAuth((request, env) => handleBulkWipeKeys(request, env)));
 router.post("/api/bulk-wipe-keys", withOperatorAuth((request, env) => handleBulkWipeKeys(request, env)));
 router.get("/identity", (request) => handleIdentityPage(request));
+
+router.get("/card", (request, env) => handleCardPage(request, env));
+router.get("/card/info", (request, env) => handleCardInfo(request, env));
 
 // 302 redirects from short paths to /experimental/
 router.get("/nfc", (request) => {
