@@ -9,8 +9,7 @@ import { renderCardDashboardPage } from "../templates/cardDashboardPage.js";
 import { CARD_STATE, KEY_PROVENANCE } from "../utils/constants.js";
 
 export async function handleCardPage(request, env) {
-  const url = new URL(request.url);
-  return htmlResponse(renderCardDashboardPage({ host: url.origin }));
+  return htmlResponse(renderCardDashboardPage());
 }
 
 export async function handleCardInfo(request, env) {
@@ -24,7 +23,7 @@ export async function handleCardInfo(request, env) {
 
   const decryption = extractUIDAndCounter(pHex, env);
   if (!decryption.success) {
-    return errorResponse("Decryption failed: " + decryption.error, 400);
+    return errorResponse("Invalid card data", 400);
   }
 
   const { uidHex, ctr } = decryption;
