@@ -21,7 +21,7 @@ export function renderDebugConsolePage({ host, baseUrl }) {
       <!-- Tab Bar -->
       <nav class="sticky top-0 z-50 bg-gray-900/95 backdrop-blur-sm border-b border-gray-800 px-3 py-2 shadow-lg">
         <div class="max-w-6xl mx-auto flex items-center gap-1 overflow-x-auto">
-          <span class="text-xs font-bold text-gray-500 uppercase tracking-wider mr-2 whitespace-nowrap">\u{1f527}</span>
+          <span class="text-xs font-bold text-gray-500 uppercase tracking-wider mr-2 whitespace-nowrap">DEBUG</span>
           ${safe(tabButtons)}
         </div>
       </nav>
@@ -34,6 +34,7 @@ export function renderDebugConsolePage({ host, baseUrl }) {
             <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Card Info</span>
             <button id="nfc-scan-btn" class="ml-auto rounded-lg border border-gray-700 bg-gray-950 px-3 py-1.5 text-xs font-semibold text-gray-300 transition hover:border-cyan-500/50 hover:text-cyan-300">Start NFC scan</button>
           </div>
+          <div id="nfc-status" class="hidden text-xs text-gray-500 mb-2"></div>
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
             <div>
               <div class="text-xs text-gray-500 uppercase">UID</div>
@@ -70,6 +71,14 @@ export function renderDebugConsolePage({ host, baseUrl }) {
               <div id="ci-cmac" class="font-mono text-xs">--</div>
             </div>
           </div>
+          <!-- Manual URL input -->
+          <div class="mt-3 pt-3 border-t border-gray-800/50">
+            <div class="text-xs text-gray-500 uppercase tracking-wider mb-2">Or paste card URL</div>
+            <div class="flex gap-2">
+              <input type="text" id="manual-url" class="flex-1 rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-xs text-gray-100 placeholder:text-gray-600 focus:border-cyan-500 focus:outline-none font-mono" placeholder="https://boltcardpoc.psbt.me/?p=XXX&c=YYY" />
+              <button id="manual-load-btn" class="rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-xs font-semibold text-gray-300 hover:border-cyan-500/50 hover:text-cyan-300 transition">Load</button>
+            </div>
+          </div>
         </div>
 
         <!-- Error -->
@@ -79,11 +88,11 @@ export function renderDebugConsolePage({ host, baseUrl }) {
         <div class="debug-panel" id="panel-console">
           <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-4">
             <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">NDEF Payload</div>
-            <div id="console-ndef" class="font-mono text-xs text-gray-300 break-all min-h-[1.5em]">Tap a card to inspect\u2026</div>
+            <div id="console-ndef" class="font-mono text-xs text-gray-300 break-all min-h-[1.5em]">${safe("Tap a card to inspect\u2026")}</div>
           </div>
           <div id="console-lnurlw" class="rounded-xl border border-gray-800 bg-gray-900/80 p-4 mt-3">
             <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">LNURLW Details</div>
-            <div id="console-lnurlw-details" class="text-sm text-gray-400 min-h-[1.5em]">Waiting for NFC scan\u2026</div>
+            <div id="console-lnurlw-details" class="text-sm text-gray-400 min-h-[1.5em]">${safe("Waiting for NFC scan\u2026")}</div>
           </div>
           <div class="mt-3 flex flex-col gap-3 sm:flex-row">
             <input type="text" id="console-invoice" class="flex-1 rounded-xl border border-gray-700 bg-gray-950 px-4 py-3 text-sm text-gray-100 placeholder:text-gray-500 focus:border-cyan-500 focus:outline-none" placeholder="Paste BOLT11 invoice or scan QR" />
@@ -98,7 +107,7 @@ export function renderDebugConsolePage({ host, baseUrl }) {
         <div class="debug-panel hidden" id="panel-identify">
           <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-4">
             <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Card Identification</div>
-            <div id="identify-details" class="text-sm text-gray-400 min-h-[3em]">Tap a card to identify it\u2026</div>
+            <div id="identify-details" class="text-sm text-gray-400 min-h-[3em]">${safe("Tap a card to identify it\u2026")}</div>
           </div>
           <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-4 mt-3">
             <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Raw API Response</div>
@@ -111,7 +120,7 @@ export function renderDebugConsolePage({ host, baseUrl }) {
           <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-4 text-center">
             <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Single-Card Wipe</div>
             <p class="text-sm text-gray-400 mb-4">Tap a card, then generate a wipe deeplink + QR to reprogram it.</p>
-            <div id="wipe-status" class="text-sm text-gray-500 mb-4">Waiting for card tap\u2026</div>
+            <div id="wipe-status" class="text-sm text-gray-500 mb-4">${safe("Waiting for card tap\u2026")}</div>
             <button id="wipe-generate-btn" class="hidden w-full rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Generate Wipe Data</button>
           </div>
           <div id="wipe-output" class="hidden rounded-xl border border-gray-800 bg-gray-900/80 p-4 mt-3">
@@ -161,7 +170,7 @@ export function renderDebugConsolePage({ host, baseUrl }) {
             <div id="pos-status" class="mt-3 hidden rounded-xl border px-4 py-3 text-sm font-semibold"></div>
           </div>
           <div class="mt-3 text-center">
-            <a href="/operator/pos" class="text-xs text-gray-500 hover:text-cyan-300 transition">Open full POS terminal \u2192</a>
+            <a href="/operator/pos" class="text-xs text-gray-500 hover:text-cyan-300 transition">${safe("Open full POS terminal \u2192")}</a>
           </div>
         </div>
 
@@ -565,8 +574,54 @@ export function renderDebugConsolePage({ host, baseUrl }) {
         this.textContent = jsonBox.classList.contains('hidden') ? 'Show raw JSON' : 'Hide raw JSON';
       });
 
+      function handleManualUrl() {
+        var input = document.getElementById('manual-url');
+        var url = input.value.trim();
+        if (!url) return;
+        try {
+          var u = new URL(url);
+          var p = u.searchParams.get('p');
+          var c = u.searchParams.get('c');
+          if (!p || !c) { showError('URL must contain p and c parameters'); return; }
+          input.value = '';
+          clearError();
+          var activePanel = document.querySelector('.debug-panel:not(.hidden)');
+          if (!activePanel) return;
+          var tabId = activePanel.id.replace('panel-', '');
+          var handlers = {
+            console: handleConsoleTab,
+            identify: handleIdentifyTab,
+            wipe: handleWipeTab,
+            twofa: handleTwofaTab,
+            identity: handleIdentityTab,
+            pos: handlePosTab
+          };
+          lastP = p;
+          lastC = c;
+          if (handlers[tabId]) handlers[tabId]({ uid: null, nfcUrl: url, p: p, c: c });
+        } catch (e) { showError('Invalid URL format'); }
+      }
+
+      document.getElementById('manual-load-btn').addEventListener('click', handleManualUrl);
+      document.getElementById('manual-url').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') handleManualUrl();
+      });
+
       initTabs();
       initNfc();
+
+      var nfcStatusEl = document.getElementById('nfc-status');
+      if (nfcStatusEl) {
+        if (!browserSupportsNfc()) {
+          nfcStatusEl.classList.remove('hidden');
+          nfcStatusEl.textContent = 'Web NFC not available in this browser. Use the manual URL input below.';
+        }
+      }
+
+      var activePanel = document.querySelector('.debug-panel:not(.hidden)');
+      if (activePanel && activePanel.id === 'panel-console' && browserSupportsNfc()) {
+        scanBtn.click();
+      }
     </script>
   `;
 

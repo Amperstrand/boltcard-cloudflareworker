@@ -717,4 +717,43 @@ describe("CardReplayDO SQL logic", () => {
       expect(balance).toBe(0);
     });
   });
+
+  describe("schema migration (ALTER TABLE)", () => {
+    it("adds provenance columns to old card_state schema", () => {
+      const db2 = new Database(":memory:");
+      db2.pragma("journal_mode = WAL");
+      db2.exec(`CREATE TABLE card_state (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        state TEXT NOT NULL DEFAULT 'new',
+        latest_issued_version INTEGER NOT NULL DEFAULT 0,
+        active_version INTEGER,
+        activated_at INTEGER,
+        terminated_at INTEGER,
+        keys_delivered_at INTEGER,
+        wipe_keys_fetched_at INTEGER,
+        balance INTEGER NOT NULL DEFAULT 0
+      )`);
+      db2.exec(`INSERT INTO card_state (singleton, state, balance) VALUES (1, 'active', 1000)`);
+
+      db2.exec(`ALTER TABLE card_state ADD COLUMN key_provenance TEXT`);
+      db2.exec(`ALTER TABLE card_state ADD COLUMN key_fingerprint TEXT`);
+      db2.exec(`ALTER TABLE card_state ADD COLUMN key_label TEXT`);
+      db2.exec(`ALTER TABLE card_state ADD COLUMN first_seen_at INTEGER`);
+
+      const row = db2.prepare("SELECT state, balance, key_provenance, first_seen_at FROM card_state WHERE singleton = 1").get();
+      expect(row.state).toBe("active");
+      expect(row.balance).toBe(1000);
+      expect(row.key_provenance).toBeNull();
+      expect(row.first_seen_at).toBeNull();
+
+      const now = nowSec();
+      db2.prepare(`UPDATE card_state SET key_provenance = ?, first_seen_at = ? WHERE singleton = 1`).run("public_issuer", now);
+
+      const row1b = db2.prepare("SELECT key_provenance, first_seen_at FROM card_state WHERE singleton = 1").get();
+      expect(row1b.key_provenance).toBe("public_issuer");
+      expect(row1b.first_seen_at).toBe(now);
+
+      db2.close();
+    });
+  });
 });

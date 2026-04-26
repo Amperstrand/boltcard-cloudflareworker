@@ -63,6 +63,10 @@ export class CardReplayDO extends DurableObject {
       } catch (e) {
         // Column already exists — expected on subsequent initializations
       }
+      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN key_provenance TEXT`); } catch (e) {}
+      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN key_fingerprint TEXT`); } catch (e) {}
+      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN key_label TEXT`); } catch (e) {}
+      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN first_seen_at INTEGER`); } catch (e) {}
       this.sql.exec(`
         CREATE TABLE IF NOT EXISTS transactions (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
