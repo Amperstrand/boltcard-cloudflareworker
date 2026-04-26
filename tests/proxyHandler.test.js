@@ -125,4 +125,45 @@ describe("handleProxy", () => {
     expect(res.status).toBe(200);
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
+
+  it("filters sensitive request headers from upstream", async () => {
+    const req = new Request("https://test.local/", {
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": "session=secret123",
+        "Authorization": "Bearer token",
+        "X-CSRF-Token": "abc",
+        "User-Agent": "test",
+      },
+    });
+    await handleProxy(req, UID, "p", "c", "https://backend.example.com/tap", {});
+
+    const proxiedReq = globalThis.fetch.mock.calls[0][0];
+    expect(proxiedReq.headers.get("Content-Type")).toBe("application/json");
+    expect(proxiedReq.headers.get("User-Agent")).toBe("test");
+    expect(proxiedReq.headers.get("Cookie")).toBeNull();
+    expect(proxiedReq.headers.get("Authorization")).toBeNull();
+    expect(proxiedReq.headers.get("X-CSRF-Token")).toBeNull();
+  });
+
+  it("filters upstream response headers", async () => {
+    globalThis.fetch = jest.fn().mockResolvedValue(
+      new Response("OK", {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "X-Powered-By": "Express",
+          "Server": "nginx/1.0",
+          "X-BoltCard-Custom": "allowed",
+        },
+      })
+    );
+
+    const req = new Request("https://test.local/");
+    const res = await handleProxy(req, UID, "p", "c", "https://backend.example.com/tap", {});
+    expect(res.headers.get("Content-Type")).toBe("application/json");
+    expect(res.headers.get("X-BoltCard-Custom")).toBe("allowed");
+    expect(res.headers.get("X-Powered-By")).toBeNull();
+    expect(res.headers.get("Server")).toBeNull();
+  });
 });

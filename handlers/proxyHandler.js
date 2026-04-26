@@ -1,6 +1,31 @@
 import { logger } from "../utils/logger.js";
 import { errorResponse } from "../utils/responses.js";
 
+const ALLOWED_REQUEST_HEADERS = [
+  "content-type",
+  "accept",
+  "user-agent",
+  "accept-language",
+];
+
+const ALLOWED_RESPONSE_HEADERS = [
+  "content-type",
+  "content-length",
+  "cache-control",
+  "x-boltcard-",
+];
+
+function filterHeaders(headers, allowList) {
+  const filtered = new Headers();
+  for (const [key, value] of headers.entries()) {
+    const lower = key.toLowerCase();
+    if (allowList.some(allowed => lower.startsWith(allowed))) {
+      filtered.set(key, value);
+    }
+  }
+  return filtered;
+}
+
 export async function handleProxy(request, uidHex, pHex, cHex, baseurl, verification = {}) {
   const targetUrl = new URL(baseurl);
   targetUrl.searchParams.append('p', pHex);
@@ -28,7 +53,7 @@ export async function handleProxy(request, uidHex, pHex, cHex, baseurl, verifica
     logger.error("Error reading proxy request body", { uidHex, error: error.message });
   }
 
-  const proxyHeaders = new Headers(request.headers);
+  const proxyHeaders = filterHeaders(request.headers, ALLOWED_REQUEST_HEADERS);
   proxyHeaders.set("X-BoltCard-UID", uidHex);
   proxyHeaders.set("X-BoltCard-CMAC-Validated", String(!!verification.cmacValidated));
   proxyHeaders.set("X-BoltCard-CMAC-Deferred", String(!!verification.validationDeferred));
@@ -52,7 +77,7 @@ export async function handleProxy(request, uidHex, pHex, cHex, baseurl, verifica
 
     return new Response(responseBody, {
       status: proxiedResponse.status,
-      headers: proxiedResponse.headers,
+      headers: filterHeaders(proxiedResponse.headers, ALLOWED_RESPONSE_HEADERS),
     });
 
   } catch (error) {
