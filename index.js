@@ -24,7 +24,7 @@ import { jsonResponse, errorResponse } from "./utils/responses.js";
 import { checkRateLimit } from "./rateLimiter.js";
 import { requireOperator, buildCsrfCookie, CSRF_COOKIE_NAME } from "./middleware/operatorAuth.js";
 import { getRequestOrigin } from "./utils/validation.js";
-import { getCookieValue } from "./utils/cookies.js";
+import { getCookieValue, constantTimeEqual } from "./utils/cookies.js";
 import { handleOperatorLoginPage, handleOperatorLogin, handleOperatorLogout } from "./handlers/operatorLoginHandler.js";
 import { handleTopupPage, handleTopupApply } from "./handlers/topupHandler.js";
 import { handlePosCharge } from "./handlers/posChargeHandler.js";
@@ -53,7 +53,7 @@ function withOperatorAuth(handler) {
       const csrfHeader = request.headers.get("X-CSRF-Token");
 
       const skipCsrf = env && env.__TEST_OPERATOR_SESSION && env.WORKER_ENV !== "production";
-      if (!skipCsrf && (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader)) {
+      if (!skipCsrf && (!csrfCookie || !csrfHeader || !constantTimeEqual(csrfCookie, csrfHeader))) {
         return errorResponse("CSRF validation failed", 403);
       }
     }
@@ -136,6 +136,7 @@ router.get("/api/keys", withOperatorAuth((request, env) => handleGetKeys(request
 router.post("/api/keys", withOperatorAuth((request, env) => handleGetKeys(request, env)));
 router.all("/api/v1/pull-payments/:pullPaymentId/boltcards", withOperatorAuth((request, env) => fetchBoltCardKeys(request, env)));
 router.get("/api/bulk-wipe-keys", withOperatorAuth((request, env) => handleBulkWipeKeys(request, env)));
+router.post("/api/bulk-wipe-keys", withOperatorAuth((request, env) => handleBulkWipeKeys(request, env)));
 router.get("/identity", (request) => handleIdentityPage(request));
 
 // 302 redirects from short paths to /experimental/
@@ -182,6 +183,7 @@ router.all("*", (request) => {
 });
 
 const SECURITY_HEADERS = {
+  "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'",
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
   "Referrer-Policy": "strict-origin-when-cross-origin",

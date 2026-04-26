@@ -1,7 +1,7 @@
 import { base64url } from "@scure/base";
 import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
-import { getCookieValue } from "../utils/cookies.js";
+import { getCookieValue, constantTimeEqual } from "../utils/cookies.js";
 import { OPERATOR_SESSION_MAX_AGE, OPERATOR_CSRF_MAX_AGE } from "../utils/constants.js";
 
 const COOKIE_NAME = "op_session";
@@ -22,16 +22,6 @@ function hmacSign(key, data) {
 function hmacVerify(key, data, sig) {
   const expected = hmacSign(key, data);
   return constantTimeEqual(expected, sig);
-}
-
-function constantTimeEqual(a, b) {
-  if (typeof a !== "string" || typeof b !== "string") return false;
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
 }
 
 function constantTimeComparePin(provided, expected) {
