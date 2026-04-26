@@ -10,6 +10,7 @@ function indexKey(uidHex) {
 export async function indexCard(env, uidHex, metadata) {
   if (!env?.UID_CONFIG || !uidHex) return;
   try {
+    const key = indexKey(uidHex);
     const record = {
       uid: uidHex.toLowerCase(),
       state: metadata.state || "unknown",
@@ -20,7 +21,7 @@ export async function indexCard(env, uidHex, metadata) {
       balance: metadata.balance ?? 0,
       updatedAt: Date.now(),
     };
-    await env.UID_CONFIG.put(indexKey(uidHex), JSON.stringify(record), {
+    await env.UID_CONFIG.put(key, JSON.stringify(record), {
       expirationTtl: TTL_SECONDS,
     });
   } catch (e) {

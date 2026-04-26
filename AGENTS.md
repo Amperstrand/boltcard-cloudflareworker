@@ -134,6 +134,8 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | POST | `/operator/login` | `handleOperatorLogin()` | Operator PIN verify |
 | POST | `/operator/logout` | `handleOperatorLogout()` | Operator session logout |
 | GET | `/operator` | redirect → `/operator/pos` | Operator dashboard |
+| GET | `/operator/cards` | `handleCardAuditPage()` | Card registry audit page |
+| GET | `/operator/cards/data` | `handleCardAuditData()` | Card registry data (JSON) |
 | GET | `/operator/pos` | `handlePosPage()` | POS terminal |
 | POST | `/operator/pos/charge` | `handlePosCharge()` | POS charge submit |
 | GET | `/operator/pos/menu` | `handleMenuEditorPage()` | Menu editor page |
@@ -175,6 +177,8 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 - `checkReplayAndRecordTap()` from `handlers/lnurlwHandler.js` for replay check + tap recording (shared by proxy and fakewallet/clnrest paths)
 - `discoverUnknownCard()` from `handlers/lnurlwHandler.js` for auto-discovery of unknown cards via CMAC scan across all issuer key candidates
 - `markPending()` and `discoverCard()` from `replayProtection.js` for DO row creation during key fetch and first tap
+- `indexCard()`, `deindexCard()`, `getIndexedCard()`, `listIndexedCards()` from `utils/cardIndex.js` for KV-backed card registry (prefix `card_idx:`, TTL 7 days)
+- `replayProtection.js` calls `await indexCard()` on all 6 state transitions: `markPending`, `discoverCard`, `deliverKeys`, `activateCard`, `terminateCard`, `requestWipe`
 - `getCardProgrammingEndpoint()` from `handlers/loginActions.js` for card config → pull payment → programming endpoint lookup (shared by 4 call sites)
 - `safeGetBalance()` local to `handlers/loginHandler.js` — graceful balance fetch fallback
 - All DO callers must wrap in try/catch with specific error messages (see #10 audit)
@@ -188,8 +192,8 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 
 - Run: `npm test` (uses Jest with `--experimental-vm-modules`)
 - Deploy: `npm run deploy` (tests → build_keys → wrangler deploy)
-- **952 tests** across 54 test suites (as of 2026-04-26)
-- Coverage: ~87% statements, ~79% branches, ~85% functions
+- **998 tests** across 56 test suites (as of 2026-04-26)
+- Coverage: ~86% statements, ~79% branches, ~85% functions
 
 ## Test Inventory
 
@@ -246,7 +250,9 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | `tests/bulkWipePageHandler.test.js` | Bulk wipe page rendering with key fingerprints | |
 | `tests/withdrawHandler.test.js` | Withdraw response: CMAC-failed, fakewallet/clnrest amounts | |
 | `tests/cardReplayDO.test.js` | DO SQL logic via better-sqlite3 (counter, taps, state, config, balance, analytics, provenance, discovery) | |
-| `tests/cardDashboardHandler.test.js` | Cardholder dashboard: page rendering, info API, provenance banner, state handling | |
+| `tests/cardDashboardHandler.test.js` | Cardholder dashboard: page rendering, info API, provenance banner, state handling, NFC/manual input | |
+| `tests/cardIndex.test.js` | KV card registry: indexCard, deindexCard, getIndexedCard, listIndexedCards, edge cases | |
+| `tests/cardAuditHandler.test.js` | Operator audit page: auth redirect, data endpoint, state filtering | |
 
 ## Test-Only Exports
 
