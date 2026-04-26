@@ -477,6 +477,7 @@ npm run deploy                        # tests → build_keys → wrangler deploy
 | Operator pages redirect to login | Session expired (12h) | Re-enter PIN |
 | Web NFC not working | Browser/device unsupported | Use Chrome on Android, or USB reader on desktop |
 | USB reader not working | Not in keyboard-wedge mode | Check reader docs, install drivers |
+| `wrangler kv key get` shows empty | KV cross-edge propagation delay | KV writes are immediately visible to the worker (same edge); the CLI reads from a different edge with 60+ second delay. Use `/operator/cards` to verify instead. |
 
 ## Dependencies — Known Quirks
 
