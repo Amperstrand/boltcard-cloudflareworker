@@ -5,6 +5,8 @@ import { logger } from "../utils/logger.js";
 import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { renderIdentityPage } from "../templates/identityPage.js";
 import { buildMaskedUid } from "../utils/validation.js";
+import { getCardState } from "../replayProtection.js";
+import { KEY_PROVENANCE } from "../utils/constants.js";
 
 const IDENTITY_EMOJI_OPTIONS = ["👤", "😀", "😎", "🤖", "🧠", "🚀", "🦊", "🦄", "🐸", "🦉", "⚡", "🔥"];
 
@@ -116,9 +118,26 @@ export async function handleIdentityVerify(request, env) {
   const maskedUid = buildMaskedUid(uidHex);
   const profile = buildIdentityProfile(uidHex, record);
 
-  logger.info("Identity verified", { uidHex, counterValue });
+  let keyProvenance = null;
+  let programmingRecommended = false;
+  try {
+    const cardState = await getCardState(env, uidHex);
+    keyProvenance = cardState.key_provenance || null;
+    programmingRecommended = keyProvenance === KEY_PROVENANCE.PUBLIC_ISSUER;
+  } catch (e) {
+    logger.warn("Card state lookup failed in identity verify", { uidHex, error: e.message });
+  }
 
-  return jsonResponse({ verified: true, uid: uidHex, maskedUid, profile });
+  logger.info("Identity verified", { uidHex, counterValue, keyProvenance });
+
+  return jsonResponse({
+    verified: true,
+    uid: uidHex,
+    maskedUid,
+    profile,
+    keyProvenance,
+    programmingRecommended,
+  });
 }
 
 export async function handleIdentityProfileUpdate(request, env) {

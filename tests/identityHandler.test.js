@@ -36,6 +36,8 @@ describe("handleIdentityVerify", () => {
     expect(body.maskedUid).toContain("···");
     expect(body.profile).toBeDefined();
     expect(body.profile.emoji).toBe("🚀");
+    expect(body.keyProvenance).toBeDefined();
+    expect(body.programmingRecommended).toBeDefined();
   });
 
   it("returns verified:false for card not in KV", async () => {
