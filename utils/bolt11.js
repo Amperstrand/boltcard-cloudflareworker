@@ -43,8 +43,6 @@ export function decodeBolt11Amount(invoice) {
   return value * MILLISATS_PER_BTC;
 }
 
-const BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
-
 function convertBits(data, fromBits, toBits, pad) {
   let acc = 0;
   let bits = 0;
@@ -80,7 +78,10 @@ function encodeInt5Bit(value, totalBits) {
   return words;
 }
 
-// BOLT #11 tag type codes: 1=p(payment_hash), 13=d(description), 6=x(expiry)
+// BOLT #11 tag type codes
+// 1=p(payment_hash), 13=d(description), 6=x(expiry),
+// 16=s(payment_secret), 9=9(features), 24=c(min_final_cltv_expiry)
+// Tag length is encoded as two 5-bit values: high5 || low5
 function encodeTag(typeCode, data) {
   const words = bytesTo5Bit(data);
   return [typeCode, (words.length >> 5) & 0x1f, words.length & 0x1f, ...words];
@@ -125,15 +126,22 @@ function randomHex(bytes) {
  *   1  = payment_hash (p)
  *   13 = description (d)
  *   6  = expiry (x)
+ *   16 = payment_secret (s)
+ *   9  = features (9)
+ *   24 = min_final_cltv_expiry (c)
  *
  * The invoice is properly signed with a random secp256k1 key so any
  * bolt11 decoder can extract the payee pubkey and verify the signature.
  * The payee node does not exist on any Lightning network.
  *
+ * Per BOLT #11, the signing message is:
+ *   SHA256(UTF8(hrp) || 5bit_to_8bit(dataWithoutSig))
+ *
  * @param {number} amountMsat
+ * @param {{ description?: string, paymentSecret?: string }} [options]
  * @returns {string} bolt11 invoice starting with "lnbc"
  */
-export function generateFakeBolt11(amountMsat) {
+export function generateFakeBolt11(amountMsat, { description, paymentSecret } = {}) {
   if (!Number.isInteger(amountMsat) || amountMsat <= 0) {
     throw new Error(`generateFakeBolt11: amountMsat must be a positive integer, got ${amountMsat}`);
   }
@@ -144,21 +152,40 @@ export function generateFakeBolt11(amountMsat) {
 
   const paymentHashTag = encodeTag(1, hexToBytes(randomHex(32)));
 
-  const descriptionTag = encodeTag(13, new TextEncoder().encode("fakewallet payment"));
+  const descText = description || "fakewallet payment";
+  const descriptionTag = encodeTag(13, new TextEncoder().encode(descText));
 
   const expiryBuf = new Uint8Array(2);
   expiryBuf[0] = (3600 >> 8) & 0xff;
   expiryBuf[1] = 3600 & 0xff;
   const expiryTag = encodeTag(6, expiryBuf);
 
-  const dataWithoutSig = [...tsWords, ...paymentHashTag, ...descriptionTag, ...expiryTag];
+  // payment_secret (tag 16): 32 random bytes
+  const secretHex = paymentSecret || randomHex(32);
+  const secretTag = encodeTag(16, hexToBytes(secretHex));
 
-  const hrpWords = [];
-  for (const ch of hrp) {
-    hrpWords.push(BECH32_CHARSET.indexOf(ch.toLowerCase()));
-  }
-  const msgBytes = fiveBitToBytes([...hrpWords, ...dataWithoutSig]);
-  const msgHash = sha256(new Uint8Array(msgBytes));
+  // features (tag 9): bit 8 = basic_mpp, bit 14 = payment_secret (both supported/even)
+  // byte[1] = 0x41 (bit 14 at position 6, bit 8 at position 0), trimmed = [0x41]
+  const featuresTag = encodeTag(9, new Uint8Array([0x41]));
+
+  // min_final_cltv_expiry (tag 24): 9 blocks (default), single 5-bit word
+  const cltvTag = [24, 0, 1, 9];
+
+  const dataWithoutSig = [
+    ...tsWords,
+    ...paymentHashTag,
+    ...descriptionTag,
+    ...expiryTag,
+    ...secretTag,
+    ...featuresTag,
+    ...cltvTag,
+  ];
+
+  // BOLT #11: signing message = SHA256(UTF8(hrp) || 5bit_to_8bit(dataWithoutSig))
+  const hrpBytes = new TextEncoder().encode(hrp);
+  const dataBytes = fiveBitToBytes(dataWithoutSig);
+  const msgBytes = new Uint8Array([...hrpBytes, ...dataBytes]);
+  const msgHash = sha256(msgBytes);
 
   const privKey = hexToBytes(randomHex(32));
   const sigRecovered = secp.sign(msgHash, privKey, { format: "recovered" });
@@ -168,11 +195,11 @@ export function generateFakeBolt11(amountMsat) {
 
   // BOLT #11: signature field is 104 five-bit words = 65 bytes.
   // Byte layout: r(32) || s(32) || footer(1).
-  // Footer: bit 0 = recovery flag, bits 1-4 must be 0.
+  // Footer: bits 0-1 = recovery flag, bits 2-7 must be 0.
   const sigBytes = new Uint8Array(65);
   sigBytes.set(r, 0);
   sigBytes.set(s, 32);
-  sigBytes[64] = recovery & 0x01;
+  sigBytes[64] = recovery & 0x03;
 
   const sigWords = bytesTo5Bit(sigBytes);
   const dataWords = [...dataWithoutSig, ...sigWords];
