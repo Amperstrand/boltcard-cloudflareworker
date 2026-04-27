@@ -534,7 +534,6 @@ export class CardReplayDO extends DurableObject {
        VALUES (1, 'terminated', 0, ?, 0)
        ON CONFLICT(singleton) DO UPDATE SET
            state = 'terminated',
-           latest_issued_version = 0,
            terminated_at = excluded.terminated_at
        RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance, key_provenance, key_fingerprint, key_label, first_seen_at`,
       now

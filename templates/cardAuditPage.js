@@ -33,6 +33,7 @@ export function renderCardAuditPage() {
           <button type="button" id="btn-batch-terminate" class="px-3 py-1.5 text-xs rounded font-bold bg-red-700 hover:bg-red-600 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed" disabled>Terminate</button>
           <button type="button" id="btn-batch-wipe" class="px-3 py-1.5 text-xs rounded font-bold bg-orange-700 hover:bg-orange-600 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed" disabled>Wipe</button>
           <button type="button" id="btn-batch-activate" class="px-3 py-1.5 text-xs rounded font-bold bg-emerald-700 hover:bg-emerald-600 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed" disabled>Activate</button>
+          <button type="button" id="btn-batch-reprovision" class="px-3 py-1.5 text-xs rounded font-bold bg-amber-700 hover:bg-amber-600 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed" disabled>Re-provision</button>
         </div>
       </div>
     </div>
@@ -134,6 +135,7 @@ export function renderCardAuditPage() {
       document.getElementById('btn-batch-terminate').disabled = count === 0;
       document.getElementById('btn-batch-wipe').disabled = count === 0;
       document.getElementById('btn-batch-activate').disabled = count === 0;
+      document.getElementById('btn-batch-reprovision').disabled = count === 0;
       if (count > 0) {
         bar.classList.remove('hidden');
       } else {
@@ -230,7 +232,7 @@ export function renderCardAuditPage() {
     async function batchAction(action) {
       if (selectedUids.size === 0) return;
       var uids = Array.from(selectedUids);
-      var btnMap = { terminate: 'btn-batch-terminate', wipe: 'btn-batch-wipe', activate: 'btn-batch-activate' };
+      var btnMap = { terminate: 'btn-batch-terminate', wipe: 'btn-batch-wipe', activate: 'btn-batch-activate', reprovision: 'btn-batch-reprovision' };
       var btn = document.getElementById(btnMap[action]);
       var origText = btn.textContent;
       btn.textContent = 'Working...';
@@ -327,6 +329,7 @@ export function renderCardAuditPage() {
     document.getElementById('btn-batch-terminate').addEventListener('click', function() { batchAction('terminate'); });
     document.getElementById('btn-batch-wipe').addEventListener('click', function() { batchAction('wipe'); });
     document.getElementById('btn-batch-activate').addEventListener('click', function() { batchAction('activate'); });
+    document.getElementById('btn-batch-reprovision').addEventListener('click', function() { batchAction('reprovision'); });
 
     loadCards(false);
   </script>

@@ -1,11 +1,11 @@
 import { jsonResponse, errorResponse } from "../utils/responses.js";
-import { terminateCard, requestWipe, getCardState } from "../replayProtection.js";
+import { terminateCard, requestWipe, getCardState, deliverKeys } from "../replayProtection.js";
 import { validateUid } from "../utils/validation.js";
 import { CARD_STATE } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
 import { recordAuditEvent } from "../utils/auditLog.js";
 
-const VALID_ACTIONS = ["terminate", "wipe", "activate"];
+const VALID_ACTIONS = ["terminate", "wipe", "activate", "reprovision"];
 
 export async function handleCardBatchAction(request, env, session) {
   if (request.method !== "POST") {
@@ -76,6 +76,14 @@ export async function handleCardBatchAction(request, env, session) {
           results.push({ uid, status: "skipped", reason: `cannot activate card in ${cardState.state} state` });
           continue;
         }
+      } else if (action === "reprovision") {
+        if (cardState.state !== CARD_STATE.TERMINATED) {
+          results.push({ uid, status: "skipped", reason: `card must be terminated to re-provision (state: ${cardState.state})` });
+          continue;
+        }
+        const delivered = await deliverKeys(env, uid);
+        const newVersion = delivered.latest_issued_version || delivered.version || (cardState.latest_issued_version || 0) + 1;
+        results.push({ uid, status: "reprovisioned", version: newVersion });
       }
     } catch (err) {
       logger.error("Batch action failed for card", { uid, action, error: err.message });

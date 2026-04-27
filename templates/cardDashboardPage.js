@@ -117,19 +117,38 @@ export function renderCardDashboardPage() {
         </div>
       </div>
 
-      <div id="lock-section" class="hidden mb-4">
-        <button id="btn-lock" type="button" class="w-full bg-red-900/50 hover:bg-red-800/50 border border-red-600/50 text-red-300 font-bold py-3 px-4 rounded-lg text-sm transition-colors">
-          Lock Card
-        </button>
-        <div id="lock-confirm" class="hidden bg-red-900/30 border border-red-600/50 rounded-lg p-4 mt-2">
-          <p class="text-red-200 text-sm mb-3">This will permanently lock your card. You will not be able to use it again. An operator can re-activate it later.</p>
-          <div class="flex gap-3">
-            <button id="btn-lock-confirm" type="button" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded text-sm transition-colors">Confirm Lock</button>
-            <button id="btn-lock-cancel" type="button" class="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-200 font-bold py-2 px-4 rounded text-sm transition-colors">Cancel</button>
-          </div>
-        </div>
-        <div id="lock-status" class="hidden mt-2 text-center text-sm"></div>
-      </div>
+       <div id="lock-section" class="hidden mb-4">
+         <button id="btn-lock" type="button" class="w-full bg-red-900/50 hover:bg-red-800/50 border border-red-600/50 text-red-300 font-bold py-3 px-4 rounded-lg text-sm transition-colors">
+           Lock Card
+         </button>
+         <div id="lock-confirm" class="hidden bg-red-900/30 border border-red-600/50 rounded-lg p-4 mt-2">
+           <p class="text-red-200 text-sm mb-3">This will permanently lock your card. You will not be able to use it again. You can re-activate it later by tapping your card again.</p>
+           <div class="flex gap-3">
+             <button id="btn-lock-confirm" type="button" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded text-sm transition-colors">Confirm Lock</button>
+             <button id="btn-lock-cancel" type="button" class="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-200 font-bold py-2 px-4 rounded text-sm transition-colors">Cancel</button>
+           </div>
+         </div>
+         <div id="lock-status" class="hidden mt-2 text-center text-sm"></div>
+       </div>
+
+       <div id="reactivate-section" class="hidden mb-4">
+         <div class="bg-amber-900/30 border border-amber-600/50 rounded-lg p-4 mb-3">
+           <p class="text-amber-200 text-sm mb-1">This card is locked.</p>
+           <p class="text-amber-300/80 text-xs">Re-activating will generate new keys and advance to version <span id="reactivate-version">N+1</span>. You will need to write the new keys to your card via NFC.</p>
+         </div>
+         <div id="reactivate-scan" class="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center">
+           <p class="text-gray-400 text-sm mb-3">Tap your card to verify ownership</p>
+           <div id="reactivate-scan-status" class="text-gray-500 text-xs"></div>
+           <div id="reactivate-scan-error" class="hidden text-red-400 text-xs mt-2"></div>
+         </div>
+         <div id="reactivate-status" class="hidden mt-2 text-center text-sm"></div>
+         <div id="reactivate-success" class="hidden bg-emerald-900/30 border border-emerald-600/50 rounded-lg p-4 mt-3">
+           <p class="text-emerald-200 text-sm mb-2">New keys generated (version <span id="reactivate-new-version"></span>)</p>
+           <a id="reactivate-program-link" href="/experimental/activate" class="inline-block bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded text-sm transition-colors">
+             Program Card
+           </a>
+         </div>
+       </div>
 
       <div class="mt-4 text-center">
         <button id="btn-refresh" type="button" class="text-gray-500 hover:text-gray-300 text-xs transition-colors">
@@ -364,6 +383,19 @@ export function renderCardDashboardPage() {
         document.getElementById('lock-confirm').classList.add('hidden');
         document.getElementById('lock-status').classList.add('hidden');
 
+        var isTerminated = data.state === 'terminated';
+        if (isTerminated && data.reactivationAvailable) {
+          document.getElementById('reactivate-section').classList.remove('hidden');
+          var nextVer = (data.currentVersion || 1) + 1;
+          document.getElementById('reactivate-version').textContent = nextVer;
+          document.getElementById('reactivate-success').classList.add('hidden');
+          document.getElementById('reactivate-scan').classList.remove('hidden');
+          document.getElementById('reactivate-scan-status').textContent = '';
+          document.getElementById('reactivate-scan-error').classList.add('hidden');
+        } else {
+          document.getElementById('reactivate-section').classList.add('hidden');
+        }
+
         var newUrl = window.location.pathname + '?p=' + encodeURIComponent(p) + '&c=' + encodeURIComponent(c);
         window.history.replaceState(null, '', newUrl);
 
@@ -521,6 +553,78 @@ export function renderCardDashboardPage() {
         btn.textContent = 'Confirm Lock';
       }
     });
+
+    var reactivateScanner = null;
+
+    function startReactivateScan() {
+      if (reactivateScanner) {
+        reactivateScanner.restart();
+      } else if (browserSupportsNfc()) {
+        reactivateScanner = createNfcScanner({
+          continuous: false,
+          debounceMs: 0,
+          onStatus: function(status) {
+            if (status === 'scanning') {
+              document.getElementById('reactivate-scan-status').textContent = 'Tap your card now...';
+            }
+          },
+          onError: function(err, phase) {
+            var el = document.getElementById('reactivate-scan-error');
+            if (phase === 'permission') {
+              el.textContent = 'NFC not available. Use an operator to re-provision.';
+            } else {
+              el.textContent = 'NFC error: ' + (err.message || 'unknown');
+            }
+            el.classList.remove('hidden');
+          },
+          onTap: function(data) {
+            if (!data.url) {
+              document.getElementById('reactivate-scan-error').textContent = 'Card did not contain a valid URL';
+              document.getElementById('reactivate-scan-error').classList.remove('hidden');
+              return;
+            }
+            var params = extractParams(data.url);
+            if (params) {
+              document.getElementById('reactivate-scan-error').classList.add('hidden');
+              document.getElementById('reactivate-scan-status').textContent = 'Verifying...';
+              submitReactivate(params.p, params.c);
+            } else {
+              document.getElementById('reactivate-scan-error').textContent = 'Invalid card URL';
+              document.getElementById('reactivate-scan-error').classList.remove('hidden');
+            }
+          }
+        });
+        reactivateScanner.scan();
+      } else {
+        document.getElementById('reactivate-scan-status').textContent = 'NFC not available on this device. Ask an operator to re-provision your card.';
+      }
+    }
+
+    async function submitReactivate(p, c) {
+      try {
+        var resp = await fetch('/api/card/reactivate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ p: p, c: c }),
+        });
+        var data = await resp.json();
+        if (resp.ok && data.success) {
+          document.getElementById('reactivate-scan').classList.add('hidden');
+          document.getElementById('reactivate-success').classList.remove('hidden');
+          document.getElementById('reactivate-new-version').textContent = data.version;
+          if (data.uid) {
+            document.getElementById('reactivate-program-link').href = '/experimental/activate?uid=' + encodeURIComponent(data.uid);
+          }
+        } else {
+          document.getElementById('reactivate-scan-status').textContent = '';
+          document.getElementById('reactivate-scan-error').textContent = data.reason || data.error || 'Re-activation failed';
+          document.getElementById('reactivate-scan-error').classList.remove('hidden');
+        }
+      } catch (err) {
+        document.getElementById('reactivate-scan-error').textContent = 'Network error';
+        document.getElementById('reactivate-scan-error').classList.remove('hidden');
+      }
+    }
 
     (function init() {
       var currentUrl = window.location.href;

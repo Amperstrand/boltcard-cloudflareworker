@@ -1,4 +1,4 @@
-import { handleCardPage, handleCardInfo, handleCardLock } from "../handlers/cardDashboardHandler.js";
+import { handleCardPage, handleCardInfo, handleCardLock, handleCardReactivate } from "../handlers/cardDashboardHandler.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { virtualTap, buildCardTestEnv } from "./testHelpers.js";
 
@@ -104,9 +104,9 @@ describe("handleCardInfo", () => {
   });
 
   describe("card states", () => {
-    it("returns terminated state without CMAC check", async () => {
-      const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, cardState: "active" });
-      setCardState(env, UID, { state: "terminated", key_provenance: null });
+    it("returns terminated state with reactivation info for valid CMAC", async () => {
+      const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
+      setCardState(env, UID, { state: "terminated", latest_issued_version: 3, active_version: 3 });
 
       const res = await handleCardInfo(makeTapRequest(UID, ISSUER_KEY, 1), env);
       expect(res.status).toBe(200);
@@ -114,10 +114,39 @@ describe("handleCardInfo", () => {
       const body = await res.json();
       expect(body.state).toBe("terminated");
       expect(body.programmingRecommended).toBe(false);
-      expect(body.balance).toBe(0);
       expect(body.history).toEqual([]);
       expect(body.analytics).toBeNull();
       expect(body.paymentMethod).toBeNull();
+      expect(body.reactivationAvailable).toBe(true);
+      expect(body.currentVersion).toBe(3);
+      expect(body.terminatedAt).toBeDefined();
+    });
+
+    it("returns terminated state with reactivationAvailable=false for invalid CMAC", async () => {
+      const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
+      setCardState(env, UID, { state: "terminated", latest_issued_version: 1 });
+
+      const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+      const { pHex } = virtualTap(UID, 1, keys.k1, keys.k2);
+      const req = new Request(`https://test.local/card/info?p=${pHex}&c=00000000000000000000000000000000`);
+
+      const res = await handleCardInfo(req, env);
+      expect(res.status).toBe(200);
+
+      const body = await res.json();
+      expect(body.state).toBe("terminated");
+      expect(body.reactivationAvailable).toBe(false);
+    });
+
+    it("returns terminated balance from DO", async () => {
+      const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet", balance: 5000 });
+      setCardState(env, UID, { state: "terminated", latest_issued_version: 1 });
+
+      const res = await handleCardInfo(makeTapRequest(UID, ISSUER_KEY, 1), env);
+      expect(res.status).toBe(200);
+
+      const body = await res.json();
+      expect(body.balance).toBe(5000);
     });
 
     it("returns info for discovered card", async () => {
@@ -422,6 +451,123 @@ describe("handleCardLock", () => {
     };
 
     const res = await handleCardLock(makeLockRequest(UID, ISSUER_KEY, 1), env);
+    expect(res.status).toBe(500);
+  });
+});
+
+describe("handleCardReactivate", () => {
+  function makeReactivateRequest(uid, issuerKey, counter) {
+    const keys = getDeterministicKeys(uid, { ISSUER_KEY: issuerKey }, 1);
+    const { pHex, cHex } = virtualTap(uid, counter, keys.k1, keys.k2);
+    return new Request("https://test.local/api/card/reactivate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ p: pHex, c: cHex }),
+    });
+  }
+
+  it("re-provisions a terminated card with version advance", async () => {
+    const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
+    setCardState(env, UID, { state: "terminated", latest_issued_version: 3, active_version: 3 });
+
+    const res = await handleCardReactivate(makeReactivateRequest(UID, ISSUER_KEY, 1), env);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.state).toBe("keys_delivered");
+    expect(body.uid).toBe(UID);
+    expect(body.version).toBe(4);
+
+    const state = env.CARD_REPLAY.__cardStates.get(UID);
+    expect(state.state).toBe("keys_delivered");
+    expect(state.latest_issued_version).toBe(4);
+  });
+
+  it("preserves balance across re-provisioning", async () => {
+    const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet", balance: 5000 });
+    setCardState(env, UID, { state: "terminated", latest_issued_version: 1 });
+
+    const res = await handleCardReactivate(makeReactivateRequest(UID, ISSUER_KEY, 1), env);
+    expect(res.status).toBe(200);
+
+    const state = env.CARD_REPLAY.__cardStates.get(UID);
+    expect(state.balance).toBe(5000);
+  });
+
+  it("rejects GET request", async () => {
+    const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY });
+    const req = new Request("https://test.local/api/card/reactivate", { method: "GET" });
+    const res = await handleCardReactivate(req, env);
+    expect(res.status).toBe(405);
+  });
+
+  it("rejects missing body", async () => {
+    const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY });
+    const req = new Request("https://test.local/api/card/reactivate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    const res = await handleCardReactivate(req, env);
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects non-terminated card", async () => {
+    const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
+
+    const res = await handleCardReactivate(makeReactivateRequest(UID, ISSUER_KEY, 1), env);
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body.reason).toContain("not terminated");
+  });
+
+  it("rejects invalid CMAC", async () => {
+    const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
+    setCardState(env, UID, { state: "terminated", latest_issued_version: 1 });
+
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const { pHex } = virtualTap(UID, 1, keys.k1, keys.k2);
+    const req = new Request("https://test.local/api/card/reactivate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ p: pHex, c: "00000000000000000000000000000000" }),
+    });
+    const res = await handleCardReactivate(req, env);
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects invalid card data", async () => {
+    const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY });
+    const req = new Request("https://test.local/api/card/reactivate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ p: "deadbeef", c: "cafe" }),
+    });
+    const res = await handleCardReactivate(req, env);
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 500 when deliverKeys fails", async () => {
+    const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
+    setCardState(env, UID, { state: "terminated", latest_issued_version: 1 });
+    const originalGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
+    env.CARD_REPLAY.get = (id) => {
+      const stub = originalGet(id);
+      const origFetch = stub.fetch;
+      return {
+        fetch: async (req) => {
+          const url = new URL(req.url);
+          if (String(id).toLowerCase() === UID && url.pathname === "/deliver-keys") {
+            return new Response("Internal error", { status: 500 });
+          }
+          return origFetch(req);
+        },
+      };
+    };
+
+    const res = await handleCardReactivate(makeReactivateRequest(UID, ISSUER_KEY, 1), env);
     expect(res.status).toBe(500);
   });
 });

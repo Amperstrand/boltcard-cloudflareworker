@@ -200,3 +200,64 @@ describe("handleCardBatchAction", () => {
     expect(r.status).toBe(400);
   });
 });
+
+describe("batch reprovision", () => {
+  it("re-provisions terminated cards with version advance", async () => {
+    const env = makeEnv();
+    const uid = "ff000000000001";
+    setCardState(env.CARD_REPLAY, uid, "terminated");
+    env.CARD_REPLAY.__cardStates.get(uid).latest_issued_version = 3;
+
+    const resp = await batchReq(env, { uids: [uid], action: "reprovision" });
+    expect(resp.status).toBe(200);
+
+    const body = await resp.json();
+    expect(body.results[0].status).toBe("reprovisioned");
+    expect(body.results[0].version).toBe(4);
+
+    const state = env.CARD_REPLAY.__cardStates.get(uid);
+    expect(state.state).toBe("keys_delivered");
+    expect(state.latest_issued_version).toBe(4);
+  });
+
+  it("skips non-terminated cards", async () => {
+    const env = makeEnv();
+    setCardState(env.CARD_REPLAY, "ff000000000001", "active");
+
+    const resp = await batchReq(env, { uids: ["ff000000000001"], action: "reprovision" });
+    expect(resp.status).toBe(200);
+
+    const body = await resp.json();
+    expect(body.results[0].status).toBe("skipped");
+    expect(body.results[0].reason).toContain("terminated");
+  });
+
+  it("handles mixed terminated and active cards", async () => {
+    const env = makeEnv();
+    const uid1 = "ff000000000001";
+    const uid2 = "ff000000000002";
+    setCardState(env.CARD_REPLAY, uid1, "terminated");
+    setCardState(env.CARD_REPLAY, uid2, "active");
+    env.CARD_REPLAY.__cardStates.get(uid1).latest_issued_version = 2;
+
+    const resp = await batchReq(env, { uids: [uid1, uid2], action: "reprovision" });
+    expect(resp.status).toBe(200);
+
+    const body = await resp.json();
+    expect(body.results).toHaveLength(2);
+    expect(body.results.find(r => r.uid === uid1).status).toBe("reprovisioned");
+    expect(body.results.find(r => r.uid === uid2).status).toBe("skipped");
+  });
+
+  it("records audit event for re-provisioned cards", async () => {
+    const env = makeEnv();
+    const uid = "ff000000000001";
+    setCardState(env.CARD_REPLAY, uid, "terminated");
+
+    const resp = await batchReq(env, { uids: [uid], action: "reprovision" });
+    expect(resp.status).toBe(200);
+
+    const body = await resp.json();
+    expect(body.results[0].status).toBe("reprovisioned");
+  });
+});

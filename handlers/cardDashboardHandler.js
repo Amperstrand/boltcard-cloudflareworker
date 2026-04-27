@@ -3,7 +3,7 @@ import { getUidConfig } from "../getUidConfig.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { logger } from "../utils/logger.js";
 import { htmlResponse, jsonResponse, errorResponse } from "../utils/responses.js";
-import { getCardState, getCardConfig, getBalance, getAnalytics, terminateCard } from "../replayProtection.js";
+import { getCardState, getCardConfig, getBalance, getAnalytics, terminateCard, deliverKeys } from "../replayProtection.js";
 import { buildMaskedUid } from "../utils/validation.js";
 import { renderCardDashboardPage } from "../templates/cardDashboardPage.js";
 import { CARD_STATE, KEY_PROVENANCE, PAYMENT_METHOD } from "../utils/constants.js";
@@ -46,18 +46,43 @@ export async function handleCardInfo(request, env) {
   }
 
   if (cardState.state === CARD_STATE.TERMINATED) {
+    const currentVersion = cardState.latest_issued_version || cardState.active_version || 1;
+    const config = await getUidConfig(uidHex, env, currentVersion);
+
+    let cmacValid = false;
+    if (config && config.K2) {
+      const { cmac_validated } = validate_cmac(
+        hexToBytes(uidHex),
+        hexToBytes(ctr),
+        cHex,
+        hexToBytes(config.K2)
+      );
+      cmacValid = cmac_validated;
+    }
+
+    let balance = 0;
+    try {
+      const balResult = await getBalance(env, uidHex);
+      balance = balResult.balance || 0;
+    } catch (e) {
+      logger.warn("Balance fetch failed for terminated card", { uidHex, error: e.message });
+    }
+
     return jsonResponse({
       uid: uidHex,
       maskedUid: buildMaskedUid(uidHex),
       state: cardState.state,
       keyProvenance: cardState.key_provenance || null,
       programmingRecommended: false,
-      balance: 0,
+      balance,
       history: [],
       analytics: null,
       paymentMethod: null,
       paymentMethodLabel: null,
       activatedAt: cardState.activated_at || null,
+      terminatedAt: cardState.terminated_at || null,
+      currentVersion,
+      reactivationAvailable: cmacValid,
     });
   }
 
@@ -213,5 +238,74 @@ export async function handleCardLock(request, env) {
   } catch (err) {
     logger.error("Card lock failed", { uidHex, error: err.message });
     return errorResponse("Failed to lock card", 500);
+  }
+}
+
+export async function handleCardReactivate(request, env) {
+  if (request.method !== "POST") {
+    return errorResponse("Method not allowed", 405);
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse("Invalid JSON body", 400);
+  }
+
+  const { p: pHex, c: cHex } = body;
+  if (!pHex || !cHex) {
+    return errorResponse("Missing p or c parameters", 400);
+  }
+
+  const decryption = extractUIDAndCounter(pHex, env);
+  if (!decryption.success) {
+    return errorResponse("Invalid card data", 400);
+  }
+
+  const { uidHex, ctr } = decryption;
+
+  let cardState;
+  try {
+    cardState = await getCardState(env, uidHex);
+  } catch (error) {
+    logger.error("Card state lookup failed in /api/card/reactivate", { uidHex, error: error.message });
+    return errorResponse("Card state unavailable", 500);
+  }
+
+  if (cardState.state !== CARD_STATE.TERMINATED) {
+    return errorResponse(`Card is not terminated (state: ${cardState.state})`, 400);
+  }
+
+  const currentVersion = cardState.latest_issued_version || cardState.active_version || 1;
+  const config = await getUidConfig(uidHex, env, currentVersion);
+  if (!config || !config.K2) {
+    return errorResponse("Card configuration unavailable", 500);
+  }
+
+  const { cmac_validated } = validate_cmac(
+    hexToBytes(uidHex),
+    hexToBytes(ctr),
+    cHex,
+    hexToBytes(config.K2)
+  );
+
+  if (!cmac_validated) {
+    return errorResponse("CMAC validation failed", 403);
+  }
+
+  try {
+    const delivered = await deliverKeys(env, uidHex);
+    const newVersion = delivered.latest_issued_version || delivered.version || currentVersion + 1;
+    logger.info("Card re-activated by cardholder", { uidHex, oldVersion: currentVersion, newVersion });
+    return jsonResponse({
+      success: true,
+      state: CARD_STATE.KEYS_DELIVERED,
+      uid: uidHex,
+      version: newVersion,
+    });
+  } catch (err) {
+    logger.error("Card re-activation failed", { uidHex, error: err.message });
+    return errorResponse("Failed to re-activate card", 500);
   }
 }
