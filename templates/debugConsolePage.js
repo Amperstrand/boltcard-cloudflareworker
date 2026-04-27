@@ -253,29 +253,34 @@ export function renderDebugConsolePage({ host, baseUrl }) {
           scanBtn.disabled = true;
           return;
         }
+
+        nfcScanner = createNfcScanner({
+          onTap: handleNfcTap,
+          onError: function(err, phase) {
+            if (phase === 'permission') {
+              updateScanBtn('error');
+              showError('NFC permission denied. Click the button to retry.');
+            } else if (phase === 'scan') {
+              showError('NFC read error: ' + err.message);
+            } else {
+              showError('Error: ' + err.message);
+            }
+          },
+          onStatus: function(status) {
+            if (status === 'scanning') updateScanBtn('scanning');
+            else if (status === 'stopped') updateScanBtn('error');
+            else if (status === 'starting') updateScanBtn('scanning');
+          },
+          debounceMs: 3000
+        });
+
         scanBtn.addEventListener('click', function() {
           clearError();
-          if (nfcScanner) { nfcScanner.restart(); return; }
-          nfcScanner = createNfcScanner({
-            onTap: handleNfcTap,
-            onError: function(err, phase) {
-              if (phase === 'permission') {
-                updateScanBtn('error');
-                showError('NFC permission denied. Click the button to retry.');
-              } else if (phase === 'scan') {
-                showError('NFC read error: ' + err.message);
-              } else {
-                showError('Error: ' + err.message);
-              }
-            },
-            onStatus: function(status) {
-              if (status === 'scanning') updateScanBtn('scanning');
-              else if (status === 'stopped') updateScanBtn('error');
-              else if (status === 'starting') updateScanBtn('scanning');
-            },
-            debounceMs: 3000
-          });
-          nfcScanner.scan();
+          if (nfcScanner.isActive()) {
+            nfcScanner.restart();
+          } else {
+            nfcScanner.scan();
+          }
         });
       }
 
@@ -619,8 +624,8 @@ export function renderDebugConsolePage({ host, baseUrl }) {
       }
 
       var activePanel = document.querySelector('.debug-panel:not(.hidden)');
-      if (activePanel && activePanel.id === 'panel-console' && browserSupportsNfc()) {
-        scanBtn.click();
+      if (activePanel && activePanel.id === 'panel-console' && nfcScanner) {
+        nfcScanner.scan();
       }
     </script>
   `;
