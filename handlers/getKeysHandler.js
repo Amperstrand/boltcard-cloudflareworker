@@ -69,7 +69,13 @@ export async function handleGetKeys(request, env) {
       return errorResponse("Invalid or missing UID (must be 14 hex chars)", 400);
     }
 
-    const keys = await findFirstKeyset(validatedUid, env);
+    let keys;
+    try {
+      keys = await findFirstKeyset(validatedUid, env);
+    } catch (err) {
+      logger.error("Key lookup failed", { uid: validatedUid, error: err.message });
+      return errorResponse("Key lookup failed", 500);
+    }
     if (!keys) {
       return errorResponse("No keys found for UID", 404, { uid: validatedUid });
     }
@@ -87,7 +93,13 @@ export async function handleGetKeys(request, env) {
   }
 
   if (url.searchParams.get("format") === "boltcard") {
-    const keys = await findFirstKeyset(validatedUid, env);
+    let keys;
+    try {
+      keys = await findFirstKeyset(validatedUid, env);
+    } catch (err) {
+      logger.error("Key lookup failed", { uid: validatedUid, error: err.message });
+      return errorResponse("Key lookup failed", 500);
+    }
     if (!keys) {
       return errorResponse("No keys found for UID", 404, { uid: validatedUid });
     }

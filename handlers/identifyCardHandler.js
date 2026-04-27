@@ -38,7 +38,12 @@ export async function handleIdentifyCard(request, env) {
 
   if (cardState && cardState.state !== CARD_STATE.TERMINATED) {
     const activeVersion = resolveActiveVersion(cardState);
-    const config = await getUidConfig(uidHex, env, activeVersion);
+    let config;
+    try {
+      config = await getUidConfig(uidHex, env, activeVersion);
+    } catch (e) {
+      logger.warn("Identify card: getUidConfig failed", { uidHex, error: e.message });
+    }
 
     if (config && config.K2) {
       const cmac = validate_cmac(uidBytes, ctrBytes, cHex, hexToBytes(config.K2));
@@ -54,21 +59,27 @@ export async function handleIdentifyCard(request, env) {
   }
 
   const keyCache = new Map();
-  const { attempts: detAttempts } = await cmacScanVersions(uidBytes, ctrBytes, cHex, {
-    k2ForVersion: async (v) => {
-      try {
-        const keys = getDeterministicKeys(uidHex, env, v);
-        keyCache.set(v, keys);
-        return hexToBytes(keys.k2);
-      } catch (e) {
-        logger.warn("Identify card: key derivation failed", { uidHex, version: v, error: e.message });
-        return new Uint8Array(16);
-      }
-    },
-    highVersion: VERSION_SCAN_RANGE,
-    lowVersion: 0,
-    stopOnFirst: false,
-  });
+  let detAttempts = [];
+  try {
+    const scanResult = await cmacScanVersions(uidBytes, ctrBytes, cHex, {
+      k2ForVersion: async (v) => {
+        try {
+          const keys = getDeterministicKeys(uidHex, env, v);
+          keyCache.set(v, keys);
+          return hexToBytes(keys.k2);
+        } catch (e) {
+          logger.warn("Identify card: key derivation failed", { uidHex, version: v, error: e.message });
+          return new Uint8Array(16);
+        }
+      },
+      highVersion: VERSION_SCAN_RANGE,
+      lowVersion: 0,
+      stopOnFirst: false,
+    });
+    detAttempts = scanResult.attempts;
+  } catch (e) {
+    logger.warn("Identify card: CMAC scan failed", { uidHex, error: e.message });
+  }
 
   for (const attempt of detAttempts) {
     if (attempt.cmac_validated && keyCache.has(attempt.version)) {

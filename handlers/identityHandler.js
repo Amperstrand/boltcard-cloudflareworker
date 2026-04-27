@@ -166,7 +166,12 @@ export async function handleIdentityProfileUpdate(request, env) {
     },
   };
 
-  await env.UID_CONFIG.put(uidHex, JSON.stringify(updatedRecord));
+  try {
+    await env.UID_CONFIG.put(uidHex, JSON.stringify(updatedRecord));
+  } catch (err) {
+    logger.error("Identity profile update KV write failed", { uidHex, error: err.message });
+    return errorResponse("Failed to save profile", 500);
+  }
 
   logger.info("Identity profile updated", { uidHex, emoji });
 

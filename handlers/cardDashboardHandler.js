@@ -47,7 +47,12 @@ export async function handleCardInfo(request, env) {
 
   if (cardState.state === CARD_STATE.TERMINATED) {
     const currentVersion = resolveLatestVersion(cardState);
-    const config = await getUidConfig(uidHex, env, currentVersion);
+    let config;
+    try {
+      config = await getUidConfig(uidHex, env, currentVersion);
+    } catch (e) {
+      logger.warn("getUidConfig failed for terminated card", { uidHex, error: e.message });
+    }
 
     let cmacValid = false;
     if (config && config.K2) {
@@ -60,7 +65,7 @@ export async function handleCardInfo(request, env) {
       cmacValid = cmac_validated;
     }
 
-    const { balance } = await safeGetBalance(env, uidHex);
+    const balance = (await safeGetBalance(env, uidHex)).balance;
 
     return jsonResponse({
       uid: uidHex,
@@ -81,7 +86,12 @@ export async function handleCardInfo(request, env) {
   }
 
   const activeVersion = resolveActiveVersion(cardState);
-  const config = await getUidConfig(uidHex, env, activeVersion);
+  let config;
+  try {
+    config = await getUidConfig(uidHex, env, activeVersion);
+  } catch (e) {
+    logger.warn("getUidConfig failed in /card/info", { uidHex, error: e.message });
+  }
 
   if (!config || !config.K2) {
     return jsonResponse({
@@ -110,7 +120,7 @@ export async function handleCardInfo(request, env) {
     return errorResponse("CMAC validation failed", 403);
   }
 
-  const { balance } = await safeGetBalance(env, uidHex);
+  const balance = (await safeGetBalance(env, uidHex)).balance;
 
   let history = [];
   try {
@@ -203,7 +213,13 @@ export async function handleCardLock(request, env) {
   }
 
   const activeVersion = resolveActiveVersion(cardState);
-  const config = await getUidConfig(uidHex, env, activeVersion);
+  let config;
+  try {
+    config = await getUidConfig(uidHex, env, activeVersion);
+  } catch (e) {
+    logger.error("getUidConfig failed in /api/card/lock", { uidHex, error: e.message });
+    return errorResponse("Card configuration unavailable", 500);
+  }
   if (!config || !config.K2) {
     return errorResponse("Card configuration unavailable", 500);
   }
@@ -266,7 +282,13 @@ export async function handleCardReactivate(request, env) {
   }
 
   const currentVersion = resolveLatestVersion(cardState);
-  const config = await getUidConfig(uidHex, env, currentVersion);
+  let config;
+  try {
+    config = await getUidConfig(uidHex, env, currentVersion);
+  } catch (e) {
+    logger.error("getUidConfig failed in /api/card/reactivate", { uidHex, error: e.message });
+    return errorResponse("Card configuration unavailable", 500);
+  }
   if (!config || !config.K2) {
     return errorResponse("Card configuration unavailable", 500);
   }

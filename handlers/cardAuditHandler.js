@@ -21,8 +21,13 @@ export async function handleCardAuditData(request, env) {
   const limit = Math.max(1, Math.min(rawLimit, 500));
   const cursor = url.searchParams.get("cursor") || undefined;
 
-  const result = await listIndexedCards(env, { state, limit, cursor });
-  return jsonResponse(result);
+  try {
+    const result = await listIndexedCards(env, { state, limit, cursor });
+    return jsonResponse(result);
+  } catch (err) {
+    logger.error("Card audit data fetch failed", { error: err.message });
+    return jsonResponse({ error: "Failed to fetch card data", cards: [], total: 0 }, 500);
+  }
 }
 
 export async function handleIndexRepair(request, env) {
