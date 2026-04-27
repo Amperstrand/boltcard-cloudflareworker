@@ -331,6 +331,41 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
           return Response.json({ accepted: true, lastCounter: counterValue, tapRecorded: true });
         }
 
+        if (request.method === "POST" && url.pathname === "/claim-tap") {
+          const { counter, bolt11, amountMsat } = await request.json();
+          const tapKey = `${idStr}:${counter}`;
+          const tap = taps.get(tapKey);
+
+          if (!tap) {
+            const now = Math.floor(Date.now() / 1000);
+            taps.set(tapKey, {
+              counter,
+              bolt11: bolt11 || null,
+              status: "pending",
+              payment_hash: null,
+              amount_msat: amountMsat ?? null,
+              user_agent: null,
+              request_url: null,
+              created_at: now,
+              updated_at: now,
+            });
+            return Response.json({ claimed: true });
+          }
+
+          if (tap.bolt11) {
+            return Response.json({ claimed: false, reason: "Tap already claimed", bolt11: tap.bolt11 }, { status: 409 });
+          }
+
+          const now = Math.floor(Date.now() / 1000);
+          tap.bolt11 = bolt11 || null;
+          tap.amount_msat = amountMsat ?? tap.amount_msat;
+          tap.status = "pending";
+          tap.updated_at = now;
+          taps.set(tapKey, tap);
+
+          return Response.json({ claimed: true });
+        }
+
         if (request.method === "POST" && url.pathname === "/update-tap-status") {
           const { counter, status, bolt11, amountMsat } = await request.json();
 

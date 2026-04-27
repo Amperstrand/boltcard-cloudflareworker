@@ -103,6 +103,10 @@ export class CardReplayDO extends DurableObject {
       return this.handleUpdateTapStatus(request);
     }
 
+    if (request.method === "POST" && url.pathname === "/claim-tap") {
+      return this.handleClaimTap(request);
+    }
+
     if (request.method === "GET" && url.pathname === "/analytics") {
       return this.handleAnalytics();
     }
@@ -315,6 +319,49 @@ export class CardReplayDO extends DurableObject {
       );
 
       return Response.json({ updated: result.rowsAffected > 0 });
+    });
+  }
+
+  handleClaimTap(request) {
+    return request.json().then(({ counter, bolt11, amountMsat }) => {
+      if (!Number.isInteger(counter) || counter < 0) {
+        return Response.json({ claimed: false, reason: "Invalid counter" }, { status: 400 });
+      }
+
+      const rows = this.sql.exec(
+        `SELECT bolt11, status FROM taps WHERE counter = ?`,
+        counter
+      ).toArray();
+
+      if (rows.length === 0) {
+        const now = nowSec();
+        this.sql.exec(
+          `INSERT INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
+           VALUES (?, ?, 'pending', ?, NULL, NULL, ?, ?)`,
+          counter,
+          bolt11 || null,
+          amountMsat ?? null,
+          now,
+          now
+        );
+        return Response.json({ claimed: true });
+      }
+
+      const tap = rows[0];
+      if (tap.bolt11) {
+        return Response.json({ claimed: false, reason: "Tap already claimed", bolt11: tap.bolt11 }, { status: 409 });
+      }
+
+      const now = nowSec();
+      this.sql.exec(
+        `UPDATE taps SET bolt11 = ?, amount_msat = COALESCE(?, amount_msat), status = 'pending', updated_at = ? WHERE counter = ?`,
+        bolt11 || null,
+        amountMsat ?? null,
+        now,
+        counter
+      );
+
+      return Response.json({ claimed: true });
     });
   }
 

@@ -135,6 +135,15 @@ export async function listTaps(env, uidHex, limit = DEFAULT_TAP_LIMIT) {
   return response.json();
 }
 
+export async function claimTap(env, uidHex, counterValue, { bolt11, amountMsat } = {}) {
+  if (!env?.CARD_REPLAY) {
+    return { claimed: false };
+  }
+  const stub = getCardStub(env, uidHex);
+  const resp = await doPost(stub, "/claim-tap", { counter: counterValue, bolt11: bolt11 || null, amountMsat: amountMsat ?? null });
+  return resp.json();
+}
+
 export async function resetReplayProtection(env, uidHex) {
   requireDo(env);
   const stub = getCardStub(env, uidHex);
