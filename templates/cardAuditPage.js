@@ -20,7 +20,8 @@ export function renderCardAuditPage() {
         <button type="button" data-filter="keys_delivered" class="filter-btn px-3 py-1 text-xs rounded font-mono bg-gray-700 text-cyan-400 hover:bg-gray-600 transition-colors">KEYS DELIVERED</button>
         <button type="button" data-filter="wipe_requested" class="filter-btn px-3 py-1 text-xs rounded font-mono bg-gray-700 text-orange-400 hover:bg-gray-600 transition-colors">WIPE REQ</button>
         <button type="button" data-filter="terminated" class="filter-btn px-3 py-1 text-xs rounded font-mono bg-gray-700 text-red-400 hover:bg-gray-600 transition-colors">TERMINATED</button>
-        <button type="button" id="btn-refresh" class="ml-auto px-3 py-1 text-xs rounded font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">REFRESH</button>
+        <button type="button" id="btn-repair" class="px-3 py-1 text-xs rounded font-bold bg-amber-600 hover:bg-amber-500 text-white transition-colors">REPAIR INDEX</button>
+        <button type="button" id="btn-refresh" class="px-3 py-1 text-xs rounded font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">REFRESH</button>
       </div>
     </div>
 
@@ -67,6 +68,11 @@ export function renderCardAuditPage() {
     <div id="batch-result" class="hidden bg-gray-800 border border-gray-700 rounded-lg p-4">
       <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Batch Result</div>
       <div id="batch-result-content" class="text-sm text-gray-300"></div>
+    </div>
+
+    <div id="repair-result" class="hidden bg-gray-800 border border-amber-700/50 rounded-lg p-4">
+      <div class="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2">Index Repair</div>
+      <div id="repair-result-content" class="text-sm text-gray-300"></div>
     </div>
 
     <div id="error-display" class="hidden bg-red-900/50 border border-red-600 rounded-lg p-4" role="alert">
@@ -330,6 +336,44 @@ export function renderCardAuditPage() {
     document.getElementById('btn-batch-wipe').addEventListener('click', function() { batchAction('wipe'); });
     document.getElementById('btn-batch-activate').addEventListener('click', function() { batchAction('activate'); });
     document.getElementById('btn-batch-reprovision').addEventListener('click', function() { batchAction('reprovision'); });
+
+    document.getElementById('btn-repair').addEventListener('click', async function() {
+      var btn = document.getElementById('btn-repair');
+      var origText = btn.textContent;
+      btn.textContent = 'Scanning...';
+      btn.disabled = true;
+      document.getElementById('repair-result').classList.add('hidden');
+
+      try {
+        var resp = await csrfFetch('/operator/cards/repair', { method: 'POST' });
+        var data = await resp.json();
+        var resultDiv = document.getElementById('repair-result');
+        var contentDiv = document.getElementById('repair-result-content');
+
+        if (!resp.ok) {
+          contentDiv.innerHTML = '<p class="text-red-300">Repair failed: ' + esc(data.error || 'unknown error') + '</p>';
+        } else {
+          var html = '<p class="text-amber-300">Scanned <strong>' + data.scanned + '</strong> card(s), repaired <strong>' + data.repaired + '</strong></p>';
+          if (data.errors && data.errors.length > 0) {
+            html += '<p class="text-red-300 text-xs mt-1">' + data.errors.length + ' error(s):</p>';
+            data.errors.forEach(function(e) {
+              html += '<p class="text-xs text-gray-500 ml-3">' + esc(e.uid) + ': ' + esc(e.error) + '</p>';
+            });
+          }
+          if (data.repaired === 0 && (!data.errors || data.errors.length === 0)) {
+            html += '<p class="text-gray-400 text-xs mt-1">All index entries match DO state.</p>';
+          }
+          contentDiv.innerHTML = html;
+        }
+        resultDiv.classList.remove('hidden');
+        if (data.repaired > 0) loadCards(false);
+      } catch (err) {
+        showError('Index repair failed: ' + err.message);
+      } finally {
+        btn.textContent = origText;
+        btn.disabled = false;
+      }
+    });
 
     loadCards(false);
   </script>

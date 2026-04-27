@@ -1,4 +1,4 @@
-import { handleCardAuditPage, handleCardAuditData } from "../handlers/cardAuditHandler.js";
+import { handleCardAuditPage, handleCardAuditData, handleIndexRepair } from "../handlers/cardAuditHandler.js";
 import { buildCardTestEnv } from "./testHelpers.js";
 import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
 
@@ -149,5 +149,108 @@ describe("handleCardAuditData", () => {
     const res = await handleCardAuditData(req, env);
     expect(res.status).toBe(200);
     expect(capturedCursor).toBe("abc123");
+  });
+});
+
+describe("handleIndexRepair", () => {
+  function makeRepairEnv(cards = [], doStates = {}) {
+    const store = {};
+    for (const card of cards) {
+      store[`card_idx:${card.uid}`] = JSON.stringify(card);
+    }
+    const env = buildCardTestEnv({
+      uid: "ff000000000001",
+      issuerKey: "00000000000000000000000000000001",
+      operatorAuth: true,
+    });
+    Object.assign(env, TEST_OPERATOR_AUTH);
+    env.UID_CONFIG = {
+      get: async (key) => store[key] ?? null,
+      put: async (key, val, opts) => { store[key] = { value: val, opts }; },
+      list: async ({ prefix }) => ({
+        keys: Object.keys(store).filter(k => k.startsWith(prefix)).map(k => ({ name: k })),
+        list_complete: true,
+      }),
+    };
+    env.CARD_REPLAY = {
+      idFromName: (name) => name,
+      get: (id) => ({
+        fetch: async (req) => {
+          const url = new URL(req.url);
+          if (url.pathname === "/card-state") {
+            const state = doStates[id];
+            if (state) {
+              return new Response(JSON.stringify({ state }), { headers: { "Content-Type": "application/json" } });
+            }
+            return new Response(JSON.stringify({ error: "not found" }), { status: 404, headers: { "Content-Type": "application/json" } });
+          }
+          return new Response("not found", { status: 404 });
+        },
+      }),
+    };
+    env.__store = store;
+    return env;
+  }
+
+  it("rejects unauthenticated request", async () => {
+    const env = buildCardTestEnv({ uid: "ff000000000001", issuerKey: "00000000000000000000000000000001" });
+    const req = new Request("https://test.local/operator/cards/repair", { method: "POST" });
+    const res = await handleIndexRepair(req, env);
+    expect(res.status).toBe(302);
+  });
+
+  it("repairs stale wipe_requested entries", async () => {
+    const env = makeRepairEnv(
+      [
+        { uid: "ff000000000001", state: "wipe_requested", updatedAt: Date.now() },
+        { uid: "ff000000000002", state: "active", updatedAt: Date.now() },
+      ],
+      { ff000000000001: "active", ff000000000002: "active" }
+    );
+    const req = new Request("https://test.local/operator/cards/repair", {
+      method: "POST",
+      headers: { Cookie: "op_session=test" },
+    });
+    const res = await handleIndexRepair(req, env);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.scanned).toBe(2);
+    expect(body.repaired).toBe(1);
+
+    const repaired = JSON.parse(env.__store["card_idx:ff000000000001"].value);
+    expect(repaired.state).toBe("active");
+  });
+
+  it("returns zeros when no cards indexed", async () => {
+    const env = makeRepairEnv([], {});
+    const req = new Request("https://test.local/operator/cards/repair", {
+      method: "POST",
+      headers: { Cookie: "op_session=test" },
+    });
+    const res = await handleIndexRepair(req, env);
+    const body = await res.json();
+    expect(body.scanned).toBe(0);
+    expect(body.repaired).toBe(0);
+  });
+
+  it("returns 500 when repair throws", async () => {
+    const env = buildCardTestEnv({
+      uid: "ff000000000001",
+      issuerKey: "00000000000000000000000000000001",
+      operatorAuth: true,
+    });
+    Object.assign(env, TEST_OPERATOR_AUTH);
+    env.UID_CONFIG = {
+      list: async () => { throw new Error("KV exploded"); },
+    };
+    env.CARD_REPLAY = {};
+    const req = new Request("https://test.local/operator/cards/repair", {
+      method: "POST",
+      headers: { Cookie: "op_session=test" },
+    });
+    const res = await handleIndexRepair(req, env);
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe("Index repair failed");
   });
 });

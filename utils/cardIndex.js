@@ -50,6 +50,68 @@ export async function getIndexedCard(env, uidHex) {
   }
 }
 
+export async function repairCardIndex(env, getCardStateFn) {
+  if (!env?.UID_CONFIG || !env?.CARD_REPLAY) {
+    return { scanned: 0, repaired: 0, errors: [] };
+  }
+
+  const scanned = [];
+  let cursor = undefined;
+  let listComplete = false;
+
+  while (!listComplete) {
+    const listResult = await env.UID_CONFIG.list({
+      prefix: KEY_PREFIX,
+      limit: 100,
+      cursor,
+    });
+
+    const values = await Promise.all(
+      listResult.keys.map((key) =>
+        env.UID_CONFIG.get(key.name)
+          .then((raw) => {
+            if (!raw) return null;
+            try { return { key: key.name, ...JSON.parse(raw) }; }
+            catch { return null; }
+          })
+          .catch(() => null)
+      )
+    );
+
+    for (const card of values) {
+      if (card) scanned.push(card);
+    }
+
+    listComplete = listResult.list_complete;
+    cursor = listResult.cursor;
+  }
+
+  const errors = [];
+  let repaired = 0;
+
+  for (const card of scanned) {
+    try {
+      const realState = await getCardStateFn(env, card.uid);
+
+      if (realState.state && realState.state !== card.state) {
+        await indexCard(env, card.uid, {
+          state: realState.state,
+          keyProvenance: card.keyProvenance,
+          keyLabel: card.keyLabel,
+          keyFingerprint: card.keyFingerprint,
+          paymentMethod: card.paymentMethod,
+          balance: card.balance,
+        });
+        repaired++;
+      }
+    } catch (e) {
+      errors.push({ uid: card.uid, error: e.message });
+    }
+  }
+
+  return { scanned: scanned.length, repaired, errors };
+}
+
 export async function listIndexedCards(env, { state, prefix, limit = 100, cursor } = {}) {
   if (!env?.UID_CONFIG) return { cards: [], cursor: null, total: 0 };
   try {

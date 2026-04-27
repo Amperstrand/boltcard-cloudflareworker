@@ -36,7 +36,7 @@ import { handleReceipt } from "./handlers/receiptHandler.js";
 import { handleMenuEditorPage, handleMenuGet, handleMenuPut } from "./handlers/menuEditorHandler.js";
 import { handleIdentifyCard } from "./handlers/identifyCardHandler.js";
 import { handleIdentifyIssuerKey } from "./handlers/identifyIssuerKeyHandler.js";
-import { handleCardAuditPage, handleCardAuditData } from "./handlers/cardAuditHandler.js";
+import { handleCardAuditPage, handleCardAuditData, handleIndexRepair } from "./handlers/cardAuditHandler.js";
 import { handleCardBatchAction } from "./handlers/cardBatchHandler.js";
 
 const router = Router();
@@ -116,6 +116,7 @@ router.get("/operator", withOperatorAuth(() => redirect("/operator/pos")));
 router.get("/operator/cards", withOperatorAuth((request, env) => handleCardAuditPage(request, env)));
 router.get("/operator/cards/data", withOperatorAuth((request, env) => handleCardAuditData(request, env)));
 router.post("/operator/cards/batch", withOperatorAuth((request, env, session) => handleCardBatchAction(request, env, session)));
+router.post("/operator/cards/repair", withOperatorAuth((request, env) => handleIndexRepair(request, env)));
 router.get("/operator/topup", withOperatorAuth((request, env) => handleTopupPage(request, env)));
 router.post("/operator/topup/apply", withOperatorAuth((request, env, session) => handleTopupApply(request, env, session)));
 router.get("/operator/refund", withOperatorAuth((request, env) => handleRefundPage(request, env)));

@@ -138,7 +138,8 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | GET | `/operator` | redirect → `/operator/pos` | Operator dashboard |
 | GET | `/operator/cards` | `handleCardAuditPage()` | Card registry audit page |
 | GET | `/operator/cards/data` | `handleCardAuditData()` | Card registry data (JSON) |
-| POST | `/operator/cards/batch` | `handleCardBatchAction()` | Batch card operations (terminate/wipe/activate) |
+| POST | `/operator/cards/batch` | `handleCardBatchAction()` | Batch card operations (terminate/wipe/activate/reprovision) |
+| POST | `/operator/cards/repair` | `handleIndexRepair()` | Card index repair (sync KV with DO state) |
 | GET | `/operator/pos` | `handlePosPage()` | POS terminal |
 | POST | `/operator/pos/charge` | `handlePosCharge()` | POS charge submit |
 | GET | `/operator/pos/menu` | `handleMenuEditorPage()` | Menu editor page |
@@ -183,7 +184,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 - `markPending()` and `discoverCard()` from `replayProtection.js` for DO row creation during key fetch and first tap
 - DO `handleDiscover` upgrades `pending`, `new`, and `legacy` states to `discovered`; `new`/`legacy` with no DO row take the INSERT path instead
 - DO `/set-k2` endpoint for targeted K2-only update (preserves existing `payment_method` and `config_json`); called via `setCardK2()` during card discovery
-- `indexCard()`, `deindexCard()`, `getIndexedCard()`, `listIndexedCards()` from `utils/cardIndex.js` for KV-backed card registry (prefix `card_idx:`, TTL 7 days)
+- `indexCard()`, `deindexCard()`, `getIndexedCard()`, `listIndexedCards()`, `repairCardIndex()` from `utils/cardIndex.js` for KV-backed card registry (prefix `card_idx:`, TTL 7 days)
 - `replayProtection.js` calls `await indexCard()` on all 6 state transitions: `markPending`, `discoverCard`, `deliverKeys`, `activateCard`, `terminateCard`, `requestWipe`
 - `recordAuditEvent()` from `utils/auditLog.js` for persistent operator action log (prefix `audit_log:`, TTL 90 days). Called from topup, refund, POS charge, batch operations.
 - `getCardProgrammingEndpoint()` from `handlers/loginActions.js` for card config → pull payment → programming endpoint lookup (shared by 4 call sites)

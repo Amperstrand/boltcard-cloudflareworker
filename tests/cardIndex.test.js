@@ -1,4 +1,4 @@
-import { indexCard, deindexCard, getIndexedCard, listIndexedCards } from "../utils/cardIndex.js";
+import { indexCard, deindexCard, getIndexedCard, listIndexedCards, repairCardIndex } from "../utils/cardIndex.js";
 
 describe("cardIndex", () => {
   function makeKvEnv(store = {}) {
@@ -209,6 +209,183 @@ describe("cardIndex", () => {
       const result = await listIndexedCards(env);
       expect(result.cards).toHaveLength(2);
       expect(getCallOrder).toHaveLength(2);
+    });
+  });
+
+  describe("repairCardIndex", () => {
+    it("repairs cards with stale KV state", async () => {
+      const store = {};
+      store["card_idx:ff000000000001"] = JSON.stringify({ uid: "ff000000000001", state: "wipe_requested", updatedAt: Date.now() });
+      store["card_idx:ff000000000002"] = JSON.stringify({ uid: "ff000000000002", state: "active", updatedAt: Date.now() });
+
+      const env = {
+        UID_CONFIG: {
+          get: async (key) => store[key] ?? null,
+          put: async (key, val, opts) => { store[key] = { value: val, opts }; },
+          delete: async (key) => { delete store[key]; },
+          list: async ({ prefix, limit }) => {
+            const keys = Object.keys(store).filter(k => k.startsWith(prefix)).slice(0, limit).map(k => ({ name: k }));
+            return { keys, list_complete: true, cursor: null };
+          },
+        },
+        CARD_REPLAY: {},
+      };
+
+      const getCardStateFn = async (_env, uid) => {
+        if (uid === "ff000000000001") return { state: "active" };
+        return { state: "active" };
+      };
+
+      const result = await repairCardIndex(env, getCardStateFn);
+      expect(result.scanned).toBe(2);
+      expect(result.repaired).toBe(1);
+      expect(result.errors).toHaveLength(0);
+
+      const repaired = JSON.parse(store["card_idx:ff000000000001"].value);
+      expect(repaired.state).toBe("active");
+    });
+
+    it("returns zero repaired when all states match", async () => {
+      const store = {};
+      store["card_idx:ff000000000001"] = JSON.stringify({ uid: "ff000000000001", state: "active" });
+
+      const env = {
+        UID_CONFIG: {
+          get: async (key) => store[key] ?? null,
+          put: async (key, val) => { store[key] = val; },
+          list: async ({ prefix }) => ({
+            keys: Object.keys(store).filter(k => k.startsWith(prefix)).map(k => ({ name: k })),
+            list_complete: true,
+          }),
+        },
+        CARD_REPLAY: {},
+      };
+
+      const result = await repairCardIndex(env, async () => ({ state: "active" }));
+      expect(result.scanned).toBe(1);
+      expect(result.repaired).toBe(0);
+    });
+
+    it("handles empty index", async () => {
+      const env = {
+        UID_CONFIG: {
+          get: async () => null,
+          put: async () => {},
+          list: async () => ({ keys: [], list_complete: true }),
+        },
+        CARD_REPLAY: {},
+      };
+
+      const result = await repairCardIndex(env, async () => ({ state: "active" }));
+      expect(result.scanned).toBe(0);
+      expect(result.repaired).toBe(0);
+    });
+
+    it("returns zeros when UID_CONFIG missing", async () => {
+      const result = await repairCardIndex({}, async () => ({ state: "active" }));
+      expect(result.scanned).toBe(0);
+      expect(result.repaired).toBe(0);
+    });
+
+    it("returns zeros when CARD_REPLAY missing", async () => {
+      const result = await repairCardIndex({ UID_CONFIG: {} }, async () => ({ state: "active" }));
+      expect(result.scanned).toBe(0);
+      expect(result.repaired).toBe(0);
+    });
+
+    it("collects errors from getCardState failures", async () => {
+      const store = {};
+      store["card_idx:ff000000000001"] = JSON.stringify({ uid: "ff000000000001", state: "active" });
+
+      const env = {
+        UID_CONFIG: {
+          get: async (key) => store[key] ?? null,
+          put: async (key, val) => { store[key] = val; },
+          list: async ({ prefix }) => ({
+            keys: Object.keys(store).filter(k => k.startsWith(prefix)).map(k => ({ name: k })),
+            list_complete: true,
+          }),
+        },
+        CARD_REPLAY: {},
+      };
+
+      const getCardStateFn = async () => { throw new Error("DO unavailable"); };
+      const result = await repairCardIndex(env, getCardStateFn);
+      expect(result.scanned).toBe(1);
+      expect(result.repaired).toBe(0);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].uid).toBe("ff000000000001");
+    });
+
+    it("paginates through KV entries", async () => {
+      const store = {};
+      for (let i = 1; i <= 5; i++) {
+        const uid = `ff00000000000${i}`;
+        store[`card_idx:${uid}`] = JSON.stringify({ uid, state: "wipe_requested" });
+      }
+
+      let listCallCount = 0;
+      const PAGE_SIZE = 2;
+      const env = {
+        UID_CONFIG: {
+          get: async (key) => store[key] ?? null,
+          put: async (key, val) => { store[key] = val; },
+          list: async ({ prefix, limit, cursor }) => {
+            listCallCount++;
+            const allKeys = Object.keys(store).filter(k => k.startsWith(prefix)).sort();
+            const effectiveLimit = Math.min(limit, PAGE_SIZE);
+            const startIdx = cursor ? allKeys.indexOf(cursor) + 1 : 0;
+            const batch = allKeys.slice(startIdx, startIdx + effectiveLimit);
+            const isComplete = startIdx + effectiveLimit >= allKeys.length;
+            return {
+              keys: batch.map(k => ({ name: k })),
+              list_complete: isComplete,
+              cursor: isComplete ? null : batch[batch.length - 1],
+            };
+          },
+        },
+        CARD_REPLAY: {},
+      };
+
+      const result = await repairCardIndex(env, async () => ({ state: "active" }));
+      expect(result.scanned).toBe(5);
+      expect(result.repaired).toBe(5);
+      expect(listCallCount).toBe(3);
+    });
+
+    it("preserves metadata when repairing", async () => {
+      const store = {};
+      store["card_idx:ff000000000001"] = JSON.stringify({
+        uid: "ff000000000001",
+        state: "wipe_requested",
+        keyProvenance: "env_issuer",
+        keyLabel: "prod-key",
+        keyFingerprint: "abc123",
+        paymentMethod: "fakewallet",
+        balance: 5000,
+        updatedAt: Date.now(),
+      });
+
+      const env = {
+        UID_CONFIG: {
+          get: async (key) => store[key] ?? null,
+          put: async (key, val, opts) => { store[key] = { value: val, opts }; },
+          list: async ({ prefix }) => ({
+            keys: Object.keys(store).filter(k => k.startsWith(prefix)).map(k => ({ name: k })),
+            list_complete: true,
+          }),
+        },
+        CARD_REPLAY: {},
+      };
+
+      await repairCardIndex(env, async () => ({ state: "active" }));
+      const repaired = JSON.parse(store["card_idx:ff000000000001"].value);
+      expect(repaired.state).toBe("active");
+      expect(repaired.keyProvenance).toBe("env_issuer");
+      expect(repaired.keyLabel).toBe("prod-key");
+      expect(repaired.keyFingerprint).toBe("abc123");
+      expect(repaired.paymentMethod).toBe("fakewallet");
+      expect(repaired.balance).toBe(5000);
     });
   });
 });
