@@ -112,13 +112,43 @@ export function renderPosPage({ host, currencyLabel }) {
       const API_HOST = ${jsString(host)};
       let amountInput = '0';
       let appState = 'idle';
-      let currentReader = null;
+      let posScanner = null;
       let autoChargeTimer = null;
       let chargeAmount = '0';
       let posMode = localStorage.getItem('pos_mode') || 'free';
       let terminalId = localStorage.getItem('terminal_id') || '';
       let menuData = { items: [] };
       let cart = [];
+
+      posScanner = createNfcScanner({
+        continuous: false,
+        debounceMs: 0,
+        onError: function(err, phase) {
+          if (appState !== 'scanning') return;
+          stopScanning();
+          setState('idle');
+          if (phase === 'scan') showResult('error', 'NFC error', 'Try again');
+          else if (phase !== 'permission') showResult('error', 'NFC error', err.message);
+        },
+        onTap: async function(data) {
+          if (appState !== 'scanning') return;
+          try {
+            var nfcUrl = data.url;
+            if (!nfcUrl) throw new Error('No URL on card');
+            var parsed = new URL(nfcUrl);
+            var p = parsed.searchParams.get('p');
+            var c = parsed.searchParams.get('c');
+            if (!p || !c) throw new Error('Card URL missing parameters');
+            stopScanning();
+            setState('processing');
+            await directCharge(p, c);
+          } catch (error) {
+            stopScanning();
+            setState('failed');
+            showResult('error', 'Payment failed', error.message);
+          }
+        }
+      });
 
       if (!terminalId) {
         terminalId = crypto.randomUUID ? crypto.randomUUID() : ('t-' + Math.random().toString(36).slice(2, 10));
@@ -362,7 +392,7 @@ export function renderPosPage({ host, currencyLabel }) {
 
       function resetSale() { stopScanning(); amountInput = '0'; chargeAmount = '0'; clearCart(); clearResult(); setState('idle'); }
       function cancelCharge() { stopScanning(); setState('idle'); showResult('error', 'Cancelled', 'Charge cancelled'); }
-      function stopScanning() { if (currentReader) { currentReader.onreading = null; currentReader.onreadingerror = null; currentReader = null; } clearTimeout(autoChargeTimer); }
+      function stopScanning() { posScanner.stop(); clearTimeout(autoChargeTimer); }
 
       async function directCharge(p, c) {
         var amount = posMode === 'menu' ? getCartTotal() : parseInt(normalizeAmount(chargeAmount), 10);
@@ -392,32 +422,12 @@ export function renderPosPage({ host, currencyLabel }) {
         stopScanning();
         setState('charging');
 
-        currentReader = new NDEFReader();
-
-        currentReader.onreading = async function(event) {
-          if (appState !== 'scanning') return;
-          try {
-            var nfcUrl = await extractNdefUrl(event.message.records, ['lnurlw://', 'https://']);
-            nfcUrl = normalizeBrowserNfcUrl(nfcUrl);
-            if (!nfcUrl) throw new Error('No URL on card');
-            var parsed = new URL(nfcUrl);
-            var p = parsed.searchParams.get('p');
-            var c = parsed.searchParams.get('c');
-            if (!p || !c) throw new Error('Card URL missing parameters');
-            stopScanning();
-            setState('processing');
-            await directCharge(p, c);
-          } catch (error) {
-            stopScanning();
-            setState('failed');
-            showResult('error', 'Payment failed', error.message);
-          }
-        };
-
-        currentReader.onreadingerror = function() { stopScanning(); setState('idle'); showResult('error', 'NFC error', 'Try again'); };
-
-        try { await currentReader.scan(); setState('scanning'); }
-        catch (error) { if (error.name !== 'AbortError') { stopScanning(); setState('idle'); showResult('error', 'NFC error', error.message); } }
+        try {
+          await posScanner.scan();
+          setState('scanning');
+        } catch (error) {
+          if (error.name !== 'AbortError') { stopScanning(); setState('idle'); showResult('error', 'NFC error', error.message); }
+        }
       }
     </script>
   `,

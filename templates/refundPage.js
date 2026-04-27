@@ -68,7 +68,7 @@ export function renderRefundPage({ host, currencyLabel }) {
       ${safe(BROWSER_NFC_HELPERS)}
       const API_HOST = ${jsString(host)};
       let appState = 'idle';
-      let currentReader = null;
+      let nfcScanner = null;
       let lastP = null;
       let lastC = null;
 
@@ -85,13 +85,36 @@ export function renderRefundPage({ host, currencyLabel }) {
       const resultMessage = document.getElementById('result-message');
       const logoutBtn = document.getElementById('logout-btn');
 
+      nfcScanner = createNfcScanner({
+        continuous: false,
+        debounceMs: 0,
+        onStatus: function(status) {
+          if (status === 'scanning') appState = 'scanning';
+        },
+        onError: function(err, phase) {
+          appState = 'idle';
+          if (phase === 'scan') showResult('error', 'NFC error', 'Try again');
+          else if (phase !== 'permission') showResult('error', 'NFC error', err.message);
+        },
+        onTap: async function(data) {
+          if (!data.url) { appState = 'idle'; showResult('error', 'No card data', 'Could not read card'); return; }
+          try {
+            var parsed = new URL(data.url);
+            var p = parsed.searchParams.get('p');
+            var c = parsed.searchParams.get('c');
+            if (p && c) { lastP = p; lastC = c; await fetchBalance(p, c); }
+            else { appState = 'idle'; showResult('error', 'Invalid card', 'Missing p/c parameters'); }
+          } catch(e) { appState = 'idle'; showResult('error', 'Error', e.message); }
+        }
+      });
+
       fullRefundBtn.addEventListener('click', function() { submitRefund(true, 0); });
       partialRefundBtn.addEventListener('click', function() {
         const amt = parseInt(partialAmount.value, 10);
         if (!amt || amt <= 0) { showResult('error', 'Invalid amount', 'Enter a positive amount'); return; }
         submitRefund(false, amt);
       });
-      nfcTapBtn.addEventListener('click', startNfcScan);
+      nfcTapBtn.addEventListener('click', function() { clearResult(); nfcScanner.scan(); });
       logoutBtn.addEventListener('click', function() {
         fetch('/operator/logout', { method: 'POST' }).then(function() { window.location.href = '/operator/login'; });
       });
@@ -101,7 +124,7 @@ export function renderRefundPage({ host, currencyLabel }) {
         nfcTapBtn.disabled = true;
         nfcTapBtn.classList.add('opacity-50');
       } else {
-        window.addEventListener('load', function() { startNfcScan(); });
+        window.addEventListener('load', function() { nfcScanner.scan(); });
       }
 
       function showResult(kind, title, message) {
@@ -148,41 +171,6 @@ export function renderRefundPage({ host, currencyLabel }) {
           showResult('error', 'Network error', e.message);
         }
         appState = 'idle';
-      }
-
-      function stopNfc() {
-        if (currentReader) { currentReader.onreading = null; currentReader.onreadingerror = null; currentReader = null; }
-      }
-
-      async function startNfcScan() {
-        if (appState !== 'idle') return;
-        appState = 'scanning';
-        clearResult();
-        currentReader = new NDEFReader();
-
-        currentReader.onreading = async function(event) {
-          stopNfc();
-          const url = await extractNdefUrl(event.message.records, ['lnurlw://', 'https://']);
-          if (!url) { appState = 'idle'; showResult('error', 'No card data', 'Could not read card'); return; }
-          try {
-            const parsed = new URL(url);
-            const p = parsed.searchParams.get('p');
-            const c = parsed.searchParams.get('c');
-            if (p && c) {
-              lastP = p; lastC = c;
-              await fetchBalance(p, c);
-            } else {
-              appState = 'idle'; showResult('error', 'Invalid card', 'Missing p/c parameters');
-            }
-          } catch(e) { appState = 'idle'; showResult('error', 'Error', e.message); }
-        };
-
-        currentReader.onreadingerror = function() {
-          stopNfc(); appState = 'idle'; showResult('error', 'NFC error', 'Try again');
-        };
-
-        try { await currentReader.scan(); }
-        catch(e) { if (e.name !== 'AbortError') { stopNfc(); appState = 'idle'; showResult('error', 'NFC error', e.message); } }
       }
 
       async function fetchBalance(p, c) {
