@@ -20,6 +20,8 @@ import { handleBulkWipeKeys } from "./handlers/bulkWipeHandler.js";
 import { handleBulkWipePage } from "./handlers/bulkWipePageHandler.js";
 import { handleAnalyticsPage, handleAnalyticsData } from "./handlers/analyticsHandler.js";
 import { generateFakeBolt11 } from "./utils/bolt11.js";
+import { encodePaytoUri } from "./utils/fiat-rails/payto.js";
+import { convertSatsToCurrency } from "./utils/fiat-rails/currency.js";
 import { logger } from "./utils/logger.js";
 import { jsonResponse, errorResponse, redirect } from "./utils/responses.js";
 import { REQUEST_ID_LENGTH } from "./utils/constants.js";
@@ -77,15 +79,45 @@ function withOperatorAuth(handler) {
   };
 }
 
-router.get("/api/fake-invoice", (request, env) => {
+router.get("/api/fake-invoice", async (request, env) => {
   const url = new URL(request.url);
   const amountMsat = parseInt(url.searchParams.get("amount"), 10);
   if (!Number.isInteger(amountMsat) || amountMsat <= 0) {
     return errorResponse("amount must be a positive integer (millisatoshis)", 400);
   }
   try {
-    const invoice = generateFakeBolt11(amountMsat);
-    return jsonResponse({ pr: invoice });
+    const rail = url.searchParams.get("rail") || env.FAKEWALLET_DEFAULT_RAIL || "bolt11";
+    let description;
+
+    if (rail === "payto") {
+      const currency = (url.searchParams.get("currency") || env.FAKEWALLET_CURRENCY || "EUR").toUpperCase();
+      const iban = url.searchParams.get("iban") || env.FAKEWALLET_IBAN || "GB33BUKB20201555555555";
+      const accountName = url.searchParams.get("accountName") || env.FAKEWALLET_ACCOUNT_NAME || "FakeWallet";
+
+      let fiatAmount;
+      try {
+        fiatAmount = await convertSatsToCurrency(amountMsat / 1000, currency);
+      } catch {
+        fiatAmount = 0;
+      }
+
+      const message = `${Math.round(amountMsat / 1000)}sat@${new Date().toISOString().split("T")[0]}`;
+      const execDate = new Date(Date.now() + 3600000).toISOString().split("T")[0];
+
+      const paytoUri = encodePaytoUri({
+        iban,
+        amount: fiatAmount,
+        currency,
+        receiverName: accountName,
+        message,
+        execDate,
+      });
+
+      description = `PAYTO:${paytoUri}`;
+    }
+
+    const invoice = generateFakeBolt11(amountMsat, { description });
+    return jsonResponse({ pr: invoice, ...(description ? { description } : {}) });
   } catch (err) {
     logger.error("Fake invoice generation failed", { error: err.message });
     return errorResponse("Internal error", 500);

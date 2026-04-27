@@ -14,6 +14,9 @@ kv_namespaces = [
 [vars]
 CURRENCY_LABEL = "credits"
 CURRENCY_DECIMALS = "0"
+FAKEWALLET_CURRENCY = "EUR"
+FAKEWALLET_IBAN = "GB33BUKB20201555555555"
+FAKEWALLET_ACCOUNT_NAME = "FakeWallet"
 
 routes = [
   "https://boltcardpoc.psbt.me/*"
