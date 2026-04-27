@@ -1,7 +1,7 @@
 import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { terminateCard, requestWipe, getCardState, deliverKeys, resolveActiveVersion } from "../replayProtection.js";
 import { validateUid } from "../utils/validation.js";
-import { CARD_STATE } from "../utils/constants.js";
+import { CARD_STATE, BATCH_MAX_CARDS } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
 import { recordAuditEvent } from "../utils/auditLog.js";
 
@@ -25,8 +25,8 @@ export async function handleCardBatchAction(request, env, session) {
     return errorResponse("uids must be a non-empty array", 400);
   }
 
-  if (uids.length > 100) {
-    return errorResponse("Batch size limited to 100 cards", 400);
+  if (uids.length > BATCH_MAX_CARDS) {
+    return errorResponse(`Batch size limited to ${BATCH_MAX_CARDS} cards`, 400);
   }
 
   if (!VALID_ACTIONS.includes(action)) {

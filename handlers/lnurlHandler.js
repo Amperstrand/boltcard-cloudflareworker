@@ -3,6 +3,7 @@ import { getUidConfig } from "../getUidConfig.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
+import { CLN_REST_PAY_PATH } from "../utils/constants.js";
 import { recordTap, updateTapStatus, debitCard, claimTap } from "../replayProtection.js";
 import { decodeBolt11Amount } from "../utils/bolt11.js";
 import { PAYMENT_METHOD } from "../utils/constants.js";
@@ -186,7 +187,7 @@ async function processWithdrawalPayment(uid, pr, env, counterValue, explicitAmou
         endpoint: `${clnrest_endpoint}/v1/pay`,
       });
 
-      const response = await fetch(clnrest_endpoint + "/v1/pay", {
+      const response = await fetch(clnrest_endpoint + CLN_REST_PAY_PATH, {
         method: "POST",
         headers,
         body: requestBody,

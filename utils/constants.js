@@ -1,17 +1,17 @@
 export const DEFAULT_PULL_PAYMENT_ID = "fUDXsnySxvb5LYZ1bSLiWzLjVuT";
 export const DEFAULT_FALLBACK_HOST = "https://boltcardpoc.psbt.me";
-
 export const DEFAULT_TAP_LIMIT = 50;
 export const DEFAULT_TXN_LIMIT = 50;
 export const RECEIPT_TXN_LOOKUP_LIMIT = 200;
+export const BATCH_MAX_CARDS = 100;
 export const HISTORY_LIMIT = 25;
 export const VERSION_SCAN_RANGE = 10;
 export const REQUEST_ID_LENGTH = 8;
 export const FETCH_TIMEOUT_MS = 10000;
+export const CLN_REST_PAY_PATH = "/v1/pay";
 
 export const WITHDRAW_MIN_MSAT = 1000;
 export const WITHDRAW_MAX_MSAT_FAKWALLET = 1000000;
-export const WITHDRAW_MAX_MSAT_DEFAULT = 1000000000;
 
 export const LOGIN_RATE_LIMIT_REQUESTS = 5;
 export const LOGIN_RATE_LIMIT_WINDOW = 900;

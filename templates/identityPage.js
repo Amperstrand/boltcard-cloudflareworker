@@ -340,7 +340,6 @@ export function renderIdentityPage({ host }) {
               setState('denied');
             }
           } catch (err) {
-            console.error(err);
             profile.reason.textContent = err.message || 'Network error';
             setState('denied');
           }
