@@ -78,6 +78,11 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 - bech32 lives inside `@scure/base`: `import { bech32 } from "@scure/base"`
 - `bech32.encode()` has a 90-char default limit — pass a large number as 3rd arg for bolt11: `bech32.encode(hrp, words, 1024)`
 
+### @cloudflare/vitest-pool-workers
+- Miniflare's `sql.exec()` does NOT reliably return `rowsAffected` — use `RETURNING` clause instead
+- DO integration tests use unique DO IDs per test (auto-incrementing counter) — no state leakage
+- Tests run in `vitest.do.config.js` with `cloudflareTest` plugin — NOT in the main vitest config
+
 ## Bolt11 Invoice Format (BOLT #11)
 
 - HRP: `lnbc` + amount (e.g. `lnbc20u`, `lnbc500n`, `lnbc10p`) + `1` separator
@@ -198,10 +203,11 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 
 ## Test Baseline
 
-- Run: `npm test` (uses Jest with `--experimental-vm-modules`)
-- Deploy: `npm run deploy` (tests → build_keys → wrangler deploy)
-- **1105 tests** across 59 test suites (as of 2026-04-27)
-- Coverage: ~87% statements, ~79% branches, ~85% functions
+- Run: `npm test` (Vitest, node environment)
+- Run DO tests: `npm run test:do` (Vitest, `@cloudflare/vitest-pool-workers` with real SQLite)
+- Run all: `npm run test:all`
+- Deploy: `npm run deploy` (unit tests → DO tests → build_keys → wrangler deploy)
+- **1159 unit tests** across 60 test suites + **52 DO integration tests** = 1211 total (as of 2026-04-27)
 
 ## Test Inventory
 
@@ -259,6 +265,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | `tests/bulkWipePageHandler.test.js` | Bulk wipe page rendering with key fingerprints | |
 | `tests/withdrawHandler.test.js` | Withdraw response: CMAC-failed, fakewallet/clnrest amounts | |
 | `tests/cardReplayDO.test.js` | DO SQL logic via better-sqlite3 (counter, taps, state, config, balance, analytics, provenance, discovery, set-k2, list-taps merge, record-read, transactions, discover branching) | |
+| `tests/do/cardReplayDO.real.test.js` | DO integration via `@cloudflare/vitest-pool-workers` with real SQLite — full lifecycle, counter, claim-tap, balance, config, provenance, analytics, reset (52 tests) | |
 | `tests/cardDashboardHandler.test.js` | Cardholder dashboard: page rendering, info API (unified history, analytics, payment method), provenance, state handling, self-service lock, NFC/manual input | |
 | `tests/cardIndex.test.js` | KV card registry: indexCard, deindexCard, getIndexedCard, listIndexedCards, edge cases | |
 | `tests/cardAuditHandler.test.js` | Operator audit page: auth redirect, data endpoint, state filtering | |

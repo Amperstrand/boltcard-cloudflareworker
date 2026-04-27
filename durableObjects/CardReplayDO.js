@@ -309,16 +309,16 @@ export class CardReplayDO extends DurableObject {
       }
 
       const now = nowSec();
-      const result = this.sql.exec(
-        `UPDATE taps SET status = ?, updated_at = ?, bolt11 = COALESCE(?, bolt11), amount_msat = COALESCE(?, amount_msat) WHERE counter = ?`,
+      const updated = this.sql.exec(
+        `UPDATE taps SET status = ?, updated_at = ?, bolt11 = COALESCE(?, bolt11), amount_msat = COALESCE(?, amount_msat) WHERE counter = ? RETURNING counter`,
         status,
         now,
         bolt11 ?? null,
         amountMsat ?? null,
         counter
-      );
+      ).toArray();
 
-      return Response.json({ updated: result.rowsAffected > 0 });
+      return Response.json({ updated: updated.length > 0 });
     });
   }
 
