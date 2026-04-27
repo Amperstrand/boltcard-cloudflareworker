@@ -134,3 +134,57 @@ function createNfcScanner(opts) {
   return { scan: scan, stop: stop, restart: restart, isActive: isActive };
 }
 `;
+
+export const CARD_STATE_HELPERS = rawHtml`
+function stateLabel(state) {
+  var labels = {
+    'new': 'New',
+    'pending': 'Pending',
+    'discovered': 'Discovered',
+    'keys_delivered': 'Keys Delivered',
+    'active': 'Active',
+    'wipe_requested': 'Wipe Requested',
+    'terminated': 'Terminated',
+    'legacy': 'Legacy',
+  };
+  return labels[state] || state;
+}
+
+function stateColor(state) {
+  var colors = {
+    'active': 'text-emerald-400',
+    'discovered': 'text-blue-400',
+    'pending': 'text-yellow-400',
+    'keys_delivered': 'text-cyan-400',
+    'terminated': 'text-red-400',
+    'wipe_requested': 'text-orange-400',
+    'new': 'text-gray-400',
+    'legacy': 'text-gray-500',
+  };
+  return colors[state] || 'text-gray-300';
+}
+
+function provenanceLabel(p, short) {
+  var full = {
+    'public_issuer': 'Public Key',
+    'env_issuer': 'Private (Server)',
+    'percard': 'Per-Card Import',
+    'user_provisioned': 'User Provisioned',
+    'unknown': 'Unknown',
+  };
+  var abbr = {
+    'public_issuer': 'Public',
+    'env_issuer': 'Private',
+    'percard': 'Per-Card',
+    'user_provisioned': 'User',
+    'unknown': 'Unknown',
+  };
+  return short ? (abbr[p] || p || '-') : (full[p] || p || 'Unknown');
+}
+
+function provenanceColor(p) {
+  if (p === 'public_issuer') return 'text-yellow-400';
+  if (p === 'env_issuer') return 'text-emerald-400';
+  return 'text-gray-300';
+}
+`;

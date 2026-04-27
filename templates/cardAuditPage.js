@@ -1,6 +1,6 @@
 import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
-import { CSRF_FETCH_HELPER } from "./browserNfc.js";
+import { CSRF_FETCH_HELPER, CARD_STATE_HELPERS } from "./browserNfc.js";
 
 export function renderCardAuditPage() {
   const content = rawHtml`
@@ -95,36 +95,7 @@ export function renderCardAuditPage() {
 
     function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
-    function stateColor(state) {
-      var colors = {
-        'active': 'text-emerald-400',
-        'discovered': 'text-blue-400',
-        'pending': 'text-yellow-400',
-        'keys_delivered': 'text-cyan-400',
-        'terminated': 'text-red-400',
-        'wipe_requested': 'text-orange-400',
-        'new': 'text-gray-400',
-        'legacy': 'text-gray-500',
-      };
-      return colors[state] || 'text-gray-300';
-    }
-
-    function provenanceLabel(p) {
-      var labels = {
-        'public_issuer': 'Public',
-        'env_issuer': 'Private',
-        'percard': 'Per-Card',
-        'user_provisioned': 'User',
-        'unknown': 'Unknown',
-      };
-      return labels[p] || p || '-';
-    }
-
-    function provenanceColor(p) {
-      if (p === 'public_issuer') return 'text-yellow-400';
-      if (p === 'env_issuer') return 'text-emerald-400';
-      return 'text-gray-400';
-    }
+    ${CARD_STATE_HELPERS}
 
     function formatTime(ts) {
       if (!ts) return '-';
@@ -220,7 +191,7 @@ export function renderCardAuditPage() {
           '<div class="w-5"><input type="checkbox" class="card-checkbox rounded" data-uid="' + esc(card.uid) + '" ' + checked + ' /></div>' +
           '<span class="font-mono text-gray-300 text-xs">' + esc(card.uid) + '</span>' +
           '<span class="font-mono ' + stateColor(card.state) + '">' + esc(card.state) + '</span>' +
-          '<span class="font-mono text-xs ' + provenanceColor(card.keyProvenance) + '">' + esc(provenanceLabel(card.keyProvenance)) + '</span>' +
+          '<span class="font-mono text-xs ' + provenanceColor(card.keyProvenance) + '">' + esc(provenanceLabel(card.keyProvenance, true)) + '</span>' +
           '<span class="font-mono text-xs text-gray-400">' + esc(card.keyLabel || '-') + '</span>' +
           '<span class="text-xs text-gray-500">' + esc(formatTime(card.updatedAt)) + '</span>' +
           '<span class="text-right"><a href="/experimental/analytics?uid=' + encodeURIComponent(card.uid) + '" class="text-emerald-500 hover:text-emerald-400 text-xs">analytics</a></span>' +

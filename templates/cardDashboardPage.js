@@ -1,6 +1,6 @@
 import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
-import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
+import { BROWSER_NFC_HELPERS, CARD_STATE_HELPERS } from "./browserNfc.js";
 
 export function renderCardDashboardPage() {
   const content = rawHtml`
@@ -169,48 +169,7 @@ export function renderCardDashboardPage() {
     var lastP = null;
     var lastC = null;
 
-    function stateLabel(state) {
-      var labels = {
-        'new': 'New',
-        'pending': 'Pending',
-        'discovered': 'Discovered',
-        'keys_delivered': 'Keys Delivered',
-        'active': 'Active',
-        'wipe_requested': 'Wipe Requested',
-        'terminated': 'Terminated',
-        'legacy': 'Legacy',
-      };
-      return labels[state] || state;
-    }
-
-    function stateColor(state) {
-      var colors = {
-        'active': 'text-emerald-400',
-        'discovered': 'text-blue-400',
-        'pending': 'text-yellow-400',
-        'keys_delivered': 'text-cyan-400',
-        'terminated': 'text-red-400',
-        'wipe_requested': 'text-orange-400',
-      };
-      return colors[state] || 'text-gray-300';
-    }
-
-    function provenanceLabel(provenance) {
-      var labels = {
-        'public_issuer': 'Public Key',
-        'env_issuer': 'Private (Server)',
-        'percard': 'Per-Card Import',
-        'user_provisioned': 'User Provisioned',
-        'unknown': 'Unknown',
-      };
-      return labels[provenance] || provenance || 'Unknown';
-    }
-
-    function provenanceColor(provenance) {
-      if (provenance === 'public_issuer') return 'text-yellow-400';
-      if (provenance === 'env_issuer') return 'text-emerald-400';
-      return 'text-gray-300';
-    }
+    ${CARD_STATE_HELPERS}
 
     function formatBalance(msat) {
       if (!msat || msat === 0) return '0 msat';
