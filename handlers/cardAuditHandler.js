@@ -17,7 +17,8 @@ export async function handleCardAuditData(request, env) {
 
   const url = new URL(request.url);
   const state = url.searchParams.get("state") || undefined;
-  const limit = parseInt(url.searchParams.get("limit") || "50", 10);
+  const rawLimit = parseInt(url.searchParams.get("limit") || "50", 10);
+  const limit = Math.max(1, Math.min(rawLimit, 500));
   const cursor = url.searchParams.get("cursor") || undefined;
 
   const result = await listIndexedCards(env, { state, limit, cursor });

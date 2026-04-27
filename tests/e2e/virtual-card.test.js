@@ -18,11 +18,12 @@ const BOLT_CARD_K1 =
 const PROG_ENDPOINT =
   "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion";
 
-function makeFreshEnv() {
+function makeFreshEnv(initialBalance = 0) {
   const kvStore = {};
+  const ns = makeReplayNamespace();
   return {
     BOLT_CARD_K1,
-    CARD_REPLAY: makeReplayNamespace(),
+    CARD_REPLAY: ns,
     UID_CONFIG: {
       get: async (key) => kvStore[key] ?? null,
       put: async (key, value) => {
@@ -30,8 +31,19 @@ function makeFreshEnv() {
       },
     },
     __kvStore: kvStore,
+    __initialBalance: initialBalance,
     ...TEST_OPERATOR_AUTH,
   };
+}
+
+async function creditCard(env, uid, amount) {
+  const id = env.CARD_REPLAY.idFromName(uid);
+  const stub = env.CARD_REPLAY.get(id);
+  await stub.fetch(new Request("https://card-replay.internal/credit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ amount }),
+  }));
 }
 
 async function makeRequest(path, method = "GET", body = null, env) {
@@ -69,6 +81,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     env = makeFreshEnv();
     const result = await provisionCard(UID, env);
     keys = result.keys;
+    await creditCard(env, UID, 100000);
   });
 
   test("full withdraw lifecycle: provision → tap → callback → tap history", async () => {
@@ -112,7 +125,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     expect(loginResp.status).toBe(200);
     const loginJson = await loginResp.json();
     expect(loginJson.success).toBe(true);
-    expect(loginJson.tapHistory).toHaveLength(2);
+    expect(loginJson.tapHistory).toHaveLength(3);
     expect(loginJson.tapHistory[0].counter).toBe(1);
     expect(loginJson.tapHistory[0].status).toBe("completed");
     expect(loginJson.tapHistory[1].status).toBe("payment");
@@ -342,6 +355,7 @@ describe("E2E: Virtual card — login and tap history", () => {
   test("login shows full tap history with metadata", async () => {
     const env = makeFreshEnv();
     const { keys } = await provisionCard(UID, env);
+    await creditCard(env, UID, 100000);
     const k1Hex = env.BOLT_CARD_K1.split(",")[0];
 
     // Do 3 taps
@@ -361,11 +375,8 @@ describe("E2E: Virtual card — login and tap history", () => {
     expect(loginResp.status).toBe(200);
     const json = await loginResp.json();
     expect(json.success).toBe(true);
-    // 3 completed taps + 3 payment transactions = 6 entries
-    // (tap 1 failed has no payment transaction)
-    expect(json.tapHistory).toHaveLength(5);
+    expect(json.tapHistory).toHaveLength(6);
 
-    // First entry should be counter 3 (tap or payment)
     expect(json.tapHistory[0].counter).toBe(3);
     expect([3, 2]).toContain(json.tapHistory[2].counter);
 
@@ -424,17 +435,14 @@ describe("E2E: Virtual card — auto-discovery lifecycle", () => {
     const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
     const k1Hex = env.BOLT_CARD_K1.split(",")[0];
 
-    // No DO row exists for this UID
     expect(env.CARD_REPLAY.__cardStates.has(UID)).toBe(false);
 
-    // Step 1: First tap auto-discovers the card
     const tap1 = virtualTap(UID, 1, k1Hex, keys.k2);
     const res1 = await makeRequest(`/?p=${tap1.pHex}&c=${tap1.cHex}`, "GET", null, env);
     expect(res1.status).toBe(200);
     const json1 = await res1.json();
     expect(json1.tag).toBe("withdrawRequest");
 
-    // Card is now discovered
     const state = env.CARD_REPLAY.__cardStates.get(UID);
     expect(state).toBeDefined();
     expect(state.state).toBe("discovered");
@@ -442,7 +450,8 @@ describe("E2E: Virtual card — auto-discovery lifecycle", () => {
     expect(state.active_version).toBe(1);
     expect(state.first_seen_at).toBeGreaterThan(0);
 
-    // Step 2: Callback processes payment
+    await creditCard(env, UID, 100000);
+
     const cb1 = await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${tap1.pHex}?k1=${tap1.cHex}&pr=lnbc10n1discovered`,
       "GET",

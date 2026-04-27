@@ -1,5 +1,5 @@
 import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
-import { debitCard, getBalance } from "../replayProtection.js";
+import { debitCard } from "../replayProtection.js";
 import { validateCardTap } from "../utils/validateCardTap.js";
 import { logger } from "../utils/logger.js";
 import { recordAuditEvent } from "../utils/auditLog.js";
@@ -29,18 +29,12 @@ export async function handlePosCharge(request, env, session) {
   const note = noteParts.join(":");
 
   try {
-    const preBalance = await getBalance(env, tap.uidHex);
-    if (preBalance.balance < parsedAmount) {
-      logger.info("POS charge: insufficient balance", { uidHex: tap.uidHex, requested: parsedAmount, available: preBalance.balance });
-      return errorResponse("Insufficient balance", 402, {
-        currentBalance: preBalance.balance,
-      });
-    }
-
     const result = await debitCard(env, tap.uidHex, tap.counterValue, parsedAmount, note);
     if (!result.ok) {
-      const status = result.reason && result.reason.toLowerCase().includes("insufficient") ? 402 : 500;
-      return errorResponse(result.reason || "Debit failed", status);
+      const isInsufficient = result.reason && result.reason.toLowerCase().includes("insufficient");
+      const status = isInsufficient ? 402 : 500;
+      const extra = result.balance != null ? { currentBalance: result.balance } : {};
+      return errorResponse(result.reason || "Debit failed", status, extra);
     }
 
     const newBalance = result.balance;

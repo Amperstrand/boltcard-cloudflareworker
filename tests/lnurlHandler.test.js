@@ -339,7 +339,7 @@ describe("handleLnurlpPayment", () => {
   });
 
   it("returns config not found when uid has no config", async () => {
-    const env = buildEnv();
+    const env = buildEnv(10000);
     env.CARD_REPLAY.__cardConfigs.delete(UID);
     env.UID_CONFIG = {
       get: async () => null,

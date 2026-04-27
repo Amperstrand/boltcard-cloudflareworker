@@ -45,8 +45,8 @@ function computeRealC(uidHex, ctrHex, k2Hex) {
   return bytesToHex(vd.ct);
 }
 
-function makeEnv(replayInitial = {}) {
-  return buildCardTestEnv({ replayInitial, operatorAuth: true, extraEnv: { BOLT_CARD_K1 } });
+function makeEnv(replayInitial = {}, balance = 0) {
+  return buildCardTestEnv({ uid: TEST_UID, replayInitial, balance, operatorAuth: true, extraEnv: { BOLT_CARD_K1 } });
 }
 
 async function makeRequest(path, method = "GET", body = null, requestEnv) {
@@ -94,7 +94,7 @@ describe("POS Amount Parameter Support", () => {
   });
 
   test("callback handler accepts amount query parameter alongside pr", async () => {
-    const env = makeEnv();
+    const env = makeEnv({}, 100000);
     env.UID_CONFIG = {
       get: async (uid) => {
         if (uid === TEST_UID) {
@@ -133,7 +133,7 @@ describe("POS Amount Parameter Support", () => {
   });
 
   test("callback handler works when only amount is provided (no pr) - for fakewallet POS", async () => {
-    const env = makeEnv();
+    const env = makeEnv({}, 100000);
     env.UID_CONFIG = {
       get: async (uid) => {
         if (uid === TEST_UID) {
@@ -204,7 +204,7 @@ describe("POS Amount Parameter Support", () => {
   });
 
   test("existing callback tests still pass - amount from bolt11 invoice", async () => {
-    const env = makeEnv();
+    const env = makeEnv({}, 100000);
     env.UID_CONFIG = {
       get: async (uid) => {
         if (uid === TEST_UID) {
@@ -236,7 +236,7 @@ describe("POS Amount Parameter Support", () => {
   });
 
   test("explicit amount takes precedence over bolt11 amount when both provided", async () => {
-    const env = makeEnv();
+    const env = makeEnv({}, 100000);
     env.UID_CONFIG = {
       get: async (uid) => {
         if (uid === TEST_UID) {

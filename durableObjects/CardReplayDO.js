@@ -319,7 +319,8 @@ export class CardReplayDO extends DurableObject {
   }
 
   handleListTaps(url) {
-    const limit = parseInt(url.searchParams.get("limit") || "50", 10);
+    const rawLimit = parseInt(url.searchParams.get("limit") || "50", 10);
+    const limit = Math.max(1, Math.min(rawLimit, 200));
     const taps = this.sql.exec(
       `SELECT counter, bolt11, status, payment_hash, amount_msat, user_agent, request_url, created_at, updated_at
        FROM taps ORDER BY counter DESC LIMIT ?`,
@@ -621,13 +622,17 @@ export class CardReplayDO extends DurableObject {
       }
 
       const currentBalance = this.getCurrentBalance();
+      if (currentBalance < amount) {
+        return Response.json({ ok: false, reason: "Insufficient balance", balance: currentBalance }, { status: 400 });
+      }
+
       const newBalance = currentBalance - amount;
       const createdAt = nowSec();
 
       this.ensureCardStateRow(currentBalance);
       this.sql.exec(
-        `UPDATE card_state SET balance = ? WHERE singleton = 1`,
-        newBalance
+        `UPDATE card_state SET balance = ? WHERE singleton = 1 AND balance >= ?`,
+        newBalance, amount
       );
 
       const rows = this.sql.exec(

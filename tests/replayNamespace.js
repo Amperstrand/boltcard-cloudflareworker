@@ -101,7 +101,11 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
           }
 
           const current = cardStates.get(idStr) || getDefaultState();
-          const newBalance = (current.balance ?? 0) - amount;
+          const currentBalance = current.balance ?? 0;
+          if (currentBalance < amount) {
+            return Response.json({ ok: false, reason: "Insufficient balance", balance: currentBalance }, { status: 400 });
+          }
+          const newBalance = currentBalance - amount;
           const now = Math.floor(Date.now() / 1000);
           cardStates.set(idStr, { ...current, balance: newBalance });
 
@@ -195,6 +199,18 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
             }
           }
           return Response.json(newState);
+        }
+
+        if (request.method === "POST" && url.pathname === "/request-wipe") {
+          const current = cardStates.get(idStr) || getDefaultState();
+          const now = Math.floor(Date.now() / 1000);
+          cardStates.set(idStr, {
+            ...current,
+            state: "wipe_requested",
+            wipe_keys_fetched_at: now,
+            balance: current.balance ?? 0,
+          });
+          return Response.json({ ok: true });
         }
 
         if (request.method === "POST" && url.pathname === "/reset") {

@@ -276,7 +276,7 @@ export function renderPosPage({ host, currencyLabel }) {
           html += '<button type="button" data-item-idx="' + i + '" class="relative bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 rounded-lg p-3 transition-colors text-left">'
             + badge
             + '<div class="font-semibold text-sm text-gray-200">' + esc(item.name) + '</div>'
-            + '<div class="text-emerald-400 font-bold text-lg">' + item.price + '</div>'
+            + '<div class="text-emerald-400 font-bold text-lg">' + esc(String(item.price)) + '</div>'
             + '</button>';
         }
         menuItems.innerHTML = html;

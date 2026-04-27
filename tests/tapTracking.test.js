@@ -61,10 +61,16 @@ function computeRealC(uidHex, ctrHex, k2Hex) {
   return bytesToHex(vd.ct);
 }
 
-function makeEnv(replayInitial = {}) {
+function makeEnv(replayInitial = {}, balance = 0) {
+  const ns = makeReplayNamespace(replayInitial);
+  if (balance > 0) {
+    const uid = TEST_UID.toLowerCase();
+    ns.__activate(uid, 1);
+    ns.__cardStates.get(uid).balance = balance;
+  }
   return {
     BOLT_CARD_K1,
-    CARD_REPLAY: makeReplayNamespace(replayInitial),
+    CARD_REPLAY: ns,
     UID_CONFIG: {
       get: async (uid) => uid === TEST_UID ? TEST_UID_CONFIG : null,
       put: async () => {},
@@ -124,7 +130,7 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
   });
 
   test("callback records tap with bolt11 and metadata", async () => {
-    const env = makeEnv();
+    const env = makeEnv({}, 100000);
     env.UID_CONFIG = {
       get: async (uid) => {
         if (uid === TEST_UID) {
@@ -420,7 +426,7 @@ describe("Tap tracking — login response", () => {
   });
 
   test("POST /login tapHistory shows recorded taps", async () => {
-    const env = makeEnv();
+    const env = makeEnv({}, 100000);
 
     const keys = getDeterministicKeys(TEST_UID, env);
     env.UID_CONFIG = {

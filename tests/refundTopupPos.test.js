@@ -432,7 +432,7 @@ describe("handlePosCharge", () => {
     expect(body.error).toContain("Unknown error");
   });
 
-  it("returns 500 when getBalance throws", async () => {
+  it("returns 500 when debitCard throws", async () => {
     const env = buildEnv(1000);
     const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
     const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
@@ -441,7 +441,7 @@ describe("handlePosCharge", () => {
       return {
         fetch: async (request) => {
           const url = new URL(request.url);
-          if (url.pathname === "/balance") {
+          if (request.method === "POST" && url.pathname === "/debit") {
             throw new Error("DO connection failed");
           }
           return obj.fetch(request);

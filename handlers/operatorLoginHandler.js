@@ -45,7 +45,8 @@ export async function handleOperatorLogin(request, env) {
     return htmlResponse(renderOperatorLoginPage({ error: "Incorrect PIN" }));
   }
 
-  const returnUrl = body.get("return") || "/operator/pos";
+  const rawReturn = body.get("return") || "/operator/pos";
+  const returnUrl = (rawReturn.startsWith("/") && !rawReturn.startsWith("//")) ? rawReturn : "/operator/pos";
 
   try {
     const { cookie, shiftId } = createSession(env);
