@@ -13,6 +13,37 @@ const legacyCardState = {
   balance: 0,
 };
 
+export function resolveActiveVersion(cardState) {
+  return cardState.active_version || cardState.latest_issued_version || 1;
+}
+
+export function resolveLatestVersion(cardState) {
+  return cardState.latest_issued_version || cardState.active_version || 1;
+}
+
+async function doStateTransition(env, uidHex, path, body, errorMsg, { legacyFallback, indexMetadata } = {}) {
+  requireDo(env);
+  const stub = getCardStub(env, uidHex);
+  const response = await doPost(stub, path, body);
+
+  if (response.status === 404) {
+    return legacyFallback || { ...legacyCardState };
+  }
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || errorMsg);
+  }
+
+  const result = await response.json();
+
+  if (indexMetadata) {
+    await indexCard(env, uidHex, indexMetadata);
+  }
+
+  return result;
+}
+
 function getCardStub(env, uidHex) {
   const id = env.CARD_REPLAY.idFromName(uidHex.toLowerCase());
   return env.CARD_REPLAY.get(id);
@@ -153,89 +184,30 @@ export async function getCardState(env, uidHex) {
 }
 
 export async function deliverKeys(env, uidHex) {
-  requireDo(env);
-  const stub = getCardStub(env, uidHex);
-  const response = await doPost(stub, "/deliver-keys", {});
-
-  if (response.status === 404) {
-    return { ...legacyCardState, state: CARD_STATE.KEYS_DELIVERED, latest_issued_version: 1, version: 1 };
-  }
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.error || "Key delivery failed");
-  }
-
-  const result = await response.json();
-
-  await indexCard(env, uidHex, {
-    state: CARD_STATE.KEYS_DELIVERED,
+  return doStateTransition(env, uidHex, "/deliver-keys", {}, "Key delivery failed", {
+    legacyFallback: { ...legacyCardState, state: CARD_STATE.KEYS_DELIVERED, latest_issued_version: 1, version: 1 },
+    indexMetadata: { state: CARD_STATE.KEYS_DELIVERED },
   });
-
-  return result;
 }
 
 export async function activateCard(env, uidHex, activeVersion) {
-  requireDo(env);
-  const stub = getCardStub(env, uidHex);
-  const response = await doPost(stub, "/activate", { active_version: activeVersion });
-
-  if (response.status === 404) {
-    return { ...legacyCardState, state: CARD_STATE.ACTIVE, active_version: activeVersion };
-  }
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.error || "Card activation failed");
-  }
-
-  const result = await response.json();
-
-  await indexCard(env, uidHex, {
-    state: CARD_STATE.ACTIVE,
+  return doStateTransition(env, uidHex, "/activate", { active_version: activeVersion }, "Card activation failed", {
+    legacyFallback: { ...legacyCardState, state: CARD_STATE.ACTIVE, active_version: activeVersion },
+    indexMetadata: { state: CARD_STATE.ACTIVE },
   });
-
-  return result;
 }
 
 export async function terminateCard(env, uidHex) {
-  requireDo(env);
-  const stub = getCardStub(env, uidHex);
-  const response = await doPost(stub, "/terminate", {});
-
-  if (response.status === 404) {
-    return { ...legacyCardState, state: CARD_STATE.TERMINATED };
-  }
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.error || "Card termination failed");
-  }
-
-  const result = await response.json();
-
-  await indexCard(env, uidHex, {
-    state: CARD_STATE.TERMINATED,
+  return doStateTransition(env, uidHex, "/terminate", {}, "Card termination failed", {
+    legacyFallback: { ...legacyCardState, state: CARD_STATE.TERMINATED },
+    indexMetadata: { state: CARD_STATE.TERMINATED },
   });
-
-  return result;
 }
 
 export async function requestWipe(env, uidHex) {
-  requireDo(env);
-  const stub = getCardStub(env, uidHex);
-  const response = await doPost(stub, "/request-wipe", {});
-
-  if (response.status === 404) {
-    return { state: CARD_STATE.NEW };
-  }
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.error || "Wipe request failed");
-  }
-
-  return response.json();
+  return doStateTransition(env, uidHex, "/request-wipe", {}, "Wipe request failed", {
+    legacyFallback: { state: CARD_STATE.NEW },
+  });
 }
 
 export async function getCardConfig(env, uidHex) {
@@ -292,6 +264,16 @@ export async function getBalance(env, uidHex) {
   return resp.json();
 }
 
+export async function safeGetBalance(env, uidHex) {
+  try {
+    const result = await getBalance(env, uidHex);
+    return { balance: result.balance || 0 };
+  } catch (e) {
+    logger.warn("Could not fetch balance", { uidHex, error: e.message });
+    return { balance: 0 };
+  }
+}
+
 export async function listTransactions(env, uidHex, limit = DEFAULT_TXN_LIMIT) {
   if (!env?.CARD_REPLAY) return { transactions: [] };
   const stub = getCardStub(env, uidHex);
@@ -300,54 +282,32 @@ export async function listTransactions(env, uidHex, limit = DEFAULT_TXN_LIMIT) {
 }
 
 export async function markPending(env, uidHex, { key_provenance, key_fingerprint, key_label } = {}) {
-  requireDo(env);
-  const stub = getCardStub(env, uidHex);
-  const response = await doPost(stub, "/mark-pending", {
+  return doStateTransition(env, uidHex, "/mark-pending", {
     key_provenance: key_provenance || null,
     key_fingerprint: key_fingerprint || null,
     key_label: key_label || null,
+  }, "Mark pending failed", {
+    indexMetadata: {
+      state: CARD_STATE.PENDING,
+      keyProvenance: key_provenance,
+      keyLabel: key_label,
+      keyFingerprint: key_fingerprint,
+    },
   });
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.error || "Mark pending failed");
-  }
-
-  const result = await response.json();
-
-  await indexCard(env, uidHex, {
-    state: CARD_STATE.PENDING,
-    keyProvenance: key_provenance,
-    keyLabel: key_label,
-    keyFingerprint: key_fingerprint,
-  });
-
-  return result;
 }
 
 export async function discoverCard(env, uidHex, { key_provenance, key_fingerprint, key_label, active_version } = {}) {
-  requireDo(env);
-  const stub = getCardStub(env, uidHex);
-  const response = await doPost(stub, "/discover", {
+  return doStateTransition(env, uidHex, "/discover", {
     key_provenance: key_provenance || null,
     key_fingerprint: key_fingerprint || null,
     key_label: key_label || null,
     active_version: active_version || null,
+  }, "Discover card failed", {
+    indexMetadata: {
+      state: CARD_STATE.DISCOVERED,
+      keyProvenance: key_provenance,
+      keyLabel: key_label,
+      keyFingerprint: key_fingerprint,
+    },
   });
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.error || "Discover card failed");
-  }
-
-  const result = await response.json();
-
-  await indexCard(env, uidHex, {
-    state: CARD_STATE.DISCOVERED,
-    keyProvenance: key_provenance,
-    keyLabel: key_label,
-    keyFingerprint: key_fingerprint,
-  });
-
-  return result;
 }

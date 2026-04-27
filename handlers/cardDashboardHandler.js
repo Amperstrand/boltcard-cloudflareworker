@@ -3,7 +3,7 @@ import { getUidConfig } from "../getUidConfig.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { logger } from "../utils/logger.js";
 import { htmlResponse, jsonResponse, errorResponse } from "../utils/responses.js";
-import { getCardState, getCardConfig, getBalance, getAnalytics, terminateCard, deliverKeys } from "../replayProtection.js";
+import { getCardState, getCardConfig, safeGetBalance, getAnalytics, terminateCard, deliverKeys, resolveActiveVersion, resolveLatestVersion } from "../replayProtection.js";
 import { buildMaskedUid } from "../utils/validation.js";
 import { renderCardDashboardPage } from "../templates/cardDashboardPage.js";
 import { CARD_STATE, KEY_PROVENANCE, PAYMENT_METHOD } from "../utils/constants.js";
@@ -46,7 +46,7 @@ export async function handleCardInfo(request, env) {
   }
 
   if (cardState.state === CARD_STATE.TERMINATED) {
-    const currentVersion = cardState.latest_issued_version || cardState.active_version || 1;
+    const currentVersion = resolveLatestVersion(cardState);
     const config = await getUidConfig(uidHex, env, currentVersion);
 
     let cmacValid = false;
@@ -60,13 +60,7 @@ export async function handleCardInfo(request, env) {
       cmacValid = cmac_validated;
     }
 
-    let balance = 0;
-    try {
-      const balResult = await getBalance(env, uidHex);
-      balance = balResult.balance || 0;
-    } catch (e) {
-      logger.warn("Balance fetch failed for terminated card", { uidHex, error: e.message });
-    }
+    const { balance } = await safeGetBalance(env, uidHex);
 
     return jsonResponse({
       uid: uidHex,
@@ -86,7 +80,7 @@ export async function handleCardInfo(request, env) {
     });
   }
 
-  const activeVersion = cardState.active_version || cardState.latest_issued_version || 1;
+  const activeVersion = resolveActiveVersion(cardState);
   const config = await getUidConfig(uidHex, env, activeVersion);
 
   if (!config || !config.K2) {
@@ -116,13 +110,7 @@ export async function handleCardInfo(request, env) {
     return errorResponse("CMAC validation failed", 403);
   }
 
-  let balance = 0;
-  try {
-    const balResult = await getBalance(env, uidHex);
-    balance = balResult.balance || 0;
-  } catch (e) {
-    logger.warn("Balance fetch failed in /card/info", { uidHex, error: e.message });
-  }
+  const { balance } = await safeGetBalance(env, uidHex);
 
   let history = [];
   try {
@@ -214,7 +202,7 @@ export async function handleCardLock(request, env) {
     return errorResponse(`Card in '${cardState.state}' state cannot be locked`, 400);
   }
 
-  const activeVersion = cardState.active_version || cardState.latest_issued_version || 1;
+  const activeVersion = resolveActiveVersion(cardState);
   const config = await getUidConfig(uidHex, env, activeVersion);
   if (!config || !config.K2) {
     return errorResponse("Card configuration unavailable", 500);
@@ -277,7 +265,7 @@ export async function handleCardReactivate(request, env) {
     return errorResponse(`Card is not terminated (state: ${cardState.state})`, 400);
   }
 
-  const currentVersion = cardState.latest_issued_version || cardState.active_version || 1;
+  const currentVersion = resolveLatestVersion(cardState);
   const config = await getUidConfig(uidHex, env, currentVersion);
   if (!config || !config.K2) {
     return errorResponse("Card configuration unavailable", 500);

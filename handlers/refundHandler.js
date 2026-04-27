@@ -14,6 +14,7 @@ export function handleRefundPage(request, env) {
 }
 
 export async function handleRefundApply(request, env, session) {
+  if (request.method !== "POST") return errorResponse("Method not allowed", 405);
   const body = await parseJsonBody(request).catch(() => null);
   if (!body) return errorResponse("Invalid JSON body", 400);
 
@@ -66,14 +67,14 @@ export async function handleRefundApply(request, env, session) {
       return errorResponse(result.reason || "Refund failed", 500);
     }
 
-    const balanceData = await getBalance(env, tap.uidHex);
-    logger.info("Refund successful", { uidHex: tap.uidHex, amount: refundAmount, newBalance: balanceData.balance, shiftId, fullRefund });
-    await recordAuditEvent(env, { action: "refund", uidHex: tap.uidHex, operatorShiftId: shiftId, details: { amount: refundAmount, balance: balanceData.balance, fullRefund } });
+    const newBalance = result.balance;
+    logger.info("Refund successful", { uidHex: tap.uidHex, amount: refundAmount, newBalance, shiftId, fullRefund });
+    await recordAuditEvent(env, { action: "refund", uidHex: tap.uidHex, operatorShiftId: shiftId, details: { amount: refundAmount, balance: newBalance, fullRefund } });
 
     return jsonResponse({
       success: true,
       amount: refundAmount,
-      balance: balanceData.balance,
+      balance: newBalance,
       note,
     });
   } catch (error) {

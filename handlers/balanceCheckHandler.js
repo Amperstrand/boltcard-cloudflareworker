@@ -4,6 +4,7 @@ import { validateCardTap } from "../utils/validateCardTap.js";
 import { logger } from "../utils/logger.js";
 
 export async function handleBalanceCheck(request, env) {
+  if (request.method !== "POST") return errorResponse("Method not allowed", 405);
   const body = await parseJsonBody(request).catch(() => null);
   if (!body) return errorResponse("Invalid JSON body", 400);
 

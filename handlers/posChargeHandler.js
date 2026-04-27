@@ -5,6 +5,7 @@ import { logger } from "../utils/logger.js";
 import { recordAuditEvent } from "../utils/auditLog.js";
 
 export async function handlePosCharge(request, env, session) {
+  if (request.method !== "POST") return errorResponse("Method not allowed", 405);
   const body = await parseJsonBody(request).catch(() => null);
   if (!body) return errorResponse("Invalid JSON body", 400);
 
@@ -42,15 +43,15 @@ export async function handlePosCharge(request, env, session) {
       return errorResponse(result.reason || "Debit failed", status);
     }
 
-    const postBalance = await getBalance(env, tap.uidHex);
-    logger.info("POS charge successful", { uidHex: tap.uidHex, amount: parsedAmount, newBalance: postBalance.balance, shiftId, terminalId });
-    await recordAuditEvent(env, { action: "pos_charge", uidHex: tap.uidHex, operatorShiftId: shiftId, details: { amount: parsedAmount, balance: postBalance.balance, terminalId } });
+    const newBalance = result.balance;
+    logger.info("POS charge successful", { uidHex: tap.uidHex, amount: parsedAmount, newBalance, shiftId, terminalId });
+    await recordAuditEvent(env, { action: "pos_charge", uidHex: tap.uidHex, operatorShiftId: shiftId, details: { amount: parsedAmount, balance: newBalance, terminalId } });
 
     return jsonResponse({
       success: true,
       amount: parsedAmount,
-      balance: postBalance.balance,
-      txnId: result.txnId || null,
+      balance: newBalance,
+      txnId: result.transaction?.id || null,
       note,
     });
   } catch (error) {

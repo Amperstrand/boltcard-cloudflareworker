@@ -2,7 +2,7 @@ import { getDeterministicKeys } from "../keygenerator.js";
 import { decodeAndValidate, extractUIDAndCounter } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
-import { resetReplayProtection, getCardState, deliverKeys, setCardConfig, requestWipe, markPending } from "../replayProtection.js";
+import { resetReplayProtection, getCardState, deliverKeys, setCardConfig, requestWipe, markPending, resolveLatestVersion, resolveActiveVersion } from "../replayProtection.js";
 import { jsonResponse, buildBoltCardResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { getRequestOrigin, validateUid } from "../utils/validation.js";
 import { DEFAULT_PULL_PAYMENT_ID, DEFAULT_FALLBACK_HOST, CARD_STATE, PAYMENT_METHOD } from "../utils/constants.js";
@@ -75,7 +75,7 @@ async function handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddre
     return errorResponse("Card is active. Terminate (wipe) the card before reprogramming.", 409);
   }
   if (cardState.state === CARD_STATE.KEYS_DELIVERED) {
-    const version = cardState.latest_issued_version || 1;
+    const version = resolveLatestVersion(cardState);
     return generateKeyResponse(normalizedUid, env, baseUrl, cardType, version);
   }
 
@@ -170,7 +170,7 @@ async function handleResetFlow(lnurlw, env, baseUrl) {
       return errorResponse("Card must be active or terminated to retrieve wipe keys");
     }
 
-    const wipeVersion = cardState.active_version || 1;
+    const wipeVersion = resolveActiveVersion(cardState);
     const config = await getUidConfig(uidHex, env, wipeVersion);
 
     if (!config) {

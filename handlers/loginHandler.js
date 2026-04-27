@@ -3,22 +3,13 @@ import { renderLoginPage } from "../templates/loginPage.js";
 import { logger } from "../utils/logger.js";
 import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
-import { getCardState, recordTapRead, getBalance } from "../replayProtection.js";
+import { getCardState, recordTapRead, safeGetBalance } from "../replayProtection.js";
 import { getRequestOrigin } from "../utils/validation.js";
 import { DEFAULT_PULL_PAYMENT_ID, CARD_STATE, PAYMENT_METHOD } from "../utils/constants.js";
 import { getUnifiedHistory } from "../utils/history.js";
 import { handleTerminateAction, handleRequestWipeAction, handleTopUpAction, getCardProgrammingEndpoint, normalizeSubmittedUid } from "./loginActions.js";
 import { matchCardIssuer } from "../utils/cardMatching.js";
 import { requireOperator } from "../middleware/operatorAuth.js";
-
-async function safeGetBalance(env, uidHex) {
-  try {
-    return await getBalance(env, uidHex);
-  } catch (e) {
-    logger.warn("Could not fetch balance", { uidHex, error: e.message });
-    return { balance: 0 };
-  }
-}
 
 export function handleLoginPage(request) {
   const host = getRequestOrigin(request);
@@ -104,9 +95,8 @@ export async function handleLoginVerify(request, env) {
     const hasDoConfig = cardConfig !== null;
     const deployed = hasDoConfig || !!perCardSource;
 
-    const host = new URL(request.url).host;
     const path = pm === PAYMENT_METHOD.TWOFACTOR ? "/2fa" : "/";
-    const ndefUrl = `https://${host}${path}?p=${pHex}&c=${cHex}`;
+    const ndefUrl = `${requestOrigin}${path}?p=${pHex}&c=${cHex}`;
 
     logger.info("NFC login", {
       uidHex,

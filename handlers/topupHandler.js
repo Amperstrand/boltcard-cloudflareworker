@@ -1,6 +1,6 @@
 import { getCurrencyLabel } from "../utils/currency.js";
 import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
-import { creditCard, getBalance } from "../replayProtection.js";
+import { creditCard } from "../replayProtection.js";
 import { validateCardTap } from "../utils/validateCardTap.js";
 import { logger } from "../utils/logger.js";
 import { renderTopupPage } from "../templates/topupPage.js";
@@ -14,6 +14,7 @@ export function handleTopupPage(request, env) {
 }
 
 export async function handleTopupApply(request, env, session) {
+  if (request.method !== "POST") return errorResponse("Method not allowed", 405);
   const body = await parseJsonBody(request).catch(() => null);
   if (!body) return errorResponse("Invalid JSON body", 400);
 
@@ -44,8 +45,7 @@ export async function handleTopupApply(request, env, session) {
       return errorResponse(result.reason || "Credit failed", 500);
     }
 
-    const balanceData = await getBalance(env, tap.uidHex);
-    const newBalance = balanceData.balance;
+    const newBalance = result.balance;
 
     logger.info("Top-up successful", { uidHex: tap.uidHex, amount: parsedAmount, newBalance, shiftId });
     await recordAuditEvent(env, { action: "topup", uidHex: tap.uidHex, operatorShiftId: shiftId, details: { amount: parsedAmount, balance: newBalance } });

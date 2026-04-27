@@ -141,6 +141,7 @@ export async function handleIdentityVerify(request, env) {
 }
 
 export async function handleIdentityProfileUpdate(request, env) {
+  if (request.method !== "POST") return errorResponse("Method not allowed", 405);
   const body = await parseJsonBody(request).catch(() => null);
   if (!body) return errorResponse("Invalid JSON body", 400);
 

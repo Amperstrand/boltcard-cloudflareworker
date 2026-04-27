@@ -2,7 +2,7 @@ import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { hexToBytes } from "../cryptoutils.js";
-import { getCardState } from "../replayProtection.js";
+import { getCardState, resolveActiveVersion } from "../replayProtection.js";
 import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { cmacScanVersions } from "../utils/cmacScan.js";
 import { logger } from "../utils/logger.js";
@@ -37,7 +37,7 @@ export async function handleIdentifyCard(request, env) {
   const results = [];
 
   if (cardState && cardState.state !== CARD_STATE.TERMINATED) {
-    const activeVersion = cardState.active_version || 1;
+    const activeVersion = resolveActiveVersion(cardState);
     const config = await getUidConfig(uidHex, env, activeVersion);
 
     if (config && config.K2) {

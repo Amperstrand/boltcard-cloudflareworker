@@ -3,7 +3,7 @@ import { getUidConfig } from "../getUidConfig.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
-import { getCardState, getCardConfig, terminateCard, requestWipe, creditCard } from "../replayProtection.js";
+import { getCardState, getCardConfig, terminateCard, requestWipe, creditCard, resolveActiveVersion, resolveLatestVersion } from "../replayProtection.js";
 import { validateUid, getRequestOrigin } from "../utils/validation.js";
 import { DEFAULT_PULL_PAYMENT_ID, CARD_STATE } from "../utils/constants.js";
 
@@ -49,7 +49,7 @@ export async function handleTerminateAction(rawUid, env, request) {
       success: true,
       uidHex,
       cardState: newState.state,
-      keyVersion: newState.latest_issued_version || (cardState.active_version || 1),
+      keyVersion: resolveLatestVersion(newState) || resolveActiveVersion(cardState),
       programmingEndpoint,
     });
   } catch (err) {
@@ -71,7 +71,7 @@ export async function handleRequestWipeAction(rawUid, env, request) {
       return errorResponse(`Card is in '${cardState.state}' state. Only active cards can request wipe keys.`, 400);
     }
 
-    const version = cardState.active_version || 1;
+    const version = resolveActiveVersion(cardState);
     const keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY, version);
 
     await requestWipe(env, uidHex);

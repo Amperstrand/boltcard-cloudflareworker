@@ -1,5 +1,5 @@
 import { jsonResponse, errorResponse } from "../utils/responses.js";
-import { terminateCard, requestWipe, getCardState, deliverKeys } from "../replayProtection.js";
+import { terminateCard, requestWipe, getCardState, deliverKeys, resolveActiveVersion } from "../replayProtection.js";
 import { validateUid } from "../utils/validation.js";
 import { CARD_STATE } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
@@ -70,7 +70,7 @@ export async function handleCardBatchAction(request, env, session) {
         }
         if (cardState.state === CARD_STATE.KEYS_DELIVERED || cardState.state === CARD_STATE.DISCOVERED) {
           const { activateCard } = await import("../replayProtection.js");
-          await activateCard(env, uid, cardState.latest_issued_version || 1);
+          await activateCard(env, uid, resolveActiveVersion(cardState));
           results.push({ uid, status: "activated" });
         } else {
           results.push({ uid, status: "skipped", reason: `cannot activate card in ${cardState.state} state` });

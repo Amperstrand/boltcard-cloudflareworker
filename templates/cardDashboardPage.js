@@ -254,17 +254,6 @@ export function renderCardDashboardPage() {
           '</div>';
       }).join('');
     }
-      el.innerHTML = taps.map(function(t) {
-        var statusColor = t.status === 'completed' ? 'text-emerald-400' : t.status === 'failed' ? 'text-red-400' : 'text-yellow-400';
-        var time = formatTime(t.createdAt);
-        return '<div class="flex justify-between items-center text-xs py-1 border-b border-gray-700/50 last:border-0">' +
-          '<span class="text-gray-400 font-mono">ctr ' + esc(t.counter) + '</span>' +
-          '<span class="' + statusColor + '">' + esc(t.status) + '</span>' +
-          (t.amountMsat ? '<span class="text-gray-300">' + esc(formatBalance(t.amountMsat)) + '</span>' : '<span class="text-gray-600">-</span>') +
-          (time ? '<span class="text-gray-500 text-[10px]">' + esc(time) + '</span>' : '') +
-          '</div>';
-      }).join('');
-    }
 
     function showLoading() {
       document.getElementById('loading').classList.remove('hidden');

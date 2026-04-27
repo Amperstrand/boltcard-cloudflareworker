@@ -1,5 +1,5 @@
 import { getDeterministicKeys } from "../keygenerator.js";
-import { getCardState, terminateCard } from "../replayProtection.js";
+import { getCardState, terminateCard, resolveActiveVersion } from "../replayProtection.js";
 import { jsonResponse, buildBoltCardResponse, errorResponse } from "../utils/responses.js";
 import { validateUid } from "../utils/validation.js";
 import { DEFAULT_FALLBACK_HOST, CARD_STATE } from "../utils/constants.js";
@@ -26,7 +26,7 @@ export async function handleReset(uid, env, baseUrl) {
       return errorResponse("Card must be active to retrieve wipe keys.", 400);
     }
 
-    const wipeVersion = cardState.active_version || 1;
+    const wipeVersion = resolveActiveVersion(cardState);
 
     if (cardState.state === CARD_STATE.ACTIVE) {
       await terminateCard(env, normalizedUid);

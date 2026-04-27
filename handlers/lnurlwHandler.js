@@ -7,7 +7,7 @@ import { hexToBytes } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
-import { recordTapRead, getCardState, activateCard, checkAndAdvanceCounter, discoverCard, setCardK2 } from "../replayProtection.js";
+import { recordTapRead, getCardState, activateCard, checkAndAdvanceCounter, discoverCard, setCardK2, resolveActiveVersion } from "../replayProtection.js";
 import { getRequestOrigin } from "../utils/validation.js";
 import { cmacScanVersions } from "../utils/cmacScan.js";
 import { classifyIssuerKey, getAllIssuerKeyCandidates } from "../utils/keyLookup.js";
@@ -156,7 +156,7 @@ export async function handleLnurlw(request, env) {
       return errorResponse("Card activation failed", 500);
     }
   } else if (cardState.state === CARD_STATE.ACTIVE || cardState.state === CARD_STATE.DISCOVERED) {
-    activeVersion = cardState.active_version || 1;
+    activeVersion = resolveActiveVersion(cardState);
   } else if (cardState.state === CARD_STATE.PENDING) {
     const discovery = await discoverUnknownCard(uidHex, ctr, cHex, env);
     if (!discovery) {
