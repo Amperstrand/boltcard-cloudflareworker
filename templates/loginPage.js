@@ -530,9 +530,9 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
         }
 
         var detailParts = [];
-        if (t.counter != null) detailParts.push('#' + t.counter);
+        if (t.counter != null) detailParts.push('#' + esc(String(t.counter)));
         if (t.note) detailParts.push(esc(t.note));
-        if (t.balance_after != null && (isTopup || isPayment)) detailParts.push('bal: ' + t.balance_after);
+        if (t.balance_after != null && (isTopup || isPayment)) detailParts.push('bal: ' + esc(String(t.balance_after)));
 
         html += '<div class="py-2 border-b border-gray-700/50 last:border-0">'
           + '<div class="flex items-center justify-between">'

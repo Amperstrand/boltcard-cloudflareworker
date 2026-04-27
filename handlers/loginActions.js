@@ -109,8 +109,7 @@ export async function handleRequestWipeAction(rawUid, env, request) {
   }
 }
 
-export async function handleTopUpAction(rawUid, rawAmount, env, request) {
-  void request;
+export async function handleTopUpAction(rawUid, rawAmount, env) {
   const uidHex = normalizeSubmittedUid(rawUid);
   if (!uidHex) return errorResponse("Invalid UID format", 400);
 
