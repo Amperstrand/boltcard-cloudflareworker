@@ -119,6 +119,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | GET | `/card` | `handleCardPage()` | Cardholder dashboard (NFC scan) |
 | GET | `/card/info` | `handleCardInfo()` | Card status API (JSON) — returns unified history, analytics, payment method |
 | POST | `/api/card/lock` | `handleCardLock()` | Cardholder self-service card lock (CMAC auth) |
+| POST | `/api/card/reactivate` | `handleCardReactivate()` | Cardholder self-service re-provision (NFC tap, version advance) |
 | GET | `/api/fake-invoice` | inline | Generate fake bolt11 for fakewallet |
 | GET | `/api/verify-identity` | `handleIdentityVerify()` | Identity verification API |
 | POST | `/api/identity/profile` | `handleIdentityProfileUpdate()` | Identity profile update |
@@ -198,7 +199,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 
 - Run: `npm test` (uses Jest with `--experimental-vm-modules`)
 - Deploy: `npm run deploy` (tests → build_keys → wrangler deploy)
-- **1091 tests** across 59 test suites (as of 2026-04-26)
+- **1105 tests** across 59 test suites (as of 2026-04-27)
 - Coverage: ~87% statements, ~79% branches, ~85% functions
 
 ## Test Inventory
