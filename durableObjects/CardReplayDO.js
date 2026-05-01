@@ -83,6 +83,8 @@ export class CardReplayDO extends DurableObject {
   async fetch(request) {
     const url = new URL(request.url);
 
+    try {
+
     if (request.method === "POST" && url.pathname === "/check") {
       return this.handleCheck(request, false);
     }
@@ -175,6 +177,14 @@ export class CardReplayDO extends DurableObject {
 
     if (request.method === "POST" && url.pathname === "/set-k2") {
       return this.handleSetK2(request);
+    }
+
+    } catch (err) {
+      if (err instanceof SyntaxError) {
+        return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+      }
+      logger.error("Unhandled DO error", { path: url.pathname, error: err.message });
+      return Response.json({ error: "Internal error" }, { status: 500 });
     }
 
     return new Response("Not found", { status: 404 });

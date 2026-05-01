@@ -90,7 +90,7 @@ describe("GET /api/receipt/:txnId", () => {
     const text = await res.text();
     expect(text).toContain("RECEIPT");
     expect(text).toContain(`Transaction:  ${txnId}`);
-    expect(text).toContain("1000 credits");
+    expect(text).toContain("1,000 credits");
     expect(text).toContain("Reference:    Top-up");
     expect(text).toContain("Thank you!");
   });
@@ -126,7 +126,7 @@ describe("GET /api/receipt/:txnId", () => {
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(text).toContain("750 credits");
-    expect(text).toContain("1250 credits");
+    expect(text).toContain("1,250 credits");
     expect(text).toContain("Balance:");
   });
 
@@ -143,7 +143,7 @@ describe("GET /api/receipt/:txnId", () => {
       customEnv,
     );
     const text = await res.text();
-    expect(text).toContain("1000 sats");
+    expect(text).toContain("1,000 sats");
   });
 
   it("requires operator auth", async () => {

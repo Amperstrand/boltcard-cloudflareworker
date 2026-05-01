@@ -52,7 +52,11 @@ export function buildBoltCardResponse(keys, uid, host, version = 1) {
 }
 
 export async function parseJsonBody(request) {
-  return request.json();
+  try {
+    return await request.json();
+  } catch {
+    return null;
+  }
 }
 
 export function buildResetDeeplink(endpointUrl) {

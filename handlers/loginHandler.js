@@ -90,7 +90,13 @@ export async function handleLoginVerify(request, env) {
     const config = await getUidConfig(uidHex, env);
     const pm = config?.payment_method || "unknown";
 
-    const cardState = await getCardState(env, uidHex);
+    let cardState;
+    try {
+      cardState = await getCardState(env, uidHex);
+    } catch (err) {
+      logger.error("Card state unavailable during NFC login", { uidHex, error: err.message });
+      return errorResponse("Card state unavailable", 503);
+    }
     const { cardConfig, programmingEndpoint } = await getCardProgrammingEndpoint(env, uidHex, requestOrigin);
     const hasDoConfig = cardConfig !== null;
     const deployed = hasDoConfig || !!perCardSource;
@@ -160,7 +166,13 @@ async function handleUidOnlyLogin(rawUid, env, request) {
     return errorResponse("Invalid UID format", 400);
   }
 
-  const cardState = await getCardState(env, uidHex);
+  let cardState;
+  try {
+    cardState = await getCardState(env, uidHex);
+  } catch (err) {
+    logger.error("Card state unavailable during UID-only login", { uidHex, error: err.message });
+    return errorResponse("Card state unavailable", 503);
+  }
   const { cardConfig, programmingEndpoint } = await getCardProgrammingEndpoint(env, uidHex, requestOrigin);
   const hasDoConfig = cardConfig !== null;
   const config = await getUidConfig(uidHex, env);

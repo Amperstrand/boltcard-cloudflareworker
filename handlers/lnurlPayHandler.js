@@ -4,7 +4,7 @@ import { hexToBytes } from "../cryptoutils.js";
 import { DEFAULT_FALLBACK_HOST, PAYMENT_METHOD } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
-import { recordTap, updateTapStatus } from "../replayProtection.js";
+import { recordTap, updateTapStatus, getCardState, resolveActiveVersion } from "../replayProtection.js";
 import { resolveLightningAddress } from "../utils/lightningAddress.js";
 
 function getPosAddressPool(env) {
@@ -74,7 +74,9 @@ export async function handleLnurlPayCallback(request, env) {
       return errorResponse("Failed to extract UID from payload");
     }
 
-    const config = await getUidConfig(uidHex, env);
+    const cardState = await getCardState(env, uidHex);
+    const activeVersion = resolveActiveVersion(cardState);
+    const config = await getUidConfig(uidHex, env, activeVersion);
     if (!config) {
       logger.error("UID not found for LNURL-pay callback", { uidHex });
       return errorResponse("UID not found in config");

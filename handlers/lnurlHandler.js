@@ -3,10 +3,9 @@ import { getUidConfig } from "../getUidConfig.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
-import { CLN_REST_PAY_PATH } from "../utils/constants.js";
-import { recordTap, updateTapStatus, debitCard, claimTap } from "../replayProtection.js";
+import { CLN_REST_PAY_PATH, PAYMENT_METHOD } from "../utils/constants.js";
+import { recordTap, updateTapStatus, debitCard, claimTap, getCardState, resolveActiveVersion } from "../replayProtection.js";
 import { decodeBolt11Amount } from "../utils/bolt11.js";
-import { PAYMENT_METHOD } from "../utils/constants.js";
 
 export async function handleLnurlpPayment(request, env) {
   try {
@@ -64,7 +63,10 @@ export async function handleLnurlpPayment(request, env) {
 
       const normalizedUidHex = decryption.uidHex.toLowerCase();
 
-      const config = await getUidConfig(normalizedUidHex, env);
+      const cardState = await getCardState(env, normalizedUidHex);
+      const activeVersion = resolveActiveVersion(cardState);
+
+      const config = await getUidConfig(normalizedUidHex, env, activeVersion);
       if (!config || !config.K2) {
         return jsonResponse({ status: "ERROR", reason: "Card configuration not found or missing K2 for local verification" }, 400);
       }
@@ -80,15 +82,19 @@ export async function handleLnurlpPayment(request, env) {
 
       const counterValue = parseInt(decryption.ctr, 16);
 
+      const amountMsat = explicitAmount !== null ? parseInt(explicitAmount, 10) : decodeBolt11Amount(invoice);
+      if (amountMsat !== null && amountMsat !== undefined && (isNaN(amountMsat) || amountMsat <= 0)) {
+        return jsonResponse({ status: "ERROR", reason: "Invalid amount" }, 400);
+      }
+
       try {
         const tapResult = await recordTap(env, normalizedUidHex, counterValue, {
           bolt11: invoice || null,
-          amountMsat: explicitAmount !== null ? parseInt(explicitAmount, 10) : decodeBolt11Amount(invoice),
+          amountMsat,
           userAgent: request.headers.get("User-Agent") || null,
           requestUrl: request.url,
         });
         if (!tapResult.accepted) {
-          const amountMsat = explicitAmount !== null ? parseInt(explicitAmount, 10) : decodeBolt11Amount(invoice);
           const claim = await claimTap(env, normalizedUidHex, counterValue, {
             bolt11: invoice || null,
             amountMsat,
@@ -138,7 +144,9 @@ async function processWithdrawalPayment(uid, pr, env, counterValue, explicitAmou
   logger.debug("Processing LNURL payment", { uid });
 
   const normalizedUid = uid.toLowerCase();
-  const config = await getUidConfig(normalizedUid, env);
+  const cardState = await getCardState(env, normalizedUid);
+  const activeVersion = resolveActiveVersion(cardState);
+  const config = await getUidConfig(normalizedUid, env, activeVersion);
   logger.trace("Loaded payment config", {
     uid: normalizedUid,
     paymentMethod: config?.payment_method,

@@ -124,9 +124,10 @@ describe("parseJsonBody", () => {
     expect(result).toEqual({ foo: "bar" });
   });
 
-  it("propagates JSON parse errors", async () => {
+  it("returns null on JSON parse errors", async () => {
     const request = { json: vi.fn().mockRejectedValue(new Error("invalid json")) };
-    await expect(parseJsonBody(request)).rejects.toThrow("invalid json");
+    const result = await parseJsonBody(request);
+    expect(result).toBeNull();
   });
 });
 

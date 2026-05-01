@@ -1,6 +1,6 @@
 import { errorResponse } from "../utils/responses.js";
 import { listTransactions } from "../replayProtection.js";
-import { getCurrencyLabel, getCurrencyDecimals } from "../utils/currency.js";
+import { formatAmount, getCurrencyLabel } from "../utils/currency.js";
 import { logger } from "../utils/logger.js";
 import { RECEIPT_TXN_LOOKUP_LIMIT } from "../utils/constants.js";
 
@@ -28,11 +28,9 @@ export async function handleReceipt(request, env) {
     }
 
     const currencyLabel = getCurrencyLabel(env);
-    const decimals = getCurrencyDecimals(env);
-    const divisor = Math.pow(10, decimals);
-    const displayAmount = (txn.amount / divisor).toFixed(decimals);
+    const displayAmount = formatAmount(txn.amount, env);
     const displayBalance = txn.balance_after !== null && txn.balance_after !== undefined
-      ? (txn.balance_after / divisor).toFixed(decimals)
+      ? formatAmount(txn.balance_after, env)
       : "N/A";
 
     const receipt = [
@@ -43,8 +41,8 @@ export async function handleReceipt(request, env) {
       `Transaction:  ${txn.id}`,
       `Date:         ${new Date(txn.created_at * 1000).toLocaleString()}`,
       "",
-      `Amount:       ${displayAmount} ${currencyLabel}`,
-      `Balance:      ${displayBalance} ${currencyLabel}`,
+      `Amount:       ${displayAmount}`,
+      `Balance:      ${displayBalance}`,
       "",
     ];
 
