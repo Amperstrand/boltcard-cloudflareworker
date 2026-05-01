@@ -1,6 +1,7 @@
 import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
+import { resultBoxHelpers } from "./operatorShared.js";
 
 export function renderPosPage({ host, currencyLabel }) {
   return renderTailwindPage({
@@ -109,6 +110,7 @@ export function renderPosPage({ host, currencyLabel }) {
 
     <script>
       ${safe(BROWSER_NFC_HELPERS)}
+      ${safe(resultBoxHelpers('rounded-xl border p-3 mb-3', 'text-xl'))}
       const API_HOST = ${jsString(host)};
       let amountInput = '0';
       let appState = 'idle';
@@ -172,10 +174,6 @@ export function renderPosPage({ host, currencyLabel }) {
       const cartBar = document.getElementById('cart-bar');
       const cartItemsEl = document.getElementById('cart-items');
       const cartClearBtn = document.getElementById('cart-clear-btn');
-      const resultBox = document.getElementById('result-box');
-      const resultIcon = document.getElementById('result-icon');
-      const resultTitle = document.getElementById('result-title');
-      const resultMessage = document.getElementById('result-message');
       const tapOverlay = document.getElementById('tap-overlay');
       const overlayAmount = document.getElementById('overlay-amount');
       const overlayStatus = document.getElementById('overlay-status');
@@ -325,27 +323,6 @@ export function renderPosPage({ host, currencyLabel }) {
       }
 
       function setState(next) { appState = next; updateView(); }
-
-      function showResult(kind, title, message) {
-        resultBox.classList.remove('hidden');
-        resultTitle.textContent = title;
-        resultMessage.textContent = message;
-        if (kind === 'success') {
-          resultBox.className = 'rounded-xl border p-3 mb-3 border-emerald-500/40 bg-emerald-900/20';
-          resultIcon.textContent = '\\u2713';
-          resultIcon.className = 'text-xl leading-none text-emerald-400';
-          resultTitle.className = 'font-bold text-sm text-emerald-300';
-          resultMessage.className = 'text-xs mt-0.5 text-emerald-100/90';
-        } else {
-          resultBox.className = 'rounded-xl border p-3 mb-3 border-red-500/40 bg-red-900/20';
-          resultIcon.textContent = '\\u2717';
-          resultIcon.className = 'text-xl leading-none text-red-400';
-          resultTitle.className = 'font-bold text-sm text-red-300';
-          resultMessage.className = 'text-xs mt-0.5 text-red-100/90';
-        }
-      }
-
-      function clearResult() { resultBox.className = 'hidden rounded-xl border p-3 mb-3'; }
 
       function updateView() {
         amountDisplay.textContent = formatDisplayOnly(amountInput);

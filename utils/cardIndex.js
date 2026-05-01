@@ -1,7 +1,7 @@
 import { logger } from "./logger.js";
+import { KV_LIST_LIMIT, CARD_INDEX_TTL } from "./constants.js";
 
 const KEY_PREFIX = "card_idx:";
-const TTL_SECONDS = 7 * 24 * 60 * 60;
 
 function indexKey(uidHex) {
   return KEY_PREFIX + uidHex.toLowerCase();
@@ -22,7 +22,7 @@ export async function indexCard(env, uidHex, metadata) {
       updatedAt: Date.now(),
     };
     await env.UID_CONFIG.put(key, JSON.stringify(record), {
-      expirationTtl: TTL_SECONDS,
+      expirationTtl: CARD_INDEX_TTL,
     });
   } catch (e) {
     logger.warn("Failed to index card", { uidHex, error: e.message });
@@ -62,7 +62,7 @@ export async function repairCardIndex(env, getCardStateFn) {
   while (!listComplete) {
     const listResult = await env.UID_CONFIG.list({
       prefix: KEY_PREFIX,
-      limit: 100,
+      limit: KV_LIST_LIMIT,
       cursor,
     });
 
@@ -112,7 +112,7 @@ export async function repairCardIndex(env, getCardStateFn) {
   return { scanned: scanned.length, repaired, errors };
 }
 
-export async function listIndexedCards(env, { state, prefix, limit = 100, cursor } = {}) {
+export async function listIndexedCards(env, { state, prefix, limit = KV_LIST_LIMIT, cursor } = {}) {
   if (!env?.UID_CONFIG) return { cards: [], cursor: null, total: 0 };
   try {
     const listResult = await env.UID_CONFIG.list({

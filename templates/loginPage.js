@@ -1,6 +1,6 @@
 import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
-import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
+import { BROWSER_NFC_BASE } from "./browserNfc.js";
 
 export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
   return renderTailwindPage({
@@ -440,7 +440,7 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
     </div>
 
   <script>
-    ${safe(BROWSER_NFC_HELPERS)}
+    ${safe(BROWSER_NFC_BASE)}
     let loginTime = null;
     let timerInterval = null;
     let nfcAbortController = null;

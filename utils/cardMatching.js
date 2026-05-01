@@ -5,14 +5,12 @@ import { getAllIssuerKeyCandidates, getPerCardKeys, getUniquePerCardK1s, fingerp
 import { getCardState } from "../replayProtection.js";
 import { cmacScanVersions } from "./cmacScan.js";
 import { logger } from "./logger.js";
-
-const MAX_CANDIDATES = 50;
-const VERSION_SCAN_RANGE = 10;
+import { MAX_ISSUER_CANDIDATES, VERSION_SCAN_RANGE } from "./constants.js";
 
 export async function matchCardIssuer(pHex, cHex, env) {
   const candidates = getAllIssuerKeyCandidates(env);
-  if (candidates.length > MAX_CANDIDATES) {
-    candidates.length = MAX_CANDIDATES;
+  if (candidates.length > MAX_ISSUER_CANDIDATES) {
+    candidates.length = MAX_ISSUER_CANDIDATES;
   }
 
   for (const candidate of candidates) {

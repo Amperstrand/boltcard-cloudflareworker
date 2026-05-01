@@ -1,5 +1,6 @@
 import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
+import { ESC_HELPER } from "./browserNfc.js";
 
 export function renderMenuEditorPage({ host, terminalId, menu }) {
   const items = menu.items || [];
@@ -39,7 +40,7 @@ export function renderMenuEditorPage({ host, terminalId, menu }) {
     </div>
 
     <script>
-      function esc(s) { if (s == null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+      ${ESC_HELPER}
 
       let items = ${safe(itemsJson ? itemsJson.replace(/</g, '\\u003c') : '[]')};
       const terminalId = ${jsString(terminalId)};

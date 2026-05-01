@@ -97,7 +97,109 @@ async function checkReplayAndRecordTap(env, uidHex, counterValue, request, fireA
   return { ok: true };
 }
 
+async function resolveCardVersion(uidHex, ctr, cHex, env, cardState) {
+  if (cardState.state === CARD_STATE.KEYS_DELIVERED) {
+    const activeVersion = await detectCardVersion(uidHex, ctr, cHex, env, cardState.latest_issued_version);
+    if (activeVersion === null) {
+      return { error: errorResponse("Unable to verify card. Version mismatch.", 403) };
+    }
+    try {
+      await activateCard(env, uidHex, activeVersion);
+    } catch (error) {
+      logger.error("Card activation failed", { uidHex, activeVersion, error: error.message });
+      return { error: errorResponse("Card activation failed", 500) };
+    }
+    return { activeVersion };
+  }
+
+  if (cardState.state === CARD_STATE.ACTIVE || cardState.state === CARD_STATE.DISCOVERED) {
+    return { activeVersion: resolveActiveVersion(cardState) };
+  }
+
+  if (cardState.state === CARD_STATE.PENDING) {
+    const discovery = await discoverUnknownCard(uidHex, ctr, cHex, env);
+    if (!discovery) {
+      return { error: errorResponse("Unable to identify card key", 403) };
+    }
+    return { activeVersion: discovery.version };
+  }
+
+  const isNew = cardState.state === CARD_STATE.NEW || cardState.state === CARD_STATE.LEGACY;
+  if (isNew) {
+    const discovery = await discoverUnknownCard(uidHex, ctr, cHex, env);
+    return { activeVersion: discovery ? discovery.version : 1 };
+  }
+
+  return { activeVersion: 1 };
+}
+
+function validateCmac(uidHex, ctr, cHex, config) {
+  const proxyRelayMode = config.payment_method === PAYMENT_METHOD.PROXY && !!config.proxy?.baseurl;
+  const hasK2 = typeof config.K2 === "string" && config.K2.length > 0;
+
+  let cmac_validated = false;
+  let cmac_error = null;
+
+  if (hasK2) {
+    ({ cmac_validated, cmac_error } = validate_cmac(
+      hexToBytes(uidHex),
+      hexToBytes(ctr),
+      cHex,
+      hexToBytes(config.K2)
+    ));
+  } else if (proxyRelayMode) {
+    cmac_error = "CMAC validation deferred to downstream backend";
+    logger.info("Proxy relay mode: CMAC deferred", { uidHex });
+  } else {
+    logger.error("K2 missing for payment method requiring local verification", {
+      uidHex,
+      paymentMethod: config.payment_method,
+    });
+    return { error: errorResponse("K2 key not available for local CMAC validation") };
+  }
+
+  if (hasK2 && !cmac_validated) {
+    logger.warn(`CMAC validation failed: ${cmac_error || "CMAC validation failed."}`);
+    return { error: errorResponse(cmac_error || "CMAC validation failed") };
+  }
+
+  return { cmac_validated, proxyRelayMode };
+}
+
+async function routeByPaymentMethod(request, env, uidHex, pHex, cHex, ctr, counterValue, config, cmac_validated, proxyRelayMode) {
+  if (proxyRelayMode) {
+    const replay = await checkReplayAndRecordTap(env, uidHex, counterValue, request);
+    if (!replay.ok) return replay.response;
+    return handleProxy(request, uidHex, pHex, cHex, config.proxy.baseurl, {
+      cmacValidated: cmac_validated,
+      validationDeferred: !config.K2,
+    });
+  }
+
+  if (config.payment_method === PAYMENT_METHOD.LNURLPAY) {
+    const baseUrl = getRequestOrigin(request);
+    recordTapRead(env, uidHex, counterValue, {
+      userAgent: request.headers.get("User-Agent") || null,
+      requestUrl: request.url,
+    }).catch(e => logger.warn("recordTapRead failed", { uidHex, counterValue, error: e.message }));
+    return jsonResponse(constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, config, env));
+  }
+
+  if (config.payment_method === PAYMENT_METHOD.CLNREST || config.payment_method === PAYMENT_METHOD.FAKEWALLET) {
+    const replay = await checkReplayAndRecordTap(env, uidHex, counterValue, request);
+    if (!replay.ok) return replay.response;
+    const baseUrl = getRequestOrigin(request);
+    const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated, baseUrl, config.payment_method);
+    if (responsePayload.status === "ERROR") return errorResponse(responsePayload.reason);
+    return jsonResponse(responsePayload);
+  }
+
+  logger.error("Unsupported payment method", { uidHex, paymentMethod: config.payment_method });
+  return errorResponse(`Unsupported payment method: ${config.payment_method}`);
+}
+
 export async function handleLnurlw(request, env) {
+  try {
   const url = new URL(request.url);
   const { searchParams } = url;
   const pHex = searchParams.get("p");
@@ -107,11 +209,6 @@ export async function handleLnurlw(request, env) {
     logger.error("Missing required parameters", { pHex: !!pHex, cHex: !!cHex });
     return errorResponse("Missing required parameters: p and c are required");
   }
-
-  logger.trace("LNURLW verification request", {
-    hasP: Boolean(pHex),
-    hasC: Boolean(cHex),
-  });
 
   const decryption = extractUIDAndCounter(pHex, env);
   if (!decryption.success) {
@@ -142,40 +239,9 @@ export async function handleLnurlw(request, env) {
     return errorResponse("Card has been terminated. Re-activate to use.", 403);
   }
 
-  let activeVersion;
-
-  if (cardState.state === CARD_STATE.KEYS_DELIVERED) {
-    activeVersion = await detectCardVersion(uidHex, ctr, cHex, env, cardState.latest_issued_version);
-    if (activeVersion === null) {
-      return errorResponse("Unable to verify card. Version mismatch.", 403);
-    }
-    try {
-      await activateCard(env, uidHex, activeVersion);
-    } catch (error) {
-      logger.error("Card activation failed", { uidHex, activeVersion, error: error.message });
-      return errorResponse("Card activation failed", 500);
-    }
-  } else if (cardState.state === CARD_STATE.ACTIVE || cardState.state === CARD_STATE.DISCOVERED) {
-    activeVersion = resolveActiveVersion(cardState);
-  } else if (cardState.state === CARD_STATE.PENDING) {
-    const discovery = await discoverUnknownCard(uidHex, ctr, cHex, env);
-    if (!discovery) {
-      return errorResponse("Unable to identify card key", 403);
-    }
-    activeVersion = discovery.version;
-  } else {
-    const isNew = cardState.state === CARD_STATE.NEW || cardState.state === CARD_STATE.LEGACY;
-    if (isNew) {
-      const discovery = await discoverUnknownCard(uidHex, ctr, cHex, env);
-      if (discovery) {
-        activeVersion = discovery.version;
-      } else {
-        activeVersion = 1;
-      }
-    } else {
-      activeVersion = 1;
-    }
-  }
+  const versionResult = await resolveCardVersion(uidHex, ctr, cHex, env, cardState);
+  if (versionResult.error) return versionResult.error;
+  const { activeVersion } = versionResult;
 
   const config = await getUidConfig(uidHex, env, activeVersion);
   logger.info("Card config loaded", {
@@ -190,62 +256,13 @@ export async function handleLnurlw(request, env) {
     return errorResponse("UID not found in config");
   }
 
-  const proxyRelayMode = config.payment_method === PAYMENT_METHOD.PROXY && !!config.proxy?.baseurl;
-  const hasK2 = typeof config.K2 === "string" && config.K2.length > 0;
+  const cmacResult = validateCmac(uidHex, ctr, cHex, config);
+  if (cmacResult.error) return cmacResult.error;
 
-  let cmac_validated = false;
-  let cmac_error = null;
+  return await routeByPaymentMethod(request, env, uidHex, pHex, cHex, ctr, counterValue, config, cmacResult.cmac_validated, cmacResult.proxyRelayMode);
 
-  if (hasK2) {
-    ({ cmac_validated, cmac_error } = validate_cmac(
-      hexToBytes(uidHex),
-      hexToBytes(ctr),
-      cHex,
-      hexToBytes(config.K2)
-    ));
-  } else if (proxyRelayMode) {
-    cmac_error = "CMAC validation deferred to downstream backend";
-    logger.info("Proxy relay mode: CMAC deferred", { uidHex });
-  } else {
-    logger.error("K2 missing for payment method requiring local verification", {
-      uidHex,
-      paymentMethod: config.payment_method,
-    });
-    return errorResponse("K2 key not available for local CMAC validation");
+  } catch (err) {
+    logger.error("Unhandled error in handleLnurlw", { error: err.message });
+    return errorResponse("Internal error", 500);
   }
-
-  if (hasK2 && !cmac_validated) {
-    logger.warn(`CMAC validation failed: ${cmac_error || "CMAC validation failed."}`);
-    return errorResponse(cmac_error || "CMAC validation failed");
-  }
-
-  if (proxyRelayMode) {
-    const replay = await checkReplayAndRecordTap(env, uidHex, counterValue, request);
-    if (!replay.ok) return replay.response;
-    return handleProxy(request, uidHex, pHex, cHex, config.proxy.baseurl, {
-      cmacValidated: cmac_validated,
-      validationDeferred: !hasK2,
-    });
-  }
-
-  if (config.payment_method === PAYMENT_METHOD.LNURLPAY) {
-    const baseUrl = getRequestOrigin(request);
-    recordTapRead(env, uidHex, counterValue, {
-      userAgent: request.headers.get("User-Agent") || null,
-      requestUrl: request.url,
-    }).catch(e => logger.warn("recordTapRead failed", { uidHex, counterValue, error: e.message }));
-    return jsonResponse(constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, config, env));
-  }
-
-  if (config.payment_method === PAYMENT_METHOD.CLNREST || config.payment_method === PAYMENT_METHOD.FAKEWALLET) {
-    const replay = await checkReplayAndRecordTap(env, uidHex, counterValue, request);
-    if (!replay.ok) return replay.response;
-    const baseUrl = getRequestOrigin(request);
-    const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated, baseUrl, config.payment_method);
-    if (responsePayload.status === "ERROR") return errorResponse(responsePayload.reason);
-    return jsonResponse(responsePayload);
-  }
-
-  logger.error("Unsupported payment method", { uidHex, paymentMethod: config.payment_method });
-  return errorResponse(`Unsupported payment method: ${config.payment_method}`);
 }

@@ -2,7 +2,7 @@ import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { logger } from "../utils/logger.js";
-import { htmlResponse, jsonResponse, errorResponse } from "../utils/responses.js";
+import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { getCardState, getCardConfig, safeGetBalance, getAnalytics, terminateCard, deliverKeys, resolveActiveVersion, resolveLatestVersion } from "../replayProtection.js";
 import { buildMaskedUid } from "../utils/validation.js";
 import { renderCardDashboardPage } from "../templates/cardDashboardPage.js";
@@ -16,6 +16,53 @@ const PAYMENT_METHOD_LABELS = {
   [PAYMENT_METHOD.LNURLPAY]: "POS Card",
   [PAYMENT_METHOD.TWOFACTOR]: "2FA Token",
 };
+
+async function resolveCardAuth(body, env, endpoint) {
+  const { p: pHex, c: cHex } = body || {};
+  if (!pHex || !cHex) {
+    return { error: errorResponse("Missing p or c parameters", 400) };
+  }
+
+  const decryption = extractUIDAndCounter(pHex, env);
+  if (!decryption.success) {
+    return { error: errorResponse("Invalid card data", 400) };
+  }
+
+  const { uidHex, ctr } = decryption;
+
+  let cardState;
+  try {
+    cardState = await getCardState(env, uidHex);
+  } catch (error) {
+    logger.error(`Card state lookup failed in ${endpoint}`, { uidHex, error: error.message });
+    return { error: errorResponse("Card state unavailable", 500) };
+  }
+
+  const activeVersion = resolveActiveVersion(cardState);
+  let config;
+  try {
+    config = await getUidConfig(uidHex, env, activeVersion);
+  } catch (e) {
+    logger.error(`getUidConfig failed in ${endpoint}`, { uidHex, error: e.message });
+    return { error: errorResponse("Card configuration unavailable", 500) };
+  }
+  if (!config || !config.K2) {
+    return { error: errorResponse("Card configuration unavailable", 500) };
+  }
+
+  const { cmac_validated } = validate_cmac(
+    hexToBytes(uidHex),
+    hexToBytes(ctr),
+    cHex,
+    hexToBytes(config.K2)
+  );
+
+  if (!cmac_validated) {
+    return { error: errorResponse("CMAC validation failed", 403) };
+  }
+
+  return { uidHex, ctr, cardState, config, activeVersion };
+}
 
 export async function handleCardPage(request, env) {
   return htmlResponse(renderCardDashboardPage());
@@ -177,32 +224,15 @@ export async function handleCardLock(request, env) {
     return errorResponse("Method not allowed", 405);
   }
 
-  let body;
-  try {
-    body = await request.json();
-  } catch {
+  const body = await parseJsonBody(request);
+  if (!body) {
     return errorResponse("Invalid JSON body", 400);
   }
 
-  const { p: pHex, c: cHex } = body;
-  if (!pHex || !cHex) {
-    return errorResponse("Missing p or c parameters", 400);
-  }
+  const auth = await resolveCardAuth(body, env, "/api/card/lock");
+  if (auth.error) return auth.error;
 
-  const decryption = extractUIDAndCounter(pHex, env);
-  if (!decryption.success) {
-    return errorResponse("Invalid card data", 400);
-  }
-
-  const { uidHex, ctr } = decryption;
-
-  let cardState;
-  try {
-    cardState = await getCardState(env, uidHex);
-  } catch (error) {
-    logger.error("Card state lookup failed in /api/card/lock", { uidHex, error: error.message });
-    return errorResponse("Card state unavailable", 500);
-  }
+  const { uidHex, cardState } = auth;
 
   if (cardState.state === CARD_STATE.TERMINATED) {
     return errorResponse("Card is already locked", 400);
@@ -210,29 +240,6 @@ export async function handleCardLock(request, env) {
 
   if (cardState.state !== CARD_STATE.ACTIVE && cardState.state !== CARD_STATE.DISCOVERED) {
     return errorResponse(`Card in '${cardState.state}' state cannot be locked`, 400);
-  }
-
-  const activeVersion = resolveActiveVersion(cardState);
-  let config;
-  try {
-    config = await getUidConfig(uidHex, env, activeVersion);
-  } catch (e) {
-    logger.error("getUidConfig failed in /api/card/lock", { uidHex, error: e.message });
-    return errorResponse("Card configuration unavailable", 500);
-  }
-  if (!config || !config.K2) {
-    return errorResponse("Card configuration unavailable", 500);
-  }
-
-  const { cmac_validated } = validate_cmac(
-    hexToBytes(uidHex),
-    hexToBytes(ctr),
-    cHex,
-    hexToBytes(config.K2)
-  );
-
-  if (!cmac_validated) {
-    return errorResponse("CMAC validation failed", 403);
   }
 
   try {
@@ -250,59 +257,21 @@ export async function handleCardReactivate(request, env) {
     return errorResponse("Method not allowed", 405);
   }
 
-  let body;
-  try {
-    body = await request.json();
-  } catch {
+  const body = await parseJsonBody(request);
+  if (!body) {
     return errorResponse("Invalid JSON body", 400);
   }
 
-  const { p: pHex, c: cHex } = body;
-  if (!pHex || !cHex) {
-    return errorResponse("Missing p or c parameters", 400);
-  }
+  const auth = await resolveCardAuth(body, env, "/api/card/reactivate");
+  if (auth.error) return auth.error;
 
-  const decryption = extractUIDAndCounter(pHex, env);
-  if (!decryption.success) {
-    return errorResponse("Invalid card data", 400);
-  }
-
-  const { uidHex, ctr } = decryption;
-
-  let cardState;
-  try {
-    cardState = await getCardState(env, uidHex);
-  } catch (error) {
-    logger.error("Card state lookup failed in /api/card/reactivate", { uidHex, error: error.message });
-    return errorResponse("Card state unavailable", 500);
-  }
+  const { uidHex, cardState } = auth;
 
   if (cardState.state !== CARD_STATE.TERMINATED) {
     return errorResponse(`Card is not terminated (state: ${cardState.state})`, 400);
   }
 
   const currentVersion = resolveLatestVersion(cardState);
-  let config;
-  try {
-    config = await getUidConfig(uidHex, env, currentVersion);
-  } catch (e) {
-    logger.error("getUidConfig failed in /api/card/reactivate", { uidHex, error: e.message });
-    return errorResponse("Card configuration unavailable", 500);
-  }
-  if (!config || !config.K2) {
-    return errorResponse("Card configuration unavailable", 500);
-  }
-
-  const { cmac_validated } = validate_cmac(
-    hexToBytes(uidHex),
-    hexToBytes(ctr),
-    cHex,
-    hexToBytes(config.K2)
-  );
-
-  if (!cmac_validated) {
-    return errorResponse("CMAC validation failed", 403);
-  }
 
   try {
     const delivered = await deliverKeys(env, uidHex);

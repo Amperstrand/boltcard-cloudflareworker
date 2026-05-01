@@ -2,6 +2,11 @@ import { logger } from "./utils/logger.js";
 import { DEFAULT_TAP_LIMIT, DEFAULT_TXN_LIMIT, CARD_STATE } from "./utils/constants.js";
 import { indexCard } from "./utils/cardIndex.js";
 
+const EMPTY_ANALYTICS = Object.freeze({
+  totalMsat: 0, completedMsat: 0, failedMsat: 0,
+  totalTaps: 0, completedTaps: 0, failedTaps: 0, pendingTaps: 0,
+});
+
 const legacyCardState = {
   state: CARD_STATE.LEGACY,
   latest_issued_version: 0,
@@ -157,19 +162,17 @@ export async function resetReplayProtection(env, uidHex) {
 
 export async function getAnalytics(env, uidHex) {
   if (!env?.CARD_REPLAY) {
-    return { totalMsat: 0, completedMsat: 0, failedMsat: 0, totalTaps: 0, completedTaps: 0, failedTaps: 0, pendingTaps: 0 };
+    return { ...EMPTY_ANALYTICS };
   }
 
   const stub = getCardStub(env, uidHex);
   const response = await doGet(stub, "/analytics");
 
   if (!response.ok) {
-    return { totalMsat: 0, completedMsat: 0, failedMsat: 0, totalTaps: 0, completedTaps: 0, failedTaps: 0, pendingTaps: 0 };
+    return { ...EMPTY_ANALYTICS };
   }
 
-  const result = await response.json();
-
-  return result;
+  return response.json();
 }
 
 export async function getCardState(env, uidHex) {

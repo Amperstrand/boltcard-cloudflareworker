@@ -196,11 +196,8 @@ export function _computeCm(ks) {
  * (even-indexed bytes, reverse order). The BoltCard protocol uses a different
  * truncation — do NOT change this to match the NXP spec or all cards will fail.
  */
-export function _computeAesCmacForVerification(sv2, cmacKeyBytes) {
-  const ks = _computeKs(sv2, cmacKeyBytes);
-  const cm = _computeCm(ks);
-
-  const ct = new Uint8Array([
+function _extractOddBytes(cm) {
+  return new Uint8Array([
     cm[1],
     cm[3],
     cm[5],
@@ -210,8 +207,12 @@ export function _computeAesCmacForVerification(sv2, cmacKeyBytes) {
     cm[13],
     cm[15],
   ]);
+}
 
-  return ct;
+export function _computeAesCmacForVerification(sv2, cmacKeyBytes) {
+  const ks = _computeKs(sv2, cmacKeyBytes);
+  const cm = _computeCm(ks);
+  return _extractOddBytes(cm);
 }
 
 /**
@@ -240,17 +241,7 @@ export function buildVerificationData(uidBytes, ctr, k2Bytes) {
   const ks = _computeKs(sv2, k2Bytes);
   const cm = _computeCm(ks);
 
-  // Extract verification tag.
-  const ct = new Uint8Array([
-    cm[1],
-    cm[3],
-    cm[5],
-    cm[7],
-    cm[9],
-    cm[11],
-    cm[13],
-    cm[15],
-  ]);
+  const ct = _extractOddBytes(cm);
 
   return { sv2, ks, cm, ct };
 }

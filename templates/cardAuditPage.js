@@ -1,6 +1,6 @@
-import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
+import { rawHtml, safe } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
-import { CSRF_FETCH_HELPER, CARD_STATE_HELPERS } from "./browserNfc.js";
+import { CARD_STATE_HELPERS, ESC_HELPER } from "./browserNfc.js";
 
 export function renderCardAuditPage() {
   const content = rawHtml`
@@ -85,15 +85,13 @@ export function renderCardAuditPage() {
   </div>
 
   <script>
-    ${safe(CSRF_FETCH_HELPER)}
-
     var currentFilter = "";
     var nextCursor = null;
     var hasMore = false;
     var allCards = [];
     var selectedUids = new Set();
 
-    function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    ${ESC_HELPER}
 
     ${CARD_STATE_HELPERS}
 
@@ -216,7 +214,7 @@ export function renderCardAuditPage() {
       btn.disabled = true;
 
       try {
-        var resp = await csrfFetch('/operator/cards/batch', {
+        var resp = await fetch('/operator/cards/batch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ uids: uids, action: action }),
@@ -316,7 +314,7 @@ export function renderCardAuditPage() {
       document.getElementById('repair-result').classList.add('hidden');
 
       try {
-        var resp = await csrfFetch('/operator/cards/repair', { method: 'POST' });
+        var resp = await fetch('/operator/cards/repair', { method: 'POST' });
         var data = await resp.json();
         var resultDiv = document.getElementById('repair-result');
         var contentDiv = document.getElementById('repair-result-content');

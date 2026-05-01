@@ -1,6 +1,7 @@
 import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
+import { resultBoxHelpers, OPERATOR_LOGOUT_HANDLER, NORMALIZE_AMOUNT_INTEGER, FORMAT_DISPLAY_INTEGER } from "./operatorShared.js";
 
 export function renderTopupPage({ host, currencyLabel }) {
   return renderTailwindPage({
@@ -76,6 +77,10 @@ export function renderTopupPage({ host, currencyLabel }) {
 
     <script>
       ${safe(BROWSER_NFC_HELPERS)}
+      ${safe(resultBoxHelpers('w-full max-w-xs rounded-xl border p-4 mb-4'))}
+      ${safe(OPERATOR_LOGOUT_HANDLER)}
+      ${safe(NORMALIZE_AMOUNT_INTEGER)}
+      ${safe(FORMAT_DISPLAY_INTEGER)}
       const API_HOST = ${jsString(host)};
       let amountInput = '0';
       let appState = 'idle';
@@ -89,10 +94,6 @@ export function renderTopupPage({ host, currencyLabel }) {
       const nfcBtnArea = document.getElementById('nfc-btn-area');
       const toggleWedge = document.getElementById('toggle-wedge');
       const logoutBtn = document.getElementById('logout-btn');
-      const resultBox = document.getElementById('result-box');
-      const resultIcon = document.getElementById('result-icon');
-      const resultTitle = document.getElementById('result-title');
-      const resultMessage = document.getElementById('result-message');
 
       nfcScanner = createNfcScanner({
         continuous: false,
@@ -130,9 +131,7 @@ export function renderTopupPage({ host, currencyLabel }) {
         nfcScanner.scan();
       });
       toggleWedge.addEventListener('click', toggleWedgeMode);
-      logoutBtn.addEventListener('click', function() {
-        fetch('/operator/logout', { method: 'POST' }).then(function() { window.location.href = '/operator/login'; });
-      });
+      logoutBtn.addEventListener('click', operatorLogout);
       wedgeInput.addEventListener('keydown', handleWedgeInput);
 
       if (!browserSupportsNfc()) {
@@ -140,19 +139,6 @@ export function renderTopupPage({ host, currencyLabel }) {
         toggleWedge.classList.add('hidden');
       } else {
         window.addEventListener('load', function() { clearResult(); nfcScanner.scan(); });
-      }
-
-      function normalizeAmount(val) {
-        if (!val || val === '.') return '0';
-        let s = String(val).replace(/[^0-9]/g, '');
-        if (s === '') s = '0';
-        s = s.replace(/^0+(\\d)/, '$1');
-        return s;
-      }
-
-      function formatDisplay(val) {
-        const n = normalizeAmount(val);
-        return n.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');
       }
 
       function handleKeypad(key) {
@@ -210,29 +196,6 @@ export function renderTopupPage({ host, currencyLabel }) {
         } else {
           nfcTapBtn.textContent = 'TAP CARD TO TOP UP';
         }
-      }
-
-      function showResult(kind, title, message) {
-        resultBox.classList.remove('hidden');
-        resultTitle.textContent = title;
-        resultMessage.textContent = message;
-        if (kind === 'success') {
-          resultBox.className = 'w-full max-w-xs rounded-xl border p-4 mb-4 border-emerald-500/40 bg-emerald-900/20';
-          resultIcon.textContent = '\\u2713';
-          resultIcon.className = 'text-2xl leading-none text-emerald-400';
-          resultTitle.className = 'font-bold text-sm text-emerald-300';
-          resultMessage.className = 'text-xs mt-0.5 text-emerald-100/90';
-        } else {
-          resultBox.className = 'w-full max-w-xs rounded-xl border p-4 mb-4 border-red-500/40 bg-red-900/20';
-          resultIcon.textContent = '\\u2717';
-          resultIcon.className = 'text-2xl leading-none text-red-400';
-          resultTitle.className = 'font-bold text-sm text-red-300';
-          resultMessage.className = 'text-xs mt-0.5 text-red-100/90';
-        }
-      }
-
-      function clearResult() {
-        resultBox.className = 'hidden w-full max-w-xs rounded-xl border p-4 mb-4';
       }
 
       async function submitTopup(p, c) {

@@ -70,6 +70,6 @@ export async function handleTwoFactor(request, env) {
   const baseUrl = getRequestOrigin(request);
 
   return htmlResponse(
-    renderTwoFactorPage(uidHex, totp, hotp, counterValue, pHex, cHex, baseUrl),
+    renderTwoFactorPage({ uidHex, totp, hotp, counterValue, pHex, cHex, baseUrl }),
   );
 }

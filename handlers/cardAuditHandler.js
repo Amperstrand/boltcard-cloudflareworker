@@ -4,6 +4,7 @@ import { renderCardAuditPage } from "../templates/cardAuditPage.js";
 import { requireOperator } from "../middleware/operatorAuth.js";
 import { getCardState } from "../replayProtection.js";
 import { logger } from "../utils/logger.js";
+import { CARD_AUDIT_DEFAULT_LIMIT, CARD_AUDIT_MAX_LIMIT } from "../utils/constants.js";
 
 export async function handleCardAuditPage(request, env) {
   const auth = requireOperator(request, env);
@@ -17,8 +18,8 @@ export async function handleCardAuditData(request, env) {
 
   const url = new URL(request.url);
   const state = url.searchParams.get("state") || undefined;
-  const rawLimit = parseInt(url.searchParams.get("limit") || "50", 10);
-  const limit = Math.max(1, Math.min(rawLimit, 500));
+  const rawLimit = parseInt(url.searchParams.get("limit") || String(CARD_AUDIT_DEFAULT_LIMIT), 10);
+  const limit = Math.max(1, Math.min(rawLimit, CARD_AUDIT_MAX_LIMIT));
   const cursor = url.searchParams.get("cursor") || undefined;
 
   try {

@@ -1,9 +1,9 @@
 import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
-import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
+import { BROWSER_NFC_BASE } from "./browserNfc.js";
 import { buildMaskedUid } from "../utils/validation.js";
 
-export function renderTwoFactorPage(uidHex, totp, hotp, counterValue, pHex, cHex, baseUrl) {
+export function renderTwoFactorPage({ uidHex, totp, hotp, counterValue, pHex, cHex, baseUrl }) {
   const maskedUid = buildMaskedUid(uidHex);
 
   const host = baseUrl.replace(/^https?:\/\//, "");
@@ -157,7 +157,7 @@ export function renderTwoFactorLandingPage(baseUrl) {
     </div>
 
     <script>
-      ${safe(BROWSER_NFC_HELPERS)}
+      ${safe(BROWSER_NFC_BASE)}
       const BASE_URL = ${jsString(baseUrl)};
       const scanStatus = document.getElementById('scan-status');
       const scanDetail = document.getElementById('scan-detail');

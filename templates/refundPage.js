@@ -1,6 +1,7 @@
 import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
+import { resultBoxHelpers, OPERATOR_LOGOUT_HANDLER } from "./operatorShared.js";
 
 export function renderRefundPage({ host, currencyLabel }) {
   return renderTailwindPage({
@@ -66,6 +67,8 @@ export function renderRefundPage({ host, currencyLabel }) {
 
     <script>
       ${safe(BROWSER_NFC_HELPERS)}
+      ${safe(resultBoxHelpers('w-full max-w-xs rounded-xl border p-4 mb-4'))}
+      ${safe(OPERATOR_LOGOUT_HANDLER)}
       const API_HOST = ${jsString(host)};
       let appState = 'idle';
       let nfcScanner = null;
@@ -79,10 +82,6 @@ export function renderRefundPage({ host, currencyLabel }) {
       const partialRefundBtn = document.getElementById('partial-refund-btn');
       const partialAmount = document.getElementById('partial-amount');
       const nfcTapBtn = document.getElementById('nfc-tap-btn');
-      const resultBox = document.getElementById('result-box');
-      const resultIcon = document.getElementById('result-icon');
-      const resultTitle = document.getElementById('result-title');
-      const resultMessage = document.getElementById('result-message');
       const logoutBtn = document.getElementById('logout-btn');
 
       nfcScanner = createNfcScanner({
@@ -115,9 +114,7 @@ export function renderRefundPage({ host, currencyLabel }) {
         submitRefund(false, amt);
       });
       nfcTapBtn.addEventListener('click', function() { clearResult(); nfcScanner.scan(); });
-      logoutBtn.addEventListener('click', function() {
-        fetch('/operator/logout', { method: 'POST' }).then(function() { window.location.href = '/operator/login'; });
-      });
+      logoutBtn.addEventListener('click', operatorLogout);
 
       if (!browserSupportsNfc()) {
         nfcTapBtn.textContent = 'NFC NOT AVAILABLE — use Chrome on Android or USB reader';
@@ -126,27 +123,6 @@ export function renderRefundPage({ host, currencyLabel }) {
       } else {
         window.addEventListener('load', function() { nfcScanner.scan(); });
       }
-
-      function showResult(kind, title, message) {
-        resultBox.classList.remove('hidden');
-        resultTitle.textContent = title;
-        resultMessage.textContent = message;
-        if (kind === 'success') {
-          resultBox.className = 'w-full max-w-xs rounded-xl border p-4 mb-4 border-emerald-500/40 bg-emerald-900/20';
-          resultIcon.textContent = '\\u2713';
-          resultIcon.className = 'text-2xl leading-none text-emerald-400';
-          resultTitle.className = 'font-bold text-sm text-emerald-300';
-          resultMessage.className = 'text-xs mt-0.5 text-emerald-100/90';
-        } else {
-          resultBox.className = 'w-full max-w-xs rounded-xl border p-4 mb-4 border-red-500/40 bg-red-900/20';
-          resultIcon.textContent = '\\u2717';
-          resultIcon.className = 'text-2xl leading-none text-red-400';
-          resultTitle.className = 'font-bold text-sm text-red-300';
-          resultMessage.className = 'text-xs mt-0.5 text-red-100/90';
-        }
-      }
-
-      function clearResult() { resultBox.className = 'hidden w-full max-w-xs rounded-xl border p-4 mb-4'; }
 
       async function submitRefund(fullRefund, amount) {
         if (!lastP || !lastC) { showResult('error', 'No card', 'Tap a card first'); return; }

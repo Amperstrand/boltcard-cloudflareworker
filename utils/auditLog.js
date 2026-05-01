@@ -1,7 +1,7 @@
 import { logger } from "./logger.js";
+import { AUDIT_LOG_TTL, AUDIT_LIST_DEFAULT_LIMIT } from "./constants.js";
 
 const AUDIT_PREFIX = "audit_log:";
-const AUDIT_TTL = 90 * 24 * 60 * 60;
 
 export async function recordAuditEvent(env, { action, uidHex, operatorShiftId, details = {} }) {
   if (!env?.UID_CONFIG) return;
@@ -21,14 +21,14 @@ export async function recordAuditEvent(env, { action, uidHex, operatorShiftId, d
     await env.UID_CONFIG.put(
       AUDIT_PREFIX + id,
       JSON.stringify(entry),
-      { expirationTtl: AUDIT_TTL }
+      { expirationTtl: AUDIT_LOG_TTL }
     );
   } catch (e) {
     logger.warn("Failed to record audit event", { action, uidHex, error: e.message });
   }
 }
 
-export async function listAuditEvents(env, { limit = 50, cursor } = {}) {
+export async function listAuditEvents(env, { limit = AUDIT_LIST_DEFAULT_LIMIT, cursor } = {}) {
   if (!env?.UID_CONFIG) return { events: [], cursor: null };
 
   try {

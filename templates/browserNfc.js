@@ -1,6 +1,13 @@
 import { rawHtml } from "../utils/rawTemplate.js";
 import { validateUid } from "../utils/validation.js";
 
+export const ESC_HELPER = rawHtml`
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+`;
+
 export const CSRF_FETCH_HELPER = rawHtml`
 function getCsrfToken() {
   const match = document.cookie.match(/(?:^|;\\s*)op_csrf=([^;]*)/);
@@ -24,11 +31,8 @@ export const BROWSER_VALIDATE_UID_HELPER = rawHtml`
   ${validateUid.toString()}
 `;
 
-export const BROWSER_NFC_HELPERS = rawHtml`
-function esc(s) {
-  if (s == null) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
+export const BROWSER_NFC_BASE = rawHtml`
+${ESC_HELPER}
 
 function browserSupportsNfc() {
   return 'NDEFReader' in window;
@@ -63,6 +67,10 @@ function normalizeBrowserNfcUrl(rawUrl) {
   }
   return rawUrl.replace(/^http:\/\//i, 'https://');
 }
+`;
+
+export const BROWSER_NFC_HELPERS = rawHtml`
+${BROWSER_NFC_BASE}
 
 function createNfcScanner(opts) {
   var abortCtrl = null;
