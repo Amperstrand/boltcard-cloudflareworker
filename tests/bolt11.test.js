@@ -260,4 +260,56 @@ describe("GET /api/fake-invoice", () => {
     const json2 = await resp2.json();
     expect(json1.pr).not.toBe(json2.pr);
   });
+
+  test("returns invoice with UPI description when rail=upi", async () => {
+    const env = makeEnv();
+    const response = await makeRequest("/api/fake-invoice?amount=5000&rail=upi&pa=test@upi&pn=TestMerchant&currency=INR", env);
+    expect(response.status).toBe(200);
+
+    const json = await response.json();
+    expect(json.pr).toMatch(/^lnbc/);
+    expect(json.description).toMatch(/^upi:\/\/pay\?pa=test%40upi/);
+    expect(json.description).toContain("cu=INR");
+  });
+
+  test("returns invoice with SPAYD description when rail=spayd", async () => {
+    const env = makeEnv();
+    const response = await makeRequest("/api/fake-invoice?amount=5000&rail=spayd&acc=CZ12345-67890&currency=CZK", env);
+    expect(response.status).toBe(200);
+
+    const json = await response.json();
+    expect(json.pr).toMatch(/^lnbc/);
+    expect(json.description).toMatch(/^SPD\*1\.0\*/);
+    expect(json.description).toContain("ACC:CZ12345-67890");
+    expect(json.description).toContain("CC:CZK");
+    expect(json.description).toContain("CRC32:");
+  });
+
+  test("UPI uses env defaults when params omitted", async () => {
+    const env = { ...makeEnv(), FAKEWALLET_UPI_PA: "default@bank", FAKEWALLET_UPI_PN: "DefaultShop" };
+    const response = await makeRequest("/api/fake-invoice?amount=3000&rail=upi", env);
+    expect(response.status).toBe(200);
+
+    const json = await response.json();
+    expect(json.description).toContain("pa=default%40bank");
+  });
+
+  test("SPAYD uses env defaults when params omitted", async () => {
+    const env = { ...makeEnv(), FAKEWALLET_SPAYD_ACC: "CZ00-DEFAULT", FAKEWALLET_CURRENCY: "CZK" };
+    const response = await makeRequest("/api/fake-invoice?amount=3000&rail=spayd", env);
+    expect(response.status).toBe(200);
+
+    const json = await response.json();
+    expect(json.description).toContain("ACC:CZ00-DEFAULT");
+  });
+
+  test("falls back to plain bolt11 when rail is unrecognized", async () => {
+    const env = makeEnv();
+    const response = await makeRequest("/api/fake-invoice?amount=1000&rail=unknown", env);
+    expect(response.status).toBe(200);
+
+    const json = await response.json();
+    expect(json.pr).toMatch(/^lnbc/);
+    expect(json.description).toBeUndefined();
+  });
 });

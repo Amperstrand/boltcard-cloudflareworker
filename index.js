@@ -21,6 +21,8 @@ import { handleBulkWipePage } from "./handlers/bulkWipePageHandler.js";
 import { handleAnalyticsPage, handleAnalyticsData } from "./handlers/analyticsHandler.js";
 import { generateFakeBolt11 } from "./utils/bolt11.js";
 import { encodePaytoUri } from "./utils/fiat-rails/payto.js";
+import { encodeUpiUri } from "./utils/fiat-rails/upi.js";
+import { encodeSpayd } from "./utils/fiat-rails/spayd.js";
 import { convertSatsToCurrency } from "./utils/fiat-rails/currency.js";
 import { logger } from "./utils/logger.js";
 import { jsonResponse, errorResponse, redirect } from "./utils/responses.js";
@@ -114,6 +116,46 @@ router.get("/api/fake-invoice", async (request, env) => {
       });
 
       description = `PAYTO:${paytoUri}`;
+    } else if (rail === "upi") {
+      const pa = url.searchParams.get("pa") || env.FAKEWALLET_UPI_PA || "merchant@upi";
+      const pn = url.searchParams.get("pn") || env.FAKEWALLET_UPI_PN || "FakeWallet";
+      const currency = (url.searchParams.get("currency") || "INR").toUpperCase();
+
+      let fiatAmount;
+      try {
+        fiatAmount = await convertSatsToCurrency(amountMsat / 1000, currency);
+      } catch {
+        fiatAmount = 0;
+      }
+
+      description = encodeUpiUri({
+        pa,
+        am: fiatAmount,
+        cu: currency,
+        pn,
+        tn: `${Math.round(amountMsat / 1000)}sat@${new Date().toISOString().split("T")[0]}`,
+      });
+    } else if (rail === "spayd") {
+      const acc = url.searchParams.get("acc") || env.FAKEWALLET_SPAYD_ACC || "CZ000000-0000000000";
+      const currency = (url.searchParams.get("currency") || env.FAKEWALLET_CURRENCY || "CZK").toUpperCase();
+
+      let fiatAmount;
+      try {
+        fiatAmount = await convertSatsToCurrency(amountMsat / 1000, currency);
+      } catch {
+        fiatAmount = 0;
+      }
+
+      description = encodeSpayd(
+        {
+          ACC: acc,
+          AM: fiatAmount.toFixed(2),
+          CC: currency,
+          MSG: `${Math.round(amountMsat / 1000)}sat`,
+          DT: new Date(Date.now() + 3600000).toISOString().split("T")[0].replace(/-/g, ""),
+        },
+        { includeCrc32: true, sortAttributes: true }
+      );
     }
 
     const invoice = generateFakeBolt11(amountMsat, { description });
