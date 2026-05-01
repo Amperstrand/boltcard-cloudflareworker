@@ -136,7 +136,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | GET | `/api/keys` | `handleGetKeys()` | Key listing (GET) |
 | POST | `/api/keys` | `handleGetKeys()` | Key listing (POST) |
 | GET | `/api/bulk-wipe-keys` | `handleBulkWipeKeys()` | Bulk wipe key candidates |
-| ALL | `/api/v1/pull-payments/:id/boltcards` | `fetchBoltCardKeys()` | Pull-payment boltcard keys |
+| ALL | `/api/v1/pull-payments/:pullPaymentId/boltcards` | `fetchBoltCardKeys()` | Pull-payment boltcard keys |
 | GET | `/operator/login` | `handleOperatorLoginPage()` | Operator PIN login page |
 | POST | `/operator/login` | `handleOperatorLogin()` | Operator PIN verify |
 | POST | `/operator/logout` | `handleOperatorLogout()` | Operator session logout |
@@ -193,7 +193,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 - `replayProtection.js` calls `await indexCard()` on all 6 state transitions: `markPending`, `discoverCard`, `deliverKeys`, `activateCard`, `terminateCard`, `requestWipe`
 - `recordAuditEvent()` from `utils/auditLog.js` for persistent operator action log (prefix `audit_log:`, TTL 90 days). Called from topup, refund, POS charge, batch operations.
 - `getCardProgrammingEndpoint()` from `handlers/loginActions.js` for card config → pull payment → programming endpoint lookup (shared by 4 call sites)
-- `safeGetBalance()` local to `handlers/loginHandler.js` — graceful balance fetch fallback
+- `safeGetBalance()` exported from `replayProtection.js` — graceful balance fetch fallback (used by `loginHandler.js` and `cardDashboardHandler.js`)
 - All DO callers must wrap in try/catch with specific error messages (see #10 audit)
 - `processWithdrawalPayment` uses `normalizedUid` local variable — never mutate parameters
 - Tests use `makeReplayNamespace()` (in-memory DO mock) from `tests/replayNamespace.js`
@@ -207,7 +207,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 - Run DO tests: `npm run test:do` (Vitest, `@cloudflare/vitest-pool-workers` with real SQLite)
 - Run all: `npm run test:all`
 - Deploy: `npm run deploy` (unit tests → DO tests → build_keys → wrangler deploy)
-- **1159 unit tests** across 60 test suites + **52 DO integration tests** = 1211 total (as of 2026-04-27)
+- **1167 unit tests** across 61 test suites + **52 DO integration tests** = 1219 total (as of 2026-04-27)
 
 ## Test Inventory
 
@@ -272,6 +272,31 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | `tests/auditLog.test.js` | Audit log: record events, list sorted, corrupted entries, KV errors | |
 | `tests/cardBatchHandler.test.js` | Batch terminate/wipe/activate: validation, state checks, mixed results | |
 | `tests/e2e/pages.test.js` | Page rendering, security headers, auth flows, redirects, /card/info API | |
+| `tests/statusAndDebugHandler.test.js` | Status handler (KV health, redirect, error), debug page rendering | |
+| `tests/adversarial.test.js` | 42 adversarial tests: open redirect, XSS, query injection, balance overflow, counter replay, state violation | |
+| `tests/worker.test.js` | Worker-level integration: LNURLW flow, proxy, counter, CLN REST | |
+
+## Next Steps
+
+### Polish & Cleanup
+
+| Task | Priority | Notes |
+|------|----------|-------|
+| Dead exports cleanup | Medium | `deindexCard`, `getIndexedCard`, `listAuditEvents` exported but unused in production; `formatAmount` in `currency.js` unused (posPage defines its own); `mergeHistory` internal-only but exported |
+| Missing handler tests | Medium | `debugHandler.js`, `statusHandler.js`, `posHandler.js` lack dedicated test files (partially covered by `smoke.test.js`, `pos.test.js`, `e2e/pages.test.js`) |
+| Deduplicate `VERSION_SCAN_RANGE` | Low | Defined in both `utils/constants.js` and locally in `utils/cardMatching.js` — import from constants |
+| Extract `MAX_CANDIDATES` to constants | Low | Hardcoded `50` in `utils/cardMatching.js` |
+| Extract KV list limits to constants | Low | `100` in `cardIndex.js`, `50`/`500` in `cardAuditHandler.js`, `50` in `auditLog.js` |
+
+### Feature Development
+
+| Task | Priority | Notes |
+|------|----------|-------|
+| Real Lightning integration | High | Currently all fakewallet; wire up `clnrest` or LND for real Bitcoin payments |
+| Multi-venue / multi-tenant | Medium | Namespace cards per venue, operator-scoped access |
+| Cardholder PWA | Medium | Rich dashboard with push notifications, spending history, QR top-up |
+| GitHub #5: verifiable credentials | Low | Embed VC in payment JSON |
+| GitHub #3: SSH 2FA via NTAG424 | Low | NFC-based SSH authentication |
 
 ## Test-Only Exports
 
