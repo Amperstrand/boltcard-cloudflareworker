@@ -28,7 +28,7 @@ export async function recordAuditEvent(env, { action, uidHex, operatorShiftId, d
   }
 }
 
-export async function listAuditEvents(env, { limit = AUDIT_LIST_DEFAULT_LIMIT, cursor } = {}) {
+export async function _listAuditEvents(env, { limit = AUDIT_LIST_DEFAULT_LIMIT, cursor } = {}) {
   if (!env?.UID_CONFIG) return { events: [], cursor: null };
 
   try {

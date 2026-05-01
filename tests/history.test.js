@@ -1,39 +1,39 @@
 
-import { mergeHistory, getUnifiedHistory } from "../utils/history.js";
+import { _mergeHistory, getUnifiedHistory } from "../utils/history.js";
 import { buildCardTestEnv } from "./testHelpers.js";
 
-describe("mergeHistory", () => {
+describe("_mergeHistory", () => {
   it("returns empty array for null taps and null transactions", () => {
-    const result = mergeHistory(null, null);
+    const result = _mergeHistory(null, null);
     expect(result).toEqual([]);
   });
 
   it("returns empty array for undefined taps and transactions", () => {
-    const result = mergeHistory(undefined, undefined);
+    const result = _mergeHistory(undefined, undefined);
     expect(result).toEqual([]);
   });
 
   it("maps positive amount transactions to topup status", () => {
-    const result = mergeHistory([], [{ amount: 1000, created_at: 100, balance_after: 1000 }]);
+    const result = _mergeHistory([], [{ amount: 1000, created_at: 100, balance_after: 1000 }]);
     expect(result).toHaveLength(1);
     expect(result[0].status).toBe("topup");
     expect(result[0].amount_msat).toBe(1000);
   });
 
   it("maps negative amount transactions to payment status", () => {
-    const result = mergeHistory([], [{ amount: -500, created_at: 200, balance_after: 500 }]);
+    const result = _mergeHistory([], [{ amount: -500, created_at: 200, balance_after: 500 }]);
     expect(result).toHaveLength(1);
     expect(result[0].status).toBe("payment");
     expect(result[0].amount_msat).toBe(500);
   });
 
   it("preserves note when present", () => {
-    const result = mergeHistory([], [{ amount: 100, created_at: 100, balance_after: 100, note: "Manual top-up" }]);
+    const result = _mergeHistory([], [{ amount: 100, created_at: 100, balance_after: 100, note: "Manual top-up" }]);
     expect(result[0].note).toBe("Manual top-up");
   });
 
   it("sets note to null when absent", () => {
-    const result = mergeHistory([], [{ amount: 100, created_at: 100, balance_after: 100 }]);
+    const result = _mergeHistory([], [{ amount: 100, created_at: 100, balance_after: 100 }]);
     expect(result[0].note).toBeNull();
   });
 
@@ -45,7 +45,7 @@ describe("mergeHistory", () => {
     const txs = [
       { amount: 100, created_at: 200, balance_after: 100 },
     ];
-    const result = mergeHistory(taps, txs);
+    const result = _mergeHistory(taps, txs);
     expect(result[0].created_at).toBe(300);
     expect(result[1].created_at).toBe(200);
     expect(result[2].created_at).toBe(100);
@@ -56,7 +56,7 @@ describe("mergeHistory", () => {
       { counter: 5, created_at: 100 },
       { counter: 10, created_at: 100 },
     ];
-    const result = mergeHistory(taps, []);
+    const result = _mergeHistory(taps, []);
     expect(result[0].counter).toBe(10);
     expect(result[1].counter).toBe(5);
   });
@@ -64,27 +64,27 @@ describe("mergeHistory", () => {
   it("handles entries with missing created_at (sorts as 0)", () => {
     const taps = [{ counter: 1 }];
     const txs = [{ amount: 50, created_at: 50, balance_after: 50 }];
-    const result = mergeHistory(taps, txs);
+    const result = _mergeHistory(taps, txs);
     expect(result[0].created_at).toBe(50);
     expect(result[1].created_at).toBeUndefined();
   });
 
   it("handles entries with missing counter (sorts as 0)", () => {
     const taps = [{ created_at: 100 }];
-    const result = mergeHistory(taps, []);
+    const result = _mergeHistory(taps, []);
     expect(result[0].counter).toBeUndefined();
   });
 
   it("limits to 25 entries", () => {
     const taps = Array.from({ length: 30 }, (_, i) => ({ counter: i, created_at: i }));
-    const result = mergeHistory(taps, []);
+    const result = _mergeHistory(taps, []);
     expect(result).toHaveLength(25);
   });
 
   it("merges taps and transactions together", () => {
     const taps = [{ counter: 1, created_at: 100, bolt11: "lnbc1" }];
     const txs = [{ amount: -200, created_at: 150, balance_after: 800 }];
-    const result = mergeHistory(taps, txs);
+    const result = _mergeHistory(taps, txs);
     expect(result).toHaveLength(2);
     expect(result[0].created_at).toBe(150);
     expect(result[0].status).toBe("payment");

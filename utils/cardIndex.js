@@ -29,7 +29,7 @@ export async function indexCard(env, uidHex, metadata) {
   }
 }
 
-export async function deindexCard(env, uidHex) {
+export async function _deindexCard(env, uidHex) {
   if (!env?.UID_CONFIG || !uidHex) return;
   try {
     await env.UID_CONFIG.delete(indexKey(uidHex));
@@ -38,7 +38,7 @@ export async function deindexCard(env, uidHex) {
   }
 }
 
-export async function getIndexedCard(env, uidHex) {
+export async function _getIndexedCard(env, uidHex) {
   if (!env?.UID_CONFIG) return null;
   try {
     const raw = await env.UID_CONFIG.get(indexKey(uidHex));

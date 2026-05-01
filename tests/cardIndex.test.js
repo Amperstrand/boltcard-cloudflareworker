@@ -1,4 +1,4 @@
-import { indexCard, deindexCard, getIndexedCard, listIndexedCards, repairCardIndex } from "../utils/cardIndex.js";
+import { indexCard, _deindexCard as _deindexCard, _getIndexedCard as _getIndexedCard, listIndexedCards, repairCardIndex } from "../utils/cardIndex.js";
 
 describe("cardIndex", () => {
   function makeKvEnv(store = {}) {
@@ -72,36 +72,36 @@ describe("cardIndex", () => {
     });
   });
 
-  describe("deindexCard", () => {
+  describe("_deindexCard", () => {
     it("removes card from KV", async () => {
       const env = makeKvEnv({ "card_idx:ff000000000001": '{"uid":"ff000000000001"}' });
-      await deindexCard(env, "ff000000000001");
+      await _deindexCard(env, "ff000000000001");
       expect(env.__store["card_idx:ff000000000001"]).toBeUndefined();
     });
 
     it("silently fails when UID_CONFIG is missing", async () => {
-      await expect(deindexCard({}, "ff000000000001")).resolves.toBeUndefined();
+      await expect(_deindexCard({}, "ff000000000001")).resolves.toBeUndefined();
     });
   });
 
-  describe("getIndexedCard", () => {
+  describe("_getIndexedCard", () => {
     it("returns parsed card data", async () => {
       const env = makeKvEnv({
         "card_idx:ff000000000001": JSON.stringify({ uid: "ff000000000001", state: "active" }),
       });
-      const card = await getIndexedCard(env, "ff000000000001");
+      const card = await _getIndexedCard(env, "ff000000000001");
       expect(card.uid).toBe("ff000000000001");
       expect(card.state).toBe("active");
     });
 
     it("returns null when card not found", async () => {
       const env = makeKvEnv();
-      const card = await getIndexedCard(env, "ff000000000099");
+      const card = await _getIndexedCard(env, "ff000000000099");
       expect(card).toBeNull();
     });
 
     it("returns null when UID_CONFIG is missing", async () => {
-      const card = await getIndexedCard({}, "ff000000000001");
+      const card = await _getIndexedCard({}, "ff000000000001");
       expect(card).toBeNull();
     });
   });

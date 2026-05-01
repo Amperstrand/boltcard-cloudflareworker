@@ -1,4 +1,4 @@
-import { recordAuditEvent, listAuditEvents } from "../utils/auditLog.js";
+import { recordAuditEvent, _listAuditEvents } from "../utils/auditLog.js";
 
 function makeKvEnv(store = {}) {
   return {
@@ -66,7 +66,7 @@ describe("auditLog", () => {
     });
   });
 
-  describe("listAuditEvents", () => {
+  describe("_listAuditEvents", () => {
     it("returns sorted audit events (newest first)", async () => {
       const store = {};
       store["audit_log:1000-aaaa"] = JSON.stringify({ id: "1000-aaaa", timestamp: 1000, action: "topup" });
@@ -74,7 +74,7 @@ describe("auditLog", () => {
       store["audit_log:1500-cccc"] = JSON.stringify({ id: "1500-cccc", timestamp: 1500, action: "pos_charge" });
       const env = makeKvEnv(store);
 
-      const result = await listAuditEvents(env);
+      const result = await _listAuditEvents(env);
       expect(result.events).toHaveLength(3);
       expect(result.events[0].timestamp).toBe(2000);
       expect(result.events[1].timestamp).toBe(1500);
@@ -83,7 +83,7 @@ describe("auditLog", () => {
 
     it("returns empty when no events", async () => {
       const env = makeKvEnv();
-      const result = await listAuditEvents(env);
+      const result = await _listAuditEvents(env);
       expect(result.events).toEqual([]);
     });
 
@@ -93,19 +93,19 @@ describe("auditLog", () => {
       store["audit_log:2000-bbbb"] = JSON.stringify({ id: "2000-bbbb", timestamp: 2000, action: "topup" });
       const env = makeKvEnv(store);
 
-      const result = await listAuditEvents(env);
+      const result = await _listAuditEvents(env);
       expect(result.events).toHaveLength(1);
       expect(result.events[0].action).toBe("topup");
     });
 
     it("returns empty when UID_CONFIG is missing", async () => {
-      const result = await listAuditEvents({});
+      const result = await _listAuditEvents({});
       expect(result.events).toEqual([]);
     });
 
     it("handles KV list error gracefully", async () => {
       const env = { UID_CONFIG: { list: async () => { throw new Error("KV down"); } } };
-      const result = await listAuditEvents(env);
+      const result = await _listAuditEvents(env);
       expect(result.events).toEqual([]);
     });
   });
