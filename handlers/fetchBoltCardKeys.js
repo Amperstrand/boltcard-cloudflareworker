@@ -5,7 +5,7 @@ import { getUidConfig } from "../getUidConfig.js";
 import { resetReplayProtection, getCardState, deliverKeys, setCardConfig, requestWipe, markPending, resolveLatestVersion, resolveActiveVersion } from "../replayProtection.js";
 import { jsonResponse, buildBoltCardResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { getRequestOrigin, validateUid } from "../utils/validation.js";
-import { DEFAULT_PULL_PAYMENT_ID, DEFAULT_FALLBACK_HOST, CARD_STATE, PAYMENT_METHOD } from "../utils/constants.js";
+import { DEFAULT_PULL_PAYMENT_ID, DEFAULT_FALLBACK_HOST, CARD_STATE, PAYMENT_METHOD, UID_VALIDATION_MSG } from "../utils/constants.js";
 import { classifyIssuerKey } from "../utils/keyLookup.js";
 import { logger } from "../utils/logger.js";
 
@@ -32,7 +32,7 @@ export async function fetchBoltCardKeys(request, env) {
 
     if ((onExisting === "UpdateVersion" || (!onExisting && uid && !lnurlw)) && uid) {
       if (!validateUid(uid)) {
-        return errorResponse("Invalid UID: must be exactly 14 hex characters", 400);
+        return errorResponse(UID_VALIDATION_MSG, 400);
       }
       if (cardType === "pos" && !lightningAddress) {
         return errorResponse("POS card programming requires lightning_address parameter");

@@ -1,6 +1,7 @@
 import { deriveKeysFromHex } from "../keygenerator.js";
 import { jsonResponse, buildBoltCardResponse, buildResetDeeplink, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { getRequestOrigin, validateUid } from "../utils/validation.js";
+import { UID_VALIDATION_MSG } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
 
 export async function handleBulkWipeKeys(request) {
@@ -18,7 +19,7 @@ export async function handleBulkWipeKeys(request) {
   }
 
   if (!uid || !validateUid(uid)) {
-    return errorResponse("Invalid uid: must be exactly 14 hex characters.", 400);
+    return errorResponse(UID_VALIDATION_MSG, 400);
   }
   if (!key || !/^[0-9a-fA-F]{32}$/.test(key)) {
     return errorResponse("Invalid key: must be exactly 32 hex characters.", 400);

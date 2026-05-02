@@ -142,7 +142,7 @@ describe("GET /experimental/analytics/data", () => {
     );
     expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.reason).toContain("uid");
+    expect(json.reason).toContain("UID");
   });
 
   it("returns 500 when DO throws error", async () => {

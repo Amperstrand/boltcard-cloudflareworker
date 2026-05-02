@@ -3,7 +3,7 @@ import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
 import { getCardState, getCardConfig, terminateCard, requestWipe, creditCard, resolveActiveVersion, resolveLatestVersion } from "../replayProtection.js";
 import { validateUid, getRequestOrigin } from "../utils/validation.js";
-import { DEFAULT_PULL_PAYMENT_ID, CARD_STATE } from "../utils/constants.js";
+import { DEFAULT_PULL_PAYMENT_ID, CARD_STATE, UID_VALIDATION_MSG } from "../utils/constants.js";
 
 function resolvePullPaymentId(env, cardConfig) {
   return cardConfig?.pull_payment_id || env.DEFAULT_PULL_PAYMENT_ID || DEFAULT_PULL_PAYMENT_ID;
@@ -27,7 +27,7 @@ export async function handleTerminateAction(rawUid, env, request) {
   const requestOrigin = getRequestOrigin(request);
   const uidHex = normalizeSubmittedUid(rawUid);
   if (!uidHex) {
-    return errorResponse("Invalid UID format", 400);
+    return errorResponse(UID_VALIDATION_MSG, 400);
   }
 
   try {
@@ -60,7 +60,7 @@ export async function handleRequestWipeAction(rawUid, env, request) {
   const requestOrigin = getRequestOrigin(request);
   const uidHex = normalizeSubmittedUid(rawUid);
   if (!uidHex) {
-    return errorResponse("Invalid UID format", 400);
+    return errorResponse(UID_VALIDATION_MSG, 400);
   }
 
   try {
@@ -109,7 +109,7 @@ export async function handleRequestWipeAction(rawUid, env, request) {
 
 export async function handleTopUpAction(rawUid, rawAmount, env) {
   const uidHex = normalizeSubmittedUid(rawUid);
-  if (!uidHex) return errorResponse("Invalid UID format", 400);
+  if (!uidHex) return errorResponse(UID_VALIDATION_MSG, 400);
 
   const amount = parseInt(rawAmount, 10);
   if (!Number.isInteger(amount) || amount <= 0) {

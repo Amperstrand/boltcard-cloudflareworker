@@ -1,7 +1,7 @@
 import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { terminateCard, requestWipe, getCardState, deliverKeys, resolveActiveVersion } from "../replayProtection.js";
 import { validateUid } from "../utils/validation.js";
-import { CARD_STATE, BATCH_MAX_CARDS } from "../utils/constants.js";
+import { CARD_STATE, BATCH_MAX_CARDS, UID_VALIDATION_MSG } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
 import { recordAuditEvent } from "../utils/auditLog.js";
 
@@ -35,7 +35,7 @@ export async function handleCardBatchAction(request, env, session) {
   for (const uid of uids) {
     const normalized = validateUid(uid);
     if (!normalized) {
-      return errorResponse(`Invalid UID: ${uid}`, 400);
+      return errorResponse(UID_VALIDATION_MSG, 400);
     }
     normalizedUids.push(normalized);
   }

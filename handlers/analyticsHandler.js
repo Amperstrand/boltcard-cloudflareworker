@@ -3,6 +3,7 @@ import { renderAnalyticsPage } from "../templates/analyticsPage.js";
 import { htmlResponse, errorResponse, jsonResponse } from "../utils/responses.js";
 import { validateUid } from "../utils/validation.js";
 import { logger } from "../utils/logger.js";
+import { UID_VALIDATION_MSG } from "../utils/constants.js";
 
 export function handleAnalyticsPage() {
   return htmlResponse(renderAnalyticsPage());
@@ -18,7 +19,7 @@ export async function handleAnalyticsData(request, env) {
 
   const normalizedUid = validateUid(uid);
   if (!normalizedUid) {
-    return errorResponse("Invalid uid: must be exactly 14 hex characters", 400);
+    return errorResponse(UID_VALIDATION_MSG, 400);
   }
 
   try {

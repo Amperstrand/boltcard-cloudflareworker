@@ -4,7 +4,7 @@ import { renderActivateCardPage } from "../templates/activatePage.js";
 import { logger } from "../utils/logger.js";
 import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { validateUid } from "../utils/validation.js";
-import { PAYMENT_METHOD } from "../utils/constants.js";
+import { PAYMENT_METHOD, UID_VALIDATION_MSG } from "../utils/constants.js";
 
 export function handleActivateCardPage() {
   return htmlResponse(renderActivateCardPage());
@@ -16,7 +16,7 @@ export async function handleActivateCardSubmit(request, env) {
 
   const uid = validateUid(data.uid);
   if (!uid) {
-    return errorResponse("Invalid UID format. Must be 14 hexadecimal characters (7 bytes).", 400);
+    return errorResponse(UID_VALIDATION_MSG, 400);
   }
   
   const keys = getDeterministicKeys(uid, env);

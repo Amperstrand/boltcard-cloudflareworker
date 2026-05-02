@@ -5,7 +5,7 @@ import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../uti
 import { deriveKeysFromHex } from "../keygenerator.js";
 import { getCardState, recordTapRead, safeGetBalance } from "../replayProtection.js";
 import { getRequestOrigin } from "../utils/validation.js";
-import { DEFAULT_PULL_PAYMENT_ID, CARD_STATE, PAYMENT_METHOD } from "../utils/constants.js";
+import { DEFAULT_PULL_PAYMENT_ID, CARD_STATE, PAYMENT_METHOD, UID_VALIDATION_MSG } from "../utils/constants.js";
 import { getUnifiedHistory } from "../utils/history.js";
 import { handleTerminateAction, handleRequestWipeAction, handleTopUpAction, getCardProgrammingEndpoint, normalizeSubmittedUid } from "./loginActions.js";
 import { matchCardIssuer } from "../utils/cardMatching.js";
@@ -163,7 +163,7 @@ async function handleUidOnlyLogin(rawUid, env, request) {
   const requestOrigin = getRequestOrigin(request);
   const uidHex = normalizeSubmittedUid(rawUid);
   if (!uidHex) {
-    return errorResponse("Invalid UID format", 400);
+    return errorResponse(UID_VALIDATION_MSG, 400);
   }
 
   let cardState;

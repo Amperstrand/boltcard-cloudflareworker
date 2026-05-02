@@ -117,7 +117,7 @@ describe("GET /api/bulk-wipe-keys", () => {
 
     expect(response.status).toBe(400);
     const json = await response.json();
-    expect(json.error).toContain("uid");
+    expect(json.error).toContain("UID");
   });
 
   test("missing key returns 400", async () => {
@@ -137,7 +137,7 @@ describe("GET /api/bulk-wipe-keys", () => {
 
     expect(response.status).toBe(400);
     const json = await response.json();
-    expect(json.error).toContain("uid");
+    expect(json.error).toContain("UID");
   });
 
   test("invalid key (wrong length) returns 400", async () => {

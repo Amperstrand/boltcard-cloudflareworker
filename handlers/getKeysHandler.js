@@ -3,6 +3,7 @@ import { getPerCardKeys, getAllIssuerKeyCandidates } from "../utils/keyLookup.js
 import { jsonResponse, buildBoltCardResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { getCardState } from "../replayProtection.js";
 import { validateUid, getRequestOrigin } from "../utils/validation.js";
+import { UID_VALIDATION_MSG } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
 
 async function findFirstKeyset(normalizedUid, env) {
@@ -66,7 +67,7 @@ export async function handleGetKeys(request, env) {
     const validatedUid = validateUid(uid);
 
     if (!validatedUid) {
-      return errorResponse("Invalid or missing UID (must be 14 hex chars)", 400);
+      return errorResponse(UID_VALIDATION_MSG, 400);
     }
 
     let keys;
@@ -89,7 +90,7 @@ export async function handleGetKeys(request, env) {
 
   const validatedUid = validateUid(uidParam);
   if (!validatedUid) {
-    return errorResponse("Invalid UID: must be exactly 14 hex characters (7 bytes)", 400);
+    return errorResponse(UID_VALIDATION_MSG, 400);
   }
 
   if (url.searchParams.get("format") === "boltcard") {

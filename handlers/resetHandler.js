@@ -2,7 +2,7 @@ import { getDeterministicKeys } from "../keygenerator.js";
 import { getCardState, terminateCard, resolveActiveVersion } from "../replayProtection.js";
 import { jsonResponse, buildBoltCardResponse, errorResponse } from "../utils/responses.js";
 import { validateUid } from "../utils/validation.js";
-import { DEFAULT_FALLBACK_HOST, CARD_STATE } from "../utils/constants.js";
+import { DEFAULT_FALLBACK_HOST, CARD_STATE, UID_VALIDATION_MSG } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
 
 export async function handleReset(uid, env, baseUrl) {
@@ -17,7 +17,7 @@ export async function handleReset(uid, env, baseUrl) {
     }
 
     if (!normalizedUid) {
-      return errorResponse("Invalid UID: must be exactly 14 hex characters.", 400);
+      return errorResponse(UID_VALIDATION_MSG, 400);
     }
 
     const cardState = await getCardState(env, normalizedUid);

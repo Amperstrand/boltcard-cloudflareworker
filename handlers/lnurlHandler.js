@@ -1,6 +1,6 @@
 import { logger } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
-import { CLN_REST_PAY_PATH, PAYMENT_METHOD } from "../utils/constants.js";
+import { CLN_REST_PAY_PATH, PAYMENT_METHOD, UID_VALIDATION_MSG } from "../utils/constants.js";
 import { recordTap, updateTapStatus, debitCard, claimTap, getCardState, resolveActiveVersion } from "../replayProtection.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { decodeBolt11Amount } from "../utils/bolt11.js";
@@ -114,7 +114,7 @@ export async function handleLnurlpPayment(request, env) {
 async function processWithdrawalPayment(uid, pr, env, counterValue, explicitAmount) {
   if (!uid) {
     logger.error("Received undefined UID in processWithdrawalPayment");
-    return jsonResponse({ status: "ERROR", reason: "Invalid UID" }, 400);
+    return jsonResponse({ status: "ERROR", reason: UID_VALIDATION_MSG }, 400);
   }
 
   logger.debug("Processing LNURL payment", { uid });
