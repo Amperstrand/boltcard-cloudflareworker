@@ -289,9 +289,9 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 |------|----------|-------|
 | Dead exports cleanup | Done | Prefixed with `_`: `_deindexCard`, `_getIndexedCard`, `_listAuditEvents`, `_mergeHistory` |
 | Missing handler tests | Medium | `debugHandler.js`, `statusHandler.js`, `posHandler.js` lack dedicated test files (partially covered by `smoke.test.js`, `pos.test.js`, `e2e/pages.test.js`) |
-| Deduplicate `VERSION_SCAN_RANGE` | Low | Defined in both `utils/constants.js` and locally in `utils/cardMatching.js` — import from constants |
-| Extract `MAX_CANDIDATES` to constants | Low | Hardcoded `50` in `utils/cardMatching.js` |
-| Extract KV list limits to constants | Low | `100` in `cardIndex.js`, `50`/`500` in `cardAuditHandler.js`, `50` in `auditLog.js` |
+| Deduplicate `VERSION_SCAN_RANGE` | Done | Already imported from `utils/constants.js` in all consumers |
+| Extract `MAX_CANDIDATES` to constants | Done | Already `MAX_ISSUER_CANDIDATES` in `utils/constants.js` |
+| Extract KV list limits to constants | Done | `KV_LIST_LIMIT`, `CARD_AUDIT_DEFAULT_LIMIT`, `CARD_AUDIT_MAX_LIMIT`, `AUDIT_LIST_DEFAULT_LIMIT` in `utils/constants.js` |
 | UID validation messages normalized | Done | All handlers use `UID_VALIDATION_MSG` from `utils/constants.js` |
 | Redundant `.catch(() => null)` removed | Done | `parseJsonBody()` already returns null on failure |
 | Redundant ALTER TABLE removed | Done | `pull_payment_id` already in CREATE TABLE |
