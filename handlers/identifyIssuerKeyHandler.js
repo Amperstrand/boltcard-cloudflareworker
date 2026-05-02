@@ -4,7 +4,7 @@ import { matchCardIssuer } from "../utils/cardMatching.js";
 
 export async function handleIdentifyIssuerKey(request, env) {
   try {
-    const body = await parseJsonBody(request).catch(() => null);
+    const body = await parseJsonBody(request);
     if (!body) return errorResponse("Invalid JSON body", 400);
 
     const pHex = body?.p;

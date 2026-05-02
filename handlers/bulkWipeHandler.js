@@ -13,7 +13,7 @@ export async function handleBulkWipeKeys(request) {
 
   let key = url.searchParams.get("key");
   if (request.method === "POST") {
-    const body = await parseJsonBody(request).catch(() => null);
+    const body = await parseJsonBody(request);
     if (body?.key) key = body.key;
   }
 

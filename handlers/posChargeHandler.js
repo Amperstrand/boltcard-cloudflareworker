@@ -6,7 +6,7 @@ import { recordAuditEvent } from "../utils/auditLog.js";
 
 export async function handlePosCharge(request, env, session) {
   if (request.method !== "POST") return errorResponse("Method not allowed", 405);
-  const body = await parseJsonBody(request).catch(() => null);
+  const body = await parseJsonBody(request);
   if (!body) return errorResponse("Invalid JSON body", 400);
 
   const { p: pHex, c: cHex, amount } = body;

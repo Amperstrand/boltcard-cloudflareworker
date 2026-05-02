@@ -21,7 +21,7 @@ export async function fetchBoltCardKeys(request, env) {
     const lightningAddress = url.searchParams.get("lightning_address") || "";
     const minSendable = parseInt(url.searchParams.get("min_sendable")) || 1000;
     const maxSendable = parseInt(url.searchParams.get("max_sendable")) || 1000;
-    const body = await parseJsonBody(request).catch(() => null);
+    const body = await parseJsonBody(request);
     if (!body) return errorResponse("Invalid JSON body", 400);
     const { UID: uid, LNURLW: lnurlw } = body;
     const baseUrl = getRequestOrigin(request);

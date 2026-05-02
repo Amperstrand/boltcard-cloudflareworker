@@ -11,7 +11,7 @@ export function handleActivateCardPage() {
 }
 
 export async function handleActivateCardSubmit(request, env) {
-  const data = await parseJsonBody(request).catch(() => null);
+  const data = await parseJsonBody(request);
   if (!data) return errorResponse("Invalid JSON body", 400);
 
   const uid = validateUid(data.uid);

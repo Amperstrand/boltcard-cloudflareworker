@@ -19,7 +19,7 @@ export function handleLoginPage(request) {
 
 export async function handleLoginVerify(request, env) {
   try {
-    const body = await parseJsonBody(request).catch(() => null);
+    const body = await parseJsonBody(request);
     if (!body) return errorResponse("Invalid JSON body", 400);
 
     const { p: pHex, c: cHex, uid: rawUid } = body;

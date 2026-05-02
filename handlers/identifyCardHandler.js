@@ -9,7 +9,7 @@ import { logger } from "../utils/logger.js";
 import { CARD_STATE, VERSION_SCAN_RANGE } from "../utils/constants.js";
 
 export async function handleIdentifyCard(request, env) {
-  const body = await parseJsonBody(request).catch(() => null);
+  const body = await parseJsonBody(request);
   const pHex = body?.p || new URL(request.url).searchParams.get("p");
   const cHex = body?.c || new URL(request.url).searchParams.get("c");
 

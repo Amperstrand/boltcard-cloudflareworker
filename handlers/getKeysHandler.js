@@ -57,7 +57,7 @@ export async function handleGetKeys(request, env) {
   const baseUrl = getRequestOrigin(request);
 
   if (request.method === "POST") {
-    const body = await parseJsonBody(request).catch(() => null);
+    const body = await parseJsonBody(request);
     if (!body) return errorResponse("Invalid JSON body", 400);
 
     let uid = uidParam;

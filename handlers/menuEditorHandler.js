@@ -31,7 +31,7 @@ export async function handleMenuGet(request, env) {
 
 export async function handleMenuPut(request, env) {
   if (request.method !== "PUT") return errorResponse("Method not allowed", 405);
-  const body = await parseJsonBody(request).catch(() => null);
+  const body = await parseJsonBody(request);
   if (!body) return errorResponse("Invalid JSON", 400);
   const url = new URL(request.url);
   const terminalId = url.searchParams.get("t") || "default";
