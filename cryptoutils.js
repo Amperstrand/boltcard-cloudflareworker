@@ -24,6 +24,7 @@ import { hex as scureHex } from "@scure/base";
 import { logger } from "./utils/logger.js";
 
 const BLOCK_SIZE = 16;
+const EXPECTED_PICC_DATA_TAG = 0xc7;
 
 export function hexToBytes(hex) {
   if (!hex || hex.length % 2 !== 0) {
@@ -99,6 +100,10 @@ export function _generateSubkeyGo(input) {
  * Computes the AES-CMAC for a given message and key.
  * Per RFC 4493: https://datatracker.ietf.org/doc/html/rfc4493
  * Ref: NXP AN12196 §4 (CMAC used throughout SDM/SSM)
+ *
+ * NOTE: Only supports single-block messages (0–16 bytes). All BoltCard protocol
+ * messages fit within this limit. Throws if message exceeds 16 bytes.
+ * See RFC 4493 §2.4 Algorithm 3 for the full multi-block CBC-MAC chaining spec.
  */
 export function computeAesCmac(message, key) {
   // RFC 4493 §2.3: AES-CMAC is defined for AES-128 (16-byte key only).
@@ -280,7 +285,7 @@ export function decryptP(pHex, k1Keys) {
     const decrypted = aesEcbK1.decrypt(pBytes);
 
     // Look for the expected header byte.
-    if (decrypted[0] === 0xc7) {
+    if (decrypted[0] === EXPECTED_PICC_DATA_TAG) {
       const uidBytes = decrypted.slice(1, 8);
       const ctrLo = decrypted[8] | decrypted[9] | decrypted[10];
       if (uidBytes.every(b => b === 0) && ctrLo === 0) continue;
@@ -295,10 +300,10 @@ export function decryptP(pHex, k1Keys) {
   }
 
   if (matchIndices.length > 1) {
-    // Multiple keys produced 0xC7 header — possible false positive.
+    // Multiple keys produced the expected PICCDataTag — possible false positive.
     // First matching key wins (consistent with previous behavior).
     // Investigate if this appears in logs — may indicate key rotation overlap.
-    logger.warn("Multiple K1 keys matched PICCDataTag 0xC7", {
+    logger.warn("Multiple K1 keys matched PICCDataTag", {
       matchIndices,
       possibleFalsePositive: true,
     });

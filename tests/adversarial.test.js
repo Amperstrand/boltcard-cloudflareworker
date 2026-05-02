@@ -284,7 +284,7 @@ describe("Adversarial: Cross-Endpoint Counter", () => {
     expect(charge.status).toBe(200);
 
     const step1 = await makeRequest(`/?p=${pHex}&c=${cHex}`, "GET", null, env);
-    expect(step1.status).toBe(400);
+    expect(step1.status).toBe(409);
   });
 
   it("LNURL Step 1 then POS charge with same counter: POS rejected", async () => {

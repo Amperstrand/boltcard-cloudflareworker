@@ -83,7 +83,7 @@ describe("handleLnurlw", () => {
 
     const req2 = tapRequest(UID, 3, keys.k1, keys.k2);
     const res2 = await handleLnurlw(req2, env);
-    expect(res2.status).toBe(400);
+    expect(res2.status).toBe(409);
     const body = await res2.json();
     expect(body.reason).toContain("replay");
   });
@@ -97,7 +97,7 @@ describe("handleLnurlw", () => {
 
     const req2 = tapRequest(UID, 3, keys.k1, keys.k2);
     const res2 = await handleLnurlw(req2, env);
-    expect(res2.status).toBe(400);
+    expect(res2.status).toBe(409);
   });
 
   it("rejects terminated card", async () => {
@@ -314,7 +314,7 @@ describe("handleLnurlw", () => {
 
     const req2 = tapRequest(UID, 2, keys.k1, keys.k2);
     const res2 = await handleLnurlw(req2, env);
-    expect(res2.status).toBe(400);
+    expect(res2.status).toBe(409);
     const body = await res2.json();
     expect(body.reason).toMatch(/replay/i);
   });

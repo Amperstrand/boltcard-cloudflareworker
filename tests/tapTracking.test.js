@@ -117,7 +117,7 @@ describe("Tap tracking — Step 1 (initial tap)", () => {
 
     // Same counter rejected — counter was atomically advanced on first GET
     const response2 = await makeRequest(`/?p=${WITHDRAW_P_COUNTER3}&c=${WITHDRAW_C_COUNTER3}`, "GET", null, env);
-    expect(response2.status).toBe(400);
+    expect(response2.status).toBe(409);
   });
 });
 

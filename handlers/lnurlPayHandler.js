@@ -86,7 +86,7 @@ export async function handleLnurlPayCallback(request, env) {
     try {
       const tapResult = await recordTap(env, uidHex, counterValue, {
         amountMsat: amountMsat,
-        userAgent: request.headers.get("User-Agent") || null,
+        userAgent: request.headers.get("user-agent") || null,
         requestUrl: request.url,
       });
       if (!tapResult.accepted) {
@@ -95,7 +95,7 @@ export async function handleLnurlPayCallback(request, env) {
           counterValue,
           lastCounter: tapResult.lastCounter,
         });
-        return errorResponse(tapResult.reason || "Counter replay detected — tap rejected");
+        return jsonResponse({ status: "ERROR", reason: tapResult.reason || "Counter replay detected — tap rejected" }, 409);
       }
     } catch (error) {
       logger.error("LNURL-pay callback tap recording failed", {

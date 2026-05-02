@@ -196,7 +196,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     expect(first.status).toBe(200);
 
     const second = await makeRequest(`/?p=${pHex}&c=${cHex}`, "GET", null, env);
-    expect(second.status).toBe(400);
+    expect(second.status).toBe(409);
   });
 
   test("wipe resets replay state, allows re-provisioning", async () => {
@@ -314,7 +314,7 @@ describe("E2E: Virtual card — LNURL-pay (POS)", () => {
 
     // Replay rejected
     const replay = await makeRequest(`/lnurlp/cb?p=${pHex}&c=${cHex}&amount=1000`, "GET", null, env);
-    expect(replay.status).toBe(400);
+    expect(replay.status).toBe(409);
     const json = await replay.json();
     expect(json.reason).toMatch(/replay|counter/i);
   });
@@ -473,6 +473,6 @@ describe("E2E: Virtual card — auto-discovery lifecycle", () => {
 
     // Step 4: Replay is rejected
     const res3 = await makeRequest(`/?p=${tap1.pHex}&c=${tap1.cHex}`, "GET", null, env);
-    expect(res3.status).toBe(400);
+    expect(res3.status).toBe(409);
   });
 });

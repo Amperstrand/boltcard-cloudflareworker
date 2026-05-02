@@ -218,7 +218,7 @@ describe("LNURL-pay POS card flow", () => {
         `/lnurlp/cb?p=${PAY_COUNTER_1}&c=${PAY_CMAC_1}&amount=1000`,
         "GET", null, env
       );
-      expect(replay.status).toBe(400);
+      expect(replay.status).toBe(409);
       const json = await replay.json();
       expect(json.reason).toMatch(/replay|counter/i);
     });

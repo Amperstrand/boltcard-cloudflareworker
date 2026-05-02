@@ -173,9 +173,9 @@ SV2 is a 16-byte block assembled from fixed magic bytes, the UID, and the counte
 | 4      | 1      | Fixed          | `0x00`             |
 | 5      | 1      | Fixed          | `0x80`             |
 | 6      | 7      | UID            | UID bytes 0..6     |
-| 13     | 1      | Counter MSB    | `ctr[2]`           |
+| 13     | 1      | Counter LSB    | `ctr[2]`           |
 | 14     | 1      | Counter mid    | `ctr[1]`           |
-| 15     | 1      | Counter LSB    | `ctr[0]`           |
+| 15     | 1      | Counter MSB    | `ctr[0]`           |
 
 Total: 16 bytes.
 

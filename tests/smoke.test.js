@@ -164,7 +164,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
       env
     );
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(409);
     const json = await response.json();
     expect(json.reason).toMatch(/replay/i);
   });
@@ -295,7 +295,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
         new Request(`${payReq.callback}&amount=1000`),
         env
       );
-      expect(replay.status).toBe(400);
+      expect(replay.status).toBe(409);
     } finally {
       global.fetch = originalFetch;
     }

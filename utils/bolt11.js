@@ -9,6 +9,8 @@ secp.hashes.hmacSha256 = (key, data) => hmac(sha256, key, data);
 
 const DIVISORS = { m: 1e3, u: 1e6, n: 1e9, p: 1e12 };
 const MILLISATS_PER_BTC = 1e11;
+const BOLT11_DEFAULT_EXPIRY = 3600;
+const BOLT11_DEFAULT_CLTV = 9;
 
 export function decodeBolt11Amount(invoice) {
   if (!invoice || typeof invoice !== "string") return null;
@@ -156,20 +158,20 @@ export function generateFakeBolt11(amountMsat, { description, paymentSecret } = 
   const descriptionTag = encodeTag(13, new TextEncoder().encode(descText));
 
   const expiryBuf = new Uint8Array(2);
-  expiryBuf[0] = (3600 >> 8) & 0xff;
-  expiryBuf[1] = 3600 & 0xff;
+  expiryBuf[0] = (BOLT11_DEFAULT_EXPIRY >> 8) & 0xff;
+  expiryBuf[1] = BOLT11_DEFAULT_EXPIRY & 0xff;
   const expiryTag = encodeTag(6, expiryBuf);
 
   // payment_secret (tag 16): 32 random bytes
   const secretHex = paymentSecret || randomHex(32);
   const secretTag = encodeTag(16, hexToBytes(secretHex));
 
-  // features (tag 9): bit 8 = basic_mpp, bit 14 = payment_secret (both supported/even)
-  // byte[1] = 0x41 (bit 14 at position 6, bit 8 at position 0), trimmed = [0x41]
+  // features (tag 9): bit 0 = var_onion_optin, bit 6 = payment_secret
+  // 0x41 = binary 01000001 (bit 6 + bit 0), trimmed to [0x41]
   const featuresTag = encodeTag(9, new Uint8Array([0x41]));
 
   // min_final_cltv_expiry (tag 24): 9 blocks (default), single 5-bit word
-  const cltvTag = [24, 0, 1, 9];
+  const cltvTag = [24, 0, 1, BOLT11_DEFAULT_CLTV];
 
   const dataWithoutSig = [
     ...tsWords,

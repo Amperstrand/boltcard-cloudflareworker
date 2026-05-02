@@ -288,7 +288,7 @@ describe("Cloudflare Worker Tests", () => {
 
       // Same counter=3 in Step 1 -> rejected because stored counter=3
       const replayResponse = await makeRequest(counterThreePath, "GET", null, kvEnv);
-      expect(replayResponse.status).toBe(400);
+      expect(replayResponse.status).toBe(409);
       const json = await replayResponse.json();
       expect(json.reason || json.error).toMatch(/replay|counter/i);
     });
@@ -300,7 +300,7 @@ describe("Cloudflare Worker Tests", () => {
 
       // Second call with same counter is rejected because counter was atomically advanced
       const second = await makeRequest(counterThreePath, "GET", null, kvEnv);
-      expect(second.status).toBe(400);
+      expect(second.status).toBe(409);
     });
 
     test("incrementing counter succeeds", async () => {

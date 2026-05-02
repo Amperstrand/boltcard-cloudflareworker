@@ -77,7 +77,7 @@ async function checkReplayAndRecordTap(env, uidHex, counterValue, request, fireA
     const replayResult = await checkAndAdvanceCounter(env, uidHex, counterValue);
     if (!replayResult.accepted) {
       logger.warn("Counter replay detected", { uidHex, counterValue });
-      return { ok: false, response: errorResponse(replayResult.reason || "Counter replay detected — tap rejected") };
+      return { ok: false, response: jsonResponse({ status: "ERROR", reason: replayResult.reason || "Counter replay detected — tap rejected" }, 409) };
     }
   } catch (error) {
     logger.error("Replay protection check failed", { uidHex, counterValue, error: error.message });
@@ -86,7 +86,7 @@ async function checkReplayAndRecordTap(env, uidHex, counterValue, request, fireA
 
   logger.info("LNURLW request accepted", { uidHex, counterValue });
   const tapPromise = recordTapRead(env, uidHex, counterValue, {
-    userAgent: request.headers.get("User-Agent") || null,
+    userAgent: request.headers.get("user-agent") || null,
     requestUrl: request.url,
   });
   if (fireAndForget) {
@@ -179,7 +179,7 @@ async function routeByPaymentMethod(request, env, uidHex, pHex, cHex, ctr, count
   if (config.payment_method === PAYMENT_METHOD.LNURLPAY) {
     const baseUrl = getRequestOrigin(request);
     recordTapRead(env, uidHex, counterValue, {
-      userAgent: request.headers.get("User-Agent") || null,
+      userAgent: request.headers.get("user-agent") || null,
       requestUrl: request.url,
     }).catch(e => logger.warn("recordTapRead failed", { uidHex, counterValue, error: e.message }));
     return jsonResponse(constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, config, env));
@@ -216,12 +216,14 @@ export async function handleLnurlw(request, env) {
     return errorResponse(decryption.error);
   }
 
-  const { uidHex, ctr } = decryption;
+  const { uidHex: rawUid, ctr } = decryption;
 
-  if (!uidHex) {
+  if (!rawUid) {
     logger.error("UID is undefined after decryption", { pHex: "[REDACTED]", cHex: "[REDACTED]" });
     return errorResponse("Failed to extract UID from payload");
   }
+
+  const uidHex = rawUid.toLowerCase();
 
   const counterValue = parseInt(ctr, 16);
 

@@ -67,7 +67,7 @@ export async function handleLnurlpPayment(request, env) {
         const tapResult = await recordTap(env, normalizedUidHex, counterValue, {
           bolt11: invoice || null,
           amountMsat,
-          userAgent: request.headers.get("User-Agent") || null,
+          userAgent: request.headers.get("user-agent") || null,
           requestUrl: request.url,
         });
         if (!tapResult.accepted) {
@@ -111,15 +111,15 @@ export async function handleLnurlpPayment(request, env) {
   }
 }
 
-async function processWithdrawalPayment(uid, pr, env, counterValue, explicitAmount) {
-  if (!uid) {
+async function processWithdrawalPayment(rawUid, pr, env, counterValue, explicitAmount) {
+  if (!rawUid) {
     logger.error("Received undefined UID in processWithdrawalPayment");
     return jsonResponse({ status: "ERROR", reason: UID_VALIDATION_MSG }, 400);
   }
 
-  logger.debug("Processing LNURL payment", { uid });
+  logger.debug("Processing LNURL payment", { uid: rawUid });
 
-  const normalizedUid = uid.toLowerCase();
+  const normalizedUid = rawUid.toLowerCase();
   const cardState = await getCardState(env, normalizedUid);
   const activeVersion = resolveActiveVersion(cardState);
   const config = await getUidConfig(normalizedUid, env, activeVersion);
