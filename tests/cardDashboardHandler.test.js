@@ -304,7 +304,7 @@ describe("handleCardInfo", () => {
       expect(body.history).toEqual([]);
     });
 
-    it("returns 500 when card state DO is unreachable", async () => {
+    it("returns 503 when card state DO is unreachable", async () => {
       const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY });
       env.CARD_REPLAY = {
         idFromName: () => "test",
@@ -314,7 +314,7 @@ describe("handleCardInfo", () => {
       };
 
       const res = await handleCardInfo(makeTapRequest(UID, ISSUER_KEY, 1), env);
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(503);
 
       const body = await res.json();
       expect(body.reason).toBe("Card state unavailable");

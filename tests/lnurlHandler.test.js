@@ -63,7 +63,7 @@ describe("handleLnurlpPayment", () => {
     const { pHex } = virtualTap(UID, 2, keys.k1, keys.k2);
     const req = new Request(callbackUrl(pHex, "DEADBEEFDEADBEEF", { pr: "lnbc10n1test" }));
     const res = await handleLnurlpPayment(req, env);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
     const body = await res.json();
     expect(body.reason).toContain("CMAC");
   });

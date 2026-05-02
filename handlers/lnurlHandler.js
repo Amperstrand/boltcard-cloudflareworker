@@ -1,11 +1,10 @@
-import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
-import { getUidConfig } from "../getUidConfig.js";
-import { hexToBytes } from "../cryptoutils.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { CLN_REST_PAY_PATH, PAYMENT_METHOD } from "../utils/constants.js";
 import { recordTap, updateTapStatus, debitCard, claimTap, getCardState, resolveActiveVersion } from "../replayProtection.js";
+import { getUidConfig } from "../getUidConfig.js";
 import { decodeBolt11Amount } from "../utils/bolt11.js";
+import { resolveCardIdentity } from "../utils/cardAuth.js";
 
 export async function handleLnurlpPayment(request, env) {
   try {
@@ -51,36 +50,13 @@ export async function handleLnurlpPayment(request, env) {
         return jsonResponse({ status: "ERROR", reason: "Missing pr or amount parameter" }, 400);
       }
 
-      // Step 1: Decrypt PICCENCData to recover UID and SDMReadCtr
-      const decryption = extractUIDAndCounter(p, env);
-      if (!decryption.success) {
-        return jsonResponse({ status: "ERROR", reason: decryption.error }, 400);
+      const auth = await resolveCardIdentity(p, c, env, { context: "lnurl-callback" });
+      if (!auth.ok) {
+        return jsonResponse({ status: "ERROR", reason: auth.error }, auth.status);
       }
 
-      if (!decryption.uidHex) {
-        return jsonResponse({ status: "ERROR", reason: "Failed to decode UID" }, 400);
-      }
-
-      const normalizedUidHex = decryption.uidHex.toLowerCase();
-
-      const cardState = await getCardState(env, normalizedUidHex);
-      const activeVersion = resolveActiveVersion(cardState);
-
-      const config = await getUidConfig(normalizedUidHex, env, activeVersion);
-      if (!config || !config.K2) {
-        return jsonResponse({ status: "ERROR", reason: "Card configuration not found or missing K2 for local verification" }, 400);
-      }
-
-      // Step 3: Validate CMAC with the card's K2 key
-      const uidBytes = hexToBytes(decryption.uidHex);
-      const ctrBytes = hexToBytes(decryption.ctr);
-      const k2Bytes = hexToBytes(config.K2);
-      const { cmac_validated, cmac_error } = validate_cmac(uidBytes, ctrBytes, c, k2Bytes);
-      if (!cmac_validated) {
-        return jsonResponse({ status: "ERROR", reason: cmac_error || "CMAC validation failed" }, 400);
-      }
-
-      const counterValue = parseInt(decryption.ctr, 16);
+      const normalizedUidHex = auth.uidHex.toLowerCase();
+      const counterValue = auth.counterValue;
 
       const amountMsat = explicitAmount !== null ? parseInt(explicitAmount, 10) : decodeBolt11Amount(invoice);
       if (amountMsat !== null && amountMsat !== undefined && (isNaN(amountMsat) || amountMsat <= 0)) {

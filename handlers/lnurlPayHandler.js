@@ -1,11 +1,9 @@
-import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
-import { getUidConfig } from "../getUidConfig.js";
-import { hexToBytes } from "../cryptoutils.js";
 import { DEFAULT_FALLBACK_HOST, PAYMENT_METHOD } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
-import { recordTap, updateTapStatus, getCardState, resolveActiveVersion } from "../replayProtection.js";
+import { recordTap, updateTapStatus } from "../replayProtection.js";
 import { resolveLightningAddress } from "../utils/lightningAddress.js";
+import { resolveCardIdentity } from "../utils/cardAuth.js";
 
 function getPosAddressPool(env) {
   if (env?.POS_ADDRESS_POOL) {
@@ -63,31 +61,15 @@ export async function handleLnurlPayCallback(request, env) {
       return errorResponse("Invalid amount parameter");
     }
 
-    const decryption = extractUIDAndCounter(pHex, env);
-    if (!decryption.success) {
-      logger.error("Failed to decrypt LNURL-pay callback payload", { error: decryption.error });
-      return errorResponse(decryption.error);
+    const auth = await resolveCardIdentity(pHex, cHex, env, { context: "lnurl-pay" });
+    if (!auth.ok) {
+      return errorResponse(auth.error, auth.status);
     }
 
-    const { uidHex, ctr } = decryption;
-    if (!uidHex) {
-      return errorResponse("Failed to extract UID from payload");
-    }
-
-    const cardState = await getCardState(env, uidHex);
-    const activeVersion = resolveActiveVersion(cardState);
-    const config = await getUidConfig(uidHex, env, activeVersion);
-    if (!config) {
-      logger.error("UID not found for LNURL-pay callback", { uidHex });
-      return errorResponse("UID not found in config");
-    }
+    const { uidHex, counterValue, config } = auth;
 
     if (config.payment_method !== PAYMENT_METHOD.LNURLPAY) {
       return errorResponse(`Unsupported payment method: ${config.payment_method}`);
-    }
-
-    if (!config.K2) {
-      return errorResponse("K2 key not available for local CMAC validation");
     }
 
     const lightningAddress = pickRandomAddress(config, env);
@@ -101,19 +83,6 @@ export async function handleLnurlPayCallback(request, env) {
       return errorResponse(`Amount ${amountMsat} is outside allowed range ${minSendable}-${maxSendable}`);
     }
 
-    const { cmac_validated, cmac_error } = validate_cmac(
-      hexToBytes(uidHex),
-      hexToBytes(ctr),
-      cHex,
-      hexToBytes(config.K2)
-    );
-
-    if (!cmac_validated) {
-      logger.warn("LNURL-pay callback CMAC validation failed", { uidHex });
-      return errorResponse(cmac_error || "CMAC validation failed");
-    }
-
-    const counterValue = parseInt(ctr, 16);
     try {
       const tapResult = await recordTap(env, uidHex, counterValue, {
         amountMsat: amountMsat,

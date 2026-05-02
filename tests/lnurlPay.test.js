@@ -276,7 +276,7 @@ describe("LNURL-pay POS card flow", () => {
         "GET"
       );
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(403);
       const json = await response.json();
       expect(json.reason).toMatch(/cmac|CMAC/i);
     });

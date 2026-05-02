@@ -1,12 +1,10 @@
-import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
-import { getUidConfig } from "../getUidConfig.js";
-import { hexToBytes } from "../cryptoutils.js";
 import { logger } from "../utils/logger.js";
 import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { renderIdentityPage } from "../templates/identityPage.js";
 import { buildMaskedUid } from "../utils/validation.js";
 import { getCardState } from "../replayProtection.js";
 import { KEY_PROVENANCE } from "../utils/constants.js";
+import { resolveCardIdentity } from "../utils/cardAuth.js";
 
 const IDENTITY_EMOJI_OPTIONS = ["👤", "😀", "😎", "🤖", "🧠", "🚀", "🦊", "🦄", "🐸", "🦉", "⚡", "🔥"];
 
@@ -50,22 +48,15 @@ function buildIdentityProfile(uidHex, record = {}) {
 }
 
 async function resolveIdentityContext({ p, c }, env) {
-  if (!p || !c) {
-    return { response: errorResponse("Missing p or c parameters", 400) };
+  const auth = await resolveCardIdentity(p, c, env, { context: "identity" });
+  if (!auth.ok) {
+    const resp = (auth.status === 404 || auth.status === 403)
+      ? jsonResponse({ verified: false, reason: auth.status === 404 ? "Card not recognized" : "Card authentication failed" })
+      : errorResponse(auth.error, auth.status);
+    return { response: resp };
   }
 
-  const decryption = extractUIDAndCounter(p, env);
-  if (!decryption.success) {
-    return { response: errorResponse("Decryption failed: " + decryption.error, 400) };
-  }
-
-  const { uidHex, ctr } = decryption;
-  const counterValue = parseInt(ctr, 16);
-
-  const config = await getUidConfig(uidHex, env);
-  if (!config || !config.K2) {
-    return { response: jsonResponse({ verified: false, reason: "Card not recognized" }) };
-  }
+  const { uidHex, counterValue } = auth;
 
   let kvRaw;
   try {
@@ -79,20 +70,9 @@ async function resolveIdentityContext({ p, c }, env) {
     return { response: jsonResponse({ verified: false, reason: "Card not enrolled for identity" }) };
   }
 
-  const { cmac_validated } = validate_cmac(
-    hexToBytes(uidHex),
-    hexToBytes(ctr),
-    c,
-    hexToBytes(config.K2),
-  );
-
-  if (!cmac_validated) {
-    return { response: jsonResponse({ verified: false, reason: "Card authentication failed" }) };
-  }
-
   return {
     uidHex,
-    ctr,
+    ctr: auth.ctr,
     counterValue,
     record: enrollment.record,
   };

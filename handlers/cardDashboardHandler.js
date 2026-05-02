@@ -1,6 +1,6 @@
 import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
-import { getUidConfig } from "../getUidConfig.js";
 import { hexToBytes } from "../cryptoutils.js";
+import { getUidConfig } from "../getUidConfig.js";
 import { logger } from "../utils/logger.js";
 import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { getCardState, getCardConfig, safeGetBalance, getAnalytics, terminateCard, deliverKeys, resolveActiveVersion, resolveLatestVersion } from "../replayProtection.js";
@@ -8,6 +8,7 @@ import { buildMaskedUid } from "../utils/validation.js";
 import { renderCardDashboardPage } from "../templates/cardDashboardPage.js";
 import { CARD_STATE, KEY_PROVENANCE, PAYMENT_METHOD } from "../utils/constants.js";
 import { getUnifiedHistory } from "../utils/history.js";
+import { resolveCardIdentity } from "../utils/cardAuth.js";
 
 const PAYMENT_METHOD_LABELS = {
   [PAYMENT_METHOD.FAKEWALLET]: "Internal Wallet",
@@ -19,49 +20,11 @@ const PAYMENT_METHOD_LABELS = {
 
 async function resolveCardAuth(body, env, endpoint) {
   const { p: pHex, c: cHex } = body || {};
-  if (!pHex || !cHex) {
-    return { error: errorResponse("Missing p or c parameters", 400) };
+  const auth = await resolveCardIdentity(pHex, cHex, env, { requireState: true, context: endpoint });
+  if (!auth.ok) {
+    return { error: errorResponse(auth.error, auth.status) };
   }
-
-  const decryption = extractUIDAndCounter(pHex, env);
-  if (!decryption.success) {
-    return { error: errorResponse("Invalid card data", 400) };
-  }
-
-  const { uidHex, ctr } = decryption;
-
-  let cardState;
-  try {
-    cardState = await getCardState(env, uidHex);
-  } catch (error) {
-    logger.error(`Card state lookup failed in ${endpoint}`, { uidHex, error: error.message });
-    return { error: errorResponse("Card state unavailable", 500) };
-  }
-
-  const activeVersion = resolveActiveVersion(cardState);
-  let config;
-  try {
-    config = await getUidConfig(uidHex, env, activeVersion);
-  } catch (e) {
-    logger.error(`getUidConfig failed in ${endpoint}`, { uidHex, error: e.message });
-    return { error: errorResponse("Card configuration unavailable", 500) };
-  }
-  if (!config || !config.K2) {
-    return { error: errorResponse("Card configuration unavailable", 500) };
-  }
-
-  const { cmac_validated } = validate_cmac(
-    hexToBytes(uidHex),
-    hexToBytes(ctr),
-    cHex,
-    hexToBytes(config.K2)
-  );
-
-  if (!cmac_validated) {
-    return { error: errorResponse("CMAC validation failed", 403) };
-  }
-
-  return { uidHex, ctr, cardState, config, activeVersion };
+  return { uidHex: auth.uidHex, ctr: auth.ctr, cardState: auth.cardState, config: auth.config, activeVersion: auth.activeVersion };
 }
 
 export async function handleCardPage(request, env) {
@@ -77,40 +40,15 @@ export async function handleCardInfo(request, env) {
     return errorResponse("Missing p or c parameters", 400);
   }
 
-  const decryption = extractUIDAndCounter(pHex, env);
-  if (!decryption.success) {
-    return errorResponse("Invalid card data", 400);
+  const auth = await resolveCardIdentity(pHex, cHex, env, { requireState: true, skipCmac: true, context: "/card/info" });
+  if (!auth.ok) {
+    return errorResponse(auth.error, auth.status);
   }
 
-  const { uidHex, ctr } = decryption;
-
-  let cardState;
-  try {
-    cardState = await getCardState(env, uidHex);
-  } catch (error) {
-    logger.error("Card state lookup failed in /card/info", { uidHex, error: error.message });
-    return errorResponse("Card state unavailable", 500);
-  }
+  const { uidHex, cardState, cmac_validated } = auth;
 
   if (cardState.state === CARD_STATE.TERMINATED) {
     const currentVersion = resolveLatestVersion(cardState);
-    let config;
-    try {
-      config = await getUidConfig(uidHex, env, currentVersion);
-    } catch (e) {
-      logger.warn("getUidConfig failed for terminated card", { uidHex, error: e.message });
-    }
-
-    let cmacValid = false;
-    if (config && config.K2) {
-      const { cmac_validated } = validate_cmac(
-        hexToBytes(uidHex),
-        hexToBytes(ctr),
-        cHex,
-        hexToBytes(config.K2)
-      );
-      cmacValid = cmac_validated;
-    }
 
     const balance = (await safeGetBalance(env, uidHex)).balance;
 
@@ -128,40 +66,9 @@ export async function handleCardInfo(request, env) {
       activatedAt: cardState.activated_at || null,
       terminatedAt: cardState.terminated_at || null,
       currentVersion,
-      reactivationAvailable: cmacValid,
+      reactivationAvailable: cmac_validated,
     });
   }
-
-  const activeVersion = resolveActiveVersion(cardState);
-  let config;
-  try {
-    config = await getUidConfig(uidHex, env, activeVersion);
-  } catch (e) {
-    logger.warn("getUidConfig failed in /card/info", { uidHex, error: e.message });
-  }
-
-  if (!config || !config.K2) {
-    return jsonResponse({
-      uid: uidHex,
-      maskedUid: buildMaskedUid(uidHex),
-      state: cardState.state,
-      keyProvenance: cardState.key_provenance || null,
-      programmingRecommended: cardState.key_provenance === KEY_PROVENANCE.PUBLIC_ISSUER,
-      balance: 0,
-      history: [],
-      analytics: null,
-      paymentMethod: null,
-      paymentMethodLabel: null,
-      activatedAt: cardState.activated_at || null,
-    });
-  }
-
-  const { cmac_validated } = validate_cmac(
-    hexToBytes(uidHex),
-    hexToBytes(ctr),
-    cHex,
-    hexToBytes(config.K2)
-  );
 
   if (!cmac_validated) {
     return errorResponse("CMAC validation failed", 403);
@@ -209,7 +116,7 @@ export async function handleCardInfo(request, env) {
     keyFingerprint: cardState.key_fingerprint || null,
     firstSeenAt: cardState.first_seen_at || null,
     activatedAt: cardState.activated_at || null,
-    activeVersion,
+    activeVersion: auth.activeVersion,
     programmingRecommended,
     balance,
     history,
