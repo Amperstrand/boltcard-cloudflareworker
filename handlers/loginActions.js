@@ -1,5 +1,3 @@
-import { hexToBytes } from "../cryptoutils.js";
-import { getUidConfig } from "../getUidConfig.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { deriveKeysFromHex } from "../keygenerator.js";

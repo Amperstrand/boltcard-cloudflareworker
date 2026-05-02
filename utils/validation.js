@@ -18,3 +18,9 @@ export function buildMaskedUid(uidHex) {
     ? upper.substring(0, 4) + "\u00b7\u00b7\u00b7" + upper.substring(upper.length - 4)
     : upper;
 }
+
+export function parsePositiveInt(raw, max = Infinity) {
+  const n = parseInt(raw, 10);
+  if (!Number.isInteger(n) || n <= 0 || n > max) return null;
+  return n;
+}

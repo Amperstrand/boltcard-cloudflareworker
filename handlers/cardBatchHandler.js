@@ -1,4 +1,4 @@
-import { jsonResponse, errorResponse } from "../utils/responses.js";
+import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { terminateCard, requestWipe, getCardState, deliverKeys, resolveActiveVersion } from "../replayProtection.js";
 import { validateUid } from "../utils/validation.js";
 import { CARD_STATE, BATCH_MAX_CARDS } from "../utils/constants.js";
@@ -12,10 +12,8 @@ export async function handleCardBatchAction(request, env, session) {
     return errorResponse("Method not allowed", 405);
   }
 
-  let body;
-  try {
-    body = await request.json();
-  } catch {
+  const body = await parseJsonBody(request);
+  if (!body) {
     return errorResponse("Invalid JSON body", 400);
   }
 

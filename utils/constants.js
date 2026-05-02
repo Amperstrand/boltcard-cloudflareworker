@@ -40,6 +40,14 @@ export const CARD_STATE = {
   LEGACY: "legacy",
 };
 
+export function isCardUsable(state) { return state === CARD_STATE.ACTIVE || state === CARD_STATE.DISCOVERED; }
+export function isCardTerminated(state) { return state === CARD_STATE.TERMINATED; }
+export function canAutoActivate(state) { return state === CARD_STATE.KEYS_DELIVERED; }
+export function isCardNew(state) { return state === CARD_STATE.NEW || state === CARD_STATE.LEGACY; }
+export function canTransact(state) { return isCardUsable(state) || canAutoActivate(state); }
+
+export const UID_VALIDATION_MSG = "Invalid UID: must be exactly 14 hex characters";
+
 export const KEY_PROVENANCE = {
   UNKNOWN: "unknown",
   PUBLIC_ISSUER: "public_issuer",
