@@ -58,11 +58,6 @@ export class CardReplayDO extends DurableObject {
           updated_at INTEGER
         )
       `);
-      try {
-        this.sql.exec(`ALTER TABLE card_config ADD COLUMN pull_payment_id TEXT`);
-      } catch (e) {
-        // Column already exists — expected on subsequent initializations
-      }
       try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN key_provenance TEXT`); } catch (e) {}
       try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN key_fingerprint TEXT`); } catch (e) {}
       try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN key_label TEXT`); } catch (e) {}
@@ -653,10 +648,9 @@ export class CardReplayDO extends DurableObject {
       const k2 = K2 || null;
       const now = nowSec();
       const existing = this.sql.exec(
-        `SELECT payment_method, config_json, pull_payment_id FROM card_config WHERE singleton = 1`
+        `SELECT 1 FROM card_config WHERE singleton = 1`
       ).toArray();
       if (existing.length > 0) {
-        const row = existing[0];
         this.sql.exec(
           `UPDATE card_config SET K2 = ?, updated_at = ? WHERE singleton = 1`,
           k2, now
