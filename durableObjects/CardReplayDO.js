@@ -4,6 +4,8 @@ import { logger } from "../utils/logger.js";
 function nowSec() {
   return Math.floor(Date.now() / 1000);
 }
+
+const CARD_STATE_COLS = "state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance, key_provenance, key_fingerprint, key_label, first_seen_at";
 export class CardReplayDO extends DurableObject {
   constructor(state, env) {
     super(state, env);
@@ -157,9 +159,7 @@ export class CardReplayDO extends DurableObject {
     }
 
     if (request.method === "POST" && url.pathname === "/reset") {
-      this.sql.exec("DELETE FROM taps");
-      this.sql.exec("DELETE FROM replay_state WHERE singleton = 1");
-      return Response.json({ reset: true });
+      return this.handleReset();
     }
 
     if (request.method === "POST" && url.pathname === "/mark-pending") {
@@ -185,189 +185,184 @@ export class CardReplayDO extends DurableObject {
     return new Response("Not found", { status: 404 });
   }
 
-  handleCheck(request, readOnly) {
-    return request.json().then(({ counterValue }) => {
-      if (!Number.isInteger(counterValue) || counterValue < 0) {
-        return Response.json({ accepted: false, reason: "Invalid counter value" }, { status: 400 });
-      }
+  async handleCheck(request, readOnly) {
+    const { counterValue } = await request.json();
+    if (!Number.isInteger(counterValue) || counterValue < 0) {
+      return Response.json({ accepted: false, reason: "Invalid counter value" }, { status: 400 });
+    }
 
-      if (readOnly) {
-        const existing = this.sql.exec(
-          "SELECT last_counter FROM replay_state WHERE singleton = 1"
-        ).toArray();
-        const lastCounter = existing[0]?.last_counter ?? null;
-
-        if (lastCounter !== null && counterValue <= lastCounter) {
-          return Response.json(
-            { accepted: false, reason: "Counter replay detected — tap rejected", lastCounter },
-            { status: 409 }
-          );
-        }
-        return Response.json({ accepted: true, lastCounter });
-      }
-
-      const updated = this.sql.exec(
-        `
-          INSERT INTO replay_state (singleton, last_counter)
-          VALUES (1, ?)
-          ON CONFLICT(singleton) DO UPDATE SET
-            last_counter = excluded.last_counter
-          WHERE replay_state.last_counter < excluded.last_counter
-          RETURNING last_counter
-        `,
-        counterValue
-      ).toArray();
-
-      if (updated.length === 1) {
-        return Response.json({ accepted: true, lastCounter: updated[0].last_counter });
-      }
-
+    if (readOnly) {
       const existing = this.sql.exec(
         "SELECT last_counter FROM replay_state WHERE singleton = 1"
       ).toArray();
       const lastCounter = existing[0]?.last_counter ?? null;
 
-      return Response.json(
-        { accepted: false, reason: "Counter replay detected — tap rejected", lastCounter },
-        { status: 409 }
-      );
-    });
-  }
-
-  handleRecordTap(request) {
-    return request.json().then(({ counterValue, bolt11, amountMsat, userAgent, requestUrl }) => {
-      if (!Number.isInteger(counterValue) || counterValue < 0) {
-        return Response.json({ accepted: false, reason: "Invalid counter value" }, { status: 400 });
-      }
-
-      const updated = this.sql.exec(
-        `
-          INSERT INTO replay_state (singleton, last_counter)
-          VALUES (1, ?)
-          ON CONFLICT(singleton) DO UPDATE SET
-            last_counter = excluded.last_counter
-          WHERE replay_state.last_counter < excluded.last_counter
-          RETURNING last_counter
-        `,
-        counterValue
-      ).toArray();
-
-      if (updated.length === 1) {
-        const now = nowSec();
-        this.sql.exec(
-          `INSERT OR REPLACE INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
-           VALUES (?, ?, 'pending', ?, ?, ?, ?, ?)`,
-          counterValue,
-          bolt11 || null,
-          amountMsat || null,
-          userAgent || null,
-          requestUrl || null,
-          now,
-          now
+      if (lastCounter !== null && counterValue <= lastCounter) {
+        return Response.json(
+          { accepted: false, reason: "Counter replay detected — tap rejected", lastCounter },
+          { status: 409 }
         );
-
-        return Response.json({ accepted: true, lastCounter: updated[0].last_counter, tapRecorded: true });
       }
+      return Response.json({ accepted: true, lastCounter });
+    }
 
-      const existing = this.sql.exec(
-        "SELECT last_counter FROM replay_state WHERE singleton = 1"
-      ).toArray();
-      const lastCounter = existing[0]?.last_counter ?? null;
+    const updated = this.sql.exec(
+      `
+        INSERT INTO replay_state (singleton, last_counter)
+        VALUES (1, ?)
+        ON CONFLICT(singleton) DO UPDATE SET
+          last_counter = excluded.last_counter
+        WHERE replay_state.last_counter < excluded.last_counter
+        RETURNING last_counter
+      `,
+      counterValue
+    ).toArray();
 
-      return Response.json(
-        { accepted: false, reason: "Counter replay detected — tap rejected", lastCounter },
-        { status: 409 }
-      );
-    });
+    if (updated.length === 1) {
+      return Response.json({ accepted: true, lastCounter: updated[0].last_counter });
+    }
+
+    const existing = this.sql.exec(
+      "SELECT last_counter FROM replay_state WHERE singleton = 1"
+    ).toArray();
+    const lastCounter = existing[0]?.last_counter ?? null;
+
+    return Response.json(
+      { accepted: false, reason: "Counter replay detected — tap rejected", lastCounter },
+      { status: 409 }
+    );
   }
 
-  handleRecordRead(request) {
-    return request.json().then(({ counterValue, userAgent, requestUrl }) => {
-      const counter = (Number.isInteger(counterValue) && counterValue >= 0)
-        ? counterValue
-        : Date.now();
+  async handleRecordTap(request) {
+    const { counterValue, bolt11, amountMsat, userAgent, requestUrl } = await request.json();
+    if (!Number.isInteger(counterValue) || counterValue < 0) {
+      return Response.json({ accepted: false, reason: "Invalid counter value" }, { status: 400 });
+    }
 
+    const updated = this.sql.exec(
+      `
+        INSERT INTO replay_state (singleton, last_counter)
+        VALUES (1, ?)
+        ON CONFLICT(singleton) DO UPDATE SET
+          last_counter = excluded.last_counter
+        WHERE replay_state.last_counter < excluded.last_counter
+        RETURNING last_counter
+      `,
+      counterValue
+    ).toArray();
+
+    if (updated.length === 1) {
       const now = nowSec();
       this.sql.exec(
-        `INSERT OR IGNORE INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
-         VALUES (?, NULL, 'read', NULL, ?, ?, ?, ?)`,
-        counter,
+        `INSERT OR REPLACE INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
+         VALUES (?, ?, 'pending', ?, ?, ?, ?, ?)`,
+        counterValue,
+        bolt11 || null,
+        amountMsat || null,
         userAgent || null,
         requestUrl || null,
         now,
         now
       );
 
-      return Response.json({ recorded: true });
-    });
+      return Response.json({ accepted: true, lastCounter: updated[0].last_counter, tapRecorded: true });
+    }
+
+    const existing = this.sql.exec(
+      "SELECT last_counter FROM replay_state WHERE singleton = 1"
+    ).toArray();
+    const lastCounter = existing[0]?.last_counter ?? null;
+
+    return Response.json(
+      { accepted: false, reason: "Counter replay detected — tap rejected", lastCounter },
+      { status: 409 }
+    );
   }
 
-  handleUpdateTapStatus(request) {
-    return request.json().then(({ counter, status, bolt11, amountMsat }) => {
-      if (counter == null || !status) {
-        return Response.json({ error: "Missing counter or status" }, { status: 400 });
-      }
+  async handleRecordRead(request) {
+    const { counterValue, userAgent, requestUrl } = await request.json();
+    const counter = (Number.isInteger(counterValue) && counterValue >= 0)
+      ? counterValue
+      : Date.now();
 
-      const validStatuses = ["read", "pending", "paying", "completed", "failed", "expired"];
-      if (!validStatuses.includes(status)) {
-        return Response.json({ error: `Invalid status: ${status}` }, { status: 400 });
-      }
+    const now = nowSec();
+    this.sql.exec(
+      `INSERT OR IGNORE INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
+       VALUES (?, NULL, 'read', NULL, ?, ?, ?, ?)`,
+      counter,
+      userAgent || null,
+      requestUrl || null,
+      now,
+      now
+    );
 
-      const now = nowSec();
-      const updated = this.sql.exec(
-        `UPDATE taps SET status = ?, updated_at = ?, bolt11 = COALESCE(?, bolt11), amount_msat = COALESCE(?, amount_msat) WHERE counter = ? RETURNING counter`,
-        status,
-        now,
-        bolt11 ?? null,
-        amountMsat ?? null,
-        counter
-      ).toArray();
-
-      return Response.json({ updated: updated.length > 0 });
-    });
+    return Response.json({ recorded: true });
   }
 
-  handleClaimTap(request) {
-    return request.json().then(({ counter, bolt11, amountMsat }) => {
-      if (!Number.isInteger(counter) || counter < 0) {
-        return Response.json({ claimed: false, reason: "Invalid counter" }, { status: 400 });
-      }
+  async handleUpdateTapStatus(request) {
+    const { counter, status, bolt11, amountMsat } = await request.json();
+    if (counter == null || !status) {
+      return Response.json({ error: "Missing counter or status" }, { status: 400 });
+    }
 
-      const rows = this.sql.exec(
-        `SELECT bolt11, status FROM taps WHERE counter = ?`,
-        counter
-      ).toArray();
+    const validStatuses = ["read", "pending", "paying", "completed", "failed", "expired"];
+    if (!validStatuses.includes(status)) {
+      return Response.json({ error: `Invalid status: ${status}` }, { status: 400 });
+    }
 
-      if (rows.length === 0) {
-        const now = nowSec();
-        this.sql.exec(
-          `INSERT INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
-           VALUES (?, ?, 'pending', ?, NULL, NULL, ?, ?)`,
-          counter,
-          bolt11 || null,
-          amountMsat ?? null,
-          now,
-          now
-        );
-        return Response.json({ claimed: true });
-      }
+    const now = nowSec();
+    const updated = this.sql.exec(
+      `UPDATE taps SET status = ?, updated_at = ?, bolt11 = COALESCE(?, bolt11), amount_msat = COALESCE(?, amount_msat) WHERE counter = ? RETURNING counter`,
+      status,
+      now,
+      bolt11 ?? null,
+      amountMsat ?? null,
+      counter
+    ).toArray();
 
-      const tap = rows[0];
-      if (tap.bolt11) {
-        return Response.json({ claimed: false, reason: "Tap already claimed", bolt11: tap.bolt11 }, { status: 409 });
-      }
+    return Response.json({ updated: updated.length > 0 });
+  }
 
+  async handleClaimTap(request) {
+    const { counter, bolt11, amountMsat } = await request.json();
+    if (!Number.isInteger(counter) || counter < 0) {
+      return Response.json({ claimed: false, reason: "Invalid counter" }, { status: 400 });
+    }
+
+    const rows = this.sql.exec(
+      `SELECT bolt11, status FROM taps WHERE counter = ?`,
+      counter
+    ).toArray();
+
+    if (rows.length === 0) {
       const now = nowSec();
       this.sql.exec(
-        `UPDATE taps SET bolt11 = ?, amount_msat = COALESCE(?, amount_msat), status = 'pending', updated_at = ? WHERE counter = ?`,
+        `INSERT INTO taps (counter, bolt11, status, amount_msat, user_agent, request_url, created_at, updated_at)
+         VALUES (?, ?, 'pending', ?, NULL, NULL, ?, ?)`,
+        counter,
         bolt11 || null,
         amountMsat ?? null,
         now,
-        counter
+        now
       );
-
       return Response.json({ claimed: true });
-    });
+    }
+
+    const tap = rows[0];
+    if (tap.bolt11) {
+      return Response.json({ claimed: false, reason: "Tap already claimed", bolt11: tap.bolt11 }, { status: 409 });
+    }
+
+    const now = nowSec();
+    this.sql.exec(
+      `UPDATE taps SET bolt11 = ?, amount_msat = COALESCE(?, amount_msat), status = 'pending', updated_at = ? WHERE counter = ?`,
+      bolt11 || null,
+      amountMsat ?? null,
+      now,
+      counter
+    );
+
+    return Response.json({ claimed: true });
   }
 
   handleListTaps(url) {
@@ -477,7 +472,7 @@ export class CardReplayDO extends DurableObject {
 
   handleGetCardState() {
     const rows = this.sql.exec(
-      `SELECT state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance, key_provenance, key_fingerprint, key_label, first_seen_at
+      `SELECT ${CARD_STATE_COLS}
        FROM card_state WHERE singleton = 1`
     ).toArray();
     if (rows.length === 0) {
@@ -523,44 +518,43 @@ export class CardReplayDO extends DurableObject {
          terminated_at = NULL,
          keys_delivered_at = excluded.keys_delivered_at,
           wipe_keys_fetched_at = NULL
-       RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance, key_provenance, key_fingerprint, key_label, first_seen_at`,
+        RETURNING ${CARD_STATE_COLS}`,
       now, now
     );
     const cardState = rows.toArray()[0];
     return Response.json({ ...cardState, version: cardState.latest_issued_version });
   }
 
-  handleActivate(request) {
-    return request.json().then(({ active_version }) => {
-      if (!Number.isInteger(active_version) || active_version < 1) {
-        return Response.json({ error: "Invalid active_version" }, { status: 400 });
-      }
-      const now = nowSec();
-      const rows = this.sql.exec(
-        `INSERT INTO card_state (
-           singleton,
-           state,
-           latest_issued_version,
-           active_version,
-           activated_at,
-           terminated_at,
-           keys_delivered_at,
-           wipe_keys_fetched_at,
-           balance
-         )
-         VALUES (1, 'active', ?, ?, ?, NULL, NULL, NULL, 0)
-         ON CONFLICT(singleton) DO UPDATE SET
-             state = 'active',
-             active_version = excluded.active_version,
-             activated_at = excluded.activated_at,
-             terminated_at = NULL
-         RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance, key_provenance, key_fingerprint, key_label, first_seen_at`,
-        active_version,
-        active_version,
-        now
-      );
-      return Response.json(rows.toArray()[0]);
-    });
+  async handleActivate(request) {
+    const { active_version } = await request.json();
+    if (!Number.isInteger(active_version) || active_version < 1) {
+      return Response.json({ error: "Invalid active_version" }, { status: 400 });
+    }
+    const now = nowSec();
+    const rows = this.sql.exec(
+      `INSERT INTO card_state (
+         singleton,
+         state,
+         latest_issued_version,
+         active_version,
+         activated_at,
+         terminated_at,
+         keys_delivered_at,
+         wipe_keys_fetched_at,
+         balance
+       )
+       VALUES (1, 'active', ?, ?, ?, NULL, NULL, NULL, 0)
+       ON CONFLICT(singleton) DO UPDATE SET
+           state = 'active',
+           active_version = excluded.active_version,
+           activated_at = excluded.activated_at,
+            terminated_at = NULL
+        RETURNING ${CARD_STATE_COLS}`,
+      active_version,
+      active_version,
+      now
+    );
+    return Response.json(rows.toArray()[0]);
   }
 
   handleRequestWipe() {
@@ -570,7 +564,7 @@ export class CardReplayDO extends DurableObject {
           state = 'wipe_requested',
           wipe_keys_fetched_at = ?
         WHERE singleton = 1
-        RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance, key_provenance, key_fingerprint, key_label, first_seen_at`,
+        RETURNING ${CARD_STATE_COLS}`,
       now
     );
     const result = rows.toArray();
@@ -586,9 +580,9 @@ export class CardReplayDO extends DurableObject {
       `INSERT INTO card_state (singleton, state, latest_issued_version, terminated_at, balance)
        VALUES (1, 'terminated', 0, ?, 0)
        ON CONFLICT(singleton) DO UPDATE SET
-           state = 'terminated',
-           terminated_at = excluded.terminated_at
-       RETURNING state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance, key_provenance, key_fingerprint, key_label, first_seen_at`,
+            state = 'terminated',
+            terminated_at = excluded.terminated_at
+        RETURNING ${CARD_STATE_COLS}`,
       now
     );
     this.sql.exec("DELETE FROM taps");
@@ -618,121 +612,123 @@ export class CardReplayDO extends DurableObject {
     return Response.json(config);
   }
 
-  handleSetConfig(request) {
-    return request.json().then((config) => {
-      const { K2, payment_method, pull_payment_id, ...rest } = config;
-      const method = payment_method || "fakewallet";
-      const k2 = K2 || null;
-      const pullPaymentId = pull_payment_id || null;
-      const configJson = Object.keys(rest).length > 0 ? JSON.stringify(rest) : null;
-      const now = nowSec();
+  async handleSetConfig(request) {
+    const config = await request.json();
+    const { K2, payment_method, pull_payment_id, ...rest } = config;
+    const method = payment_method || "fakewallet";
+    const k2 = K2 || null;
+    const pullPaymentId = pull_payment_id || null;
+    const configJson = Object.keys(rest).length > 0 ? JSON.stringify(rest) : null;
+    const now = nowSec();
 
+    this.sql.exec(
+      `INSERT INTO card_config (singleton, K2, payment_method, config_json, pull_payment_id, updated_at)
+       VALUES (1, ?, ?, ?, ?, ?)
+       ON CONFLICT(singleton) DO UPDATE SET
+         K2 = excluded.K2,
+         payment_method = excluded.payment_method,
+         config_json = excluded.config_json,
+         pull_payment_id = excluded.pull_payment_id,
+         updated_at = excluded.updated_at`,
+      k2, method, configJson, pullPaymentId, now
+    );
+
+    return Response.json({ ok: true });
+  }
+
+  async handleSetK2(request) {
+    const { K2 } = await request.json();
+    const k2 = K2 || null;
+    const now = nowSec();
+    const existing = this.sql.exec(
+      `SELECT 1 FROM card_config WHERE singleton = 1`
+    ).toArray();
+    if (existing.length > 0) {
+      this.sql.exec(
+        `UPDATE card_config SET K2 = ?, updated_at = ? WHERE singleton = 1`,
+        k2, now
+      );
+    } else {
       this.sql.exec(
         `INSERT INTO card_config (singleton, K2, payment_method, config_json, pull_payment_id, updated_at)
-         VALUES (1, ?, ?, ?, ?, ?)
-         ON CONFLICT(singleton) DO UPDATE SET
-           K2 = excluded.K2,
-           payment_method = excluded.payment_method,
-           config_json = excluded.config_json,
-           pull_payment_id = excluded.pull_payment_id,
-           updated_at = excluded.updated_at`,
-        k2, method, configJson, pullPaymentId, now
+         VALUES (1, ?, 'fakewallet', NULL, NULL, ?)`,
+        k2, now
       );
-
-      return Response.json({ ok: true });
-    });
+    }
+    return Response.json({ ok: true });
   }
 
-  handleSetK2(request) {
-    return request.json().then(({ K2 }) => {
-      const k2 = K2 || null;
-      const now = nowSec();
-      const existing = this.sql.exec(
-        `SELECT 1 FROM card_config WHERE singleton = 1`
-      ).toArray();
-      if (existing.length > 0) {
-        this.sql.exec(
-          `UPDATE card_config SET K2 = ?, updated_at = ? WHERE singleton = 1`,
-          k2, now
-        );
-      } else {
-        this.sql.exec(
-          `INSERT INTO card_config (singleton, K2, payment_method, config_json, pull_payment_id, updated_at)
-           VALUES (1, ?, 'fakewallet', NULL, NULL, ?)`,
-          k2, now
-        );
-      }
-      return Response.json({ ok: true });
-    });
+  async handleDebit(request) {
+    const { counter, amount, note } = await request.json();
+    if (!Number.isInteger(amount) || amount <= 0) {
+      return Response.json({ ok: false, reason: "Amount must be a positive integer" }, { status: 400 });
+    }
+
+    const currentBalance = this.getCurrentBalance();
+    if (currentBalance < amount) {
+      return Response.json({ ok: false, reason: "Insufficient balance", balance: currentBalance }, { status: 400 });
+    }
+
+    const newBalance = currentBalance - amount;
+    const createdAt = nowSec();
+
+    this.ensureCardStateRow(currentBalance);
+    this.sql.exec(
+      `UPDATE card_state SET balance = ? WHERE singleton = 1 AND balance >= ?`,
+      newBalance, amount
+    );
+
+    const rows = this.sql.exec(
+      `INSERT INTO transactions (counter, amount, balance_after, created_at, note)
+       VALUES (?, ?, ?, ?, ?)
+       RETURNING id, amount, balance_after, created_at`,
+      Number.isInteger(counter) ? counter : null,
+      -amount,
+      newBalance,
+      createdAt,
+      note || null
+    ).toArray();
+
+    return Response.json({ ok: true, balance: newBalance, transaction: rows[0] });
   }
 
-  handleDebit(request) {
-    return request.json().then(({ counter, amount, note }) => {
-      if (!Number.isInteger(amount) || amount <= 0) {
-        return Response.json({ ok: false, reason: "Amount must be a positive integer" }, { status: 400 });
-      }
+  async handleCredit(request) {
+    const { amount, note } = await request.json();
+    if (!Number.isInteger(amount) || amount <= 0) {
+      return Response.json({ ok: false, reason: "Amount must be a positive integer" }, { status: 400 });
+    }
 
-      const currentBalance = this.getCurrentBalance();
-      if (currentBalance < amount) {
-        return Response.json({ ok: false, reason: "Insufficient balance", balance: currentBalance }, { status: 400 });
-      }
+    const currentBalance = this.getCurrentBalance();
+    const newBalance = currentBalance + amount;
+    const createdAt = nowSec();
 
-      const newBalance = currentBalance - amount;
-      const createdAt = nowSec();
+    this.ensureCardStateRow(currentBalance);
+    this.sql.exec(
+      `UPDATE card_state SET balance = ? WHERE singleton = 1`,
+      newBalance
+    );
 
-      this.ensureCardStateRow(currentBalance);
-      this.sql.exec(
-        `UPDATE card_state SET balance = ? WHERE singleton = 1 AND balance >= ?`,
-        newBalance, amount
-      );
+    const rows = this.sql.exec(
+      `INSERT INTO transactions (counter, amount, balance_after, created_at, note)
+       VALUES (NULL, ?, ?, ?, ?)
+       RETURNING id, amount, balance_after, created_at`,
+      amount,
+      newBalance,
+      createdAt,
+      note || null
+    ).toArray();
 
-      const rows = this.sql.exec(
-        `INSERT INTO transactions (counter, amount, balance_after, created_at, note)
-         VALUES (?, ?, ?, ?, ?)
-         RETURNING id, amount, balance_after, created_at`,
-        Number.isInteger(counter) ? counter : null,
-        -amount,
-        newBalance,
-        createdAt,
-        note || null
-      ).toArray();
-
-      return Response.json({ ok: true, balance: newBalance, transaction: rows[0] });
-    });
-  }
-
-  handleCredit(request) {
-    return request.json().then(({ amount, note }) => {
-      if (!Number.isInteger(amount) || amount <= 0) {
-        return Response.json({ ok: false, reason: "Amount must be a positive integer" }, { status: 400 });
-      }
-
-      const currentBalance = this.getCurrentBalance();
-      const newBalance = currentBalance + amount;
-      const createdAt = nowSec();
-
-      this.ensureCardStateRow(currentBalance);
-      this.sql.exec(
-        `UPDATE card_state SET balance = ? WHERE singleton = 1`,
-        newBalance
-      );
-
-      const rows = this.sql.exec(
-        `INSERT INTO transactions (counter, amount, balance_after, created_at, note)
-         VALUES (NULL, ?, ?, ?, ?)
-         RETURNING id, amount, balance_after, created_at`,
-        amount,
-        newBalance,
-        createdAt,
-        note || null
-      ).toArray();
-
-      return Response.json({ ok: true, balance: newBalance, transaction: rows[0] });
-    });
+    return Response.json({ ok: true, balance: newBalance, transaction: rows[0] });
   }
 
   handleGetBalance() {
     return Response.json({ balance: this.getCurrentBalance() });
+  }
+
+  handleReset() {
+    this.sql.exec("DELETE FROM taps");
+    this.sql.exec("DELETE FROM replay_state WHERE singleton = 1");
+    return Response.json({ reset: true });
   }
 
   handleListTransactions(url) {
@@ -765,91 +761,89 @@ export class CardReplayDO extends DurableObject {
     );
   }
 
-  handleMarkPending(request) {
-    return request.json().then(({ key_provenance, key_fingerprint, key_label }) => {
-      const now = nowSec();
-      const existing = this.sql.exec(
-        `SELECT state FROM card_state WHERE singleton = 1`
-      ).toArray();
+  async handleMarkPending(request) {
+    const { key_provenance, key_fingerprint, key_label } = await request.json();
+    const now = nowSec();
+    const existing = this.sql.exec(
+      `SELECT state FROM card_state WHERE singleton = 1`
+    ).toArray();
 
-      if (existing.length > 0) {
-        return Response.json({
-          state: existing[0].state,
-          already_exists: true,
-        });
-      }
-
-      this.sql.exec(
-        `INSERT INTO card_state (singleton, state, balance, key_provenance, key_fingerprint, key_label, first_seen_at)
-         VALUES (1, 'pending', 0, ?, ?, ?, ?)`,
-        key_provenance || null,
-        key_fingerprint || null,
-        key_label || null,
-        now
-      );
-
+    if (existing.length > 0) {
       return Response.json({
-        state: "pending",
-        key_provenance: key_provenance || null,
-        key_fingerprint: key_fingerprint || null,
-        key_label: key_label || null,
-        first_seen_at: now,
+        state: existing[0].state,
+        already_exists: true,
       });
+    }
+
+    this.sql.exec(
+      `INSERT INTO card_state (singleton, state, balance, key_provenance, key_fingerprint, key_label, first_seen_at)
+       VALUES (1, 'pending', 0, ?, ?, ?, ?)`,
+      key_provenance || null,
+      key_fingerprint || null,
+      key_label || null,
+      now
+    );
+
+    return Response.json({
+      state: "pending",
+      key_provenance: key_provenance || null,
+      key_fingerprint: key_fingerprint || null,
+      key_label: key_label || null,
+      first_seen_at: now,
     });
   }
 
-  handleDiscover(request) {
-    return request.json().then(({ key_provenance, key_fingerprint, key_label, active_version }) => {
-      const now = nowSec();
-      const version = active_version || 1;
+  async handleDiscover(request) {
+    const { key_provenance, key_fingerprint, key_label, active_version } = await request.json();
+    const now = nowSec();
+    const version = active_version || 1;
 
-      const existing = this.sql.exec(
-        `SELECT state, key_provenance, key_fingerprint, key_label, first_seen_at FROM card_state WHERE singleton = 1`
-      ).toArray();
+    const existing = this.sql.exec(
+      `SELECT state, key_provenance, key_fingerprint, key_label, first_seen_at FROM card_state WHERE singleton = 1`
+    ).toArray();
 
-      if (existing.length > 0) {
-        const current = existing[0];
-        if (current.state === "pending" || current.state === "new" || current.state === "legacy") {
-          this.sql.exec(
-            `UPDATE card_state SET
-               state = 'discovered',
-               active_version = ?,
-               key_provenance = COALESCE(?, key_provenance),
-               key_fingerprint = COALESCE(?, key_fingerprint),
-               key_label = COALESCE(?, key_label)
-             WHERE singleton = 1`,
-            version,
-            key_provenance || null,
-            key_fingerprint || null,
-            key_label || null
-          );
-        }
-        const updated = this.sql.exec(
-          `SELECT state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance, key_provenance, key_fingerprint, key_label, first_seen_at FROM card_state WHERE singleton = 1`
-        ).toArray();
-        return Response.json({ ...updated[0], already_exists: true });
+    if (existing.length > 0) {
+      const current = existing[0];
+      if (current.state === "pending" || current.state === "new" || current.state === "legacy") {
+        this.sql.exec(
+          `UPDATE card_state SET
+             state = 'discovered',
+             active_version = ?,
+             key_provenance = COALESCE(?, key_provenance),
+             key_fingerprint = COALESCE(?, key_fingerprint),
+             key_label = COALESCE(?, key_label)
+           WHERE singleton = 1`,
+          version,
+          key_provenance || null,
+          key_fingerprint || null,
+          key_label || null
+        );
       }
+      const updated = this.sql.exec(
+        `SELECT ${CARD_STATE_COLS} FROM card_state WHERE singleton = 1`
+      ).toArray();
+      return Response.json({ ...updated[0], already_exists: true });
+    }
 
-      this.sql.exec(
-        `INSERT INTO card_state (singleton, state, latest_issued_version, active_version, balance, key_provenance, key_fingerprint, key_label, first_seen_at)
-         VALUES (1, 'discovered', ?, ?, 0, ?, ?, ?, ?)`,
-        version,
-        version,
-        key_provenance || null,
-        key_fingerprint || null,
-        key_label || null,
-        now
-      );
+    this.sql.exec(
+      `INSERT INTO card_state (singleton, state, latest_issued_version, active_version, balance, key_provenance, key_fingerprint, key_label, first_seen_at)
+       VALUES (1, 'discovered', ?, ?, 0, ?, ?, ?, ?)`,
+      version,
+      version,
+      key_provenance || null,
+      key_fingerprint || null,
+      key_label || null,
+      now
+    );
 
-      return Response.json({
-        state: "discovered",
-        latest_issued_version: version,
-        active_version: version,
-        key_provenance: key_provenance || null,
-        key_fingerprint: key_fingerprint || null,
-        key_label: key_label || null,
-        first_seen_at: now,
-      });
+    return Response.json({
+      state: "discovered",
+      latest_issued_version: version,
+      active_version: version,
+      key_provenance: key_provenance || null,
+      key_fingerprint: key_fingerprint || null,
+      key_label: key_label || null,
+      first_seen_at: now,
     });
   }
 }
