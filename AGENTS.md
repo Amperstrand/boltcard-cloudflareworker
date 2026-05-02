@@ -182,6 +182,11 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 - LNURLW replay: Step 1 (`GET /`) atomically advances counter via `checkAndAdvanceCounter`; callback detects replay via `listTaps` bolt11 check
 - `matchCardIssuer()` from `utils/cardMatching.js` for shared card issuer detection across loginHandler and identifyIssuerKeyHandler
 - `CARD_STATE` and `PAYMENT_METHOD` enums from `utils/constants.js` — use instead of raw strings
+- Card state predicates from `utils/constants.js`: `isCardUsable()`, `isCardTerminated()`, `canAutoActivate()`, `isCardNew()`, `canTransact()` — use instead of raw `=== CARD_STATE.X` comparisons
+- `UID_VALIDATION_MSG` from `utils/constants.js` — shared error message for all UID validation failures
+- `parseJsonBody()` from `utils/responses.js` for JSON request body parsing (returns null on failure, no need for `.catch()`)
+- `parsePositiveInt(raw, max)` from `utils/validation.js` for positive integer validation with optional max
+- `resolveCardIdentity()` from `utils/cardAuth.js` — shared decrypt→state→config→CMAC pipeline with `skipCmac`/`requireState`/`forcedVersion`/`context` options
 - `constantTimeEqual()` from `utils/cookies.js` for timing-safe string comparison (CSRF tokens, PINs)
 - `checkReplayAndRecordTap()` from `handlers/lnurlwHandler.js` for replay check + tap recording (shared by proxy and fakewallet/clnrest paths)
 - `discoverUnknownCard()` from `handlers/lnurlwHandler.js` for auto-discovery of unknown cards via CMAC scan across all issuer key candidates
@@ -207,7 +212,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 - Run DO tests: `npm run test:do` (Vitest, `@cloudflare/vitest-pool-workers` with real SQLite)
 - Run all: `npm run test:all`
 - Deploy: `npm run deploy` (unit tests → DO tests → build_keys → wrangler deploy)
-- **1167 unit tests** across 61 test suites + **52 DO integration tests** = 1219 total (as of 2026-04-27)
+- **1245 unit tests** across 66 test suites + **52 DO integration tests** = 1297 total (as of 2026-05-02)
 
 ## Test Inventory
 
@@ -282,11 +287,17 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 
 | Task | Priority | Notes |
 |------|----------|-------|
-| Dead exports cleanup | Medium | `deindexCard`, `getIndexedCard`, `listAuditEvents` exported but unused in production; `formatAmount` in `currency.js` unused (posPage defines its own); `mergeHistory` internal-only but exported |
+| Dead exports cleanup | Done | Prefixed with `_`: `_deindexCard`, `_getIndexedCard`, `_listAuditEvents`, `_mergeHistory` |
 | Missing handler tests | Medium | `debugHandler.js`, `statusHandler.js`, `posHandler.js` lack dedicated test files (partially covered by `smoke.test.js`, `pos.test.js`, `e2e/pages.test.js`) |
 | Deduplicate `VERSION_SCAN_RANGE` | Low | Defined in both `utils/constants.js` and locally in `utils/cardMatching.js` — import from constants |
 | Extract `MAX_CANDIDATES` to constants | Low | Hardcoded `50` in `utils/cardMatching.js` |
 | Extract KV list limits to constants | Low | `100` in `cardIndex.js`, `50`/`500` in `cardAuditHandler.js`, `50` in `auditLog.js` |
+| UID validation messages normalized | Done | All handlers use `UID_VALIDATION_MSG` from `utils/constants.js` |
+| Redundant `.catch(() => null)` removed | Done | `parseJsonBody()` already returns null on failure |
+| Redundant ALTER TABLE removed | Done | `pull_payment_id` already in CREATE TABLE |
+| Card state predicates extracted | Done | `isCardUsable`, `isCardTerminated`, etc. in `utils/constants.js` |
+| `parsePositiveInt()` extracted | Done | Shared positive int validator in `utils/validation.js` |
+| `resolveCardIdentity()` shared pipeline | Done | `utils/cardAuth.js` — decrypt→state→config→CMAC across 5 handlers |
 
 ### Feature Development
 
