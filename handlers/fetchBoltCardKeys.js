@@ -9,6 +9,8 @@ import { DEFAULT_PULL_PAYMENT_ID, DEFAULT_FALLBACK_HOST, CARD_STATE, PAYMENT_MET
 import { classifyIssuerKey } from "../utils/keyLookup.js";
 import { logger } from "../utils/logger.js";
 
+const UID_OR_LNURLW_REQUIRED = "Must provide UID for programming, or LNURLW for reset";
+
 export async function fetchBoltCardKeys(request, env) {
   if (request.method !== "POST") {
     return errorResponse("Only POST allowed", 405);
@@ -27,7 +29,7 @@ export async function fetchBoltCardKeys(request, env) {
     const baseUrl = getRequestOrigin(request);
 
     if (!uid && !lnurlw) {
-      return errorResponse("Must provide UID for programming, or LNURLW for reset", 400);
+      return errorResponse(UID_OR_LNURLW_REQUIRED, 400);
     }
 
     if ((onExisting === "UpdateVersion" || (!onExisting && uid && !lnurlw)) && uid) {
@@ -52,7 +54,7 @@ export async function fetchBoltCardKeys(request, env) {
       return errorResponse("Programming flow requires UID in request body", 400);
     }
 
-    return errorResponse("Must provide UID for programming, or LNURLW for reset", 400);
+    return errorResponse(UID_OR_LNURLW_REQUIRED, 400);
   } catch (err) {
     logger.error("fetchBoltCardKeys error", { error: err.message });
     return errorResponse("Internal error", 500);
@@ -161,7 +163,7 @@ async function handleResetFlow(lnurlw, env, baseUrl) {
     }
 
     const decryption = extractUIDAndCounter(pHex, env);
-    if (!decryption.success) return errorResponse(decryption.error);
+    if (!decryption.success) return errorResponse(decryption.error, 400);
     const { uidHex } = decryption;
 
     const cardState = await getCardState(env, uidHex);

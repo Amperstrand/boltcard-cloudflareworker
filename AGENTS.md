@@ -123,6 +123,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | GET | `/identity` | `handleIdentityPage()` | Identity/access control demo |
 | GET | `/card` | `handleCardPage()` | Cardholder dashboard (NFC scan) |
 | GET | `/card/info` | `handleCardInfo()` | Card status API (JSON) — returns unified history, analytics, payment method |
+| GET | `/decode` | `handleDecodePage()` | BOLT11 invoice decoder page |
 | POST | `/api/card/lock` | `handleCardLock()` | Cardholder self-service card lock (CMAC auth) |
 | POST | `/api/card/reactivate` | `handleCardReactivate()` | Cardholder self-service re-provision (NFC tap, version advance) |
 | GET | `/api/fake-invoice` | inline | Generate fake bolt11 for fakewallet |
@@ -136,6 +137,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | GET | `/api/keys` | `handleGetKeys()` | Key listing (GET) |
 | POST | `/api/keys` | `handleGetKeys()` | Key listing (POST) |
 | GET | `/api/bulk-wipe-keys` | `handleBulkWipeKeys()` | Bulk wipe key candidates |
+| GET | `/api/decode` | `handleDecodeApi()` | BOLT11 invoice decode (JSON) |
 | ALL | `/api/v1/pull-payments/:pullPaymentId/boltcards` | `fetchBoltCardKeys()` | Pull-payment boltcard keys |
 | GET | `/operator/login` | `handleOperatorLoginPage()` | Operator PIN login page |
 | POST | `/operator/login` | `handleOperatorLogin()` | Operator PIN verify |
@@ -212,7 +214,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 - Run DO tests: `npm run test:do` (Vitest, `@cloudflare/vitest-pool-workers` with real SQLite)
 - Run all: `npm run test:all`
 - Deploy: `npm run deploy` (unit tests → DO tests → build_keys → wrangler deploy)
-- **1245 unit tests** across 66 test suites + **52 DO integration tests** = 1297 total (as of 2026-05-02)
+- **1285 unit tests** across 69 test suites + **52 DO integration tests** = 1337 total (as of 2026-05-03)
 
 ## Test Inventory
 
@@ -221,6 +223,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | `tests/cryptoutils.test.js` | AES-CMAC, hex utils, XOR, subkey generation | |
 | `tests/keygenerator.test.js` | Deterministic key derivation | |
 | `tests/bolt11.test.js` | Fake bolt11 invoice generation | |
+| `tests/bolt11Decode.test.js` | BOLT11 full decoder: round-trip, signature recovery, tag parsing, page/API routes | |
 | `tests/otp.test.js` | HOTP/TOTP generation (RFC 4226 vectors) | |
 | `tests/responses.test.js` | All `utils/responses.js` exports | |
 | `tests/validation.test.js` | `validateUid`, `getRequestOrigin` | |

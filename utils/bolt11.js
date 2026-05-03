@@ -8,9 +8,35 @@ secp.hashes.sha256 = sha256;
 secp.hashes.hmacSha256 = (key, data) => hmac(sha256, key, data);
 
 const DIVISORS = { m: 1e3, u: 1e6, n: 1e9, p: 1e12 };
+const DIVISOR_LABELS = { m: "milli", u: "micro", n: "nano", p: "pico" };
 const MILLISATS_PER_BTC = 1e11;
 const BOLT11_DEFAULT_EXPIRY = 3600;
 const BOLT11_DEFAULT_CLTV = 9;
+
+const NETWORK_MAP = { bc: "mainnet", tb: "testnet", bcrt: "regtest" };
+
+const TAG_NAMES = {
+  1: "payment_hash",
+  13: "description",
+  19: "payee",
+  23: "purpose_hash",
+  6: "expiry",
+  16: "payment_secret",
+  9: "features",
+  24: "min_final_cltv_expiry",
+};
+
+const FEATURES = [
+  { bit: 0, name: "var_onion_optin" },
+  { bit: 6, name: "payment_secret" },
+  { bit: 7, name: "basic_mpp" },
+  { bit: 12, name: "payment_metadata" },
+  { bit: 14, name: "tlv_onion" },
+  { bit: 17, name: "payment_secret_experimental" },
+  { bit: 25, name: "channel_type" },
+  { bit: 45, name: "scid_alias_quiescence" },
+  { bit: 51, name: "zero_conf" },
+];
 
 export function decodeBolt11Amount(invoice) {
   if (!invoice || typeof invoice !== "string") return null;
@@ -207,4 +233,227 @@ export function generateFakeBolt11(amountMsat, { description, paymentSecret } = 
   const dataWords = [...dataWithoutSig, ...sigWords];
 
   return bech32.encode(hrp, dataWords, 1024);
+}
+
+function decodeFeaturesBytes(bytes) {
+  const bits = [];
+  for (let byteIdx = 0; byteIdx < bytes.length; byteIdx++) {
+    for (let bitIdx = 0; bitIdx < 8; bitIdx++) {
+      if (bytes[byteIdx] & (1 << bitIdx)) {
+        const globalBit = byteIdx * 8 + bitIdx;
+        const feature = FEATURES.find(f => f.bit === globalBit);
+        bits.push({
+          bit: globalBit,
+          name: feature ? feature.name : `unknown_bit_${globalBit}`,
+        });
+      }
+    }
+  }
+  return bits;
+}
+
+function decodeHrpAmount(amountPart) {
+  if (amountPart.length === 0) return { amountMsat: null, amountDisplay: "any amount" };
+  const lastChar = amountPart[amountPart.length - 1];
+  let divisor = null;
+  let numStr = amountPart;
+  if (DIVISORS[lastChar] !== undefined) {
+    divisor = lastChar;
+    numStr = amountPart.slice(0, -1);
+  }
+  if (!numStr.match(/^\d+$/)) return { amountMsat: null, amountDisplay: `invalid: ${amountPart}` };
+  const value = parseInt(numStr, 10);
+  if (!Number.isSafeInteger(value)) return { amountMsat: null, amountDisplay: `overflow: ${amountPart}` };
+  if (divisor) {
+    const msat = Math.round((value * MILLISATS_PER_BTC) / DIVISORS[divisor]);
+    return { amountMsat: msat, amountDisplay: `${value} ${DIVISOR_LABELS[divisor]}BTC (${msat} msat)` };
+  }
+  const msat = value * MILLISATS_PER_BTC;
+  return { amountMsat: msat, amountDisplay: `${value} BTC (${msat} msat)` };
+}
+
+function readUint5BE(words) {
+  let value = 0;
+  for (const w of words) value = (value << 5) | w;
+  return value;
+}
+
+function readTagInt(tagData) {
+  if (tagData.length === 0) return 0;
+  const bytes = fiveBitToBytes(tagData);
+  if (bytes.length === 0) {
+    let value = 0;
+    for (const w of tagData) value = (value << 5) | w;
+    return value;
+  }
+  let value = 0;
+  for (const b of bytes) value = (value << 8) | b;
+  return value;
+}
+
+export function decodeBolt11(invoice) {
+  if (!invoice || typeof invoice !== "string") {
+    return { ok: false, error: "Invoice is required" };
+  }
+
+  const lower = invoice.toLowerCase();
+  if (!lower.startsWith("ln")) {
+    return { ok: false, error: "Not a BOLT11 invoice (must start with 'ln')" };
+  }
+
+  let decoded;
+  try {
+    decoded = bech32.decode(lower, lower.length);
+  } catch {
+    return { ok: false, error: "Invalid bech32 encoding" };
+  }
+
+  const hrp = decoded.prefix;
+  const words = decoded.words;
+
+  const networkMatch = Object.entries(NETWORK_MAP).find(([k]) => hrp === `ln${k}` || hrp.startsWith(`ln${k}`));
+  if (!networkMatch) {
+    return { ok: false, error: `Unknown network prefix in HRP: ${hrp}` };
+  }
+
+  const network = networkMatch[1];
+  const amountPart = hrp.substring(2 + networkMatch[0].length);
+  const { amountMsat, amountDisplay } = decodeHrpAmount(amountPart);
+
+  if (words.length < 7 + 104) {
+    return { ok: false, error: "Invoice too short (missing signature)" };
+  }
+
+  const sigWords = words.slice(-104);
+  const dataWords = words.slice(0, -104);
+
+  const sigBytes = fiveBitToBytes(sigWords);
+  if (sigBytes.length < 65) {
+    return { ok: false, error: "Signature too short" };
+  }
+
+  const r = sigBytes.slice(0, 32);
+  const s = sigBytes.slice(32, 64);
+  const recoveryFlag = sigBytes[64] & 0x03;
+
+  let timestamp;
+  if (dataWords.length < 7) {
+    return { ok: false, error: "Data too short for timestamp" };
+  }
+  timestamp = readUint5BE(dataWords.slice(0, 7));
+
+  const tags = [];
+  let pos = 7;
+  while (pos < dataWords.length) {
+    if (pos + 2 >= dataWords.length) break;
+    const tagCode = dataWords[pos];
+    const tagLen = (dataWords[pos + 1] << 5) | dataWords[pos + 2];
+    pos += 3;
+    if (pos + tagLen > dataWords.length) break;
+    const tagData = dataWords.slice(pos, pos + tagLen);
+    pos += tagLen;
+    tags.push({ code: tagCode, data: tagData });
+  }
+
+  const hrpBytes = new TextEncoder().encode(hrp);
+  const dataBytesForSig = fiveBitToBytes(dataWords);
+  const msgBytes = new Uint8Array([...hrpBytes, ...dataBytesForSig]);
+  const msgHash = sha256(msgBytes);
+
+  let payee = null;
+  let signatureValid = false;
+  try {
+    const recoveredSig = new Uint8Array(65);
+    recoveredSig[0] = recoveryFlag;
+    recoveredSig.set(r, 1);
+    recoveredSig.set(s, 33);
+    payee = secp.recoverPublicKey(recoveredSig, msgHash);
+    if (payee) {
+      const sig64 = new Uint8Array(64);
+      sig64.set(r, 0);
+      sig64.set(s, 32);
+      signatureValid = secp.verify(sig64, msgHash, payee);
+      payee = bytesToHex(payee);
+    }
+  } catch {
+    signatureValid = false;
+  }
+
+  const parsedTags = {};
+  const rawTags = [];
+
+  for (const tag of tags) {
+    const name = TAG_NAMES[tag.code] || `unknown_tag_${tag.code}`;
+    const tagBytes = new Uint8Array(fiveBitToBytes(tag.data));
+
+    switch (tag.code) {
+      case 1: {
+        parsedTags.payment_hash = bytesToHex(tagBytes);
+        rawTags.push({ code: tag.code, name, value: bytesToHex(tagBytes) });
+        break;
+      }
+      case 13: {
+        const desc = new TextDecoder().decode(tagBytes);
+        parsedTags.description = desc;
+        rawTags.push({ code: tag.code, name, value: desc });
+        break;
+      }
+      case 19: {
+        parsedTags.payee = bytesToHex(tagBytes);
+        rawTags.push({ code: tag.code, name, value: bytesToHex(tagBytes) });
+        break;
+      }
+      case 23: {
+        parsedTags.purpose_hash = bytesToHex(tagBytes);
+        rawTags.push({ code: tag.code, name, value: bytesToHex(tagBytes) });
+        break;
+      }
+      case 6: {
+        const expiry = readTagInt(tag.data);
+        parsedTags.expiry = expiry;
+        rawTags.push({ code: tag.code, name, value: expiry });
+        break;
+      }
+      case 16: {
+        parsedTags.payment_secret = bytesToHex(tagBytes);
+        rawTags.push({ code: tag.code, name, value: bytesToHex(tagBytes) });
+        break;
+      }
+      case 9: {
+        const featureBits = decodeFeaturesBytes(tagBytes);
+        parsedTags.features = featureBits;
+        rawTags.push({ code: tag.code, name, value: featureBits.map(f => f.name), rawHex: bytesToHex(tagBytes) });
+        break;
+      }
+      case 24: {
+        const cltv = readTagInt(tag.data);
+        parsedTags.min_final_cltv_expiry = cltv;
+        rawTags.push({ code: tag.code, name, value: cltv });
+        break;
+      }
+      default: {
+        rawTags.push({ code: tag.code, name, value: bytesToHex(tagBytes) });
+        break;
+      }
+    }
+  }
+
+  const result = {
+    ok: true,
+    network,
+    hrp,
+    amountMsat,
+    amountDisplay,
+    timestamp,
+    timestampISO: new Date(timestamp * 1000).toISOString(),
+    expiry: parsedTags.expiry ?? BOLT11_DEFAULT_EXPIRY,
+    expiresAt: new Date((timestamp + (parsedTags.expiry ?? BOLT11_DEFAULT_EXPIRY)) * 1000).toISOString(),
+    isExpired: Date.now() / 1000 > timestamp + (parsedTags.expiry ?? BOLT11_DEFAULT_EXPIRY),
+    signatureValid,
+    payee,
+    tags: parsedTags,
+    rawTags,
+  };
+
+  return result;
 }

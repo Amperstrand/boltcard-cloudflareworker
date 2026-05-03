@@ -42,6 +42,7 @@ import { handleIdentifyCard } from "./handlers/identifyCardHandler.js";
 import { handleIdentifyIssuerKey } from "./handlers/identifyIssuerKeyHandler.js";
 import { handleCardAuditPage, handleCardAuditData, handleIndexRepair } from "./handlers/cardAuditHandler.js";
 import { handleCardBatchAction } from "./handlers/cardBatchHandler.js";
+import { handleDecodePage, handleDecodeApi } from "./handlers/bolt11DecodeHandler.js";
 
 const router = Router();
 
@@ -196,6 +197,9 @@ router.post("/operator/topup/apply", withOperatorAuth((request, env, session) =>
 router.get("/operator/refund", withOperatorAuth((request, env) => handleRefundPage(request, env)));
 router.post("/operator/refund/apply", withOperatorAuth((request, env, session) => handleRefundApply(request, env, session)));
 router.post("/api/balance-check", (request, env) => handleBalanceCheck(request, env));
+
+router.get("/decode", (request) => handleDecodePage(request));
+router.get("/api/decode", (request) => handleDecodeApi(request));
 
 router.get("/debug", withOperatorAuth((request) => handleDebugPage(request)));
 router.get("/experimental/nfc", (request) => {
