@@ -1,5 +1,5 @@
 
-import { validate_cmac } from "../boltCardHelper.js";
+import { validateCmac } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { validateCardTap } from "../utils/validateCardTap.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
@@ -10,15 +10,15 @@ const UID = "04a39493cc8680";
 const ISSUER_KEY = "00000000000000000000000000000001";
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 
-describe("validate_cmac", () => {
+describe("validateCmac", () => {
   it("returns explicit error when K2 is missing and cHex is provided", () => {
-    const result = validate_cmac(hexToBytes(UID), hexToBytes("000001"), "abcdef0123456789", null);
+    const result = validateCmac(hexToBytes(UID), hexToBytes("000001"), "abcdef0123456789", null);
     expect(result.cmac_validated).toBe(false);
     expect(result.cmac_error).toBe("K2 key not available");
   });
 
   it("returns false when cHex is empty", () => {
-    const result = validate_cmac(hexToBytes(UID), hexToBytes("000001"), "", hexToBytes("f4b404be700ab285e333e32348fa3d3b"));
+    const result = validateCmac(hexToBytes(UID), hexToBytes("000001"), "", hexToBytes("f4b404be700ab285e333e32348fa3d3b"));
     expect(result.cmac_validated).toBe(false);
   });
 
@@ -26,7 +26,7 @@ describe("validate_cmac", () => {
     const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
     const { cHex } = virtualTap(UID, 1, keys.k1, keys.k2);
     const ctr = hexToBytes("000001");
-    const result = validate_cmac(hexToBytes(UID), ctr, cHex, hexToBytes(keys.k2));
+    const result = validateCmac(hexToBytes(UID), ctr, cHex, hexToBytes(keys.k2));
     expect(result.cmac_validated).toBe(true);
   });
 });

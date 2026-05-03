@@ -1,4 +1,4 @@
-import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
+import { extractUIDAndCounter, validateCmac } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { logger } from "../utils/logger.js";

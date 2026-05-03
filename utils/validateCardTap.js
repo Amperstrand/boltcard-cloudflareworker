@@ -1,4 +1,4 @@
-import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
+import { extractUIDAndCounter, validateCmac } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { getDeterministicKeys } from "../keygenerator.js";
@@ -39,7 +39,7 @@ export async function validateCardTap(request, env, { pHex, cHex, context = "tap
   let activeVersion;
   if (cardState.state === CARD_STATE.KEYS_DELIVERED) {
     const keys = getDeterministicKeys(uidHex, env, cardState.latest_issued_version);
-    const { cmac_validated } = validate_cmac(
+    const { cmac_validated } = validateCmac(
       hexToBytes(uidHex),
       hexToBytes(ctr),
       cHex,
@@ -64,7 +64,7 @@ export async function validateCardTap(request, env, { pHex, cHex, context = "tap
   }
 
   if (config.K2) {
-    const { cmac_validated, cmac_error } = validate_cmac(
+    const { cmac_validated, cmac_error } = validateCmac(
       hexToBytes(uidHex),
       hexToBytes(ctr),
       cHex,

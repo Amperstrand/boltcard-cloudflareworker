@@ -1,4 +1,4 @@
-import { validate_cmac } from "../boltCardHelper.js";
+import { validateCmac } from "../boltCardHelper.js";
 
 /**
  * Scan card key versions to find which version validates a CMAC tag.
@@ -26,7 +26,7 @@ export async function cmacScanVersions(uidBytes, ctrBytes, cHex, opts) {
   const step = highVersion >= lowVersion ? -1 : 1;
   for (let v = highVersion; step > 0 ? v <= lowVersion : v >= lowVersion; v += step) {
     const k2Bytes = await k2ForVersion(v);
-    const { cmac_validated } = validate_cmac(uidBytes, ctrBytes, cHex, k2Bytes);
+    const { cmac_validated } = validateCmac(uidBytes, ctrBytes, cHex, k2Bytes);
     attempts.push({ version: v, cmac_validated });
     if (cmac_validated && stopOnFirst) {
       matchedVersion = v;

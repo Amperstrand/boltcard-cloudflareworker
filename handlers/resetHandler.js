@@ -2,7 +2,7 @@ import { getDeterministicKeys } from "../keygenerator.js";
 import { getCardState, terminateCard, resolveActiveVersion } from "../replayProtection.js";
 import { jsonResponse, buildBoltCardResponse, errorResponse } from "../utils/responses.js";
 import { validateUid } from "../utils/validation.js";
-import { DEFAULT_FALLBACK_HOST, CARD_STATE, UID_VALIDATION_MSG } from "../utils/constants.js";
+import { DEFAULT_FALLBACK_HOST, CARD_STATE, UID_VALIDATION_MSG, isCardUsable, isCardTerminated, isCardNew } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
 
 export async function handleReset(uid, env, baseUrl) {
@@ -22,8 +22,8 @@ export async function handleReset(uid, env, baseUrl) {
 
     const cardState = await getCardState(env, normalizedUid);
 
-    if (cardState.state !== CARD_STATE.ACTIVE && cardState.state !== CARD_STATE.TERMINATED && cardState.state !== CARD_STATE.NEW) {
-      return errorResponse("Card must be active to retrieve wipe keys.", 400);
+    if (!isCardUsable(cardState.state) && !isCardTerminated(cardState.state) && !isCardNew(cardState.state)) {
+      return errorResponse("Card must be active, terminated, or new to retrieve wipe keys.", 409);
     }
 
     const wipeVersion = resolveActiveVersion(cardState);

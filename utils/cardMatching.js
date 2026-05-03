@@ -1,4 +1,4 @@
-import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
+import { extractUIDAndCounter, validateCmac } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
 import { getAllIssuerKeyCandidates, getPerCardKeys, getUniquePerCardK1s, fingerprintHex } from "./keyLookup.js";
@@ -59,7 +59,7 @@ export async function matchCardIssuer(pHex, cHex, env) {
 
     const perCard = getPerCardKeys(uidHex);
     if (perCard) {
-      const { cmac_validated: pcCmac } = validate_cmac(uidBytes, ctrBytes, cHex, hexToBytes(perCard.k2));
+      const { cmac_validated: pcCmac } = validateCmac(uidBytes, ctrBytes, cHex, hexToBytes(perCard.k2));
       if (pcCmac) {
         return {
           matched: true,
@@ -107,7 +107,7 @@ export async function matchCardIssuer(pHex, cHex, env) {
 
     const uidBytes = hexToBytes(uidHex);
     const ctrBytes = hexToBytes(ctr);
-    const { cmac_validated } = validate_cmac(uidBytes, ctrBytes, cHex, hexToBytes(perCard.k2));
+    const { cmac_validated } = validateCmac(uidBytes, ctrBytes, cHex, hexToBytes(perCard.k2));
 
     if (cmac_validated) {
       return {

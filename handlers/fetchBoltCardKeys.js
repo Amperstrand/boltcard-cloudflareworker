@@ -27,7 +27,7 @@ export async function fetchBoltCardKeys(request, env) {
     const baseUrl = getRequestOrigin(request);
 
     if (!uid && !lnurlw) {
-      return errorResponse("Must provide UID for programming, or LNURLW for reset");
+      return errorResponse("Must provide UID for programming, or LNURLW for reset", 400);
     }
 
     if ((onExisting === "UpdateVersion" || (!onExisting && uid && !lnurlw)) && uid) {
@@ -35,7 +35,7 @@ export async function fetchBoltCardKeys(request, env) {
         return errorResponse(UID_VALIDATION_MSG, 400);
       }
       if (cardType === "pos" && !lightningAddress) {
-        return errorResponse("POS card programming requires lightning_address parameter");
+        return errorResponse("POS card programming requires lightning_address parameter", 400);
       }
       return handleProgrammingFlow(uid, env, baseUrl, cardType, lightningAddress, minSendable, maxSendable);
     }
@@ -45,14 +45,14 @@ export async function fetchBoltCardKeys(request, env) {
     }
 
     if (onExisting === "KeepVersion" && uid && !lnurlw) {
-      return errorResponse("KeepVersion with UID requires card tap (LNURLW)");
+      return errorResponse("KeepVersion with UID requires card tap (LNURLW)", 400);
     }
 
     if (onExisting === "UpdateVersion" && !uid) {
-      return errorResponse("Programming flow requires UID in request body");
+      return errorResponse("Programming flow requires UID in request body", 400);
     }
 
-    return errorResponse("Must provide UID for programming, or LNURLW for reset");
+    return errorResponse("Must provide UID for programming, or LNURLW for reset", 400);
   } catch (err) {
     logger.error("fetchBoltCardKeys error", { error: err.message });
     return errorResponse("Internal error", 500);
@@ -157,7 +157,7 @@ async function handleResetFlow(lnurlw, env, baseUrl) {
     const cHex = lnurl.searchParams.get("c");
 
     if (!pHex || !cHex) {
-      return errorResponse("Invalid LNURLW format: missing 'p' or 'c'");
+      return errorResponse("Invalid LNURLW format: missing 'p' or 'c'", 400);
     }
 
     const decryption = extractUIDAndCounter(pHex, env);

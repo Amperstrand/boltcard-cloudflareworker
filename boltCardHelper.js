@@ -94,7 +94,7 @@ export function extractUIDAndCounter(pHex, env) {
  *   If not provided, falls back to staticUidConfig lookup for backward compatibility.
  * @returns {{ cmac_validated: boolean, cmac_error: string|null }}
  */
-export function validate_cmac(uidBytes, ctr, cHex, k2Bytes) {
+export function validateCmac(uidBytes, ctr, cHex, k2Bytes) {
   if (!cHex) {
     return { cmac_validated: false, cmac_error: null };
   }
@@ -148,7 +148,7 @@ export function decodeAndValidate(pHex, cHex, env, k2Bytes) {
   const uidBytes = hexToBytes(uidHex);
   const ctrBytes = hexToBytes(ctr);
 
-  const validation = validate_cmac(uidBytes, ctrBytes, cHex, k2Bytes);
+  const validation = validateCmac(uidBytes, ctrBytes, cHex, k2Bytes);
 
   return {
     success: true,

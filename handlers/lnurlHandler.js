@@ -1,8 +1,7 @@
 import { logger } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { CLN_REST_PAY_PATH, PAYMENT_METHOD, UID_VALIDATION_MSG } from "../utils/constants.js";
-import { recordTap, updateTapStatus, debitCard, claimTap, getCardState, resolveActiveVersion } from "../replayProtection.js";
-import { getUidConfig } from "../getUidConfig.js";
+import { recordTap, updateTapStatus, debitCard, claimTap } from "../replayProtection.js";
 import { decodeBolt11Amount } from "../utils/bolt11.js";
 import { resolveCardIdentity } from "../utils/cardAuth.js";
 
@@ -89,7 +88,7 @@ export async function handleLnurlpPayment(request, env) {
         return errorResponse("Replay protection unavailable", 500);
       }
 
-      const withdrawalResponse = await processWithdrawalPayment(normalizedUidHex, invoice || null, env, counterValue, explicitAmount ? parseInt(explicitAmount, 10) : undefined);
+      const withdrawalResponse = await processWithdrawalPayment(normalizedUidHex, invoice || null, env, counterValue, explicitAmount ? parseInt(explicitAmount, 10) : undefined, auth.config);
 
       if (withdrawalResponse.status === 200 || withdrawalResponse.status === 201) {
         await updateTapStatus(env, normalizedUidHex, counterValue, "completed").catch(e => logger.warn("Failed to update tap status to completed", { uidHex: normalizedUidHex, error: e.message }));
@@ -111,27 +110,17 @@ export async function handleLnurlpPayment(request, env) {
   }
 }
 
-async function processWithdrawalPayment(rawUid, pr, env, counterValue, explicitAmount) {
+async function processWithdrawalPayment(rawUid, pr, env, counterValue, explicitAmount, config) {
   if (!rawUid) {
     logger.error("Received undefined UID in processWithdrawalPayment");
     return jsonResponse({ status: "ERROR", reason: UID_VALIDATION_MSG }, 400);
   }
 
-  logger.debug("Processing LNURL payment", { uid: rawUid });
-
   const normalizedUid = rawUid.toLowerCase();
-  const cardState = await getCardState(env, normalizedUid);
-  const activeVersion = resolveActiveVersion(cardState);
-  const config = await getUidConfig(normalizedUid, env, activeVersion);
-  logger.trace("Loaded payment config", {
-    uid: normalizedUid,
-    paymentMethod: config?.payment_method,
-    hasConfig: Boolean(config),
-  });
 
   if (!config) {
     logger.error("No configuration found for UID", { uid: normalizedUid });
-    return jsonResponse({ status: "ERROR", reason: "UID configuration not found" }, 400);
+    return jsonResponse({ status: "ERROR", reason: "UID configuration not found" }, 404);
   }
 
   if (config.payment_method === PAYMENT_METHOD.FAKEWALLET) {

@@ -1,4 +1,4 @@
-import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
+import { extractUIDAndCounter, validateCmac } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { getCardState, resolveActiveVersion } from "../replayProtection.js";
@@ -42,7 +42,7 @@ export async function resolveCardIdentity(pHex, cHex, env, { activeVersion: forc
     return { ok: false, status: 404, error: "Card configuration not found" };
   }
 
-  const { cmac_validated, cmac_error } = validate_cmac(
+  const { cmac_validated, cmac_error } = validateCmac(
     hexToBytes(uidHex),
     hexToBytes(ctr),
     cHex,

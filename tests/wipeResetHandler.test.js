@@ -79,11 +79,11 @@ describe("handleReset", () => {
     expect(res.status).toBe(200);
   });
 
-  it("returns 400 for keys_delivered card", async () => {
+  it("returns 409 for keys_delivered card", async () => {
     const env = makeEnv();
     env.CARD_REPLAY.__cardStates.get(UID).state = "keys_delivered";
     const res = await handleReset(UID, env, "https://test.local");
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(409);
   });
 
   it("returns 500 when CARD_REPLAY missing", async () => {

@@ -1,4 +1,4 @@
-import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
+import { extractUIDAndCounter, validateCmac } from "../boltCardHelper.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { hexToBytes } from "../cryptoutils.js";
@@ -46,7 +46,7 @@ export async function handleIdentifyCard(request, env) {
     }
 
     if (config && config.K2) {
-      const cmac = validate_cmac(uidBytes, ctrBytes, cHex, hexToBytes(config.K2));
+      const cmac = validateCmac(uidBytes, ctrBytes, cHex, hexToBytes(config.K2));
       results.push({
         source: "config",
         version: activeVersion,
@@ -73,7 +73,7 @@ export async function handleIdentifyCard(request, env) {
         }
       },
       highVersion: VERSION_SCAN_RANGE,
-      lowVersion: 0,
+      lowVersion: 1,
       stopOnFirst: false,
     });
     detAttempts = scanResult.attempts;

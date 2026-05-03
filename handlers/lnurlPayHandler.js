@@ -53,12 +53,12 @@ export async function handleLnurlPayCallback(request, env) {
     }
 
     if (!amountParam) {
-      return errorResponse("Missing required parameter: amount");
+      return errorResponse("Missing required parameter: amount", 400);
     }
 
     const amountMsat = Number(amountParam);
     if (!Number.isInteger(amountMsat) || amountMsat <= 0) {
-      return errorResponse("Invalid amount parameter");
+      return errorResponse("Invalid amount parameter", 400);
     }
 
     const auth = await resolveCardIdentity(pHex, cHex, env, { context: "lnurl-pay" });
@@ -69,7 +69,7 @@ export async function handleLnurlPayCallback(request, env) {
     const { uidHex, counterValue, config } = auth;
 
     if (config.payment_method !== PAYMENT_METHOD.LNURLPAY) {
-      return errorResponse(`Unsupported payment method: ${config.payment_method}`);
+      return errorResponse(`Unsupported payment method: ${config.payment_method}`, 400);
     }
 
     const lightningAddress = pickRandomAddress(config, env);
@@ -80,7 +80,7 @@ export async function handleLnurlPayCallback(request, env) {
     const minSendable = config.lnurlpay?.min_sendable ?? 1000;
     const maxSendable = config.lnurlpay?.max_sendable ?? 1000;
     if (amountMsat < minSendable || amountMsat > maxSendable) {
-      return errorResponse(`Amount ${amountMsat} is outside allowed range ${minSendable}-${maxSendable}`);
+      return errorResponse(`Amount ${amountMsat} is outside allowed range ${minSendable}-${maxSendable}`, 400);
     }
 
     try {

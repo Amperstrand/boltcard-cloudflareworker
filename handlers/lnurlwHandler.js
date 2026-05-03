@@ -1,4 +1,4 @@
-import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
+import { extractUIDAndCounter, validateCmac as verifyCardCmac } from "../boltCardHelper.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { handleProxy } from "./proxyHandler.js";
 import { constructWithdrawResponse } from "./withdrawHandler.js";
@@ -141,7 +141,7 @@ function validateCmac(uidHex, ctr, cHex, config) {
   let cmac_error = null;
 
   if (hasK2) {
-    ({ cmac_validated, cmac_error } = validate_cmac(
+    ({ cmac_validated, cmac_error } = verifyCardCmac(
       hexToBytes(uidHex),
       hexToBytes(ctr),
       cHex,
@@ -190,12 +190,12 @@ async function routeByPaymentMethod(request, env, uidHex, pHex, cHex, ctr, count
     if (!replay.ok) return replay.response;
     const baseUrl = getRequestOrigin(request);
     const responsePayload = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated, baseUrl, config.payment_method);
-    if (responsePayload.status === "ERROR") return errorResponse(responsePayload.reason);
+    if (responsePayload.status === "ERROR") return errorResponse(responsePayload.reason, 403);
     return jsonResponse(responsePayload);
   }
 
   logger.error("Unsupported payment method", { uidHex, paymentMethod: config.payment_method });
-  return errorResponse(`Unsupported payment method: ${config.payment_method}`);
+  return errorResponse(`Unsupported payment method: ${config.payment_method}`, 400);
 }
 
 export async function handleLnurlw(request, env) {
@@ -220,7 +220,7 @@ export async function handleLnurlw(request, env) {
 
   if (!rawUid) {
     logger.error("UID is undefined after decryption", { pHex: "[REDACTED]", cHex: "[REDACTED]" });
-    return errorResponse("Failed to extract UID from payload");
+    return errorResponse("Failed to extract UID from payload", 400);
   }
 
   const uidHex = rawUid.toLowerCase();

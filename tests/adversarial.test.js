@@ -5,7 +5,7 @@ import { getDeterministicKeys } from "../keygenerator.js";
 import { handleRequest } from "../index.js";
 import { debitCard, creditCard, getBalance, checkAndAdvanceCounter, recordTap, getCardState } from "../replayProtection.js";
 import { validateCardTap } from "../utils/validateCardTap.js";
-import { extractUIDAndCounter, validate_cmac } from "../boltCardHelper.js";
+import { extractUIDAndCounter, validateCmac } from "../boltCardHelper.js";
 import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
 import { handleLnurlpPayment } from "../handlers/lnurlHandler.js";
 import { handlePosCharge } from "../handlers/posChargeHandler.js";
