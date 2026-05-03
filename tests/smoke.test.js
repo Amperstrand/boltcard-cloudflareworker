@@ -230,7 +230,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
       env
     );
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(403);
     const json = await response.json();
     expect(json.reason).toMatch(/CMAC/i);
   });

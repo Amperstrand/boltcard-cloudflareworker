@@ -260,7 +260,7 @@ describe("Cloudflare Worker Tests", () => {
       localEnv
     );
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(403);
     const json = await response.json();
     expect(json.reason || json.error).toMatch(/CMAC|K2/i);
   });

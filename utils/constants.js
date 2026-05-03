@@ -47,6 +47,7 @@ export function isCardNew(state) { return state === CARD_STATE.NEW || state === 
 export function canTransact(state) { return isCardUsable(state) || canAutoActivate(state); }
 
 export const UID_VALIDATION_MSG = "Invalid UID: must be exactly 14 hex characters";
+export const MISSING_PARAMS_MSG = "Missing required parameters: p and c are required";
 
 export const KEY_PROVENANCE = {
   UNKNOWN: "unknown",

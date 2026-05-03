@@ -1,6 +1,7 @@
 import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { logger } from "../utils/logger.js";
 import { matchCardIssuer } from "../utils/cardMatching.js";
+import { MISSING_PARAMS_MSG } from "../utils/constants.js";
 
 export async function handleIdentifyIssuerKey(request, env) {
   try {
@@ -11,7 +12,7 @@ export async function handleIdentifyIssuerKey(request, env) {
     const cHex = body?.c;
 
     if (!pHex || !cHex) {
-      return errorResponse("Missing required parameters: p and c are required");
+      return errorResponse(MISSING_PARAMS_MSG);
     }
 
     const result = await matchCardIssuer(pHex, cHex, env);

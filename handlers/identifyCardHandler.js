@@ -6,7 +6,7 @@ import { getCardState, resolveActiveVersion } from "../replayProtection.js";
 import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { cmacScanVersions } from "../utils/cmacScan.js";
 import { logger } from "../utils/logger.js";
-import { CARD_STATE, VERSION_SCAN_RANGE } from "../utils/constants.js";
+import { CARD_STATE, MISSING_PARAMS_MSG, VERSION_SCAN_RANGE } from "../utils/constants.js";
 
 export async function handleIdentifyCard(request, env) {
   const body = await parseJsonBody(request);
@@ -14,7 +14,7 @@ export async function handleIdentifyCard(request, env) {
   const cHex = body?.c || new URL(request.url).searchParams.get("c");
 
   if (!pHex || !cHex) {
-    return errorResponse("Missing required parameters: p and c are required");
+    return errorResponse(MISSING_PARAMS_MSG);
   }
 
   const decryption = extractUIDAndCounter(pHex, env);

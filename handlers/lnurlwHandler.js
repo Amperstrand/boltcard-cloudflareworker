@@ -11,7 +11,7 @@ import { recordTapRead, getCardState, activateCard, checkAndAdvanceCounter, disc
 import { getRequestOrigin } from "../utils/validation.js";
 import { cmacScanVersions } from "../utils/cmacScan.js";
 import { classifyIssuerKey, getAllIssuerKeyCandidates } from "../utils/keyLookup.js";
-import { CARD_STATE, PAYMENT_METHOD, VERSION_SCAN_RANGE } from "../utils/constants.js";
+import { CARD_STATE, PAYMENT_METHOD, VERSION_SCAN_RANGE, MISSING_PARAMS_MSG } from "../utils/constants.js";
 
 async function detectCardVersion(uidHex, ctr, cHex, env, latestVersion) {
   const uidBytes = hexToBytes(uidHex);
@@ -155,12 +155,12 @@ function validateCmac(uidHex, ctr, cHex, config) {
       uidHex,
       paymentMethod: config.payment_method,
     });
-    return { error: errorResponse("K2 key not available for local CMAC validation") };
+    return { error: errorResponse("K2 key not available for local CMAC validation", 500) };
   }
 
   if (hasK2 && !cmac_validated) {
     logger.warn(`CMAC validation failed: ${cmac_error || "CMAC validation failed."}`);
-    return { error: errorResponse(cmac_error || "CMAC validation failed") };
+    return { error: errorResponse(cmac_error || "CMAC validation failed", 403) };
   }
 
   return { cmac_validated, proxyRelayMode };
@@ -207,7 +207,7 @@ export async function handleLnurlw(request, env) {
 
   if (!pHex || !cHex) {
     logger.error("Missing required parameters", { pHex: !!pHex, cHex: !!cHex });
-    return errorResponse("Missing required parameters: p and c are required");
+    return errorResponse(MISSING_PARAMS_MSG);
   }
 
   const decryption = extractUIDAndCounter(pHex, env);
@@ -255,7 +255,7 @@ export async function handleLnurlw(request, env) {
 
   if (!config) {
     logger.error("UID not found in configuration", { uidHex });
-    return errorResponse("UID not found in config");
+    return errorResponse("UID not found in config", 404);
   }
 
   const cmacResult = validateCmac(uidHex, ctr, cHex, config);

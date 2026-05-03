@@ -1,4 +1,4 @@
-import { DEFAULT_FALLBACK_HOST, PAYMENT_METHOD } from "../utils/constants.js";
+import { DEFAULT_FALLBACK_HOST, MISSING_PARAMS_MSG, PAYMENT_METHOD } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { recordTap, updateTapStatus } from "../replayProtection.js";
@@ -49,7 +49,7 @@ export async function handleLnurlPayCallback(request, env) {
 
     if (!pHex || !cHex) {
       logger.error("Missing LNURL-pay callback parameters", { hasP: Boolean(pHex), hasC: Boolean(cHex) });
-      return errorResponse("Missing required parameters: p and c are required");
+      return errorResponse(MISSING_PARAMS_MSG);
     }
 
     if (!amountParam) {

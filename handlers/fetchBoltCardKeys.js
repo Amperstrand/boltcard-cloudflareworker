@@ -167,24 +167,24 @@ async function handleResetFlow(lnurlw, env, baseUrl) {
     const cardState = await getCardState(env, uidHex);
 
     if (cardState.state !== CARD_STATE.ACTIVE && cardState.state !== CARD_STATE.TERMINATED && cardState.state !== CARD_STATE.NEW && cardState.state !== CARD_STATE.WIPE_REQUESTED) {
-      return errorResponse("Card must be active or terminated to retrieve wipe keys");
+      return errorResponse("Card must be active or terminated to retrieve wipe keys", 409);
     }
 
     const wipeVersion = resolveActiveVersion(cardState);
     const config = await getUidConfig(uidHex, env, wipeVersion);
 
     if (!config) {
-      return errorResponse("UID not found in config");
+      return errorResponse("UID not found in config", 404);
     }
 
     if (!config.K2) {
-      return errorResponse("K2 key not available for CMAC validation during reset flow");
+      return errorResponse("K2 key not available for CMAC validation during reset flow", 500);
     }
 
     const k2Bytes = hexToBytes(config.K2);
     const validation = decodeAndValidate(pHex, cHex, env, k2Bytes);
     if (!validation.cmac_validated) {
-      return errorResponse(validation.cmac_error || "CMAC validation failed");
+      return errorResponse(validation.cmac_error || "CMAC validation failed", 403);
     }
 
     if (cardState.state === CARD_STATE.ACTIVE) {

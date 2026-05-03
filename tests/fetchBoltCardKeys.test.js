@@ -222,7 +222,7 @@ describe("fetchBoltCardKeys", () => {
       { LNURLW: lnurlw }
     );
     const res = await fetchBoltCardKeys(req, env);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(409);
     const body = await res.json();
     expect(body.reason).toContain("active or terminated");
   });
@@ -241,7 +241,7 @@ describe("fetchBoltCardKeys", () => {
       { LNURLW: lnurlw }
     );
     const res = await fetchBoltCardKeys(req, env);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
     const body = await res.json();
     expect(body.reason).toContain("CMAC");
   });

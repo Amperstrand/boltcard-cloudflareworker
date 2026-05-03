@@ -123,7 +123,7 @@ describe("Logging and Observability", () => {
           env
         );
 
-        expect(response.status).toBe(400);
+        expect(response.status).toBe(403);
 
         const cmacLog = warns.find(l => l.includes("CMAC"));
         expect(cmacLog).toBeDefined();

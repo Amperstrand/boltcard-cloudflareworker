@@ -117,7 +117,7 @@ describe("handleLnurlw", () => {
     const { pHex } = virtualTap(UID, 2, keys.k1, keys.k2);
     const req = new Request(`https://test.local/?p=${pHex}&c=DEADBEEFDEADBEEF`);
     const res = await handleLnurlw(req, env);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
     const body = await res.json();
     expect(body.reason).toContain("CMAC");
   });
@@ -233,7 +233,7 @@ describe("handleLnurlw", () => {
     const req = new Request(`https://test.local/?p=${pHex}&c=${badC}`);
     const res = await handleLnurlw(req, env);
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
     const body = await res.json();
     expect(body.reason).toContain("CMAC");
     globalThis.fetch = originalFetch;
@@ -642,7 +642,7 @@ describe("handleLnurlw", () => {
       const req = tapRequest(discoveryUid, 1, unknownKeys.k1, unknownKeys.k2);
       const res = await handleLnurlw(req, env);
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(403);
     });
 
     it("discovers legacy card on first tap", async () => {
