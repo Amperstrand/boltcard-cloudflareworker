@@ -38,13 +38,15 @@ export const CARD_STATE = {
   WIPE_REQUESTED: "wipe_requested",
   TERMINATED: "terminated",
   LEGACY: "legacy",
-};
+} as const;
 
-export function isCardUsable(state) { return state === CARD_STATE.ACTIVE || state === CARD_STATE.DISCOVERED; }
-export function isCardTerminated(state) { return state === CARD_STATE.TERMINATED; }
-export function canAutoActivate(state) { return state === CARD_STATE.KEYS_DELIVERED; }
-export function isCardNew(state) { return state === CARD_STATE.NEW || state === CARD_STATE.LEGACY; }
-export function canTransact(state) { return isCardUsable(state) || canAutoActivate(state); }
+export type CardState = (typeof CARD_STATE)[keyof typeof CARD_STATE];
+
+export function isCardUsable(state: string): boolean { return state === CARD_STATE.ACTIVE || state === CARD_STATE.DISCOVERED; }
+export function isCardTerminated(state: string): boolean { return state === CARD_STATE.TERMINATED; }
+export function canAutoActivate(state: string): boolean { return state === CARD_STATE.KEYS_DELIVERED; }
+export function isCardNew(state: string): boolean { return state === CARD_STATE.NEW || state === CARD_STATE.LEGACY; }
+export function canTransact(state: string): boolean { return isCardUsable(state) || canAutoActivate(state); }
 
 export const UID_VALIDATION_MSG = "Invalid UID: must be exactly 14 hex characters";
 export const MISSING_PARAMS_MSG = "Missing required parameters: p and c are required";
@@ -55,7 +57,9 @@ export const KEY_PROVENANCE = {
   ENV_ISSUER: "env_issuer",
   PERCARD: "percard",
   USER_PROVISIONED: "user_provisioned",
-};
+} as const;
+
+export type KeyProvenance = (typeof KEY_PROVENANCE)[keyof typeof KEY_PROVENANCE];
 
 export const PAYMENT_METHOD = {
   FAKEWALLET: "fakewallet",
@@ -63,4 +67,6 @@ export const PAYMENT_METHOD = {
   PROXY: "proxy",
   LNURLPAY: "lnurlpay",
   TWOFACTOR: "twofactor",
-};
+} as const;
+
+export type PaymentMethod = (typeof PAYMENT_METHOD)[keyof typeof PAYMENT_METHOD];

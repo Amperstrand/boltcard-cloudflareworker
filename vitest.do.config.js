@@ -4,7 +4,7 @@ import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
 export default defineConfig({
   test: {
     globals: true,
-    include: ["tests/do/**/*.test.js"],
+    include: ["tests/do/**/*.test.{js,ts}"],
   },
   plugins: [
     cloudflareTest({

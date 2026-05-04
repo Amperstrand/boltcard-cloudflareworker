@@ -7,6 +7,7 @@
     "@cloudflare/vitest-pool-workers": "^0.15.0",
     "better-sqlite3": "12.9.0",
     "miniflare": "4.20260116.0",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.5",
     "wrangler": "4.59.3"
   },
@@ -22,6 +23,8 @@
     "test": "vitest run",
     "test:do": "vitest run --config vitest.do.config.js",
     "test:all": "npm test && npm run test:do",
-    "deploy": "npm test && npm run test:do && node scripts/build_keys.js && wrangler deploy"
+    "typecheck": "tsc --noEmit",
+    "cf-typegen": "wrangler types",
+    "deploy": "npm test && npm run test:do && npm run typecheck && node scripts/build_keys.js && wrangler deploy"
   }
 }
