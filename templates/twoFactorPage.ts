@@ -3,14 +3,14 @@ import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_BASE } from "./browserNfc.js";
 import { buildMaskedUid } from "../utils/validation.js";
 
-export function renderTwoFactorPage({ uidHex, totp, hotp, counterValue, pHex, cHex, baseUrl }) {
-  const maskedUid = buildMaskedUid(uidHex);
+export function renderTwoFactorPage({ uidHex, totp, hotp, counterValue, pHex, cHex, baseUrl }: { uidHex: string; totp: any; hotp: string; counterValue: number; pHex: string; cHex: string; baseUrl: string }): string {
+  const maskedUid: string = buildMaskedUid(uidHex);
 
-  const host = baseUrl.replace(/^https?:\/\//, "");
-  const withdrawLink = `lnurlw://${host}/?p=${pHex}&c=${cHex}`;
-  const payLink = `lnurlp://${host}/?p=${pHex}&c=${cHex}`;
+  const host: string = baseUrl.replace(/^https?:\/\//, "");
+  const withdrawLink: string = `lnurlw://${host}/?p=${pHex}&c=${cHex}`;
+  const payLink: string = `lnurlp://${host}/?p=${pHex}&c=${cHex}`;
 
-  const content = rawHtml`
+  const content: string = rawHtml`
     <div class="min-h-screen p-4 md:p-8 font-sans antialiased flex flex-col items-center">
       <div class="max-w-lg w-full bg-gray-800 border border-gray-700 shadow-xl rounded-lg p-6 md:p-8">
 
@@ -95,8 +95,8 @@ export function renderTwoFactorPage({ uidHex, totp, hotp, counterValue, pHex, cH
   });
 }
 
-export function renderTwoFactorLandingPage(baseUrl) {
-  const content = rawHtml`
+export function renderTwoFactorLandingPage(baseUrl: string): string {
+  const content: string = rawHtml`
     <div class="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 p-4 md:p-8">
       <section class="rounded-3xl border border-gray-800 bg-gray-900/80 p-6 shadow-2xl shadow-black/30 md:p-8">
         <div class="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">

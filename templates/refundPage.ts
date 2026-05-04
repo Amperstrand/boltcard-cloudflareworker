@@ -3,7 +3,7 @@ import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 import { resultBoxHelpers, OPERATOR_LOGOUT_HANDLER } from "./operatorShared.js";
 
-export function renderRefundPage({ host, currencyLabel }) {
+export function renderRefundPage({ host, currencyLabel }: { host: string; currencyLabel?: string }): string {
   return renderTailwindPage({
     title: "Refund",
     metaRobots: "noindex,nofollow",

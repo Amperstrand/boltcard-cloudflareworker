@@ -2,7 +2,12 @@ import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_BASE } from "./browserNfc.js";
 
-export function renderLoginPage({ host, defaultProgrammingEndpoint }) {
+interface LoginPageOptions {
+  host: string;
+  defaultProgrammingEndpoint: string;
+}
+
+export function renderLoginPage({ host, defaultProgrammingEndpoint }: LoginPageOptions): string {
   return renderTailwindPage({
     title: "NFC Login",
     csrf: true,

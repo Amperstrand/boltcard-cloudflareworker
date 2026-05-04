@@ -1,6 +1,17 @@
 import { rawHtml, safe } from "../utils/rawTemplate.js";
 import { CSRF_FETCH_HELPER } from "./browserNfc.js";
 
+interface RenderTailwindPageOptions {
+  title: string;
+  content: string;
+  bodyClass?: string;
+  htmlClass?: string;
+  styles?: string;
+  headScripts?: string;
+  metaRobots?: string;
+  csrf?: boolean;
+}
+
 export function renderTailwindPage({
   title,
   content,
@@ -10,7 +21,7 @@ export function renderTailwindPage({
   headScripts = "",
   metaRobots = "",
   csrf = false,
-}) {
+}: RenderTailwindPageOptions): string {
   return rawHtml`<!DOCTYPE html>
 <html lang="en" class="${htmlClass}">
   <head>

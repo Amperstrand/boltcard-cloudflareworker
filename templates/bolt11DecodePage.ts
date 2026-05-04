@@ -1,7 +1,7 @@
 import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 
-export function renderBolt11DecodePage() {
+export function renderBolt11DecodePage(): string {
   return renderTailwindPage({
     title: "BOLT11 Decoder",
     bodyClass: "min-h-screen p-4 md:p-8 font-sans antialiased",

@@ -1,14 +1,19 @@
 import { rawHtml, safe } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 
-export function renderOperatorLoginPage({ error, returnTo }) {
-  const errorHtml = error
+interface OperatorLoginPageOptions {
+  error?: string;
+  returnTo?: string;
+}
+
+export function renderOperatorLoginPage({ error, returnTo }: OperatorLoginPageOptions): string {
+  const errorHtml: string = error
     ? rawHtml`<div class="bg-red-900/30 border border-red-500/40 rounded-lg p-4 mb-4">
         <p class="text-red-300 text-sm">${error}</p>
       </div>`
     : "";
 
-  const returnField = returnTo
+  const returnField: string = returnTo
     ? rawHtml`<input type="hidden" name="return" value="${returnTo}" />`
     : "";
 

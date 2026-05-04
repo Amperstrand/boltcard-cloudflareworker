@@ -2,16 +2,16 @@ import { rawHtml, safe } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 
-export function renderIdentityPage({ host }) {
-  const pageTitle = "Boltcard Identity";
-  const emojiOptions = ["👤", "😀", "😎", "🤖", "🧠", "🚀", "🦊", "🦄", "🐸", "🦉", "⚡", "🔥"];
-  const emojiButtons = safe(emojiOptions.map((emoji) => `
+export function renderIdentityPage({ host }: { host: string }): string {
+  const pageTitle: string = "Boltcard Identity";
+  const emojiOptions: string[] = ["👤", "😀", "😎", "🤖", "🧠", "🚀", "🦊", "🦄", "🐸", "🦉", "⚡", "🔥"];
+  const emojiButtons: string = emojiOptions.map((emoji) => `
     <button type="button" data-emoji="${emoji}" class="identity-emoji-btn h-11 w-11 rounded-xl border border-gray-700 bg-gray-950/80 text-2xl transition hover:border-pink-400/60 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-pink-500/30">
       ${emoji}
     </button>
-  `).join(""));
+  `).join("");
   
-  const content = rawHtml`
+  const content: string = rawHtml`
     <div class="min-h-screen bg-gray-950 text-gray-100 flex flex-col font-mono items-center relative overflow-hidden">
       
       <!-- Background decoration -->

@@ -2,8 +2,8 @@ import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_HELPERS, BROWSER_VALIDATE_UID_HELPER } from "./browserNfc.js";
 
-export function renderDebugConsolePage({ host, baseUrl }) {
-  const tabs = [
+export function renderDebugConsolePage({ host, baseUrl }: { host: string; baseUrl: string }): string {
+  const tabs: Array<{id: string; label: string; icon: string}> = [
     { id: "console", label: "Console", icon: "\u{1f527}" },
     { id: "identify", label: "Identify", icon: "\u{1f50d}" },
     { id: "wipe", label: "Wipe", icon: "\u{1f5d1}" },
@@ -12,11 +12,11 @@ export function renderDebugConsolePage({ host, baseUrl }) {
     { id: "pos", label: "POS", icon: "\u{1f3b4}" },
   ];
 
-  const tabButtons = tabs.map(t =>
+  const tabButtons: string = tabs.map((t: any) =>
     `<button class="debug-tab ${t.id === 'console' ? 'active' : ''}" data-tab="${t.id}">${t.icon} ${t.label}</button>`
   ).join("");
 
-  const content = rawHtml`
+  const content: string = rawHtml`
     <div class="min-h-screen bg-gray-950 text-gray-100 flex flex-col">
       <!-- Tab Bar -->
       <nav class="sticky top-0 z-50 bg-gray-900/95 backdrop-blur-sm border-b border-gray-800 px-3 py-2 shadow-lg">

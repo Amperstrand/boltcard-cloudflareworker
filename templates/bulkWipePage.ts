@@ -2,7 +2,7 @@ import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_HELPERS, BROWSER_VALIDATE_UID_HELPER } from "./browserNfc.js";
 
-export function renderBulkWipePage({ baseUrl, keyOptionsHtml }) {
+export function renderBulkWipePage({ baseUrl, keyOptionsHtml }: { baseUrl: string; keyOptionsHtml: string }): string {
   return renderTailwindPage({
     title: "Bulk Card Wipe",
     csrf: true,

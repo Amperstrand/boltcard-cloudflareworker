@@ -2,8 +2,8 @@ import { rawHtml, safe } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { CARD_STATE_HELPERS, ESC_HELPER } from "./browserNfc.js";
 
-export function renderCardAuditPage() {
-  const content = rawHtml`
+export function renderCardAuditPage(): string {
+  const content: string = rawHtml`
   <div class="max-w-5xl w-full space-y-6">
     <div class="flex items-center justify-between border-b border-gray-700 pb-4">
       <h1 class="text-2xl md:text-3xl font-bold text-emerald-500 tracking-tight">CARD REGISTRY</h1>

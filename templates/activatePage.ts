@@ -2,7 +2,7 @@ import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_HELPERS, BROWSER_VALIDATE_UID_HELPER } from "./browserNfc.js";
 
-export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, programUrl, resetUrl }) {
+export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, programUrl, resetUrl }: { apiUrl: string; programDeepLink: string; resetDeepLink: string; programUrl: string; resetUrl: string }): string {
   return renderTailwindPage({
     title: "BoltCard Activate",
     csrf: true,
@@ -276,7 +276,7 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
   });
 }
 
-export function renderActivateCardPage() {
+export function renderActivateCardPage(): string {
   const content = rawHtml`
       <div class="max-w-3xl mx-auto p-4 md:p-8">
         <h1 class="text-3xl font-bold text-white mb-2">BoltCard Activation</h1>

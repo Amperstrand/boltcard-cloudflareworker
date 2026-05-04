@@ -1,6 +1,6 @@
 import { rawHtml } from "../utils/rawTemplate.js";
 
-export function resultBoxHelpers(boxClass, iconSize) {
+export function resultBoxHelpers(boxClass: string, iconSize?: string): string {
   var iconCls = (iconSize || 'text-2xl') + ' leading-none';
   return rawHtml`
     var resultBox = document.getElementById('result-box');
@@ -33,13 +33,13 @@ export function resultBoxHelpers(boxClass, iconSize) {
   `;
 }
 
-export const OPERATOR_LOGOUT_HANDLER = rawHtml`
+export const OPERATOR_LOGOUT_HANDLER: string = rawHtml`
   function operatorLogout() {
     fetch('/operator/logout', { method: 'POST' }).then(function() { window.location.href = '/operator/login'; });
   }
 `;
 
-export const NORMALIZE_AMOUNT_INTEGER = rawHtml`
+export const NORMALIZE_AMOUNT_INTEGER: string = rawHtml`
   function normalizeAmount(val) {
     if (!val || val === '.') return '0';
     var s = String(val).replace(/[^0-9]/g, '');
@@ -49,7 +49,7 @@ export const NORMALIZE_AMOUNT_INTEGER = rawHtml`
   }
 `;
 
-export const FORMAT_DISPLAY_INTEGER = rawHtml`
+export const FORMAT_DISPLAY_INTEGER: string = rawHtml`
   function formatDisplay(val) {
     var n = normalizeAmount(val);
     return n.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');

@@ -2,7 +2,7 @@ import { rawHtml, safe } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_VALIDATE_UID_HELPER } from "./browserNfc.js";
 
-export function renderAnalyticsPage() {
+export function renderAnalyticsPage(): string {
   return renderTailwindPage({
     title: "Bolt Card Analytics",
     bodyClass: "min-h-screen p-4 md:p-8 font-sans antialiased",

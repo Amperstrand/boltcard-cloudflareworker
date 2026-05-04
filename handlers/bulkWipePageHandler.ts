@@ -35,5 +35,5 @@ export async function handleBulkWipePage(request: Request): Promise<Response> {
     keyOptionsHtml += `</optgroup>\n`;
   }
 
-  return htmlResponse(renderBulkWipePage({ baseUrl, keyOptionsHtml: safe(keyOptionsHtml) }));
+  return htmlResponse(renderBulkWipePage({ baseUrl, keyOptionsHtml: safe(keyOptionsHtml).html }));
 }

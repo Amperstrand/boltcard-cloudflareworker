@@ -2,7 +2,7 @@ import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 
-export function renderWipePage({ baseUrl, resetApiUrl }) {
+export function renderWipePage({ baseUrl, resetApiUrl }: { baseUrl: string; resetApiUrl: string }): string {
   return renderTailwindPage({
     title: "BoltCard Wipe Utility",
     csrf: true,

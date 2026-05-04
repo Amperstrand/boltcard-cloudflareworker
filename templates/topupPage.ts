@@ -3,7 +3,7 @@ import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 import { resultBoxHelpers, OPERATOR_LOGOUT_HANDLER, NORMALIZE_AMOUNT_INTEGER, FORMAT_DISPLAY_INTEGER } from "./operatorShared.js";
 
-export function renderTopupPage({ host, currencyLabel }) {
+export function renderTopupPage({ host, currencyLabel }: { host: string; currencyLabel?: string }): string {
   return renderTailwindPage({
     title: "Top-Up",
     metaRobots: "noindex,nofollow",

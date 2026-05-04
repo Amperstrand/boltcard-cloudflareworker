@@ -1,17 +1,21 @@
 import { DurableObject } from "cloudflare:workers";
 import { logger } from "../utils/logger.js";
 
-function nowSec() {
+function nowSec(): number {
   return Math.floor(Date.now() / 1000);
 }
 
 const CARD_STATE_COLS = "state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance, key_provenance, key_fingerprint, key_label, first_seen_at";
-export class CardReplayDO extends DurableObject {
-  constructor(state, env) {
+export class CardReplayDO extends DurableObject<Env> {
+  declare state: DurableObjectState;
+  declare env: any;
+  sql: any;
+
+  constructor(state: DurableObjectState, env: any) {
     super(state, env);
     this.state = state;
     this.env = env;
-    this.sql = state.storage.sql;
+    this.sql = (state as any).storage.sql;
 
     state.blockConcurrencyWhile(async () => {
       this.sql.exec(`
@@ -60,10 +64,10 @@ export class CardReplayDO extends DurableObject {
           updated_at INTEGER
         )
       `);
-      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN key_provenance TEXT`); } catch (e) {}
-      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN key_fingerprint TEXT`); } catch (e) {}
-      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN key_label TEXT`); } catch (e) {}
-      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN first_seen_at INTEGER`); } catch (e) {}
+      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN key_provenance TEXT`); } catch (e: any) {}
+      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN key_fingerprint TEXT`); } catch (e: any) {}
+      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN key_label TEXT`); } catch (e: any) {}
+      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN first_seen_at INTEGER`); } catch (e: any) {}
       this.sql.exec(`
         CREATE TABLE IF NOT EXISTS transactions (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,7 +81,7 @@ export class CardReplayDO extends DurableObject {
     });
   }
 
-  async fetch(request) {
+  async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
     try {
@@ -174,7 +178,7 @@ export class CardReplayDO extends DurableObject {
       return this.handleSetK2(request);
     }
 
-    } catch (err) {
+    } catch (err: any) {
       if (err instanceof SyntaxError) {
         return Response.json({ error: "Invalid JSON body" }, { status: 400 });
       }
@@ -185,8 +189,8 @@ export class CardReplayDO extends DurableObject {
     return new Response("Not found", { status: 404 });
   }
 
-  async handleCheck(request, readOnly) {
-    const { counterValue } = await request.json();
+  async handleCheck(request: Request, readOnly: boolean): Promise<Response> {
+    const { counterValue } = await request.json() as any;
     if (!Number.isInteger(counterValue) || counterValue < 0) {
       return Response.json({ accepted: false, reason: "Invalid counter value" }, { status: 400 });
     }
@@ -195,7 +199,7 @@ export class CardReplayDO extends DurableObject {
       const existing = this.sql.exec(
         "SELECT last_counter FROM replay_state WHERE singleton = 1"
       ).toArray();
-      const lastCounter = existing[0]?.last_counter ?? null;
+      const lastCounter: number | null = existing[0]?.last_counter ?? null;
 
       if (lastCounter !== null && counterValue <= lastCounter) {
         return Response.json(
@@ -225,7 +229,7 @@ export class CardReplayDO extends DurableObject {
     const existing = this.sql.exec(
       "SELECT last_counter FROM replay_state WHERE singleton = 1"
     ).toArray();
-    const lastCounter = existing[0]?.last_counter ?? null;
+    const lastCounter: number | null = existing[0]?.last_counter ?? null;
 
     return Response.json(
       { accepted: false, reason: "Counter replay detected — tap rejected", lastCounter },
@@ -233,8 +237,8 @@ export class CardReplayDO extends DurableObject {
     );
   }
 
-  async handleRecordTap(request) {
-    const { counterValue, bolt11, amountMsat, userAgent, requestUrl } = await request.json();
+  async handleRecordTap(request: Request): Promise<Response> {
+    const { counterValue, bolt11, amountMsat, userAgent, requestUrl } = await request.json() as any;
     if (!Number.isInteger(counterValue) || counterValue < 0) {
       return Response.json({ accepted: false, reason: "Invalid counter value" }, { status: 400 });
     }
@@ -271,7 +275,7 @@ export class CardReplayDO extends DurableObject {
     const existing = this.sql.exec(
       "SELECT last_counter FROM replay_state WHERE singleton = 1"
     ).toArray();
-    const lastCounter = existing[0]?.last_counter ?? null;
+    const lastCounter: number | null = existing[0]?.last_counter ?? null;
 
     return Response.json(
       { accepted: false, reason: "Counter replay detected — tap rejected", lastCounter },
@@ -279,9 +283,9 @@ export class CardReplayDO extends DurableObject {
     );
   }
 
-  async handleRecordRead(request) {
-    const { counterValue, userAgent, requestUrl } = await request.json();
-    const counter = (Number.isInteger(counterValue) && counterValue >= 0)
+  async handleRecordRead(request: Request): Promise<Response> {
+    const { counterValue, userAgent, requestUrl } = await request.json() as any;
+    const counter: number = (Number.isInteger(counterValue) && counterValue >= 0)
       ? counterValue
       : Date.now();
 
@@ -299,8 +303,8 @@ export class CardReplayDO extends DurableObject {
     return Response.json({ recorded: true });
   }
 
-  async handleUpdateTapStatus(request) {
-    const { counter, status, bolt11, amountMsat } = await request.json();
+  async handleUpdateTapStatus(request: Request): Promise<Response> {
+    const { counter, status, bolt11, amountMsat } = await request.json() as any;
     if (counter == null || !status) {
       return Response.json({ error: "Missing counter or status" }, { status: 400 });
     }
@@ -323,8 +327,8 @@ export class CardReplayDO extends DurableObject {
     return Response.json({ updated: updated.length > 0 });
   }
 
-  async handleClaimTap(request) {
-    const { counter, bolt11, amountMsat } = await request.json();
+  async handleClaimTap(request: Request): Promise<Response> {
+    const { counter, bolt11, amountMsat } = await request.json() as any;
     if (!Number.isInteger(counter) || counter < 0) {
       return Response.json({ claimed: false, reason: "Invalid counter" }, { status: 400 });
     }
@@ -365,7 +369,7 @@ export class CardReplayDO extends DurableObject {
     return Response.json({ claimed: true });
   }
 
-  handleListTaps(url) {
+  handleListTaps(url: URL): Response {
     const rawLimit = parseInt(url.searchParams.get("limit") || "50", 10);
     const limit = Math.max(1, Math.min(rawLimit, 200));
     const taps = this.sql.exec(
@@ -378,9 +382,9 @@ export class CardReplayDO extends DurableObject {
       `SELECT state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, key_provenance, key_fingerprint, key_label, first_seen_at
        FROM card_state WHERE singleton = 1`
     ).toArray();
-    const cardState = stateRows[0] || null;
+    const cardState: any = stateRows[0] || null;
 
-    const events = [];
+    const events: any[] = [];
 
     if (cardState) {
       if (cardState.keys_delivered_at) {
@@ -441,7 +445,7 @@ export class CardReplayDO extends DurableObject {
       }
     }
 
-    const merged = [...taps, ...events].sort((a, b) => {
+    const merged = [...taps, ...events].sort((a: any, b: any) => {
       const timeDiff = (b.created_at || 0) - (a.created_at || 0);
       if (timeDiff !== 0) return timeDiff;
       return (b.counter || 0) - (a.counter || 0);
@@ -450,7 +454,7 @@ export class CardReplayDO extends DurableObject {
     return Response.json({ taps: merged.slice(0, limit) });
   }
 
-  handleAnalytics() {
+  handleAnalytics(): Response {
     const stats = this.sql.exec(
       `SELECT
          COUNT(*) as totalTaps,
@@ -470,7 +474,7 @@ export class CardReplayDO extends DurableObject {
     });
   }
 
-  handleGetCardState() {
+  handleGetCardState(): Response {
     const rows = this.sql.exec(
       `SELECT ${CARD_STATE_COLS}
        FROM card_state WHERE singleton = 1`
@@ -494,7 +498,7 @@ export class CardReplayDO extends DurableObject {
     return Response.json(rows[0]);
   }
 
-  handleDeliverKeys() {
+  handleDeliverKeys(): Response {
     const now = nowSec();
     const rows = this.sql.exec(
       `INSERT INTO card_state (
@@ -521,12 +525,12 @@ export class CardReplayDO extends DurableObject {
         RETURNING ${CARD_STATE_COLS}`,
       now, now
     );
-    const cardState = rows.toArray()[0];
+    const cardState: any = rows.toArray()[0];
     return Response.json({ ...cardState, version: cardState.latest_issued_version });
   }
 
-  async handleActivate(request) {
-    const { active_version } = await request.json();
+  async handleActivate(request: Request): Promise<Response> {
+    const { active_version } = await request.json() as any;
     if (!Number.isInteger(active_version) || active_version < 1) {
       return Response.json({ error: "Invalid active_version" }, { status: 400 });
     }
@@ -557,7 +561,7 @@ export class CardReplayDO extends DurableObject {
     return Response.json(rows.toArray()[0]);
   }
 
-  handleRequestWipe() {
+  handleRequestWipe(): Response {
     const now = nowSec();
     const rows = this.sql.exec(
        `UPDATE card_state SET
@@ -574,7 +578,7 @@ export class CardReplayDO extends DurableObject {
     return Response.json(result[0]);
   }
 
-  handleTerminate() {
+  handleTerminate(): Response {
     const now = nowSec();
     const rows = this.sql.exec(
       `INSERT INTO card_state (singleton, state, latest_issued_version, terminated_at, balance)
@@ -590,35 +594,35 @@ export class CardReplayDO extends DurableObject {
     return Response.json(rows.toArray()[0]);
   }
 
-  handleGetConfig() {
+  handleGetConfig(): Response {
     const rows = this.sql.exec(
       `SELECT K2, payment_method, config_json, pull_payment_id, updated_at FROM card_config WHERE singleton = 1`
     ).toArray();
     if (rows.length === 0) {
       return Response.json(null);
     }
-    const row = rows[0];
-    let config = { payment_method: row.payment_method };
+    const row: any = rows[0];
+    let config: any = { payment_method: row.payment_method };
     if (row.K2) config.K2 = row.K2;
     if (row.pull_payment_id) config.pull_payment_id = row.pull_payment_id;
     if (row.config_json) {
       try {
         const extra = JSON.parse(row.config_json);
         config = { ...config, ...extra };
-      } catch (e) {
+      } catch (e: any) {
         logger.warn("Failed to parse card_config.config_json", { error: e.message });
       }
     }
     return Response.json(config);
   }
 
-  async handleSetConfig(request) {
-    const config = await request.json();
+  async handleSetConfig(request: Request): Promise<Response> {
+    const config = await request.json() as any;
     const { K2, payment_method, pull_payment_id, ...rest } = config;
-    const method = payment_method || "fakewallet";
-    const k2 = K2 || null;
-    const pullPaymentId = pull_payment_id || null;
-    const configJson = Object.keys(rest).length > 0 ? JSON.stringify(rest) : null;
+    const method: string = payment_method || "fakewallet";
+    const k2: string | null = K2 || null;
+    const pullPaymentId: string | null = pull_payment_id || null;
+    const configJson: string | null = Object.keys(rest).length > 0 ? JSON.stringify(rest) : null;
     const now = nowSec();
 
     this.sql.exec(
@@ -636,9 +640,9 @@ export class CardReplayDO extends DurableObject {
     return Response.json({ ok: true });
   }
 
-  async handleSetK2(request) {
-    const { K2 } = await request.json();
-    const k2 = K2 || null;
+  async handleSetK2(request: Request): Promise<Response> {
+    const { K2 } = await request.json() as any;
+    const k2: string | null = K2 || null;
     const now = nowSec();
     const existing = this.sql.exec(
       `SELECT 1 FROM card_config WHERE singleton = 1`
@@ -658,13 +662,13 @@ export class CardReplayDO extends DurableObject {
     return Response.json({ ok: true });
   }
 
-  async handleDebit(request) {
-    const { counter, amount, note } = await request.json();
+  async handleDebit(request: Request): Promise<Response> {
+    const { counter, amount, note } = await request.json() as any;
     if (!Number.isInteger(amount) || amount <= 0) {
       return Response.json({ ok: false, reason: "Amount must be a positive integer" }, { status: 400 });
     }
 
-    const currentBalance = this.getCurrentBalance();
+    const currentBalance: number = this.getCurrentBalance();
     if (currentBalance < amount) {
       return Response.json({ ok: false, reason: "Insufficient balance", balance: currentBalance }, { status: 400 });
     }
@@ -692,13 +696,13 @@ export class CardReplayDO extends DurableObject {
     return Response.json({ ok: true, balance: newBalance, transaction: rows[0] });
   }
 
-  async handleCredit(request) {
-    const { amount, note } = await request.json();
+  async handleCredit(request: Request): Promise<Response> {
+    const { amount, note } = await request.json() as any;
     if (!Number.isInteger(amount) || amount <= 0) {
       return Response.json({ ok: false, reason: "Amount must be a positive integer" }, { status: 400 });
     }
 
-    const currentBalance = this.getCurrentBalance();
+    const currentBalance: number = this.getCurrentBalance();
     const newBalance = currentBalance + amount;
     const createdAt = nowSec();
 
@@ -721,17 +725,17 @@ export class CardReplayDO extends DurableObject {
     return Response.json({ ok: true, balance: newBalance, transaction: rows[0] });
   }
 
-  handleGetBalance() {
+  handleGetBalance(): Response {
     return Response.json({ balance: this.getCurrentBalance() });
   }
 
-  handleReset() {
+  handleReset(): Response {
     this.sql.exec("DELETE FROM taps");
     this.sql.exec("DELETE FROM replay_state WHERE singleton = 1");
     return Response.json({ reset: true });
   }
 
-  handleListTransactions(url) {
+  handleListTransactions(url: URL): Response {
     const requestedLimit = parseInt(url.searchParams.get("limit") || "50", 10);
     const limit = Number.isFinite(requestedLimit)
       ? Math.max(1, Math.min(requestedLimit, 200))
@@ -745,14 +749,14 @@ export class CardReplayDO extends DurableObject {
     return Response.json({ transactions });
   }
 
-  getCurrentBalance() {
+  getCurrentBalance(): number {
     const rows = this.sql.exec(
       `SELECT balance FROM card_state WHERE singleton = 1`
     ).toArray();
     return rows[0]?.balance ?? 0;
   }
 
-  ensureCardStateRow(balance = 0) {
+  ensureCardStateRow(balance: number = 0): void {
     this.sql.exec(
       `INSERT INTO card_state (singleton, balance)
        VALUES (1, ?)
@@ -761,8 +765,8 @@ export class CardReplayDO extends DurableObject {
     );
   }
 
-  async handleMarkPending(request) {
-    const { key_provenance, key_fingerprint, key_label } = await request.json();
+  async handleMarkPending(request: Request): Promise<Response> {
+    const { key_provenance, key_fingerprint, key_label } = await request.json() as any;
     const now = nowSec();
     const existing = this.sql.exec(
       `SELECT state FROM card_state WHERE singleton = 1`
@@ -793,17 +797,17 @@ export class CardReplayDO extends DurableObject {
     });
   }
 
-  async handleDiscover(request) {
-    const { key_provenance, key_fingerprint, key_label, active_version } = await request.json();
+  async handleDiscover(request: Request): Promise<Response> {
+    const { key_provenance, key_fingerprint, key_label, active_version } = await request.json() as any;
     const now = nowSec();
-    const version = active_version || 1;
+    const version: number = active_version || 1;
 
     const existing = this.sql.exec(
       `SELECT state, key_provenance, key_fingerprint, key_label, first_seen_at FROM card_state WHERE singleton = 1`
     ).toArray();
 
     if (existing.length > 0) {
-      const current = existing[0];
+      const current: any = existing[0];
       if (current.state === "pending" || current.state === "new" || current.state === "legacy") {
         this.sql.exec(
           `UPDATE card_state SET

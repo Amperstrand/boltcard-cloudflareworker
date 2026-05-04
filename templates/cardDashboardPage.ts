@@ -2,8 +2,8 @@ import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_HELPERS, CARD_STATE_HELPERS } from "./browserNfc.js";
 
-export function renderCardDashboardPage() {
-  const content = rawHtml`
+export function renderCardDashboardPage(): string {
+  const content: string = rawHtml`
   <main class="max-w-lg mx-auto">
     <div class="text-center mb-8">
       <h1 class="text-3xl font-bold text-emerald-500 tracking-tight mb-2">MY CARD</h1>

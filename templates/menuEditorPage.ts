@@ -2,9 +2,9 @@ import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { ESC_HELPER } from "./browserNfc.js";
 
-export function renderMenuEditorPage({ host, terminalId, menu }) {
-  const items = menu.items || [];
-  const itemsJson = items.length > 0 ? JSON.stringify(items) : "[]";
+export function renderMenuEditorPage({ host, terminalId, menu }: { host: string; terminalId: string; menu: any }): string {
+  const items: any[] = menu.items || [];
+  const itemsJson: string = items.length > 0 ? JSON.stringify(items) : "[]";
 
   return renderTailwindPage({
     title: "Menu Editor",

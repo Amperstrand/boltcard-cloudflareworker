@@ -3,7 +3,7 @@ import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 import { resultBoxHelpers } from "./operatorShared.js";
 
-export function renderPosPage({ host, currencyLabel }) {
+export function renderPosPage({ host, currencyLabel }: { host: string; currencyLabel?: string }): string {
   return renderTailwindPage({
     title: "POS",
     metaRobots: "noindex,nofollow",
