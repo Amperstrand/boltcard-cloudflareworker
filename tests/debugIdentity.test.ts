@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { hexToBytes, bytesToHex } from "../cryptoutils.js";
@@ -6,11 +5,12 @@ import { getDeterministicKeys } from "../keygenerator.js";
 import { buildVerificationData } from "../cryptoutils.js";
 import aesjs from "aes-js";
 import { buildCardTestEnv } from "./testHelpers.js";
+import type { Env } from "../types/core.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const TEST_UID = "04996c6a926980";
 
-function generateRealPandC(uidHex, counter, k1Hex) {
+function generateRealPandC(uidHex: string, counter: number, k1Hex: string) {
   const k1 = hexToBytes(k1Hex);
   const uid = hexToBytes(uidHex);
   const plaintext = new Uint8Array(16);
@@ -30,7 +30,7 @@ function generateRealPandC(uidHex, counter, k1Hex) {
   return { pHex, ctrHex };
 }
 
-function computeRealC(uidHex, ctrHex, k2Hex) {
+function computeRealC(uidHex: string, ctrHex: string, k2Hex: string) {
   const uid = hexToBytes(uidHex);
   const ctr = hexToBytes(ctrHex);
   const k2 = hexToBytes(k2Hex);
@@ -38,11 +38,11 @@ function computeRealC(uidHex, ctrHex, k2Hex) {
   return bytesToHex(vd.ct);
 }
 
-function makeEnv(uidConfig = null) {
-  return buildCardTestEnv({ uid: TEST_UID, kvData: uidConfig ? JSON.stringify(uidConfig) : null, operatorAuth: true, extraEnv: { BOLT_CARD_K1 } });
+function makeEnv(uidConfig: Record<string, unknown> | null = null) {
+  return buildCardTestEnv({ uid: TEST_UID, kvData: uidConfig ? JSON.stringify(uidConfig) : null, operatorAuth: true, extraEnv: { BOLT_CARD_K1 } }) as unknown as Env;
 }
 
-async function makeRequest(path, env) {
+async function makeRequest(path: string, env: Env) {
   return handleRequest(new Request("https://test.local" + path, { method: "GET" }), env);
 }
 
@@ -93,22 +93,22 @@ describe("Identity Page", () => {
 });
 
 describe("Identity Verify API", () => {
-  let keys;
+  let keys: ReturnType<typeof getDeterministicKeys>;
 
   beforeAll(async () => {
-    const env = { BOLT_CARD_K1 };
+    const env = { BOLT_CARD_K1 } as unknown as Env;
     keys = getDeterministicKeys(TEST_UID, env);
   });
 
   test("returns verified for valid card", async () => {
-    const env = makeEnv({ payment_method: "fakewallet", K2: keys.k2 });
+    const env = makeEnv({ payment_method: "fakewallet", K2: keys.k2 } as Record<string, unknown>);
     const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
     const resp = await makeRequest(`/api/verify-identity?p=${pHex}&c=${cHex}`, env);
     expect(resp.status).toBe(200);
 
-    const json = await resp.json();
+    const json = await resp.json() as Record<string, unknown>;
     expect(json.verified).toBe(true);
     expect(json.uid).toBe(TEST_UID);
     expect(json.maskedUid).toContain("0499");
@@ -123,7 +123,7 @@ describe("Identity Verify API", () => {
   });
 
   test("saves a selected emoji avatar for a verified card", async () => {
-    const env = makeEnv({ payment_method: "fakewallet", K2: keys.k2 });
+    const env = makeEnv({ payment_method: "fakewallet", K2: keys.k2 } as Record<string, unknown>);
     const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
@@ -134,17 +134,17 @@ describe("Identity Verify API", () => {
     }), env);
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json.success).toBe(true);
-    expect(json.profile.emoji).toBe("🚀");
+    expect((json.profile as Record<string, unknown>).emoji).toBe("🚀");
 
     const verifyResp = await makeRequest(`/api/verify-identity?p=${pHex}&c=${cHex}`, env);
-    const verifyJson = await verifyResp.json();
-    expect(verifyJson.profile.emoji).toBe("🚀");
+    const verifyJson = await verifyResp.json() as Record<string, unknown>;
+    expect((verifyJson.profile as Record<string, unknown>).emoji).toBe("🚀");
   });
 
   test("rejects unsupported emoji selection", async () => {
-    const env = makeEnv({ payment_method: "fakewallet", K2: keys.k2 });
+    const env = makeEnv({ payment_method: "fakewallet", K2: keys.k2 } as Record<string, unknown>);
     const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
@@ -155,7 +155,7 @@ describe("Identity Verify API", () => {
     }), env);
 
     expect(response.status).toBe(400);
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json.status).toBe("ERROR");
   });
 
@@ -165,7 +165,7 @@ describe("Identity Verify API", () => {
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
     const resp = await makeRequest(`/api/verify-identity?p=${pHex}&c=${cHex}`, env);
-    const json = await resp.json();
+    const json = await resp.json() as Record<string, unknown>;
     expect(json.verified).toBe(false);
     expect(json.reason).toMatch(/not enrolled|not recognized/i);
   });
@@ -174,7 +174,7 @@ describe("Identity Verify API", () => {
     const env = makeEnv();
     const resp = await makeRequest("/api/verify-identity?c=abcdef", env);
     expect(resp.status).toBe(400);
-    const json = await resp.json();
+    const json = await resp.json() as Record<string, unknown>;
     expect(json.status).toBe("ERROR");
   });
 
@@ -182,7 +182,7 @@ describe("Identity Verify API", () => {
     const env = makeEnv();
     const resp = await makeRequest("/api/verify-identity?p=abcdef", env);
     expect(resp.status).toBe(400);
-    const json = await resp.json();
+    const json = await resp.json() as Record<string, unknown>;
     expect(json.status).toBe("ERROR");
   });
 });

@@ -1,4 +1,6 @@
 import { getDeterministicKeys } from "../keygenerator.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { resetReplayProtection, setCardConfig } from "../replayProtection.js";
 import { renderActivateCardPage } from "../templates/activatePage.js";
 import { logger } from "../utils/logger.js";
@@ -10,7 +12,7 @@ export function handleActivateCardPage(): Response {
   return htmlResponse(renderActivateCardPage());
 }
 
-export async function handleActivateCardSubmit(request: Request, env: any): Promise<Response> {
+export async function handleActivateCardSubmit(request: Request, env: Env): Promise<Response> {
   const data: any = await parseJsonBody(request);
   if (!data) return errorResponse("Invalid JSON body", 400);
 
@@ -27,8 +29,8 @@ export async function handleActivateCardSubmit(request: Request, env: any): Prom
   logger.debug("Generated deterministic keys for activation", { uid });
   try {
     await resetReplayProtection(env, uid);
-  } catch (error: any) {
-    logger.error("Error resetting replay protection during activation", { uid, error: error.message });
+  } catch (error: unknown) {
+    logger.error("Error resetting replay protection during activation", { uid, error: getErrorMessage(error) });
     return errorResponse("Server error", 500);
   }
   
@@ -39,8 +41,8 @@ export async function handleActivateCardSubmit(request: Request, env: any): Prom
   
   try {
     await setCardConfig(env, uid, config);
-  } catch (error: any) {
-    logger.error("Error writing card config during activation", { uid, error: error.message });
+  } catch (error: unknown) {
+    logger.error("Error writing card config during activation", { uid, error: getErrorMessage(error) });
     return errorResponse("Failed to save card config", 500);
   }
   logger.debug("Activated card config written to DO", { uid });

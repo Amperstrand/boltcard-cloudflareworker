@@ -1,13 +1,10 @@
 import { computeAesCmac, hexToBytes } from "../cryptoutils.js";
+import type { Env } from "../types/core.js";
 import { hmac } from "@noble/hashes/hmac.js";
 import { sha1 } from "@noble/hashes/legacy.js";
 
-interface EnvLike {
-  ISSUER_KEY?: string;
-  WORKER_ENV?: string;
-}
 
-export function deriveOtpSecret(env: EnvLike | undefined, uidHex: string, domainTag: string): Uint8Array {
+export function deriveOtpSecret(env: Env | undefined, uidHex: string, domainTag: string): Uint8Array {
   if (!env?.ISSUER_KEY) {
     if (env?.WORKER_ENV === "production") {
       throw new Error("ISSUER_KEY must be set in production");

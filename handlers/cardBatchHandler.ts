@@ -1,4 +1,8 @@
 import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
+import type { CardStateRow } from "../types/core.js";
+import type { SessionPayload } from "../types/core.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { terminateCard, requestWipe, getCardState, deliverKeys, resolveActiveVersion } from "../replayProtection.js";
 import { validateUid } from "../utils/validation.js";
 import { CARD_STATE, BATCH_MAX_CARDS, UID_VALIDATION_MSG } from "../utils/constants.js";
@@ -14,7 +18,7 @@ interface BatchResult {
   version?: number;
 }
 
-export async function handleCardBatchAction(request: Request, env: any, session: any): Promise<Response> {
+export async function handleCardBatchAction(request: Request, env: Env, session: SessionPayload): Promise<Response> {
   if (request.method !== "POST") {
     return errorResponse("Method not allowed", 405);
   }
@@ -52,7 +56,7 @@ export async function handleCardBatchAction(request: Request, env: any, session:
 
   for (const uid of normalizedUids) {
     try {
-      const cardState: any = await getCardState(env, uid);
+      const cardState: CardStateRow = await getCardState(env, uid);
 
       if (action === "terminate") {
         if (cardState.state === CARD_STATE.TERMINATED) {
@@ -90,9 +94,9 @@ export async function handleCardBatchAction(request: Request, env: any, session:
         const newVersion: number = delivered.latest_issued_version || delivered.version || (cardState.latest_issued_version || 0) + 1;
         results.push({ uid, status: "reprovisioned", version: newVersion });
       }
-    } catch (err: any) {
-      logger.error("Batch action failed for card", { uid, action, error: err.message });
-      errors.push({ uid, error: err.message });
+    } catch (err: unknown) {
+      logger.error("Batch action failed for card", { uid, action, error: getErrorMessage(err) });
+      errors.push({ uid, error: getErrorMessage(err) });
     }
   }
 

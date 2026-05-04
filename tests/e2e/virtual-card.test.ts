@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * E2E tests using a virtual (simulated) NTAG424 bolt card.
  *
@@ -9,8 +8,7 @@
  */
 
 import { handleRequest } from "../../index.js";
-;
-import { makeReplayNamespace } from "../replayNamespace.js";
+import { makeReplayNamespace, type ReplayNamespace } from "../replayNamespace.js";
 import { TEST_OPERATOR_AUTH, virtualTap } from "../testHelpers.js";
 import { getDeterministicKeys } from "../../keygenerator.js";
 
@@ -19,25 +17,37 @@ const BOLT_CARD_K1 =
 const PROG_ENDPOINT =
   "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion";
 
-function makeFreshEnv(initialBalance = 0) {
-  const kvStore = {};
+interface TestEnv {
+  BOLT_CARD_K1: string;
+  CARD_REPLAY: ReplayNamespace;
+  UID_CONFIG: KVNamespace;
+  __kvStore: Record<string, string>;
+  __initialBalance: number;
+  OPERATOR_PIN: string;
+  OPERATOR_SESSION_SECRET: string;
+  __TEST_OPERATOR_SESSION: { iat: number; exp: number; shiftId: string };
+  ISSUER_KEY?: string;
+}
+
+function makeFreshEnv(initialBalance = 0): TestEnv {
+  const kvStore: Record<string, string> = {};
   const ns = makeReplayNamespace();
   return {
     BOLT_CARD_K1,
     CARD_REPLAY: ns,
     UID_CONFIG: {
-      get: async (key) => kvStore[key] ?? null,
-      put: async (key, value) => {
+      get: async (key: string) => kvStore[key] ?? null,
+      put: async (key: string, value: string) => {
         kvStore[key] = value;
       },
-    },
+    } as unknown as KVNamespace,
     __kvStore: kvStore,
     __initialBalance: initialBalance,
     ...TEST_OPERATOR_AUTH,
   };
 }
 
-async function creditCard(env, uid, amount) {
+async function creditCard(env: TestEnv, uid: string, amount: number): Promise<void> {
   const id = env.CARD_REPLAY.idFromName(uid);
   const stub = env.CARD_REPLAY.get(id);
   await stub.fetch(new Request("https://card-replay.internal/credit", {
@@ -47,9 +57,9 @@ async function creditCard(env, uid, amount) {
   }));
 }
 
-async function makeRequest(path, method = "GET", body = null, env) {
+async function makeRequest(path: string, method: string = "GET", body: Record<string, string> | null = null, env: TestEnv): Promise<Response> {
   const url = "https://test.local" + path;
-  const opts = { method };
+  const opts: RequestInit = { method };
   if (body) {
     opts.body = JSON.stringify(body);
     opts.headers = { "Content-Type": "application/json" };
@@ -57,8 +67,7 @@ async function makeRequest(path, method = "GET", body = null, env) {
   return handleRequest(new Request(url, opts), env);
 }
 
-// Provision a card via the programming endpoint, return env + keys + uid
-async function provisionCard(uid, env, extra = "") {
+async function provisionCard(uid: string, env: TestEnv, extra = "") {
   const resp = await makeRequest(
     PROG_ENDPOINT + extra,
     "POST",
@@ -66,9 +75,9 @@ async function provisionCard(uid, env, extra = "") {
     env
   );
   expect(resp.status).toBe(200);
-  const json = await resp.json();
+  const json = await resp.json() as Record<string, any>;
   const version = json.Version || 1;
-  const keys = getDeterministicKeys(uid, env, version);
+  const keys = getDeterministicKeys(uid, env as any, version);
   return { json, keys, version };
 }
 
@@ -76,7 +85,8 @@ async function provisionCard(uid, env, extra = "") {
 
 describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
   const UID = "04a111fa967380";
-  let env, keys;
+  let env: TestEnv;
+  let keys: ReturnType<typeof getDeterministicKeys>;
 
   beforeEach(async () => {
     env = makeFreshEnv();
@@ -92,7 +102,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
     const tapResp = await makeRequest(`/?p=${pHex}&c=${cHex}`, "GET", null, env);
     expect(tapResp.status).toBe(200);
-    const tapJson = await tapResp.json();
+    const tapJson = await tapResp.json() as Record<string, any>;
     expect(tapJson.tag).toBe("withdrawRequest");
     expect(tapJson.callback).toContain("/boltcards/api/v1/lnurl/cb");
     expect(env.CARD_REPLAY.__counters.get(UID)).toBe(1);
@@ -108,7 +118,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     expect(env.CARD_REPLAY.__counters.get(UID)).toBe(1);
 
     // Tap metadata recorded
-    const tap = env.CARD_REPLAY.__taps.get(`${UID}:1`);
+    const tap = env.CARD_REPLAY.__taps.get(`${UID}:1`)!;
     expect(tap).toBeDefined();
     expect(tap.bolt11).toContain("lnbc10n1testinvoice");
     expect(tap.status).toBe("completed"); // fakewallet odd call succeeds
@@ -124,7 +134,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
       env
     );
     expect(loginResp.status).toBe(200);
-    const loginJson = await loginResp.json();
+    const loginJson = await loginResp.json() as Record<string, any>;
     expect(loginJson.success).toBe(true);
     expect(loginJson.tapHistory).toHaveLength(3);
     expect(loginJson.tapHistory[0].counter).toBe(1);
@@ -214,8 +224,8 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     expect(env.CARD_REPLAY.__counters.get(UID)).toBe(5);
 
     // Mark card as active so wipe endpoint accepts it
-    env.CARD_REPLAY.__cardStates.get(UID.toLowerCase()).state = "active";
-    env.CARD_REPLAY.__cardStates.get(UID.toLowerCase()).active_version = 1;
+    env.CARD_REPLAY.__cardStates.get(UID.toLowerCase())!.state = "active";
+    env.CARD_REPLAY.__cardStates.get(UID.toLowerCase())!.active_version = 1;
 
     // Wipe — card becomes terminated, counter reset
     const wipeResp = await makeRequest(`/wipe?uid=${UID}`, "GET", null, env);
@@ -231,8 +241,8 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     const reprov = await provisionCard(UID, env);
     expect(reprov.version).toBe(2);
 
-    env.CARD_REPLAY.__cardStates.get(UID.toLowerCase()).state = "active";
-    env.CARD_REPLAY.__cardStates.get(UID.toLowerCase()).active_version = 2;
+    env.CARD_REPLAY.__cardStates.get(UID.toLowerCase())!.state = "active";
+    env.CARD_REPLAY.__cardStates.get(UID.toLowerCase())!.active_version = 2;
 
     const tap1 = virtualTap(UID, 1, k1Hex, reprov.keys.k2);
     const after = await makeRequest(`/?p=${tap1.pHex}&c=${tap1.cHex}`, "GET", null, env);
@@ -244,8 +254,9 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
 
 describe("E2E: Virtual card — LNURL-pay (POS)", () => {
   const UID = "04a222fa967380";
-  let env, keys;
-  let originalFetch;
+  let env: TestEnv;
+  let keys: ReturnType<typeof getDeterministicKeys>;
+  let originalFetch: typeof globalThis.fetch;
 
   beforeEach(async () => {
     env = makeFreshEnv();
@@ -253,7 +264,7 @@ describe("E2E: Virtual card — LNURL-pay (POS)", () => {
     keys = result.keys;
 
     originalFetch = global.fetch;
-    global.fetch = vi.fn(async (url) => {
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
       const urlStr = url.toString();
       if (urlStr.includes(".well-known/lnurlp")) {
         return new Response(
@@ -287,7 +298,7 @@ describe("E2E: Virtual card — LNURL-pay (POS)", () => {
     // Step 1: tap returns payRequest
     const tapResp = await makeRequest(`/?p=${pHex}&c=${cHex}`, "GET", null, env);
     expect(tapResp.status).toBe(200);
-    const tapJson = await tapResp.json();
+    const tapJson = await tapResp.json() as Record<string, any>;
     expect(tapJson.tag).toBe("payRequest");
     expect(tapJson.minSendable).toBe(1000);
     expect(tapJson.metadata).toContain("Order #1");
@@ -301,7 +312,7 @@ describe("E2E: Virtual card — LNURL-pay (POS)", () => {
       env
     );
     expect(cbResp.status).toBe(200);
-    const cbJson = await cbResp.json();
+    const cbJson = await cbResp.json() as Record<string, any>;
     expect(cbJson.pr).toBe("lnbc10n1testinvoice");
     expect(env.CARD_REPLAY.__counters.get(UID)).toBe(1);
   });
@@ -316,7 +327,7 @@ describe("E2E: Virtual card — LNURL-pay (POS)", () => {
     // Replay rejected
     const replay = await makeRequest(`/lnurlp/cb?p=${pHex}&c=${cHex}&amount=1000`, "GET", null, env);
     expect(replay.status).toBe(409);
-    const json = await replay.json();
+    const json = await replay.json() as Record<string, any>;
     expect(json.reason).toMatch(/replay|counter/i);
   });
 });
@@ -374,7 +385,7 @@ describe("E2E: Virtual card — login and tap history", () => {
     const { pHex, cHex } = virtualTap(UID, 4, k1Hex, keys.k2);
     const loginResp = await makeRequest("/login", "POST", { p: pHex, c: cHex }, env);
     expect(loginResp.status).toBe(200);
-    const json = await loginResp.json();
+    const json = await loginResp.json() as Record<string, any>;
     expect(json.success).toBe(true);
     expect(json.tapHistory).toHaveLength(6);
 
@@ -382,7 +393,7 @@ describe("E2E: Virtual card — login and tap history", () => {
     expect([3, 2]).toContain(json.tapHistory[2].counter);
 
     // Each entry has metadata
-    for (const tap of json.tapHistory) {
+    for (const tap of json.tapHistory as Array<Record<string, any>>) {
       expect(tap.created_at).toBeGreaterThan(0);
       expect(tap.status).toBeTruthy();
     }
@@ -406,7 +417,7 @@ describe("E2E: Virtual card — login and tap history", () => {
 
     const { pHex, cHex } = virtualTap(UID, 26, k1Hex, keys.k2);
     const loginResp = await makeRequest("/login", "POST", { p: pHex, c: cHex }, env);
-    const json = await loginResp.json();
+    const json = await loginResp.json() as Record<string, any>;
     // 25 taps produce 25 tap entries + 25 payment transactions = 50, capped at 25 by merge
     expect(json.tapHistory.length).toBeLessThanOrEqual(25);
   });
@@ -418,7 +429,7 @@ describe("E2E: Virtual card — auto-discovery lifecycle", () => {
   const UID = "04a555fa967380";
   const ISSUER_KEY = "00000000000000000000000000000001";
 
-  function makeDiscoveryEnv() {
+  function makeDiscoveryEnv(): TestEnv {
     const replay = makeReplayNamespace();
     return {
       BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
@@ -427,24 +438,24 @@ describe("E2E: Virtual card — auto-discovery lifecycle", () => {
       UID_CONFIG: {
         get: async () => null,
         put: async () => {},
-      },
-    };
+      } as unknown as KVNamespace,
+    } as TestEnv;
   }
 
   test("unknown card → first tap → discovered → callback → payment → second tap", async () => {
     const env = makeDiscoveryEnv();
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const discoveryKeys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const k1Hex = env.BOLT_CARD_K1.split(",")[0];
 
     expect(env.CARD_REPLAY.__cardStates.has(UID)).toBe(false);
 
-    const tap1 = virtualTap(UID, 1, k1Hex, keys.k2);
+    const tap1 = virtualTap(UID, 1, k1Hex, discoveryKeys.k2);
     const res1 = await makeRequest(`/?p=${tap1.pHex}&c=${tap1.cHex}`, "GET", null, env);
     expect(res1.status).toBe(200);
-    const json1 = await res1.json();
+    const json1 = await res1.json() as Record<string, any>;
     expect(json1.tag).toBe("withdrawRequest");
 
-    const state = env.CARD_REPLAY.__cardStates.get(UID);
+    const state = env.CARD_REPLAY.__cardStates.get(UID)!;
     expect(state).toBeDefined();
     expect(state.state).toBe("discovered");
     expect(state.key_provenance).toBe("public_issuer");
@@ -462,14 +473,14 @@ describe("E2E: Virtual card — auto-discovery lifecycle", () => {
     expect(cb1.status).toBe(200);
 
     // Step 3: Second tap with incremented counter works normally
-    const tap2 = virtualTap(UID, 2, k1Hex, keys.k2);
+    const tap2 = virtualTap(UID, 2, k1Hex, discoveryKeys.k2);
     const res2 = await makeRequest(`/?p=${tap2.pHex}&c=${tap2.cHex}`, "GET", null, env);
     expect(res2.status).toBe(200);
-    const json2 = await res2.json();
+    const json2 = await res2.json() as Record<string, any>;
     expect(json2.tag).toBe("withdrawRequest");
 
     // State remains discovered
-    const state2 = env.CARD_REPLAY.__cardStates.get(UID);
+    const state2 = env.CARD_REPLAY.__cardStates.get(UID)!;
     expect(state2.state).toBe("discovered");
 
     // Step 4: Replay is rejected

@@ -1,36 +1,36 @@
-// @ts-nocheck
 import { handleWipePage } from "../handlers/wipePageHandler.js";
 import { handleReset } from "../handlers/resetHandler.js";
 import { buildCardTestEnv } from "./testHelpers.js";
 
 const UID = "04a39493cc8680";
 const ISSUER_KEY = "00000000000000000000000000000001";
+const minimalEnv = { UID_CONFIG: {} as KVNamespace, CARD_REPLAY: {} as DurableObjectNamespace };
 
 describe("handleWipePage", () => {
   it("returns HTML response", () => {
     const req = new Request("https://test.local/experimental/wipe");
-    const res = handleWipePage(req, {});
+    const res = handleWipePage(req, minimalEnv);
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toContain("text/html");
   });
 
-  it("works without env parameter (default parameter)", () => {
+  it("works with minimal env", () => {
     const req = new Request("https://test.local/experimental/wipe");
-    const res = handleWipePage(req);
+    const res = handleWipePage(req, minimalEnv);
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toContain("text/html");
   });
 
   it("includes reset API URL in response", async () => {
     const req = new Request("https://test.local/experimental/wipe");
-    const res = handleWipePage(req, {});
+    const res = handleWipePage(req, minimalEnv);
     const html = await res.text();
     expect(html).toContain("KeepVersion");
   });
 
   it("uses custom DEFAULT_PULL_PAYMENT_ID from env", async () => {
     const req = new Request("https://test.local/experimental/wipe");
-    const res = handleWipePage(req, { DEFAULT_PULL_PAYMENT_ID: "custom-pp-123" });
+    const res = handleWipePage(req, { DEFAULT_PULL_PAYMENT_ID: "custom-pp-123" } as any);
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain("custom-pp-123");
@@ -43,9 +43,9 @@ describe("handleReset", () => {
   }
 
   it("returns 400 for missing UID", async () => {
-    const res = await handleReset(null, makeEnv(), "https://test.local");
+    const res = await handleReset(null as unknown as string, makeEnv(), "https://test.local");
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.reason).toContain("UID");
   });
 
@@ -58,37 +58,37 @@ describe("handleReset", () => {
     const env = makeEnv();
     const res = await handleReset(UID, env, "https://test.local");
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.PROTOCOL_NAME).toBe("NEW_BOLT_CARD_RESPONSE");
     expect(body.K0).toBeDefined();
-    expect(env.CARD_REPLAY.__cardStates.get(UID).state).toBe("terminated");
+    expect((env.CARD_REPLAY as any).__cardStates.get(UID).state).toBe("terminated");
   });
 
   it("returns keys for already terminated card", async () => {
     const env = makeEnv();
-    env.CARD_REPLAY.__cardStates.get(UID).state = "terminated";
+    (env.CARD_REPLAY as any).__cardStates.get(UID).state = "terminated";
     const res = await handleReset(UID, env, "https://test.local");
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.PROTOCOL_NAME).toBe("NEW_BOLT_CARD_RESPONSE");
   });
 
   it("returns keys for new card", async () => {
     const env = makeEnv();
-    env.CARD_REPLAY.__cardStates.get(UID).state = "new";
+    (env.CARD_REPLAY as any).__cardStates.get(UID).state = "new";
     const res = await handleReset(UID, env, "https://test.local");
     expect(res.status).toBe(200);
   });
 
   it("returns 409 for keys_delivered card", async () => {
     const env = makeEnv();
-    env.CARD_REPLAY.__cardStates.get(UID).state = "keys_delivered";
+    (env.CARD_REPLAY as any).__cardStates.get(UID).state = "keys_delivered";
     const res = await handleReset(UID, env, "https://test.local");
     expect(res.status).toBe(409);
   });
 
   it("returns 500 when CARD_REPLAY missing", async () => {
-    const res = await handleReset(UID, {}, "https://test.local");
+    const res = await handleReset(UID, {} as any, "https://test.local");
     expect(res.status).toBe(500);
   });
 

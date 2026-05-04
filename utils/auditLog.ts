@@ -1,4 +1,6 @@
 import { logger } from "./logger.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { AUDIT_LOG_TTL, AUDIT_LIST_DEFAULT_LIMIT } from "./constants.js";
 
 const AUDIT_PREFIX = "audit_log:";
@@ -10,11 +12,8 @@ interface AuditEventParams {
   details?: Record<string, unknown>;
 }
 
-interface EnvLike {
-  UID_CONFIG?: KVNamespace;
-}
 
-export async function recordAuditEvent(env: EnvLike | undefined, { action, uidHex, operatorShiftId, details = {} }: AuditEventParams) {
+export async function recordAuditEvent(env: Env | undefined, { action, uidHex, operatorShiftId, details = {} }: AuditEventParams) {
   if (!env?.UID_CONFIG) return;
 
   try {
@@ -34,12 +33,12 @@ export async function recordAuditEvent(env: EnvLike | undefined, { action, uidHe
       JSON.stringify(entry),
       { expirationTtl: AUDIT_LOG_TTL }
     );
-  } catch (e: any) {
-    logger.warn("Failed to record audit event", { action, uidHex, error: e.message });
+  } catch (e: unknown) {
+    logger.warn("Failed to record audit event", { action, uidHex, error: getErrorMessage(e) });
   }
 }
 
-export async function _listAuditEvents(env: EnvLike | undefined, { limit = AUDIT_LIST_DEFAULT_LIMIT, cursor }: { limit?: number; cursor?: string } = {}) {
+export async function _listAuditEvents(env: Env | undefined, { limit = AUDIT_LIST_DEFAULT_LIMIT, cursor }: { limit?: number; cursor?: string } = {}) {
   if (!env?.UID_CONFIG) return { events: [], cursor: null as string | null };
 
   try {
@@ -69,8 +68,8 @@ export async function _listAuditEvents(env: EnvLike | undefined, { limit = AUDIT
       events,
       cursor: listResult.list_complete ? null : (listResult as any).cursor,
     };
-  } catch (e: any) {
-    logger.warn("Failed to list audit events", { error: e.message });
+  } catch (e: unknown) {
+    logger.warn("Failed to list audit events", { error: getErrorMessage(e) });
     return { events: [], cursor: null as string | null };
   }
 }

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {
   requireOperator,
   validatePinConfig,
@@ -8,15 +7,16 @@ import {
   COOKIE_NAME,
   MIN_PIN_LENGTH,
 } from "../middleware/operatorAuth.js";
+import type { Env } from "../types/core.js";
 
 const TEST_SECRET = "test-session-secret-for-jest";
 const TEST_PIN = "1234";
 
-function makeEnv(overrides = {}) {
-  return { OPERATOR_PIN: TEST_PIN, OPERATOR_SESSION_SECRET: TEST_SECRET, ...overrides };
+function makeEnv(overrides: Record<string, unknown> = {}): Env {
+  return { OPERATOR_PIN: TEST_PIN, OPERATOR_SESSION_SECRET: TEST_SECRET, ...overrides } as unknown as Env;
 }
 
-function makeRequest(cookies = {}) {
+function makeRequest(cookies: Record<string, string> = {}) {
   const cookieStr = Object.entries(cookies)
     .map(([k, v]) => `${k}=${v}`)
     .join("; ");
@@ -25,10 +25,10 @@ function makeRequest(cookies = {}) {
   });
 }
 
-async function createTestSession(env) {
+async function createTestSession(env: Env) {
   const { cookie } = await createSession(env);
   const match = cookie.match(/op_session=([^;]+)/);
-  return match ? match[1] : null;
+  return match![1];
 }
 
 describe("validatePinConfig", () => {
@@ -93,6 +93,7 @@ describe("requireOperator", () => {
     const request = makeRequest();
     const result = await requireOperator(request, makeEnv());
     expect(result.authorized).toBe(false);
+    if (result.authorized) return;
     expect(result.response.status).toBe(302);
     expect(result.response.headers.get("Location")).toContain("/operator/login");
   });
@@ -101,6 +102,7 @@ describe("requireOperator", () => {
     const request = makeRequest();
     const result = await requireOperator(request, makeEnv({ OPERATOR_SESSION_SECRET: "" }));
     expect(result.authorized).toBe(false);
+    if (result.authorized) return;
     expect(result.response.status).toBe(302);
     expect(result.response.headers.get("Location")).toContain("/operator/login");
   });
@@ -109,6 +111,7 @@ describe("requireOperator", () => {
     const request = makeRequest({ op_session: "invalid.signature" });
     const result = await requireOperator(request, makeEnv());
     expect(result.authorized).toBe(false);
+    if (result.authorized) return;
     expect(result.response.status).toBe(302);
   });
 
@@ -117,6 +120,7 @@ describe("requireOperator", () => {
     const request = makeRequest({ op_session: sessionValue });
     const result = await requireOperator(request, makeEnv());
     expect(result.authorized).toBe(true);
+    if (!result.authorized) return;
     expect(result.session).toBeDefined();
     expect(result.session.shiftId).toBeDefined();
     expect(result.session.iat).toBeDefined();
@@ -162,22 +166,22 @@ describe("constants", () => {
 });
 
 describe("production guards", () => {
-  const prodEnv = { WORKER_ENV: "production" };
+  const prodEnv = { WORKER_ENV: "production" } as unknown as Env;
 
   it("validatePinConfig rejects missing PIN in production", () => {
     expect(validatePinConfig({ ...prodEnv })).toBe(false);
   });
 
   it("validatePinConfig rejects short PIN in production", () => {
-    expect(validatePinConfig({ ...prodEnv, OPERATOR_PIN: "12" })).toBe(false);
+    expect(validatePinConfig({ ...prodEnv, OPERATOR_PIN: "12" } as unknown as Env)).toBe(false);
   });
 
   it("validatePinConfig rejects missing SESSION_SECRET in production", () => {
-    expect(validatePinConfig({ ...prodEnv, OPERATOR_PIN: "1234" })).toBe(false);
+    expect(validatePinConfig({ ...prodEnv, OPERATOR_PIN: "1234" } as unknown as Env)).toBe(false);
   });
 
   it("validatePinConfig accepts properly configured production env", () => {
-    expect(validatePinConfig({ ...prodEnv, OPERATOR_PIN: "1234", OPERATOR_SESSION_SECRET: "real-secret" })).toBe(true);
+    expect(validatePinConfig({ ...prodEnv, OPERATOR_PIN: "1234", OPERATOR_SESSION_SECRET: "real-secret" } as unknown as Env)).toBe(true);
   });
 
   it("checkPin throws in production when OPERATOR_PIN is missing", () => {
@@ -189,17 +193,18 @@ describe("production guards", () => {
   });
 
   it("__TEST_OPERATOR_SESSION bypass is ignored in production", async () => {
-    const prodTestEnv = { ...prodEnv, __TEST_OPERATOR_SESSION: { shiftId: "evil" } };
+    const prodTestEnv = { ...prodEnv, __TEST_OPERATOR_SESSION: { shiftId: "evil" } as any } as unknown as Env;
     const request = makeRequest();
     const result = await requireOperator(request, prodTestEnv);
     expect(result.authorized).toBe(false);
   });
 
   it("__TEST_OPERATOR_SESSION bypass works in non-production", async () => {
-    const devTestEnv = { __TEST_OPERATOR_SESSION: { shiftId: "test-shift" } };
+    const devTestEnv = { __TEST_OPERATOR_SESSION: { shiftId: "test-shift" } as any } as unknown as Env;
     const request = makeRequest();
     const result = await requireOperator(request, devTestEnv);
     expect(result.authorized).toBe(true);
+    if (!result.authorized) return;
     expect(result.session.shiftId).toBe("test-shift");
   });
 });

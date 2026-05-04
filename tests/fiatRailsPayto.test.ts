@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {
   isPaytoUri,
   parsePaytoUri,
@@ -30,21 +29,21 @@ describe("parsePaytoUri", () => {
       "payto://iban/DE89370400440532013000?amount=EUR:10.50&receiver-name=Test%20Shop&message=order-123&x-execdate=2026-04-27"
     );
     expect(result).toBeInstanceOf(PaytoPaymentDetails);
-    expect(result.iban).toBe("DE89370400440532013000");
-    expect(result.amount).toBe(10.5);
-    expect(result.currency).toBe("EUR");
-    expect(result.receiverName).toBe("Test Shop");
-    expect(result.message).toBe("order-123");
-    expect(result.execDate).toBe("2026-04-27");
+    expect(result!.iban).toBe("DE89370400440532013000");
+    expect(result!.amount).toBe(10.5);
+    expect(result!.currency).toBe("EUR");
+    expect(result!.receiverName).toBe("Test Shop");
+    expect(result!.message).toBe("order-123");
+    expect(result!.execDate).toBe("2026-04-27");
   });
 
   test("parses URI with PAYTO: prefix", () => {
     const result = parsePaytoUri(
       "PAYTO:payto://iban/GB33BUKB20201555555555?amount=GBP:100.00&receiver-name=FakeWallet"
     );
-    expect(result.iban).toBe("GB33BUKB20201555555555");
-    expect(result.amount).toBe(100);
-    expect(result.currency).toBe("GBP");
+    expect(result!.iban).toBe("GB33BUKB20201555555555");
+    expect(result!.amount).toBe(100);
+    expect(result!.currency).toBe("GBP");
   });
 
   test("returns null for missing amount parameter", () => {
@@ -79,7 +78,7 @@ describe("parsePaytoUri", () => {
 
   test("handles case-insensitive currency", () => {
     const result = parsePaytoUri("payto://iban/DE89370400440532013000?amount=eur:10.00");
-    expect(result.currency).toBe("EUR");
+    expect(result!.currency).toBe("EUR");
   });
 });
 
@@ -116,7 +115,7 @@ describe("encodePaytoUri", () => {
       message: "quote-abc",
     };
     const encoded = encodePaytoUri(original);
-    const parsed = parsePaytoUri(encoded);
+    const parsed = parsePaytoUri(encoded)!;
     expect(parsed.iban).toBe(original.iban);
     expect(parsed.amount).toBeCloseTo(original.amount, 2);
     expect(parsed.currency).toBe(original.currency);

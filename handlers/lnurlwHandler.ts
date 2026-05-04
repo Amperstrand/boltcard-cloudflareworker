@@ -1,4 +1,7 @@
 import { extractUIDAndCounter, validateCmac as verifyCardCmac } from "../boltCardHelper.js";
+import type { CardStateRow } from "../types/core.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { handleProxy } from "./proxyHandler.js";
 import { constructWithdrawResponse } from "./withdrawHandler.js";
@@ -13,7 +16,7 @@ import { cmacScanVersions } from "../utils/cmacScan.js";
 import { classifyIssuerKey, getAllIssuerKeyCandidates } from "../utils/keyLookup.js";
 import { CARD_STATE, PAYMENT_METHOD, VERSION_SCAN_RANGE, MISSING_PARAMS_MSG } from "../utils/constants.js";
 
-async function detectCardVersion(uidHex: string, ctr: string, cHex: string, env: any, latestVersion: number): Promise<number | null> {
+async function detectCardVersion(uidHex: string, ctr: string, cHex: string, env: Env, latestVersion: number): Promise<number | null> {
   const uidBytes = hexToBytes(uidHex);
   const ctrBytes = hexToBytes(ctr);
   const { matchedVersion } = await cmacScanVersions(uidBytes, ctrBytes, cHex, {
@@ -24,7 +27,7 @@ async function detectCardVersion(uidHex: string, ctr: string, cHex: string, env:
   return matchedVersion;
 }
 
-async function discoverUnknownCard(uidHex: string, ctr: string, cHex: string, env: any): Promise<{ version: number; provenance: any } | null> {
+async function discoverUnknownCard(uidHex: string, ctr: string, cHex: string, env: Env): Promise<{ version: number; provenance: any } | null> {
   const uidBytes = hexToBytes(uidHex);
   const ctrBytes = hexToBytes(ctr);
   const candidates: any[] = getAllIssuerKeyCandidates(env);
@@ -54,17 +57,17 @@ async function discoverUnknownCard(uidHex: string, ctr: string, cHex: string, en
               key_label: classified.label,
               active_version: matchedVersion,
             });
-          } catch (err: any) {
-            logger.warn("Failed to persist card discovery", { uidHex, error: err.message });
+          } catch (err: unknown) {
+            logger.warn("Failed to persist card discovery", { uidHex, error: getErrorMessage(err) });
           }
           try {
             await setCardK2(env, uidHex, k2);
-          } catch (err: any) {
-            logger.warn("Failed to persist discovered card K2", { uidHex, error: err.message });
+          } catch (err: unknown) {
+            logger.warn("Failed to persist discovered card K2", { uidHex, error: getErrorMessage(err) });
           }
           return { version: matchedVersion, provenance: classified };
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         continue;
       }
     }
@@ -72,15 +75,15 @@ async function discoverUnknownCard(uidHex: string, ctr: string, cHex: string, en
   return null;
 }
 
-async function checkReplayAndRecordTap(env: any, uidHex: string, counterValue: number, request: Request, fireAndForget: boolean = true): Promise<{ ok: boolean; response?: Response }> {
+async function checkReplayAndRecordTap(env: Env, uidHex: string, counterValue: number, request: Request, fireAndForget: boolean = true): Promise<{ ok: boolean; response?: Response }> {
   try {
     const replayResult: any = await checkAndAdvanceCounter(env, uidHex, counterValue);
     if (!replayResult.accepted) {
       logger.warn("Counter replay detected", { uidHex, counterValue });
       return { ok: false, response: jsonResponse({ status: "ERROR", reason: replayResult.reason || "Counter replay detected — tap rejected" }, 409) };
     }
-  } catch (error: any) {
-    logger.error("Replay protection check failed", { uidHex, counterValue, error: error.message });
+  } catch (error: unknown) {
+    logger.error("Replay protection check failed", { uidHex, counterValue, error: getErrorMessage(error) });
     return { ok: false, response: errorResponse("Replay protection unavailable", 500) };
   }
 
@@ -90,14 +93,14 @@ async function checkReplayAndRecordTap(env: any, uidHex: string, counterValue: n
     requestUrl: request.url,
   });
   if (fireAndForget) {
-    tapPromise.catch((e: any) => logger.warn("recordTapRead failed", { uidHex, counterValue, error: e.message }));
+    tapPromise.catch((e: any) => logger.warn("recordTapRead failed", { uidHex, counterValue, error: getErrorMessage(e) }));
   } else {
     await tapPromise;
   }
   return { ok: true };
 }
 
-async function resolveCardVersion(uidHex: string, ctr: string, cHex: string, env: any, cardState: any): Promise<{ activeVersion?: number; error?: Response }> {
+async function resolveCardVersion(uidHex: string, ctr: string, cHex: string, env: Env, cardState: CardStateRow): Promise<{ activeVersion?: number; error?: Response }> {
   if (cardState.state === CARD_STATE.KEYS_DELIVERED) {
     const activeVersion = await detectCardVersion(uidHex, ctr, cHex, env, cardState.latest_issued_version);
     if (activeVersion === null) {
@@ -105,8 +108,8 @@ async function resolveCardVersion(uidHex: string, ctr: string, cHex: string, env
     }
     try {
       await activateCard(env, uidHex, activeVersion);
-    } catch (error: any) {
-      logger.error("Card activation failed", { uidHex, activeVersion, error: error.message });
+    } catch (error: unknown) {
+      logger.error("Card activation failed", { uidHex, activeVersion, error: getErrorMessage(error) });
       return { error: errorResponse("Card activation failed", 500) };
     }
     return { activeVersion };
@@ -166,7 +169,7 @@ function validateCmac(uidHex: string, ctr: string, cHex: string, config: any): {
   return { cmac_validated, proxyRelayMode };
 }
 
-async function routeByPaymentMethod(request: Request, env: any, uidHex: string, pHex: string, cHex: string, ctr: string, counterValue: number, config: any, cmac_validated: boolean, proxyRelayMode: boolean): Promise<Response> {
+async function routeByPaymentMethod(request: Request, env: Env, uidHex: string, pHex: string, cHex: string, ctr: string, counterValue: number, config: any, cmac_validated: boolean, proxyRelayMode: boolean): Promise<Response> {
   if (proxyRelayMode) {
     const replay = await checkReplayAndRecordTap(env, uidHex, counterValue, request);
     if (!replay.ok) return replay.response!;
@@ -181,7 +184,7 @@ async function routeByPaymentMethod(request: Request, env: any, uidHex: string, 
     recordTapRead(env, uidHex, counterValue, {
       userAgent: request.headers.get("user-agent") || null,
       requestUrl: request.url,
-    }).catch((e: any) => logger.warn("recordTapRead failed", { uidHex, counterValue, error: e.message }));
+    }).catch((e: any) => logger.warn("recordTapRead failed", { uidHex, counterValue, error: getErrorMessage(e) }));
     return jsonResponse(constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, config, env));
   }
 
@@ -198,7 +201,7 @@ async function routeByPaymentMethod(request: Request, env: any, uidHex: string, 
   return errorResponse(`Unsupported payment method: ${config.payment_method}`, 400);
 }
 
-export async function handleLnurlw(request: Request, env: any): Promise<Response> {
+export async function handleLnurlw(request: Request, env: Env): Promise<Response> {
   try {
   const url = new URL(request.url);
   const { searchParams } = url;
@@ -229,11 +232,11 @@ export async function handleLnurlw(request: Request, env: any): Promise<Response
 
   logger.info("LNURLW decrypted", { uidHex, counterValue });
 
-  let cardState: any;
+  let cardState: CardStateRow;
   try {
     cardState = await getCardState(env, uidHex);
-  } catch (error: any) {
-    logger.error("Card state check failed", { uidHex, error: error.message });
+  } catch (error: unknown) {
+    logger.error("Card state check failed", { uidHex, error: getErrorMessage(error) });
     return errorResponse("Card state unavailable", 503);
   }
 
@@ -263,8 +266,8 @@ export async function handleLnurlw(request: Request, env: any): Promise<Response
 
   return await routeByPaymentMethod(request, env, uidHex, pHex, cHex, ctr, counterValue, config, cmacResult.cmac_validated!, cmacResult.proxyRelayMode!);
 
-  } catch (err: any) {
-    logger.error("Unhandled error in handleLnurlw", { error: err.message });
+  } catch (err: unknown) {
+    logger.error("Unhandled error in handleLnurlw", { error: getErrorMessage(err) });
     return errorResponse("Internal error", 500);
   }
 }

@@ -1,4 +1,7 @@
 import { getUidConfig } from "../getUidConfig.js";
+import type { CardStateRow } from "../types/core.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { renderLoginPage } from "../templates/loginPage.js";
 import { logger } from "../utils/logger.js";
 import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
@@ -17,7 +20,7 @@ export function handleLoginPage(request: Request): Response {
   return htmlResponse(renderLoginPage({ host, defaultProgrammingEndpoint }));
 }
 
-export async function handleLoginVerify(request: Request, env: any): Promise<Response> {
+export async function handleLoginVerify(request: Request, env: Env): Promise<Response> {
   try {
     const body: any = await parseJsonBody(request);
     if (!body) return errorResponse("Invalid JSON body", 400);
@@ -90,11 +93,11 @@ export async function handleLoginVerify(request: Request, env: any): Promise<Res
     const config: any = await getUidConfig(uidHex, env);
     const pm: string = config?.payment_method || "unknown";
 
-    let cardState: any;
+    let cardState: CardStateRow;
     try {
       cardState = await getCardState(env, uidHex);
-    } catch (err: any) {
-      logger.error("Card state unavailable during NFC login", { uidHex, error: err.message });
+    } catch (err: unknown) {
+      logger.error("Card state unavailable during NFC login", { uidHex, error: getErrorMessage(err) });
       return errorResponse("Card state unavailable", 503);
     }
     const { cardConfig, programmingEndpoint }: { cardConfig: any; programmingEndpoint: string } = await getCardProgrammingEndpoint(env, uidHex, requestOrigin);
@@ -122,7 +125,7 @@ export async function handleLoginVerify(request: Request, env: any): Promise<Res
     recordTapRead(env, uidHex, counterValue, {
       userAgent: request.headers.get("user-agent"),
       requestUrl: request.url,
-    }).catch((e: any) => logger.warn("Failed to record login tap", { uidHex, counterValue, error: e.message }));
+    }).catch((e: any) => logger.warn("Failed to record login tap", { uidHex, counterValue, error: getErrorMessage(e) }));
 
     return jsonResponse({
       success: true,
@@ -153,24 +156,24 @@ export async function handleLoginVerify(request: Request, env: any): Promise<Res
       timestamp: Date.now(),
       tapHistory,
     });
-  } catch (error: any) {
-    logger.error("Login verification error", { error: error.message });
+  } catch (error: unknown) {
+    logger.error("Login verification error", { error: getErrorMessage(error) });
     return errorResponse("Internal error", 500);
   }
 }
 
-async function handleUidOnlyLogin(rawUid: string, env: any, request: Request): Promise<Response> {
+async function handleUidOnlyLogin(rawUid: string, env: Env, request: Request): Promise<Response> {
   const requestOrigin = getRequestOrigin(request);
   const uidHex: string | null = normalizeSubmittedUid(rawUid);
   if (!uidHex) {
     return errorResponse(UID_VALIDATION_MSG, 400);
   }
 
-  let cardState: any;
+  let cardState: CardStateRow;
   try {
     cardState = await getCardState(env, uidHex);
-  } catch (err: any) {
-    logger.error("Card state unavailable during UID-only login", { uidHex, error: err.message });
+  } catch (err: unknown) {
+    logger.error("Card state unavailable during UID-only login", { uidHex, error: getErrorMessage(err) });
     return errorResponse("Card state unavailable", 503);
   }
   const { cardConfig, programmingEndpoint }: { cardConfig: any; programmingEndpoint: string } = await getCardProgrammingEndpoint(env, uidHex, requestOrigin);
@@ -182,9 +185,9 @@ async function handleUidOnlyLogin(rawUid: string, env: any, request: Request): P
   let keys: any;
   if (hasDoConfig && cardState?.active_version) {
     keyVersion = cardState.active_version;
-    keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY, keyVersion);
+    keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY!, keyVersion);
   } else {
-    keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY, 1);
+    keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY!, 1);
   }
 
   const ndefUrl: null = null;
@@ -198,7 +201,7 @@ async function handleUidOnlyLogin(rawUid: string, env: any, request: Request): P
   recordTapRead(env, uidHex, null, {
     userAgent: request.headers.get("user-agent"),
     requestUrl: request.url,
-  }).catch((e: any) => logger.warn("Failed to record UID-only login tap", { uidHex, error: e.message }));
+  }).catch((e: any) => logger.warn("Failed to record UID-only login tap", { uidHex, error: getErrorMessage(e) }));
 
   return jsonResponse({
     success: true,

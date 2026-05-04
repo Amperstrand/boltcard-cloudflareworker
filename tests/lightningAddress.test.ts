@@ -1,8 +1,7 @@
-// @ts-nocheck
 import { resolveLightningAddress } from "../utils/lightningAddress.js";
 
 describe("resolveLightningAddress", () => {
-  let originalFetch;
+  let originalFetch: typeof globalThis.fetch;
   beforeEach(() => { originalFetch = globalThis.fetch; });
   afterEach(() => { globalThis.fetch = originalFetch; });
 
@@ -15,7 +14,7 @@ describe("resolveLightningAddress", () => {
   });
 
   it("rejects non-string lightning address", async () => {
-    await expect(resolveLightningAddress(123, 1000)).rejects.toThrow("must be a string");
+    await expect(resolveLightningAddress(123 as any, 1000)).rejects.toThrow("must be a string");
   });
 
   it("rejects invalid format (missing @)", async () => {
@@ -143,7 +142,7 @@ describe("resolveLightningAddress", () => {
     expect(result.pr).toBe("lnbc1000u1p3hkx7e");
     expect(result.routes).toEqual([]);
     expect(globalThis.fetch).toHaveBeenCalledTimes(2);
-    expect(globalThis.fetch.mock.calls[1][0]).toContain("amount=50000");
+    expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[1][0]).toContain("amount=50000");
   });
 
   it("encodes special characters in user part", async () => {
@@ -152,7 +151,7 @@ describe("resolveLightningAddress", () => {
       .mockResolvedValueOnce({ ok: true, json: async () => ({ pr: "lnbc...", routes: [] }) });
 
     await resolveLightningAddress("user+tag@example.com", 1000);
-    expect(globalThis.fetch.mock.calls[0][0]).toContain("user%2Btag");
+    expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0]).toContain("user%2Btag");
   });
 
 });

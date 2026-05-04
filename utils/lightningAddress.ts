@@ -1,4 +1,4 @@
-import { logger } from "./logger.js";
+import { logger, getErrorMessage } from "./logger.js";
 import { FETCH_TIMEOUT_MS } from "./constants.js";
 
 function parseLightningAddress(lightningAddress: string): { user: string; domain: string } {
@@ -30,8 +30,8 @@ async function parseJsonResponse(response: Response, url: string, errorPrefix: s
 
   try {
     data = await response.json();
-  } catch (error: any) {
-    throw new Error(`${errorPrefix}: invalid JSON response from ${url}: ${error.message}`);
+  } catch (error: unknown) {
+    throw new Error(`${errorPrefix}: invalid JSON response from ${url}: ${getErrorMessage(error)}`);
   }
 
   if (!response.ok) {
@@ -54,8 +54,8 @@ async function fetchJson(url: string, errorPrefix: string): Promise<any> {
 
   try {
     response = await fetch(url, { signal: controller.signal });
-  } catch (error: any) {
-    throw new Error(`${errorPrefix}: failed to fetch ${url}: ${error.message}`);
+  } catch (error: unknown) {
+    throw new Error(`${errorPrefix}: failed to fetch ${url}: ${getErrorMessage(error)}`);
   } finally {
     clearTimeout(timeoutId);
   }
@@ -102,8 +102,8 @@ export async function resolveLightningAddress(lightningAddress: string, amountMs
 
   try {
     callbackUrl = new URL(payRequest.callback);
-  } catch (error: any) {
-    throw new Error(`Lightning Address resolution failed: invalid callback URL ${payRequest.callback}: ${error.message}`);
+  } catch (error: unknown) {
+    throw new Error(`Lightning Address resolution failed: invalid callback URL ${payRequest.callback}: ${getErrorMessage(error)}`);
   }
 
   callbackUrl.searchParams.set("amount", String(amountMsat));

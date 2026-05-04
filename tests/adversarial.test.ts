@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect, beforeEach } from "vitest";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { buildCardTestEnv, virtualTap, TEST_OPERATOR_AUTH } from "./testHelpers.js";
@@ -11,17 +10,18 @@ import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js
 import { handleLnurlpPayment } from "../handlers/lnurlHandler.js";
 import { handlePosCharge } from "../handlers/posChargeHandler.js";
 import aesjs from "aes-js";
+import type { Env } from "../types/core.js";
 
 const UID = "04a39493cc8680";
 const INITIAL_BALANCE = 100000;
 
-function makeAdversarialEnv(balance = INITIAL_BALANCE) {
+function makeAdversarialEnv(balance = INITIAL_BALANCE): Env {
   return buildCardTestEnv({ uid: UID, balance, operatorAuth: true });
 }
 
-function makeRequest(path, method = "GET", body = null, env) {
+function makeRequest(path: string, method: string = "GET", body: Record<string, any> | null = null, env: Env) {
   const url = "https://test.local" + path;
-  const opts = { method };
+  const opts: RequestInit = { method };
   if (body) {
     opts.body = JSON.stringify(body);
     opts.headers = { "Content-Type": "application/json" };
@@ -29,7 +29,7 @@ function makeRequest(path, method = "GET", body = null, env) {
   return handleRequest(new Request(url, opts), env);
 }
 
-function generateRealPandC(uidHex, counter, k1Hex) {
+function generateRealPandC(uidHex: string, counter: number, k1Hex: string) {
   const k1 = hexToBytes(k1Hex);
   const uid = hexToBytes(uidHex);
   const plaintext = new Uint8Array(16);
@@ -49,7 +49,7 @@ function generateRealPandC(uidHex, counter, k1Hex) {
   return { pHex, ctrHex };
 }
 
-function computeRealC(uidHex, ctrHex, k2Hex) {
+function computeRealC(uidHex: string, ctrHex: string, k2Hex: string) {
   const uid = hexToBytes(uidHex);
   const ctr = hexToBytes(ctrHex);
   const k2 = hexToBytes(k2Hex);
@@ -57,7 +57,7 @@ function computeRealC(uidHex, ctrHex, k2Hex) {
   return bytesToHex(vd.ct);
 }
 
-function makeCallbackUrl(pHex, cHex, extra = {}) {
+function makeCallbackUrl(pHex: string, cHex: string, extra: Record<string, any> = {}) {
   const params = new URLSearchParams();
   params.set("k1", cHex);
   if (extra.pr) params.set("pr", extra.pr);
@@ -126,7 +126,8 @@ describe("Adversarial: Counter Replay", () => {
 // ── 2. Double-Spend via Duplicate Callbacks ──────────────────────────────────
 
 describe("Adversarial: Duplicate Callbacks", () => {
-  let env, keys;
+  let env: Env;
+  let keys: ReturnType<typeof getDeterministicKeys>;
 
   beforeEach(() => {
     env = makeAdversarialEnv();
@@ -134,7 +135,7 @@ describe("Adversarial: Duplicate Callbacks", () => {
   });
 
   it("rejects second callback with same counter and same bolt11", async () => {
-    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1testinvoice" });
 
@@ -146,7 +147,7 @@ describe("Adversarial: Duplicate Callbacks", () => {
   });
 
   it("rejects second callback with same counter but different bolt11", async () => {
-    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url1 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1first" });
     const url2 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1second" });
@@ -159,7 +160,7 @@ describe("Adversarial: Duplicate Callbacks", () => {
   });
 
   it("rejects callback-only replay (skip Step 1, replay same counter)", async () => {
-    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1test" });
 
@@ -171,7 +172,7 @@ describe("Adversarial: Duplicate Callbacks", () => {
   });
 
   it("prevents double-spend: two callbacks for same counter, only one payment deducted", async () => {
-    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url1 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1first" });
     const url2 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1second" });
@@ -262,7 +263,8 @@ describe("Adversarial: Balance Boundary", () => {
 // ── 4. Cross-Endpoint Counter Races ─────────────────────────────────────────
 
 describe("Adversarial: Cross-Endpoint Counter", () => {
-  let env, keys;
+  let env: Env;
+  let keys: ReturnType<typeof getDeterministicKeys>;
 
   beforeEach(() => {
     env = makeAdversarialEnv();
@@ -270,7 +272,7 @@ describe("Adversarial: Cross-Endpoint Counter", () => {
   });
 
   it("POS charge then LNURL Step 1 with same counter: Step 1 rejected", async () => {
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
     const charge = await handlePosCharge(
@@ -280,7 +282,7 @@ describe("Adversarial: Cross-Endpoint Counter", () => {
         body: JSON.stringify({ p: pHex, c: cHex, amount: 100 }),
       }),
       env,
-      { shiftId: "test" }
+      { shiftId: "test" } as any
     );
     expect(charge.status).toBe(200);
 
@@ -289,7 +291,7 @@ describe("Adversarial: Cross-Endpoint Counter", () => {
   });
 
   it("LNURL Step 1 then POS charge with same counter: POS rejected", async () => {
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
     const step1 = await makeRequest(`/?p=${pHex}&c=${cHex}`, "GET", null, env);
@@ -302,13 +304,13 @@ describe("Adversarial: Cross-Endpoint Counter", () => {
         body: JSON.stringify({ p: pHex, c: cHex, amount: 100 }),
       }),
       env,
-      { shiftId: "test" }
+      { shiftId: "test" } as any
     );
     expect(charge.status).toBe(400);
   });
 
   it("two POS charges with same counter: second rejected", async () => {
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
     const req = new Request("https://test.local/operator/pos/charge", {
@@ -317,15 +319,15 @@ describe("Adversarial: Cross-Endpoint Counter", () => {
       body: JSON.stringify({ p: pHex, c: cHex, amount: 100 }),
     });
 
-    const first = await handlePosCharge(req.clone(), env, { shiftId: "test" });
+    const first = await handlePosCharge(req.clone(), env, { shiftId: "test" } as any);
     expect(first.status).toBe(200);
 
-    const second = await handlePosCharge(req.clone(), env, { shiftId: "test" });
+    const second = await handlePosCharge(req.clone(), env, { shiftId: "test" } as any);
     expect(second.status).toBe(400);
   });
 
   it("validateCardTap rejects replayed counter", async () => {
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
     const req = new Request("https://test.local/api/test");
 
@@ -334,7 +336,7 @@ describe("Adversarial: Cross-Endpoint Counter", () => {
 
     const second = await validateCardTap(req, env, { pHex, cHex, context: "test" });
     expect(second.ok).toBe(false);
-    expect(second.error).toContain("already used");
+    expect((second as any).error).toContain("already used");
   });
 });
 
@@ -359,7 +361,7 @@ describe("Adversarial: Wipe/Reset", () => {
 
   it("rejects counter replay after terminate (card terminated)", async () => {
     const env = makeAdversarialEnv();
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
     const keys = getDeterministicKeys(UID, env, 1);
 
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
@@ -380,7 +382,7 @@ describe("Adversarial: Wipe/Reset", () => {
     const { pHex: p2, cHex: c2 } = virtualTap(UID, 2, k1Hex, keys.k2);
     const second = await validateCardTap(req, env, { pHex: p2, cHex: c2, context: "test" });
     expect(second.ok).toBe(false);
-    expect(second.status).toBe(403);
+    expect((second as any).status).toBe(403);
   });
 
   it("preserves balance after terminate and re-activate", async () => {
@@ -408,7 +410,8 @@ describe("Adversarial: Wipe/Reset", () => {
 // ── 6. TOCTOU: Concurrent Callbacks ─────────────────────────────────────────
 
 describe("Adversarial: Concurrent Callbacks (TOCTOU)", () => {
-  let env, keys;
+  let env: Env;
+  let keys: ReturnType<typeof getDeterministicKeys>;
 
   beforeEach(() => {
     env = makeAdversarialEnv(1000);
@@ -416,7 +419,7 @@ describe("Adversarial: Concurrent Callbacks (TOCTOU)", () => {
   });
 
   it("two concurrent callbacks with same counter: only one payment succeeds", async () => {
-    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url1 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1invoiceA" });
     const url2 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1invoiceB" });
@@ -435,7 +438,7 @@ describe("Adversarial: Concurrent Callbacks (TOCTOU)", () => {
   });
 
   it("two concurrent POS charges with same tap: no double-debit", async () => {
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
     const makeChargeReq = () => new Request("https://test.local/operator/pos/charge", {
@@ -445,8 +448,8 @@ describe("Adversarial: Concurrent Callbacks (TOCTOU)", () => {
     });
 
     const [r1, r2] = await Promise.all([
-      handlePosCharge(makeChargeReq(), env, { shiftId: "test" }),
-      handlePosCharge(makeChargeReq(), env, { shiftId: "test" }),
+      handlePosCharge(makeChargeReq(), env, { shiftId: "test" } as any),
+      handlePosCharge(makeChargeReq(), env, { shiftId: "test" } as any),
     ]);
 
     const successes = [r1.status, r2.status].filter(s => s === 200);
@@ -458,7 +461,7 @@ describe("Adversarial: Concurrent Callbacks (TOCTOU)", () => {
 
   it("two concurrent POS charges with same tap, exact balance: no overdraft", async () => {
     const envExact = makeAdversarialEnv(100);
-    const k1Hex = envExact.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = envExact.BOLT_CARD_K1!.split(",")[0];
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, getDeterministicKeys(UID, envExact, 1).k2);
 
     const makeChargeReq = () => new Request("https://test.local/operator/pos/charge", {
@@ -468,8 +471,8 @@ describe("Adversarial: Concurrent Callbacks (TOCTOU)", () => {
     });
 
     const [r1, r2] = await Promise.all([
-      handlePosCharge(makeChargeReq(), envExact, { shiftId: "test" }),
-      handlePosCharge(makeChargeReq(), envExact, { shiftId: "test" }),
+      handlePosCharge(makeChargeReq(), envExact, { shiftId: "test" } as any),
+      handlePosCharge(makeChargeReq(), envExact, { shiftId: "test" } as any),
     ]);
 
     const successes = [r1.status, r2.status].filter(s => s === 200);
@@ -500,7 +503,7 @@ describe("Adversarial: Concurrent Callbacks (TOCTOU)", () => {
 describe("Adversarial: State Exploits", () => {
   it("rejects tap on terminated card", async () => {
     const env = makeAdversarialEnv();
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
     const keys = getDeterministicKeys(UID, env, 1);
 
     const id = env.CARD_REPLAY.idFromName(UID);
@@ -515,12 +518,12 @@ describe("Adversarial: State Exploits", () => {
     const req = new Request("https://test.local/api/test");
     const result = await validateCardTap(req, env, { pHex, cHex, context: "test" });
     expect(result.ok).toBe(false);
-    expect(result.status).toBe(403);
+    expect((result as any).status).toBe(403);
   });
 
   it("rejects tap on wipe_requested card", async () => {
     const env = makeAdversarialEnv();
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
     const keys = getDeterministicKeys(UID, env, 1);
 
     const id = env.CARD_REPLAY.idFromName(UID);
@@ -535,12 +538,12 @@ describe("Adversarial: State Exploits", () => {
     const req = new Request("https://test.local/api/test");
     const result = await validateCardTap(req, env, { pHex, cHex, context: "test" });
     expect(result.ok).toBe(false);
-    expect(result.status).toBe(403);
+    expect((result as any).status).toBe(403);
   });
 
   it("auto-activates keys_delivered card on valid tap", async () => {
     const env = buildCardTestEnv({ uid: UID, balance: INITIAL_BALANCE, cardState: "keys_delivered", operatorAuth: true });
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
     const keys = getDeterministicKeys(UID, env, 1);
 
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
@@ -554,15 +557,15 @@ describe("Adversarial: State Exploits", () => {
 
   it("rejects invalid CMAC on keys_delivered card (version mismatch)", async () => {
     const env = buildCardTestEnv({ uid: UID, balance: INITIAL_BALANCE, cardState: "keys_delivered", operatorAuth: true });
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
 
     // Generate tap with wrong version keys
-    const wrongKeys = getDeterministicKeys(UID, { ISSUER_KEY: "00000000000000000000000000000BAD" }, 1);
+    const wrongKeys = getDeterministicKeys(UID, { ISSUER_KEY: "00000000000000000000000000000BAD" } as any, 1);
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, wrongKeys.k2);
     const req = new Request("https://test.local/api/test");
     const result = await validateCardTap(req, env, { pHex, cHex, context: "test" });
     expect(result.ok).toBe(false);
-    expect(result.status).toBe(403);
+    expect((result as any).status).toBe(403);
   });
 });
 
@@ -572,7 +575,7 @@ describe("Adversarial: Edge Cases", () => {
   it("rejects callback with missing pr AND missing amount", async () => {
     const env = makeAdversarialEnv();
     const keys = getDeterministicKeys(UID, env, 1);
-    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url = `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}`;
 
@@ -590,7 +593,7 @@ describe("Adversarial: Edge Cases", () => {
 
   it("POS charge rejects zero amount", async () => {
     const env = makeAdversarialEnv();
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
     const keys = getDeterministicKeys(UID, env, 1);
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
@@ -601,14 +604,14 @@ describe("Adversarial: Edge Cases", () => {
         body: JSON.stringify({ p: pHex, c: cHex, amount: 0 }),
       }),
       env,
-      { shiftId: "test" }
+      { shiftId: "test" } as any
     );
     expect(res.status).toBe(400);
   });
 
   it("POS charge rejects negative amount", async () => {
     const env = makeAdversarialEnv();
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
     const keys = getDeterministicKeys(UID, env, 1);
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
@@ -619,7 +622,7 @@ describe("Adversarial: Edge Cases", () => {
         body: JSON.stringify({ p: pHex, c: cHex, amount: -100 }),
       }),
       env,
-      { shiftId: "test" }
+      { shiftId: "test" } as any
     );
     expect(res.status).toBe(400);
   });
@@ -634,7 +637,7 @@ describe("Adversarial: Edge Cases", () => {
         body: JSON.stringify({ amount: 100 }),
       }),
       env,
-      { shiftId: "test" }
+      { shiftId: "test" } as any
     );
     expect(res.status).toBe(400);
   });

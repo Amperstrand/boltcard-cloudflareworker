@@ -1,16 +1,14 @@
-// @ts-nocheck
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
+import type { ReplayNamespace } from "./replayNamespace.js";
 import { hexToBytes, bytesToHex } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { buildVerificationData } from "../cryptoutils.js";
 import { getCardState } from "../replayProtection.js";
-;
 import aesjs from "aes-js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 
-// Test vectors for UID 04996c6a926980 (counter=3)
 const WITHDRAW_P_COUNTER3 = "4E2E289D945A66BB13377A728884E867";
 const WITHDRAW_C_COUNTER3 = "E19CCB1FED8892CE";
 const TEST_UID = "04996c6a926980";
@@ -26,12 +24,10 @@ const TEST_UID_CONFIG = JSON.stringify({
 });
 const TEST_UID_CONFIG_OBJECT = JSON.parse(TEST_UID_CONFIG);
 
-// Real crypto: encrypt a valid p parameter and compute valid c for a given UID + counter
-function generateRealPandC(uidHex, counter, k1Hex) {
+function generateRealPandC(uidHex: string, counter: number, k1Hex: string) {
   const k1 = hexToBytes(k1Hex);
   const uid = hexToBytes(uidHex);
 
-  // Counter in little-endian at positions 8-10
   const plaintext = new Uint8Array(16);
   plaintext[0] = 0xC7;
   plaintext.set(uid, 1);
@@ -43,7 +39,6 @@ function generateRealPandC(uidHex, counter, k1Hex) {
   const encrypted = aes.encrypt(plaintext);
   const pHex = bytesToHex(new Uint8Array(encrypted));
 
-  // Extract counter as decryptP would return it (big-endian after reversal)
   const ctrHex = bytesToHex(new Uint8Array([
     (counter >> 16) & 0xff,
     (counter >> 8) & 0xff,
@@ -53,8 +48,7 @@ function generateRealPandC(uidHex, counter, k1Hex) {
   return { pHex, ctrHex };
 }
 
-// Compute a valid BoltCard CMAC (c) for given UID, ctr (big-endian hex), K2
-function computeRealC(uidHex, ctrHex, k2Hex) {
+function computeRealC(uidHex: string, ctrHex: string, k2Hex: string) {
   const uid = hexToBytes(uidHex);
   const ctr = hexToBytes(ctrHex);
   const k2 = hexToBytes(k2Hex);
@@ -62,26 +56,26 @@ function computeRealC(uidHex, ctrHex, k2Hex) {
   return bytesToHex(vd.ct);
 }
 
-function makeEnv(replayInitial = {}, balance = 0) {
+function makeEnv(replayInitial: Record<string, number> = {}, balance = 0) {
   const ns = makeReplayNamespace(replayInitial);
   if (balance > 0) {
     const uid = TEST_UID.toLowerCase();
-    ns.__activate(uid, 1);
-    ns.__cardStates.get(uid).balance = balance;
+    (ns as any).__activate(uid, 1);
+    (ns as any).__cardStates.get(uid).balance = balance;
   }
   return {
     BOLT_CARD_K1,
     CARD_REPLAY: ns,
     UID_CONFIG: {
-      get: async (uid) => uid === TEST_UID ? TEST_UID_CONFIG : null,
+      get: async (uid: string) => uid === TEST_UID ? TEST_UID_CONFIG : null,
       put: async () => {},
     },
   };
 }
 
-async function makeRequest(path, method = "GET", body = null, requestEnv) {
+async function makeRequest(path: string, method = "GET", body: Record<string, unknown> | null = null, requestEnv: any) {
   const url = "https://test.local" + path;
-  const options = { method };
+  const options: RequestInit = { method };
   if (body) {
     options.body = JSON.stringify(body);
     options.headers = { "Content-Type": "application/json" };
@@ -89,19 +83,23 @@ async function makeRequest(path, method = "GET", body = null, requestEnv) {
   return handleRequest(new Request(url, options), requestEnv);
 }
 
+function replay(env: any): ReplayNamespace {
+  return env.CARD_REPLAY as ReplayNamespace;
+}
+
 describe("Tap tracking — Step 1 (initial tap)", () => {
   test("GET / records a 'read' tap", async () => {
     const env = makeEnv();
-    env.CARD_REPLAY.__cardConfigs.set(TEST_UID, TEST_UID_CONFIG_OBJECT);
+    replay(env).__cardConfigs.set(TEST_UID, TEST_UID_CONFIG_OBJECT);
 
     const response = await makeRequest(`/?p=${WITHDRAW_P_COUNTER3}&c=${WITHDRAW_C_COUNTER3}`, "GET", null, env);
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as Record<string, any>;
     expect(json.tag).toBe("withdrawRequest");
 
-    expect(env.CARD_REPLAY.__taps.size).toBe(1);
-    const tap = env.CARD_REPLAY.__taps.get(`${TEST_UID}:3`);
+    expect(replay(env).__taps.size).toBe(1);
+    const tap = replay(env).__taps.get(`${TEST_UID}:3`)!;
     expect(tap).toBeDefined();
     expect(tap.status).toBe("read");
     expect(tap.counter).toBe(3);
@@ -111,29 +109,28 @@ describe("Tap tracking — Step 1 (initial tap)", () => {
 
   test("repeated GET / with same counter is rejected (atomic advance)", async () => {
     const env = makeEnv();
-    env.CARD_REPLAY.__cardConfigs.set(TEST_UID, TEST_UID_CONFIG_OBJECT);
+    replay(env).__cardConfigs.set(TEST_UID, TEST_UID_CONFIG_OBJECT);
 
     const response1 = await makeRequest(`/?p=${WITHDRAW_P_COUNTER3}&c=${WITHDRAW_C_COUNTER3}`, "GET", null, env);
     expect(response1.status).toBe(200);
 
-    // Same counter rejected — counter was atomically advanced on first GET
     const response2 = await makeRequest(`/?p=${WITHDRAW_P_COUNTER3}&c=${WITHDRAW_C_COUNTER3}`, "GET", null, env);
     expect(response2.status).toBe(409);
   });
 });
 
 describe("Tap tracking — Step 2 (withdraw callback)", () => {
-  let keys;
+  let keys: ReturnType<typeof getDeterministicKeys>;
 
   beforeAll(async () => {
-    const env = { BOLT_CARD_K1: BOLT_CARD_K1 };
+    const env: any = { BOLT_CARD_K1: BOLT_CARD_K1 };
     keys = getDeterministicKeys(TEST_UID, env);
   });
 
   test("callback records tap with bolt11 and metadata", async () => {
     const env = makeEnv({}, 100000);
     env.UID_CONFIG = {
-      get: async (uid) => {
+      get: async (uid: string) => {
         if (uid === TEST_UID) {
           return JSON.stringify({
             payment_method: "fakewallet",
@@ -156,16 +153,16 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as Record<string, any>;
     expect(json.status).toBe("OK");
 
-    expect(env.CARD_REPLAY.__counters.get(TEST_UID)).toBe(1);
+    expect(replay(env).__counters.get(TEST_UID)).toBe(1);
 
-    expect(env.CARD_REPLAY.__taps.size).toBe(1);
+    expect(replay(env).__taps.size).toBe(1);
     const tapKey = `${TEST_UID}:1`;
-    expect(env.CARD_REPLAY.__taps.has(tapKey)).toBe(true);
+    expect(replay(env).__taps.has(tapKey)).toBe(true);
 
-    const tap = env.CARD_REPLAY.__taps.get(tapKey);
+    const tap = replay(env).__taps.get(tapKey)!;
     expect(tap.counter).toBe(1);
     expect(tap.bolt11).toBe("lnbc10n1testinvoice");
     expect(tap.status).toBe("completed");
@@ -176,7 +173,7 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
   test("callback records tap with bolt11 and metadata when Step 1 already advanced counter", async () => {
     const env = makeEnv();
     env.UID_CONFIG = {
-      get: async (uid) => {
+      get: async (uid: string) => {
         if (uid === TEST_UID) {
           return JSON.stringify({
             payment_method: "fakewallet",
@@ -190,8 +187,7 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
 
     env.CARD_REPLAY = makeReplayNamespace({ [TEST_UID]: 1 });
 
-    // Simulate Step 1 having created a "read" tap entry via record-read
-    env.CARD_REPLAY.__taps.set(`${TEST_UID.toLowerCase()}:1`, {
+    replay(env).__taps.set(`${TEST_UID.toLowerCase()}:1`, {
       counter: 1,
       bolt11: null,
       status: "read",
@@ -203,7 +199,6 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
       updated_at: Math.floor(Date.now() / 1000),
     });
 
-    // Fund the card so the debit succeeds
     const id = env.CARD_REPLAY.idFromName(TEST_UID);
     const stub = env.CARD_REPLAY.get(id);
     await stub.fetch(new Request("https://internal/credit", {
@@ -225,9 +220,9 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
 
     expect(response.status).toBe(200);
     const tapKey = `${TEST_UID.toLowerCase()}:1`;
-    expect(env.CARD_REPLAY.__taps.has(tapKey)).toBe(true);
+    expect(replay(env).__taps.has(tapKey)).toBe(true);
 
-    const tap = env.CARD_REPLAY.__taps.get(tapKey);
+    const tap = replay(env).__taps.get(tapKey)!;
     expect(tap.bolt11).toBe("lnbc10n1replay");
     expect(tap.status).toBe("completed");
   });
@@ -235,7 +230,7 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
   test("callback debits fakewallet balance and marks tap completed", async () => {
     const env = makeEnv();
     env.UID_CONFIG = {
-      get: async (uid) => {
+      get: async (uid: string) => {
         if (uid === TEST_UID) {
           return JSON.stringify({
             payment_method: "fakewallet",
@@ -266,22 +261,22 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as Record<string, any>;
     expect(json.status).toBe("OK");
     expect(json.balance).toBeLessThan(5000);
 
     const tapKey = `${TEST_UID}:10`;
-    expect(env.CARD_REPLAY.__taps.has(tapKey)).toBe(true);
-    const tap = env.CARD_REPLAY.__taps.get(tapKey);
+    expect(replay(env).__taps.has(tapKey)).toBe(true);
+    const tap = replay(env).__taps.get(tapKey)!;
     expect(tap.status).toBe("completed");
     expect(tap.bolt11).toBe("lnbc10n1testinvoice");
 
     const balanceResp = await stub.fetch(new Request("https://internal/balance"));
-    const balanceJson = await balanceResp.json();
+    const balanceJson = await balanceResp.json() as Record<string, any>;
     expect(balanceJson.balance).toBe(json.balance);
 
     const txResp = await stub.fetch(new Request("https://internal/transactions"));
-    const txJson = await txResp.json();
+    const txJson = await txResp.json() as Record<string, any>;
     expect(txJson.transactions).toHaveLength(2);
     expect(txJson.transactions[0].counter).toBe(10);
     expect(txJson.transactions[0].amount).toBeLessThan(0);
@@ -291,7 +286,7 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
   test("recorded tap can be updated to different statuses", async () => {
     const env = makeEnv();
     env.UID_CONFIG = {
-      get: async (uid) => {
+      get: async (uid: string) => {
         if (uid === TEST_UID) {
           return JSON.stringify({
             payment_method: "fakewallet",
@@ -322,11 +317,11 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
     }));
 
     expect(updateResp.status).toBe(200);
-    const updateJson = await updateResp.json();
+    const updateJson = await updateResp.json() as Record<string, any>;
     expect(updateJson.updated).toBe(true);
 
     const listResp = await stub.fetch(new Request("https://internal/list-taps"));
-    const listJson = await listResp.json();
+    const listJson = await listResp.json() as Record<string, any>;
     expect(listJson.taps[0].status).toBe("failed");
   });
 });
@@ -338,7 +333,7 @@ describe("Tap tracking — list-taps", () => {
     const stub = env.CARD_REPLAY.get(id);
 
     const listResp = await stub.fetch(new Request("https://internal/list-taps"));
-    const json = await listResp.json();
+    const json = await listResp.json() as Record<string, any>;
 
     expect(json.taps).toEqual([]);
   });
@@ -371,7 +366,7 @@ describe("Tap tracking — list-taps", () => {
     }));
 
     const listResp = await stub.fetch(new Request("https://internal/list-taps"));
-    const json = await listResp.json();
+    const json = await listResp.json() as Record<string, any>;
 
     expect(json.taps).toHaveLength(2);
     expect(json.taps[0].counter).toBe(5);
@@ -399,10 +394,10 @@ describe("Tap tracking — list-taps", () => {
     }
 
     const listResp = await stub.fetch(new Request("https://internal/list-taps?limit=2"));
-    const json = await listResp.json();
+    const json = await listResp.json() as Record<string, any>;
 
     expect(json.taps).toHaveLength(2);
-    const counters = json.taps.map(t => t.counter);
+    const counters = json.taps.map((t: any) => t.counter);
     expect(counters).toHaveLength(2);
   });
 });
@@ -415,11 +410,11 @@ describe("Tap tracking — login response", () => {
       "/login",
       "POST",
       { p: WITHDRAW_P_COUNTER3, c: WITHDRAW_C_COUNTER3 },
-      env
+      env,
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as Record<string, any>;
     expect(json.success).toBe(true);
     expect(json.tapHistory).toBeDefined();
     expect(Array.isArray(json.tapHistory)).toBe(true);
@@ -429,9 +424,9 @@ describe("Tap tracking — login response", () => {
   test("POST /login tapHistory shows recorded taps", async () => {
     const env = makeEnv({}, 100000);
 
-    const keys = getDeterministicKeys(TEST_UID, env);
+    const keys = getDeterministicKeys(TEST_UID, env as any);
     env.UID_CONFIG = {
-      get: async (uid) => {
+      get: async (uid: string) => {
         if (uid === TEST_UID) {
           return JSON.stringify({
             payment_method: "fakewallet",
@@ -450,7 +445,7 @@ describe("Tap tracking — login response", () => {
       `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}&pr=lnbc10n1testinvoice`,
       "GET",
       null,
-      env
+      env,
     );
     expect(callbackResp.status).toBe(200);
 
@@ -458,11 +453,11 @@ describe("Tap tracking — login response", () => {
       "/login",
       "POST",
       { p: pHex, c: cHex },
-      env
+      env,
     );
 
     expect(loginResp.status).toBe(200);
-    const loginJson = await loginResp.json();
+    const loginJson = await loginResp.json() as Record<string, any>;
     expect(loginJson.success).toBe(true);
     expect(loginJson.tapHistory).toHaveLength(2);
     expect(loginJson.tapHistory[0].counter).toBe(15);
@@ -478,11 +473,11 @@ describe("Tap tracking — login response", () => {
       "/login",
       "POST",
       { p: WITHDRAW_P_COUNTER3, c: WITHDRAW_C_COUNTER3 },
-      env
+      env,
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as Record<string, any>;
     expect(json.success).toBe(true);
     expect(json.tapHistory).toHaveLength(0);
   });
@@ -496,9 +491,9 @@ describe("getCardState error handling", () => {
     };
 
     const replay = makeReplayNamespace();
-    replay.get = (id) => mockStub;
+    replay.get = (id: string) => mockStub as any;
 
-    const env = { CARD_REPLAY: replay };
+    const env = { CARD_REPLAY: replay } as any;
 
     await expect(getCardState(env, "04996c6a926980")).rejects.toThrow("DO connection failed");
   });

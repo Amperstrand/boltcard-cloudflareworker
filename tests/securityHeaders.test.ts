@@ -1,5 +1,5 @@
-// @ts-nocheck
 
+export {};
 
 const worker = await import("../index.js");
 const defaultExport = worker.default;
@@ -15,7 +15,7 @@ describe("Security headers", () => {
     const res = await defaultExport.fetch(
       new Request("https://test.local/login"),
       makeEnv(),
-      {},
+      {} as ExecutionContext,
     );
     expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
   });
@@ -24,7 +24,7 @@ describe("Security headers", () => {
     const res = await defaultExport.fetch(
       new Request("https://test.local/login"),
       makeEnv(),
-      {},
+      {} as ExecutionContext,
     );
     expect(res.headers.get("X-Frame-Options")).toBe("DENY");
   });
@@ -33,7 +33,7 @@ describe("Security headers", () => {
     const res = await defaultExport.fetch(
       new Request("https://test.local/login"),
       makeEnv(),
-      {},
+      {} as ExecutionContext,
     );
     expect(res.headers.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
   });
@@ -42,7 +42,7 @@ describe("Security headers", () => {
     const res = await defaultExport.fetch(
       new Request("https://test.local/login"),
       makeEnv(),
-      {},
+      {} as ExecutionContext,
     );
     const pp = res.headers.get("Permissions-Policy");
     expect(pp).toContain("camera=()");
@@ -53,7 +53,7 @@ describe("Security headers", () => {
     const res = await defaultExport.fetch(
       new Request("https://test.local/", { method: "GET" }),
       makeEnv(),
-      {},
+      {} as ExecutionContext,
     );
     expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(res.headers.get("X-Frame-Options")).toBe("DENY");
@@ -63,7 +63,7 @@ describe("Security headers", () => {
     const res = await defaultExport.fetch(
       new Request("https://test.local/login"),
       makeEnv(),
-      {},
+      {} as ExecutionContext,
     );
     expect(res.headers.get("X-Request-Id")).toBeTruthy();
   });
@@ -72,7 +72,7 @@ describe("Security headers", () => {
     const res = await defaultExport.fetch(
       new Request("https://test.local/login"),
       makeEnv(),
-      {},
+      {} as ExecutionContext,
     );
     const csp = res.headers.get("Content-Security-Policy");
     expect(csp).toContain("default-src 'self'");
@@ -83,7 +83,7 @@ describe("Security headers", () => {
     const res = await defaultExport.fetch(
       new Request("https://test.local/nonexistent-path"),
       makeEnv(),
-      {},
+      {} as ExecutionContext,
     );
     expect(res.status).toBe(404);
     expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
@@ -95,7 +95,7 @@ describe("Security headers", () => {
     const res = await defaultExport.fetch(
       new Request("https://test.local/status"),
       env,
-      {},
+      {} as ExecutionContext,
     );
     expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
   });
@@ -104,10 +104,10 @@ describe("Security headers", () => {
     const res = await defaultExport.fetch(
       new Request("https://test.local/login"),
       makeEnv(),
-      {},
+      {} as ExecutionContext,
     );
     const remaining = res.headers.get("X-RateLimit-Remaining");
     expect(remaining).toBeTruthy();
-    expect(parseInt(remaining, 10)).toBeGreaterThan(0);
+    expect(parseInt(remaining!, 10)).toBeGreaterThan(0);
   });
 });

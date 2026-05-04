@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { handleIdentityVerify, handleIdentityProfileUpdate } from "../handlers/identityHandler.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { virtualTap, buildCardTestEnv } from "./testHelpers.js";
@@ -6,7 +5,7 @@ import { virtualTap, buildCardTestEnv } from "./testHelpers.js";
 const UID = "04a39493cc8680";
 const ISSUER_KEY = "00000000000000000000000000000001";
 
-function buildEnv(kvData = null) {
+function buildEnv(kvData: string | null = null) {
   return buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, kvData });
 }
 
@@ -14,24 +13,24 @@ function buildEnvWithKvThrow() {
   return buildCardTestEnv({
     uid: UID,
     issuerKey: ISSUER_KEY,
-    extraEnv: {
-      UID_CONFIG: {
-        get: async () => { throw new Error("KV exploded"); },
-        put: async () => {},
+      extraEnv: {
+        UID_CONFIG: {
+          get: async () => { throw new Error("KV exploded"); },
+          put: async () => {},
+        } as any,
       },
-    },
   });
 }
 
 describe("handleIdentityVerify", () => {
   it("returns verified:true for enrolled card with valid CMAC", async () => {
     const env = buildEnv(JSON.stringify({ identity_profile: { emoji: "🚀" } }));
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
     const req = new Request(`https://test.local/api/verify-identity?p=${pHex}&c=${cHex}`);
     const res = await handleIdentityVerify(req, env);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.verified).toBe(true);
     expect(body.uid).toBe(UID);
     expect(body.maskedUid).toContain("···");
@@ -43,12 +42,12 @@ describe("handleIdentityVerify", () => {
 
   it("returns verified:false for card not in KV", async () => {
     const env = buildEnv(null);
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
     const req = new Request(`https://test.local/api/verify-identity?p=${pHex}&c=${cHex}`);
     const res = await handleIdentityVerify(req, env);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.verified).toBe(false);
     expect(body.reason).toContain("not enrolled");
   });
@@ -62,23 +61,23 @@ describe("handleIdentityVerify", () => {
 
   it("returns verified:false for invalid CMAC", async () => {
     const env = buildEnv(JSON.stringify({ identity_profile: {} }));
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex } = virtualTap(UID, 2, keys.k1, keys.k2);
     const req = new Request(`https://test.local/api/verify-identity?p=${pHex}&c=DEADBEEFDEADBEEF`);
     const res = await handleIdentityVerify(req, env);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.verified).toBe(false);
     expect(body.reason).toContain("authentication failed");
   });
 
   it("returns deterministic profile from UID", async () => {
     const env = buildEnv(JSON.stringify({}));
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex, cHex } = virtualTap(UID, 3, keys.k1, keys.k2);
     const req = new Request(`https://test.local/api/verify-identity?p=${pHex}&c=${cHex}`);
     const res = await handleIdentityVerify(req, env);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.profile.name).toContain("Operator-");
     expect(body.profile.role).toBeDefined();
     expect(body.profile.dept).toBeDefined();
@@ -89,7 +88,7 @@ describe("handleIdentityVerify", () => {
 describe("handleIdentityProfileUpdate", () => {
   it("updates emoji for enrolled card", async () => {
     const env = buildEnv(JSON.stringify({}));
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
     const req = new Request("https://test.local/api/identity/profile", {
       method: "POST",
@@ -98,14 +97,14 @@ describe("handleIdentityProfileUpdate", () => {
     });
     const res = await handleIdentityProfileUpdate(req, env);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.success).toBe(true);
     expect(body.profile.emoji).toBe("🦄");
   });
 
   it("rejects invalid emoji", async () => {
     const env = buildEnv(JSON.stringify({}));
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex, cHex } = virtualTap(UID, 3, keys.k1, keys.k2);
     const req = new Request("https://test.local/api/identity/profile", {
       method: "POST",
@@ -129,7 +128,7 @@ describe("handleIdentityProfileUpdate", () => {
 
   it("rejects unenrolled card", async () => {
     const env = buildEnv(null);
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex, cHex } = virtualTap(UID, 4, keys.k1, keys.k2);
     const req = new Request("https://test.local/api/identity/profile", {
       method: "POST",
@@ -137,7 +136,7 @@ describe("handleIdentityProfileUpdate", () => {
       body: JSON.stringify({ p: pHex, c: cHex, emoji: "🚀" }),
     });
     const res = await handleIdentityProfileUpdate(req, env);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.verified).toBe(false);
   });
 });
@@ -145,18 +144,18 @@ describe("handleIdentityProfileUpdate", () => {
 describe("identityHandler branch coverage", () => {
   it("handles non-JSON KV enrollment value (parseIdentityRecord catch)", async () => {
     const env = buildEnv("not-json-but-truthy");
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
     const req = new Request(`https://test.local/api/verify-identity?p=${pHex}&c=${cHex}`);
     const res = await handleIdentityVerify(req, env);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.verified).toBe(true);
     expect(body.profile).toBeDefined();
   });
 
   it("returns 500 when KV get throws", async () => {
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const env = buildEnvWithKvThrow();
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
     const req = new Request(`https://test.local/api/verify-identity?p=${pHex}&c=${cHex}`);
@@ -166,7 +165,7 @@ describe("identityHandler branch coverage", () => {
 
   it("returns verified:false when getUidConfig returns null (production, no issuer key)", async () => {
     const devKey = "00000000000000000000000000000001";
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY: devKey }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY: devKey } as any, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
     const env = buildCardTestEnv({
       uid: UID,
@@ -181,7 +180,7 @@ describe("identityHandler branch coverage", () => {
     const req = new Request(`https://test.local/api/verify-identity?p=${pHex}&c=${cHex}`);
     const res = await handleIdentityVerify(req, env);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.verified).toBe(false);
     expect(body.reason).toContain("Card not recognized");
   });
@@ -195,11 +194,11 @@ describe("identityHandler branch coverage", () => {
 
   it("uses fallback emoji when record has invalid emoji", async () => {
     const env = buildEnv(JSON.stringify({ identity_profile: { emoji: "INVALID" } }));
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
     const req = new Request(`https://test.local/api/verify-identity?p=${pHex}&c=${cHex}`);
     const res = await handleIdentityVerify(req, env);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.verified).toBe(true);
     expect(body.profile.emoji).toBeDefined();
     expect(body.profile.emoji).not.toBe("INVALID");
@@ -207,7 +206,7 @@ describe("identityHandler branch coverage", () => {
 
   it("handles profile update for card with existing identity_profile", async () => {
     const env = buildEnv(JSON.stringify({ identity_profile: { emoji: "🚀" }, extra: "data" }));
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
     const req = new Request("https://test.local/api/identity/profile", {
       method: "POST",
@@ -216,7 +215,7 @@ describe("identityHandler branch coverage", () => {
     });
     const res = await handleIdentityProfileUpdate(req, env);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.success).toBe(true);
     expect(body.profile.emoji).toBe("🦊");
   });

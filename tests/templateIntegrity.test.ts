@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { renderLoginPage } from "../templates/loginPage.js";
 import { renderBulkWipePage } from "../templates/bulkWipePage.js";
 import { renderPosPage } from "../templates/posPage.js";
@@ -15,11 +14,11 @@ import { renderOperatorLoginPage } from "../templates/operatorLoginPage.js";
 const CSRF_REQUIRED = [
   { name: "loginPage", render: () => renderLoginPage({ host: "https://test.com", defaultProgrammingEndpoint: "https://test.com/api/v1/pull-payments/test/boltcards" }) },
   { name: "bulkWipePage", render: () => renderBulkWipePage({ baseUrl: "https://test.com", keyOptionsHtml: "<option>test</option>" }) },
-  { name: "posPage", render: () => renderPosPage({ host: "https://test.com", csrfToken: "test-token", operatorSession: JSON.stringify({ iat: 0, exp: 9999999999, shiftId: "test" }) }) },
-  { name: "topupPage", render: () => renderTopupPage({ host: "https://test.com", csrfToken: "test-token", operatorSession: JSON.stringify({ iat: 0, exp: 9999999999, shiftId: "test" }) }) },
-  { name: "refundPage", render: () => renderRefundPage({ host: "https://test.com", csrfToken: "test-token", operatorSession: JSON.stringify({ iat: 0, exp: 9999999999, shiftId: "test" }) }) },
-  { name: "wipePage", render: () => renderWipePage({ host: "https://test.com", csrfToken: "test-token", operatorSession: JSON.stringify({ iat: 0, exp: 9999999999, shiftId: "test" }) }) },
-  { name: "menuEditorPage", render: () => renderMenuEditorPage({ host: "https://test.com", csrfToken: "test-token", terminalId: "t1", menu: { items: [] } }) },
+  { name: "posPage", render: () => renderPosPage({ host: "https://test.com" }) },
+  { name: "topupPage", render: () => renderTopupPage({ host: "https://test.com" }) },
+  { name: "refundPage", render: () => renderRefundPage({ host: "https://test.com" }) },
+  { name: "wipePage", render: () => renderWipePage({ baseUrl: "https://test.com", resetApiUrl: "https://test.com/api/reset" }) },
+  { name: "menuEditorPage", render: () => renderMenuEditorPage({ host: "https://test.com", terminalId: "t1", menu: { items: [] } }) },
   { name: "activatePage", render: () => renderActivatePage({ apiUrl: "https://test.com", programDeepLink: "bolt://x", resetDeepLink: "bolt://y", programUrl: "https://test.com", resetUrl: "https://test.com" }) },
   { name: "identityPage", render: () => renderIdentityPage({ host: "https://test.com" }) },
   { name: "debugConsolePage", render: () => renderDebugConsolePage({ host: "https://test.com", baseUrl: "https://test.com" }) },

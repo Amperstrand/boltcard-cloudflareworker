@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { decodeBolt11Amount, generateFakeBolt11 } from "../utils/bolt11.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { handleRequest } from "../index.js";
@@ -6,7 +5,7 @@ import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
 
 describe("decodeBolt11Amount", () => {
   test("returns null for null input", () => {
-    expect(decodeBolt11Amount(null)).toBeNull();
+    expect(decodeBolt11Amount(null as unknown as string)).toBeNull();
   });
 
   test("returns null for empty string", () => {
@@ -116,7 +115,7 @@ describe("analytics mock", () => {
     }));
 
     const resp = await stub.fetch(new Request("https://internal/analytics"));
-    const data = await resp.json();
+    const data = await resp.json() as Record<string, unknown>;
 
     expect(data.totalTaps).toBe(2);
     expect(data.completedTaps).toBe(1);
@@ -134,7 +133,7 @@ describe("analytics HTTP routes", () => {
     return { BOLT_CARD_K1, CARD_REPLAY: makeReplayNamespace(), ...TEST_OPERATOR_AUTH };
   }
 
-  async function makeRequest(path, env) {
+  async function makeRequest(path: string, env: Record<string, unknown>) {
     return handleRequest(new Request("https://test.local" + path), env);
   }
 
@@ -211,7 +210,7 @@ describe("GET /api/fake-invoice", () => {
     };
   }
 
-  async function makeRequest(path, env) {
+  async function makeRequest(path: string, env: Record<string, unknown>) {
     return handleRequest(new Request("https://test.local" + path, { method: "GET" }), env);
   }
 

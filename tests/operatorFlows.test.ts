@@ -1,16 +1,17 @@
-// @ts-nocheck
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
+type DerivedKeys = ReturnType<typeof getDeterministicKeys>;
 import aesjs from "aes-js";
 import { buildCardTestEnv } from "./testHelpers.js";
+import type { Env } from "../types/core.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const TEST_UID = "04aabbccdd7788";
 const K1_HEX = BOLT_CARD_K1.split(",")[0];
 
-function generatePandC(uidHex, counter, k1Hex) {
+function generatePandC(uidHex: string, counter: number, k1Hex: string) {
   const k1 = hexToBytes(k1Hex);
   const uid = hexToBytes(uidHex);
   const plaintext = new Uint8Array(16);
@@ -30,22 +31,22 @@ function generatePandC(uidHex, counter, k1Hex) {
   return { pHex, ctrHex };
 }
 
-function computeC(uidHex, ctrHex, k2Hex) {
+function computeC(uidHex: string, ctrHex: string, k2Hex: string) {
   const vd = buildVerificationData(hexToBytes(uidHex), hexToBytes(ctrHex), hexToBytes(k2Hex));
   return bytesToHex(vd.ct);
 }
 
-function makeEnv() {
+function makeEnv(): Env & { __kvStore?: Record<string, string> } {
   return buildCardTestEnv({ replayInitial: { [TEST_UID]: 1 }, operatorAuth: true, exposeKvStore: true, extraEnv: { BOLT_CARD_K1 } });
 }
 
-async function provisionCard(env) {
+async function provisionCard(env: Env & { __kvStore?: Record<string, string> }) {
   const keys = getDeterministicKeys(TEST_UID, env);
   const config = {
     K2: keys.k2,
     payment_method: "fakewallet",
   };
-  const kvStore = env.__kvStore;
+  const kvStore = env.__kvStore!;
   kvStore[TEST_UID] = JSON.stringify(config);
   const replayId = env.CARD_REPLAY.idFromName(TEST_UID.toLowerCase());
   const stub = env.CARD_REPLAY.get(replayId);
@@ -57,20 +58,20 @@ async function provisionCard(env) {
   return keys;
 }
 
-async function tapCard(keys, counter = 2) {
+async function tapCard(keys: DerivedKeys, counter = 2) {
   const { pHex, ctrHex } = generatePandC(TEST_UID, counter, K1_HEX);
   const cHex = computeC(TEST_UID, ctrHex, keys.k2);
   return { p: pHex, c: cHex };
 }
 
-let keys;
+let keys: DerivedKeys;
 
 beforeAll(async () => {
-  keys = getDeterministicKeys(TEST_UID, { BOLT_CARD_K1 });
+  keys = getDeterministicKeys(TEST_UID, { BOLT_CARD_K1 } as any);
 });
 
 describe("Top-up flow", () => {
-  let env;
+  let env: Env & { __kvStore?: Record<string, string> };
   let counter = 2;
 
   beforeEach(async () => {
@@ -90,7 +91,7 @@ describe("Top-up flow", () => {
       env,
     );
     expect(response.status).toBe(200);
-    const data = await response.json();
+    const data = await response.json() as Record<string, any>;
     expect(data.success).toBe(true);
     expect(data.amount).toBe(500);
     expect(data.balance).toBe(500);
@@ -145,7 +146,7 @@ describe("Top-up flow", () => {
   });
 
   it("respects MAX_TOPUP_AMOUNT", async () => {
-    env.MAX_TOPUP_AMOUNT = "100";
+    (env as any).MAX_TOPUP_AMOUNT = "100";
     const tap = await tapCard(keys, counter++);
     const response = await handleRequest(
       new Request("https://test.local/operator/topup/apply", {
@@ -156,13 +157,13 @@ describe("Top-up flow", () => {
       env,
     );
     expect(response.status).toBe(400);
-    const data = await response.json();
+    const data = await response.json() as Record<string, any>;
     expect(data.error).toContain("maximum");
   });
 });
 
 describe("POS charge flow", () => {
-  let env;
+  let env: Env & { __kvStore?: Record<string, string> };
   let counter = 2;
 
   beforeEach(async () => {
@@ -171,7 +172,7 @@ describe("POS charge flow", () => {
     counter = 2;
   });
 
-  async function topUp(amount) {
+  async function topUp(amount: number) {
     const tap = await tapCard(keys, counter++);
     await handleRequest(
       new Request("https://test.local/operator/topup/apply", {
@@ -195,7 +196,7 @@ describe("POS charge flow", () => {
       env,
     );
     expect(response.status).toBe(200);
-    const data = await response.json();
+    const data = await response.json() as Record<string, any>;
     expect(data.success).toBe(true);
     expect(data.amount).toBe(300);
     expect(data.balance).toBe(700);
@@ -215,7 +216,7 @@ describe("POS charge flow", () => {
       env,
     );
     expect(response.status).toBe(402);
-    const data = await response.json();
+    const data = await response.json() as Record<string, any>;
     expect(data.currentBalance).toBe(100);
   });
 
@@ -237,7 +238,7 @@ describe("POS charge flow", () => {
       env,
     );
     expect(response.status).toBe(200);
-    const data = await response.json();
+    const data = await response.json() as Record<string, any>;
     expect(data.balance).toBe(550);
     expect(data.note).toContain("beer:3");
   });
@@ -256,7 +257,7 @@ describe("POS charge flow", () => {
 });
 
 describe("Refund flow", () => {
-  let env;
+  let env: Env & { __kvStore?: Record<string, string> };
   let counter = 2;
 
   beforeEach(async () => {
@@ -265,7 +266,7 @@ describe("Refund flow", () => {
     counter = 2;
   });
 
-  async function topUp(amount) {
+  async function topUp(amount: number) {
     const tap = await tapCard(keys, counter++);
     await handleRequest(
       new Request("https://test.local/operator/topup/apply", {
@@ -289,7 +290,7 @@ describe("Refund flow", () => {
       env,
     );
     expect(response.status).toBe(200);
-    const data = await response.json();
+    const data = await response.json() as Record<string, any>;
     expect(data.success).toBe(true);
     expect(data.amount).toBe(1000);
     expect(data.balance).toBe(0);
@@ -307,7 +308,7 @@ describe("Refund flow", () => {
       env,
     );
     expect(response.status).toBe(200);
-    const data = await response.json();
+    const data = await response.json() as Record<string, any>;
     expect(data.amount).toBe(300);
     expect(data.balance).toBe(700);
   });
@@ -337,14 +338,14 @@ describe("Refund flow", () => {
       env,
     );
     expect(response.status).toBe(200);
-    const data = await response.json();
+    const data = await response.json() as Record<string, any>;
     expect(data.success).toBe(true);
     expect(data.amount).toBe(0);
   });
 });
 
 describe("Balance check", () => {
-  let env;
+  let env: Env & { __kvStore?: Record<string, string> };
   let counter = 2;
 
   beforeEach(async () => {
@@ -364,7 +365,7 @@ describe("Balance check", () => {
       env,
     );
     expect(response.status).toBe(200);
-    const data = await response.json();
+    const data = await response.json() as Record<string, any>;
     expect(data.success).toBe(true);
     expect(data.balance).toBe(0);
     expect(data.uidHex).toBe(TEST_UID);
@@ -390,13 +391,13 @@ describe("Balance check", () => {
       env,
     );
     expect(response.status).toBe(200);
-    const data = await response.json();
+    const data = await response.json() as Record<string, any>;
     expect(data.balance).toBe(500);
   });
 });
 
 describe("Menu CRUD", () => {
-  let env;
+  let env: Env & { __kvStore?: Record<string, string> };
   let counter = 2;
 
   beforeEach(async () => {
@@ -413,7 +414,7 @@ describe("Menu CRUD", () => {
       env,
     );
     expect(response.status).toBe(200);
-    const data = await response.json();
+    const data = await response.json() as Record<string, any>;
     expect(data.items).toEqual([]);
   });
 
@@ -436,7 +437,7 @@ describe("Menu CRUD", () => {
       env,
     );
     expect(getResp.status).toBe(200);
-    const data = await getResp.json();
+    const data = await getResp.json() as Record<string, any>;
     expect(data.items).toHaveLength(2);
     expect(data.items[0].name).toBe("Beer");
     expect(data.items[0].price).toBe(500);

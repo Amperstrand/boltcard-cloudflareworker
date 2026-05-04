@@ -1,8 +1,8 @@
-// @ts-nocheck
 import { handleRequest } from "../../index.js";
 import { getDeterministicKeys } from "../../keygenerator.js";
-import { makeReplayNamespace } from "../replayNamespace.js";
+import { makeReplayNamespace, type ReplayNamespace } from "../replayNamespace.js";
 import { virtualTap, TEST_OPERATOR_AUTH } from "../testHelpers.js";
+import type { Env, CardConfig, Transaction } from "../../types/core.js";
 
 const DEFAULT_BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const DEFAULT_ISSUER_KEY = "00000000000000000000000000000001";
@@ -27,10 +27,12 @@ interface CardKeys {
 }
 
 interface ProvisionResult {
-  json: any;
+  json: Record<string, unknown>;
   keys: CardKeys;
   version: number;
 }
+
+type TestEnv = Env & { CARD_REPLAY: ReplayNamespace };
 
 export class VirtualCard {
   uid: string;
@@ -39,7 +41,7 @@ export class VirtualCard {
   version: number;
   issuerKey: string;
   k1Hex: string;
-  env: Record<string, any>;
+  env: TestEnv;
 
   private constructor(options: VirtualCardOptions) {
     this.uid = options.uid || `04${randomHex(6)}`;
@@ -61,9 +63,9 @@ export class VirtualCard {
         put: async (key: string, val: string) => {
           kvStore[key] = val;
         },
-      },
+      } as KVNamespace,
       ...TEST_OPERATOR_AUTH,
-    };
+    } as TestEnv;
   }
 
   static async createProvisioned(options: VirtualCardOptions = {}): Promise<VirtualCard> {
@@ -74,14 +76,13 @@ export class VirtualCard {
     );
     card.keys = result.keys;
     card.version = result.version;
-    // Provision delivers keys; auto-activate for testing
     await card.activateViaDO(result.version);
     return card;
   }
 
   static async createDiscovered(options: VirtualCardOptions = {}): Promise<VirtualCard> {
     const card = new VirtualCard(options);
-    const keys = getDeterministicKeys(card.uid, { ISSUER_KEY: card.issuerKey }, 1);
+    const keys = getDeterministicKeys(card.uid, card.env, 1);
     card.keys = keys;
     card.version = 1;
     return card;
@@ -101,9 +102,9 @@ export class VirtualCard {
       const text = await resp.text();
       throw new Error(`Provision failed (${resp.status}): ${text}`);
     }
-    const json = await resp.json();
-    const version = json.Version || 1;
-    const keys = getDeterministicKeys(this.uid, this.env, version);
+    const json = await resp.json() as Record<string, unknown>;
+    const version = (json.Version as number) || 1;
+    const keys = getDeterministicKeys(this.uid, this.env, version) as unknown as CardKeys;
     this.keys = keys;
     this.version = version;
     return { json, keys, version };
@@ -131,10 +132,10 @@ export class VirtualCard {
     return virtualTap(this.uid, ctr, this.k1Hex, this.keys.k2);
   }
 
-  async tapRequest(counter?: number): Promise<{ response: Response; json: any; pHex: string; cHex: string }> {
+  async tapRequest(counter?: number): Promise<{ response: Response; json: Record<string, unknown>; pHex: string; cHex: string }> {
     const { pHex, cHex } = this.tap(counter);
     const response = await this.request(`/?p=${pHex}&c=${cHex}`);
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     return { response, json, pHex, cHex };
   }
 
@@ -144,7 +145,7 @@ export class VirtualCard {
     return this.request(path);
   }
 
-  async fullPayment(amountMsat: number): Promise<{ tapResp: Response; cbResp: Response; tapJson: any }> {
+  async fullPayment(amountMsat: number): Promise<{ tapResp: Response; cbResp: Response; tapJson: Record<string, unknown> }> {
     const { response: tapResp, json: tapJson, pHex, cHex } = await this.tapRequest();
     const invoice = `lnbc${amountMsat}n1test${Date.now()}`;
     const cbResp = await this.callback(pHex, cHex, invoice, String(amountMsat));
@@ -193,11 +194,11 @@ export class VirtualCard {
     return json.state;
   }
 
-  async getTapHistory(): Promise<any[]> {
+  async getTapHistory(): Promise<unknown[]> {
     const id = this.env.CARD_REPLAY.idFromName(this.uid);
     const stub = this.env.CARD_REPLAY.get(id);
     const resp = await stub.fetch(new Request("https://card-replay.internal/list-taps"));
-    const json = (await resp.json()) as { taps: any[] };
+    const json = (await resp.json()) as { taps: unknown[] };
     return json.taps;
   }
 
@@ -221,14 +222,81 @@ export class VirtualCard {
     }
   }
 
-  async request(path: string, method: string = "GET", body?: any): Promise<Response> {
+  async getTransactions(): Promise<Transaction[]> {
+    const id = this.env.CARD_REPLAY.idFromName(this.uid);
+    const stub = this.env.CARD_REPLAY.get(id);
+    const resp = await stub.fetch(new Request("https://card-replay.internal/transactions"));
+    const json = (await resp.json()) as { transactions: Transaction[] };
+    return json.transactions;
+  }
+
+  async operatorTopup(amount: number): Promise<Response> {
+    const { pHex, cHex } = this.tap();
+    return this.request("/operator/topup/apply", "POST", {
+      p: pHex,
+      c: cHex,
+      amount,
+    });
+  }
+
+  async operatorRefund(amount: number, fullRefund: boolean = false): Promise<Response> {
+    const { pHex, cHex } = this.tap();
+    const body: Record<string, unknown> = { p: pHex, c: cHex };
+    if (fullRefund) {
+      body.fullRefund = true;
+    } else {
+      body.amount = amount;
+    }
+    return this.request("/operator/refund/apply", "POST", body);
+  }
+
+  async operatorPosCharge(amount: number, items?: Array<{ name: string; qty: number }>, terminalId: string = "pos-1"): Promise<Response> {
+    const { pHex, cHex } = this.tap();
+    const body: Record<string, unknown> = { p: pHex, c: cHex, amount, terminalId };
+    if (items) body.items = items;
+    return this.request("/operator/pos/charge", "POST", body);
+  }
+
+  async lock(): Promise<Response> {
+    const { pHex, cHex } = this.tap();
+    return this.request("/api/card/lock", "POST", {
+      p: pHex,
+      c: cHex,
+    });
+  }
+
+  async reactivate(): Promise<Response> {
+    const { pHex, cHex } = this.tap();
+    return this.request("/api/card/reactivate", "POST", {
+      p: pHex,
+      c: cHex,
+    });
+  }
+
+  async operatorLogin(pin: string = "1234"): Promise<Response> {
+    const formData = new FormData();
+    formData.append("pin", pin);
+    return handleRequest(
+      new Request("https://test.local/operator/login", {
+        method: "POST",
+        body: formData,
+      }),
+      this.env as unknown as Env
+    );
+  }
+
+  async operatorLogout(): Promise<Response> {
+    return this.request("/operator/logout", "POST");
+  }
+
+  async request(path: string, method: string = "GET", body?: unknown): Promise<Response> {
     const url = "https://test.local" + path;
     const opts: RequestInit = { method };
     if (body) {
       opts.body = JSON.stringify(body);
       opts.headers = { "Content-Type": "application/json" };
     }
-    return handleRequest(new Request(url, opts), this.env);
+    return handleRequest(new Request(url, opts), this.env as unknown as Env);
   }
 
   private ensureActive(): void {

@@ -1,16 +1,16 @@
-// @ts-nocheck
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
-import { hexToBytes, bytesToHex, computeAesCmac } from "../cryptoutils.js";
-import { getDeterministicKeys, deriveKeysFromHex } from "../keygenerator.js";
+import { hexToBytes, bytesToHex } from "../cryptoutils.js";
+import { getDeterministicKeys } from "../keygenerator.js";
 import { buildVerificationData } from "../cryptoutils.js";
 import aesjs from "aes-js";
 import { buildCardTestEnv } from "./testHelpers.js";
+import type { Env } from "../types/core.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const TEST_UID = "04a39493cc8680";
 
-function generateRealPandC(uidHex, counter, k1Hex) {
+function generateRealPandC(uidHex: string, counter: number, k1Hex: string) {
   const k1 = hexToBytes(k1Hex);
   const uid = hexToBytes(uidHex);
   const plaintext = new Uint8Array(16);
@@ -30,7 +30,7 @@ function generateRealPandC(uidHex, counter, k1Hex) {
   return { pHex, ctrHex };
 }
 
-function computeRealC(uidHex, ctrHex, k2Hex) {
+function computeRealC(uidHex: string, ctrHex: string, k2Hex: string) {
   const uid = hexToBytes(uidHex);
   const ctr = hexToBytes(ctrHex);
   const k2 = hexToBytes(k2Hex);
@@ -38,13 +38,13 @@ function computeRealC(uidHex, ctrHex, k2Hex) {
   return bytesToHex(vd.ct);
 }
 
-function makeEnv() {
+function makeEnv(): Env {
   return buildCardTestEnv({ operatorAuth: true, extraEnv: { BOLT_CARD_K1 } });
 }
 
-async function makeRequest(path, method = "GET", body = null, requestEnv = null) {
+async function makeRequest(path: string, method: string = "GET", body: Record<string, unknown> | null = null, requestEnv: Env | null = null): Promise<Response> {
   const url = "https://test.local" + path;
-  const options = { method };
+  const options: RequestInit = { method };
   if (body) {
     options.body = JSON.stringify(body);
     options.headers = { "Content-Type": "application/json" };
@@ -53,12 +53,11 @@ async function makeRequest(path, method = "GET", body = null, requestEnv = null)
 }
 
 describe("POST /api/identify-issuer-key", () => {
-  let keys;
-  let pHex, cHex;
+  let pHex: string;
+  let cHex: string;
 
   beforeAll(async () => {
-    const env = { BOLT_CARD_K1 };
-    keys = getDeterministicKeys(TEST_UID, env);
+    const keys = getDeterministicKeys(TEST_UID, { BOLT_CARD_K1 } as unknown as Env);
     const { pHex: p, ctrHex } = generateRealPandC(TEST_UID, 1, keys.k1);
     pHex = p;
     cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
@@ -67,7 +66,7 @@ describe("POST /api/identify-issuer-key", () => {
   test("returns matched: true for a known issuer key", async () => {
     const resp = await makeRequest("/api/identify-issuer-key", "POST", { p: pHex, c: cHex });
     expect(resp.status).toBe(200);
-    const json = await resp.json();
+    const json = await resp.json() as Record<string, unknown>;
     expect(json.matched).toBe(true);
     expect(json.uid).toBe(TEST_UID);
     expect(json.version).toBe(1);
@@ -78,15 +77,15 @@ describe("POST /api/identify-issuer-key", () => {
 
   test("fingerprint is deterministic SHA-256 prefix", async () => {
     const resp1 = await makeRequest("/api/identify-issuer-key", "POST", { p: pHex, c: cHex });
-    const json1 = await resp1.json();
+    const json1 = await resp1.json() as Record<string, unknown>;
     const resp2 = await makeRequest("/api/identify-issuer-key", "POST", { p: pHex, c: cHex });
-    const json2 = await resp2.json();
+    const json2 = await resp2.json() as Record<string, unknown>;
     expect(json1.issuerKeyFingerprint).toBe(json2.issuerKeyFingerprint);
   });
 
   test("does not expose raw issuer key", async () => {
     const resp = await makeRequest("/api/identify-issuer-key", "POST", { p: pHex, c: cHex });
-    const json = await resp.json();
+    const json = await resp.json() as Record<string, unknown>;
     const bodyStr = JSON.stringify(json);
     expect(bodyStr).not.toContain("00000000000000000000000000000001");
   });
@@ -97,7 +96,7 @@ describe("POST /api/identify-issuer-key", () => {
       c: "1122334455667788",
     });
     expect(resp.status).toBe(200);
-    const json = await resp.json();
+    const json = await resp.json() as Record<string, unknown>;
     expect(json.matched).toBe(false);
   });
 
@@ -119,8 +118,8 @@ describe("POST /api/identify-issuer-key", () => {
   test("requires operator auth (redirects to login)", async () => {
     const envNoAuth = {
       BOLT_CARD_K1: BOLT_CARD_K1,
-      CARD_REPLAY: makeReplayNamespace(),
-    };
+      CARD_REPLAY: makeReplayNamespace() as any,
+    } as unknown as Env;
     const resp = await makeRequest("/api/identify-issuer-key", "POST", { p: pHex, c: cHex }, envNoAuth);
     expect(resp.status).toBe(302);
     expect(resp.headers.get("Location")).toContain("/operator/login");
@@ -132,21 +131,21 @@ describe("POST /api/identify-issuer-key", () => {
         if (prop === "BOLT_CARD_K1") throw new Error("boom");
         return Reflect.get(target, prop);
       },
-    });
+    }) as Env;
     const resp = await makeRequest("/api/identify-issuer-key", "POST", { p: pHex, c: cHex }, brokenEnv);
     expect(resp.status).toBe(500);
   });
 
   test("clamps candidates to MAX_CANDIDATES (50)", async () => {
     const env = makeEnv();
-    const keys = [];
+    const keyList: string[] = [];
     for (let i = 0; i < 60; i++) {
-      keys.push(i.toString(16).padStart(32, '0'));
+      keyList.push(i.toString(16).padStart(32, '0'));
     }
-    env.RECOVERY_ISSUER_KEYS = keys.join(',');
+    (env as any).RECOVERY_ISSUER_KEYS = keyList.join(',');
     const resp = await makeRequest("/api/identify-issuer-key", "POST", { p: pHex, c: cHex }, env);
     expect(resp.status).toBe(200);
-    const json = await resp.json();
+    const json = await resp.json() as Record<string, unknown>;
     expect(json.matched).toBe(true);
   });
 });
@@ -156,7 +155,7 @@ describe("GET /api/bulk-wipe-keys with version parameter", () => {
     const resp = await makeRequest(
       `/api/bulk-wipe-keys?uid=${TEST_UID}&key=00000000000000000000000000000001`
     );
-    const json = await resp.json();
+    const json = await resp.json() as any;
     expect(json.wipe_json.version).toBe(1);
     expect(json.boltcard_response.Version).toBe(1);
   });
@@ -165,12 +164,12 @@ describe("GET /api/bulk-wipe-keys with version parameter", () => {
     const resp1 = await makeRequest(
       `/api/bulk-wipe-keys?uid=${TEST_UID}&key=00000000000000000000000000000001&version=1`
     );
-    const json1 = await resp1.json();
+    const json1 = await resp1.json() as any;
 
     const resp3 = await makeRequest(
       `/api/bulk-wipe-keys?uid=${TEST_UID}&key=00000000000000000000000000000001&version=3`
     );
-    const json3 = await resp3.json();
+    const json3 = await resp3.json() as any;
 
     expect(json3.wipe_json.version).toBe(3);
     expect(json3.boltcard_response.Version).toBe(3);
@@ -183,7 +182,7 @@ describe("GET /api/bulk-wipe-keys with version parameter", () => {
     const resp = await makeRequest(
       `/api/bulk-wipe-keys?uid=${TEST_UID}&key=00000000000000000000000000000001&version=0`
     );
-    const json = await resp.json();
+    const json = await resp.json() as any;
     expect(json.wipe_json.version).toBe(0);
     expect(json.boltcard_response.Version).toBe(0);
   });
@@ -205,7 +204,7 @@ describe("POST /api/identify-issuer-key per-card fallback", () => {
     plaintext[10] = (counter >> 16) & 0xff;
     const aes = new aesjs.ModeOfOperation.ecb(hexToBytes(perCardK1));
     const encrypted = aes.encrypt(plaintext);
-    const pHex = bytesToHex(new Uint8Array(encrypted));
+    const localPHex = bytesToHex(new Uint8Array(encrypted));
 
     const ctrHex = bytesToHex(new Uint8Array([
       (counter >> 16) & 0xff,
@@ -213,22 +212,22 @@ describe("POST /api/identify-issuer-key per-card fallback", () => {
       counter & 0xff,
     ]));
     const vd = buildVerificationData(uid, hexToBytes(ctrHex), hexToBytes(perCardK2));
-    const cHex = bytesToHex(vd.ct);
+    const localCHex = bytesToHex(vd.ct);
 
     const perCardEnv = {
       ...makeEnv(),
       BOLT_CARD_K1: BOLT_CARD_K1 + "," + perCardK1,
-    };
+    } as Env;
 
     const resp = await makeRequest(
       "/api/identify-issuer-key",
       "POST",
-      { p: pHex, c: cHex },
+      { p: localPHex, c: localCHex },
       perCardEnv
     );
 
     expect(resp.status).toBe(200);
-    const json = await resp.json();
+    const json = await resp.json() as Record<string, unknown>;
     expect(json.matched).toBe(true);
     expect(json.uid).toBe(perCardUid);
     expect(json.isPercard).toBe(true);
@@ -250,22 +249,22 @@ describe("POST /api/identify-issuer-key per-card fallback", () => {
     plaintext[10] = (counter >> 16) & 0xff;
     const aes = new aesjs.ModeOfOperation.ecb(hexToBytes(perCardK1));
     const encrypted = aes.encrypt(plaintext);
-    const pHex = bytesToHex(new Uint8Array(encrypted));
+    const localPHex = bytesToHex(new Uint8Array(encrypted));
 
     const perCardEnv = {
       ...makeEnv(),
       BOLT_CARD_K1: BOLT_CARD_K1 + "," + perCardK1,
-    };
+    } as Env;
 
     const resp = await makeRequest(
       "/api/identify-issuer-key",
       "POST",
-      { p: pHex, c: "0000000000000000" },
+      { p: localPHex, c: "0000000000000000" },
       perCardEnv
     );
 
     expect(resp.status).toBe(200);
-    const json = await resp.json();
+    const json = await resp.json() as Record<string, unknown>;
     expect(json.matched).toBe(false);
   });
 });

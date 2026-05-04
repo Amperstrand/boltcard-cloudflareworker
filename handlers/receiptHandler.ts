@@ -1,10 +1,12 @@
 import { errorResponse } from "../utils/responses.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { listTransactions } from "../replayProtection.js";
 import { formatAmount, getCurrencyLabel } from "../utils/currency.js";
 import { logger } from "../utils/logger.js";
 import { RECEIPT_TXN_LOOKUP_LIMIT } from "../utils/constants.js";
 
-export async function handleReceipt(request: Request, env: any): Promise<Response> {
+export async function handleReceipt(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const pathParts = url.pathname.split("/");
   const txnId = pathParts[pathParts.length - 1];
@@ -57,8 +59,8 @@ export async function handleReceipt(request: Request, env: any): Promise<Respons
     return new Response(receipt.join("\n"), {
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
-  } catch (error: any) {
-    logger.error("Receipt generation failed", { txnId, uid, error: error.message });
+  } catch (error: unknown) {
+    logger.error("Receipt generation failed", { txnId, uid, error: getErrorMessage(error) });
     return errorResponse("Failed to generate receipt", 500);
   }
 }

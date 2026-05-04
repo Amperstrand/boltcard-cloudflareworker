@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {
   isUpiUri,
   parseUpiUri,
@@ -24,20 +23,20 @@ describe("parseUpiUri", () => {
       "upi://pay?pa=merchant@acqbank&pn=My%20Store&mc=1234&tr=INV-100029&tn=Invoice&am=499.00&cu=INR"
     );
     expect(result).toBeInstanceOf(UpiPaymentDetails);
-    expect(result.pa).toBe("merchant@acqbank");
-    expect(result.am).toBe(499);
-    expect(result.cu).toBe("INR");
-    expect(result.pn).toBe("My Store");
-    expect(result.mc).toBe("1234");
-    expect(result.tr).toBe("INV-100029");
-    expect(result.tn).toBe("Invoice");
+    expect(result!.pa).toBe("merchant@acqbank");
+    expect(result!.am).toBe(499);
+    expect(result!.cu).toBe("INR");
+    expect(result!.pn).toBe("My Store");
+    expect(result!.mc).toBe("1234");
+    expect(result!.tr).toBe("INV-100029");
+    expect(result!.tn).toBe("Invoice");
   });
 
   test("parses minimal UPI URI", () => {
     const result = parseUpiUri("upi://pay?pa=test@bank&am=100.00");
-    expect(result.pa).toBe("test@bank");
-    expect(result.am).toBe(100);
-    expect(result.cu).toBe("INR");
+    expect(result!.pa).toBe("test@bank");
+    expect(result!.am).toBe(100);
+    expect(result!.cu).toBe("INR");
   });
 
   test("returns null for missing pa parameter", () => {
@@ -94,7 +93,7 @@ describe("encodeUpiUri", () => {
   test("round-trips parse/encode", () => {
     const original = { pa: "shop@upi", am: 250, cu: "INR", pn: "Test Shop" };
     const encoded = encodeUpiUri(original);
-    const parsed = parseUpiUri(encoded);
+    const parsed = parseUpiUri(encoded)!;
     expect(parsed.pa).toBe(original.pa);
     expect(parsed.am).toBe(original.am);
     expect(parsed.cu).toBe(original.cu);

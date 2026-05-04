@@ -1,10 +1,10 @@
-// @ts-nocheck
 import { handleRefundApply, handleRefundPage } from "../handlers/refundHandler.js";
 import { handleTopupApply, handleTopupPage } from "../handlers/topupHandler.js";
 import { handlePosCharge } from "../handlers/posChargeHandler.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { creditCard } from "../replayProtection.js";
 import { virtualTap, buildCardTestEnv } from "./testHelpers.js";
+import type { Env, SessionPayload } from "../types/core.js";
 
 const UID = "04a39493cc8680";
 const ISSUER_KEY = "00000000000000000000000000000001";
@@ -13,7 +13,7 @@ function buildEnv(balance = 0) {
   return buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, balance });
 }
 
-function makeRequest(body, path = "/operator/test") {
+function makeRequest(body: Record<string, unknown>, path = "/operator/test") {
   return new Request(`https://test.local${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "User-Agent": "test" },
@@ -24,7 +24,7 @@ function makeRequest(body, path = "/operator/test") {
 describe("handleRefundPage", () => {
   it("returns HTML response", () => {
     const req = new Request("https://test.local/operator/refund");
-    const res = handleRefundPage(req, {});
+    const res = handleRefundPage(req, {} as Env);
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toContain("text/html");
   });
@@ -38,25 +38,25 @@ describe("handleRefundApply", () => {
       headers: { "Content-Type": "application/json" },
       body: "not json",
     });
-    const res = await handleRefundApply(req, env, { shiftId: "test" });
+    const res = await handleRefundApply(req, env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(400);
   });
 
   it("rejects missing amount for partial refund", async () => {
     const env = buildEnv(1000);
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
-    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex }), env, { shiftId: "test" });
+    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(400);
   });
 
   it("processes partial refund", async () => {
     const env = buildEnv(1000);
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
-    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" });
+    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.success).toBe(true);
     expect(body.amount).toBe(300);
     expect(body.balance).toBe(700);
@@ -65,11 +65,11 @@ describe("handleRefundApply", () => {
 
   it("processes full refund", async () => {
     const env = buildEnv(1000);
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 3, keys.k1, keys.k2);
-    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, fullRefund: true }), env, { shiftId: "test" });
+    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, fullRefund: true }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.success).toBe(true);
     expect(body.amount).toBe(1000);
     expect(body.balance).toBe(0);
@@ -77,106 +77,106 @@ describe("handleRefundApply", () => {
 
   it("full refund on zero balance returns zero", async () => {
     const env = buildEnv(0);
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 4, keys.k1, keys.k2);
-    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, fullRefund: true }), env, { shiftId: "test" });
+    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, fullRefund: true }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.success).toBe(true);
     expect(body.amount).toBe(0);
   });
 
   it("rejects refund exceeding balance", async () => {
     const env = buildEnv(100);
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 5, keys.k1, keys.k2);
-    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" });
+    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(400);
   });
 
   it("rejects invalid card tap", async () => {
     const env = buildEnv();
-    const res = await handleRefundApply(makeRequest({ p: "", c: "", amount: 100 }), env, { shiftId: "test" });
+    const res = await handleRefundApply(makeRequest({ p: "", c: "", amount: 100 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(400);
   });
 
   it("returns 500 when debitCard returns failure", async () => {
     const env = buildEnv(1000);
     const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
-    env.CARD_REPLAY.get = (id) => {
+    (env as any).CARD_REPLAY.get = (id: DurableObjectId) => {
       const obj = origGet(id);
       const origFetch = obj.fetch.bind(obj);
       return {
-        fetch: async (request) => {
+        fetch: async (request: Request) => {
           const url = new URL(request.url);
           if (request.method === "POST" && url.pathname === "/debit") {
             return Response.json({ ok: false, reason: "Storage error" });
           }
           return origFetch(request);
         },
-      };
+      } as unknown as DurableObjectStub;
     };
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
-    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" });
+    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(500);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.reason).toContain("Storage error");
   });
 
   it("returns 500 when debitCard throws", async () => {
     const env = buildEnv(1000);
     const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
-    env.CARD_REPLAY.get = (id) => {
+    (env as any).CARD_REPLAY.get = (id: DurableObjectId) => {
       const obj = origGet(id);
       const origFetch = obj.fetch.bind(obj);
       return {
-        fetch: async (request) => {
+        fetch: async (request: Request) => {
           const url = new URL(request.url);
           if (url.pathname === "/debit") throw new Error("DO connection lost");
           return origFetch(request);
         },
-      };
+      } as unknown as DurableObjectStub;
     };
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
-    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" });
+    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(500);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.reason).toContain("Refund failed");
   });
 
   it("uses 'unknown' shiftId when session has no shiftId", async () => {
     const env = buildEnv(1000);
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 3, keys.k1, keys.k2);
-    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, {});
+    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, {} as unknown as SessionPayload);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.note).toContain("refund:unknown");
   });
 
   it("returns fallback message when debitCard fails without reason", async () => {
     const env = buildEnv(1000);
     const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
-    env.CARD_REPLAY.get = (id) => {
+    (env as any).CARD_REPLAY.get = (id: DurableObjectId) => {
       const obj = origGet(id);
       const origFetch = obj.fetch.bind(obj);
       return {
-        fetch: async (request) => {
+        fetch: async (request: Request) => {
           const url = new URL(request.url);
           if (request.method === "POST" && url.pathname === "/debit") {
             return Response.json({ ok: false });
           }
           return origFetch(request);
         },
-      };
+      } as unknown as DurableObjectStub;
     };
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 4, keys.k1, keys.k2);
-    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" });
+    const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(500);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.reason).toContain("Refund failed");
   });
 });
@@ -184,7 +184,7 @@ describe("handleRefundApply", () => {
 describe("handleTopupPage", () => {
   it("returns HTML response", () => {
     const req = new Request("https://test.local/operator/topup");
-    const res = handleTopupPage(req, {});
+    const res = handleTopupPage(req, {} as Env);
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toContain("text/html");
   });
@@ -198,25 +198,25 @@ describe("handleTopupApply", () => {
       headers: { "Content-Type": "application/json" },
       body: "not json",
     });
-    const res = await handleTopupApply(req, env, { shiftId: "test" });
+    const res = await handleTopupApply(req, env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(400);
   });
 
   it("rejects invalid amount", async () => {
     const env = buildEnv();
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
-    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: -5 }), env, { shiftId: "test" });
+    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: -5 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(400);
   });
 
   it("tops up card balance", async () => {
     const env = buildEnv();
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
-    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" });
+    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.success).toBe(true);
     expect(body.amount).toBe(500);
     expect(body.balance).toBe(500);
@@ -226,104 +226,104 @@ describe("handleTopupApply", () => {
   it("respects MAX_TOPUP_AMOUNT env var", async () => {
     const env = buildEnv();
     env.MAX_TOPUP_AMOUNT = "100";
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 3, keys.k1, keys.k2);
-    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" });
+    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(400);
   });
 
   it("allows top-up within MAX_TOPUP_AMOUNT", async () => {
     const env = buildEnv();
     env.MAX_TOPUP_AMOUNT = "1000";
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 4, keys.k1, keys.k2);
-    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" });
+    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(200);
   });
 
   it("rejects invalid card tap", async () => {
     const env = buildEnv();
-    const res = await handleTopupApply(makeRequest({ p: "", c: "", amount: 100 }), env, { shiftId: "test" });
+    const res = await handleTopupApply(makeRequest({ p: "", c: "", amount: 100 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(400);
   });
 
   it("returns 500 when creditCard returns failure", async () => {
     const env = buildEnv();
     const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
-    env.CARD_REPLAY.get = (id) => {
+    (env as any).CARD_REPLAY.get = (id: DurableObjectId) => {
       const obj = origGet(id);
       const origFetch = obj.fetch.bind(obj);
       return {
-        fetch: async (request) => {
+        fetch: async (request: Request) => {
           const url = new URL(request.url);
           if (request.method === "POST" && url.pathname === "/credit") {
             return Response.json({ ok: false, reason: "Storage error" });
           }
           return origFetch(request);
         },
-      };
+      } as unknown as DurableObjectStub;
     };
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
-    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" });
+    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(500);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.reason).toContain("Storage error");
   });
 
   it("returns 500 when creditCard throws", async () => {
     const env = buildEnv();
     const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
-    env.CARD_REPLAY.get = (id) => {
+    (env as any).CARD_REPLAY.get = (id: DurableObjectId) => {
       const obj = origGet(id);
       const origFetch = obj.fetch.bind(obj);
       return {
-        fetch: async (request) => {
+        fetch: async (request: Request) => {
           const url = new URL(request.url);
           if (url.pathname === "/credit") throw new Error("DO connection lost");
           return origFetch(request);
         },
-      };
+      } as unknown as DurableObjectStub;
     };
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
-    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" });
+    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(500);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.reason).toContain("Top-up failed");
   });
 
   it("returns 500 with fallback message when creditCard fails without reason", async () => {
     const env = buildEnv();
     const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
-    env.CARD_REPLAY.get = (id) => {
+    (env as any).CARD_REPLAY.get = (id: DurableObjectId) => {
       const obj = origGet(id);
       const origFetch = obj.fetch.bind(obj);
       return {
-        fetch: async (request) => {
+        fetch: async (request: Request) => {
           const url = new URL(request.url);
           if (request.method === "POST" && url.pathname === "/credit") {
             return Response.json({ ok: false });
           }
           return origFetch(request);
         },
-      };
+      } as unknown as DurableObjectStub;
     };
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
-    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" });
+    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(500);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.reason).toContain("Credit failed");
   });
 
   it("uses 'unknown' shiftId when session has no shiftId", async () => {
     const env = buildEnv();
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
-    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, {});
+    const res = await handleTopupApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, {} as unknown as SessionPayload);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.note).toContain("topup:unknown");
   });
 });
@@ -336,25 +336,25 @@ describe("handlePosCharge", () => {
       headers: { "Content-Type": "application/json" },
       body: "not json",
     });
-    const res = await handlePosCharge(req, env, { shiftId: "test" });
+    const res = await handlePosCharge(req, env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(400);
   });
 
   it("rejects invalid amount", async () => {
     const env = buildEnv();
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
-    const res = await handlePosCharge(makeRequest({ p: pHex, c: cHex, amount: -5 }), env, { shiftId: "test" });
+    const res = await handlePosCharge(makeRequest({ p: pHex, c: cHex, amount: -5 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(400);
   });
 
   it("charges card with sufficient balance", async () => {
     const env = buildEnv(1000);
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
-    const res = await handlePosCharge(makeRequest({ p: pHex, c: cHex, amount: 300, terminalId: "pos-1" }), env, { shiftId: "test" });
+    const res = await handlePosCharge(makeRequest({ p: pHex, c: cHex, amount: 300, terminalId: "pos-1" }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.success).toBe(true);
     expect(body.amount).toBe(300);
     expect(body.balance).toBe(700);
@@ -364,95 +364,95 @@ describe("handlePosCharge", () => {
 
   it("returns 402 for insufficient balance", async () => {
     const env = buildEnv(100);
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 3, keys.k1, keys.k2);
-    const res = await handlePosCharge(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" });
+    const res = await handlePosCharge(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(402);
   });
 
   it("includes items in note", async () => {
     const env = buildEnv(1000);
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 4, keys.k1, keys.k2);
     const items = [{ name: "beer", qty: 2 }];
-    const res = await handlePosCharge(makeRequest({ p: pHex, c: cHex, amount: 200, items, terminalId: "bar" }), env, { shiftId: "test" });
+    const res = await handlePosCharge(makeRequest({ p: pHex, c: cHex, amount: 200, items, terminalId: "bar" }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.note).toContain("beer:2");
   });
 
   it("rejects invalid card tap", async () => {
     const env = buildEnv();
-    const res = await handlePosCharge(makeRequest({ p: "", c: "", amount: 100 }), env, { shiftId: "test" });
+    const res = await handlePosCharge(makeRequest({ p: "", c: "", amount: 100 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(400);
   });
 
   it("returns 402 when debitCard returns insufficient reason", async () => {
     const env = buildEnv(1000);
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
-    env.CARD_REPLAY.get = (id) => {
+    (env as any).CARD_REPLAY.get = (id: DurableObjectId) => {
       const obj = origGet(id);
       return {
-        fetch: async (request) => {
+        fetch: async (request: Request) => {
           const url = new URL(request.url);
           if (request.method === "POST" && url.pathname === "/debit") {
             return Response.json({ ok: false, reason: "Insufficient balance" });
           }
           return obj.fetch(request);
         },
-      };
+      } as unknown as DurableObjectStub;
     };
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
-    const res = await handlePosCharge(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" });
+    const res = await handlePosCharge(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(402);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.error).toContain("Insufficient balance");
   });
 
   it("returns 500 when debitCard returns non-insufficient failure", async () => {
     const env = buildEnv(1000);
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
-    env.CARD_REPLAY.get = (id) => {
+    (env as any).CARD_REPLAY.get = (id: DurableObjectId) => {
       const obj = origGet(id);
       return {
-        fetch: async (request) => {
+        fetch: async (request: Request) => {
           const url = new URL(request.url);
           if (request.method === "POST" && url.pathname === "/debit") {
             return Response.json({ ok: false, reason: "Unknown error" });
           }
           return obj.fetch(request);
         },
-      };
+      } as unknown as DurableObjectStub;
     };
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
-    const res = await handlePosCharge(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" });
+    const res = await handlePosCharge(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(500);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.error).toContain("Unknown error");
   });
 
   it("returns 500 when debitCard throws", async () => {
     const env = buildEnv(1000);
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
-    env.CARD_REPLAY.get = (id) => {
+    (env as any).CARD_REPLAY.get = (id: DurableObjectId) => {
       const obj = origGet(id);
       return {
-        fetch: async (request) => {
+        fetch: async (request: Request) => {
           const url = new URL(request.url);
           if (request.method === "POST" && url.pathname === "/debit") {
             throw new Error("DO connection failed");
           }
           return obj.fetch(request);
         },
-      };
+      } as unknown as DurableObjectStub;
     };
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
-    const res = await handlePosCharge(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" });
+    const res = await handlePosCharge(makeRequest({ p: pHex, c: cHex, amount: 300 }), env, { shiftId: "test" } as unknown as SessionPayload);
     expect(res.status).toBe(500);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.reason).toContain("Charge failed");
   });
 });

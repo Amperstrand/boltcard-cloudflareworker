@@ -1,4 +1,6 @@
 import { deriveOtpSecret, generateTOTP, generateHOTP } from "../utils/otp.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { logger } from "../utils/logger.js";
 import { getRequestOrigin, buildMaskedUid } from "../utils/validation.js";
 import { errorResponse, htmlResponse, jsonResponse } from "../utils/responses.js";
@@ -6,7 +8,7 @@ import { OTP_DOMAIN_TAG_HOTP, OTP_DOMAIN_TAG_TOTP } from "../utils/constants.js"
 import { renderTwoFactorPage, renderTwoFactorLandingPage } from "../templates/twoFactorPage.js";
 import { resolveCardIdentity } from "../utils/cardAuth.js";
 
-export async function handleTwoFactor(request: Request, env: any): Promise<Response> {
+export async function handleTwoFactor(request: Request, env: Env): Promise<Response> {
   const { searchParams } = new URL(request.url);
   const pHex = searchParams.get("p");
   const cHex = searchParams.get("c");
@@ -31,8 +33,8 @@ export async function handleTwoFactor(request: Request, env: any): Promise<Respo
     hotp = generateHOTP(hotpSecret, counterValue);
 
     logger.info("2FA codes generated", { uidHex, counterValue });
-  } catch (error: any) {
-    logger.error("2FA generation failed", { uidHex, error: error.message });
+  } catch (error: unknown) {
+    logger.error("2FA generation failed", { uidHex, error: getErrorMessage(error) });
     return errorResponse("Failed to generate 2FA codes", 500);
   }
 

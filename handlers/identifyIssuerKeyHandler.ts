@@ -1,9 +1,11 @@
 import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { logger } from "../utils/logger.js";
 import { matchCardIssuer } from "../utils/cardMatching.js";
 import { MISSING_PARAMS_MSG } from "../utils/constants.js";
 
-export async function handleIdentifyIssuerKey(request: Request, env: any): Promise<Response> {
+export async function handleIdentifyIssuerKey(request: Request, env: Env): Promise<Response> {
   try {
     const body: any = await parseJsonBody(request);
     if (!body) return errorResponse("Invalid JSON body", 400);
@@ -29,8 +31,8 @@ export async function handleIdentifyIssuerKey(request: Request, env: any): Promi
       issuerKeyLabel: result.issuerLabel,
       isPercard: result.isPercard,
     });
-  } catch (error: any) {
-    logger.error("Identify issuer key failed", { error: error.message });
+  } catch (error: unknown) {
+    logger.error("Identify issuer key failed", { error: getErrorMessage(error) });
     return errorResponse("Failed to identify issuer key", 500);
   }
 }

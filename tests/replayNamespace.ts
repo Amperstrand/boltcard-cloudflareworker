@@ -1,3 +1,5 @@
+import type { CardConfig } from "../types/core.js";
+
 interface CardState {
   state: string;
   latest_issued_version: number;
@@ -34,13 +36,13 @@ interface Transaction {
   note: string | null;
 }
 
-interface ReplayNamespace {
+export interface ReplayNamespace {
   idFromName: (name: string) => string;
   get: (id: string) => { fetch: (request: Request) => Promise<Response> };
   __counters: Map<string, number>;
   __taps: Map<string, TapRecord>;
   __cardStates: Map<string, CardState>;
-  __cardConfigs: Map<string, any>;
+  __cardConfigs: Map<string, CardConfig>;
   __transactions: Map<string, Transaction[]>;
   __activate: (uid: string, version?: number) => void;
 }
@@ -54,7 +56,7 @@ export const makeReplayNamespace = (
   );
   const taps = new Map<string, TapRecord>();
   const cardStates = new Map<string, CardState>();
-  const cardConfigs = new Map<string, any>();
+  const cardConfigs = new Map<string, CardConfig>();
   const transactions = new Map<string, Transaction[]>();
 
   const allUids = new Set<string>([
@@ -112,7 +114,7 @@ export const makeReplayNamespace = (
         }
 
         if (request.method === "POST" && url.pathname === "/set-config") {
-          const config = await request.json();
+          const config = (await request.json()) as CardConfig;
           cardConfigs.set(idStr, config);
           return Response.json({ ok: true });
         }

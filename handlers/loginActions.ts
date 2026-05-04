@@ -1,11 +1,14 @@
 import { logger } from "../utils/logger.js";
+import type { CardStateRow , OpResult} from "../types/core.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
 import { getCardState, getCardConfig, terminateCard, requestWipe, creditCard, resolveActiveVersion, resolveLatestVersion } from "../replayProtection.js";
 import { validateUid, getRequestOrigin } from "../utils/validation.js";
 import { DEFAULT_PULL_PAYMENT_ID, CARD_STATE, UID_VALIDATION_MSG } from "../utils/constants.js";
 
-function resolvePullPaymentId(env: any, cardConfig: any): string {
+function resolvePullPaymentId(env: Env, cardConfig: any): string {
   return cardConfig?.pull_payment_id || env.DEFAULT_PULL_PAYMENT_ID || DEFAULT_PULL_PAYMENT_ID;
 }
 
@@ -13,7 +16,7 @@ function buildProgrammingEndpoint(requestOrigin: string, pullPaymentId: string):
   return `${requestOrigin}/api/v1/pull-payments/${pullPaymentId}/boltcards?onExisting=UpdateVersion`;
 }
 
-async function getCardProgrammingEndpoint(env: any, uidHex: string, requestOrigin: string): Promise<{ cardConfig: any; pullPaymentId: string; programmingEndpoint: string }> {
+async function getCardProgrammingEndpoint(env: Env, uidHex: string, requestOrigin: string): Promise<{ cardConfig: any; pullPaymentId: string; programmingEndpoint: string }> {
   const cardConfig: any = await getCardConfig(env, uidHex);
   const pullPaymentId: string = resolvePullPaymentId(env, cardConfig);
   return { cardConfig, pullPaymentId, programmingEndpoint: buildProgrammingEndpoint(requestOrigin, pullPaymentId) };
@@ -23,7 +26,7 @@ function normalizeSubmittedUid(rawUid: string): string | null {
   return validateUid(typeof rawUid === "string" ? rawUid.replace(/:/g, "") : "");
 }
 
-export async function handleTerminateAction(rawUid: string, env: any, request: Request): Promise<Response> {
+export async function handleTerminateAction(rawUid: string, env: Env, request: Request): Promise<Response> {
   const requestOrigin = getRequestOrigin(request);
   const uidHex: string | null = normalizeSubmittedUid(rawUid);
   if (!uidHex) {
@@ -31,7 +34,7 @@ export async function handleTerminateAction(rawUid: string, env: any, request: R
   }
 
   try {
-    const cardState: any = await getCardState(env, uidHex);
+    const cardState: CardStateRow = await getCardState(env, uidHex);
     if (cardState.state !== CARD_STATE.ACTIVE && cardState.state !== CARD_STATE.WIPE_REQUESTED) {
       return errorResponse(`Card is in '${cardState.state}' state, cannot terminate. Only active or wipe_requested cards can be terminated.`, 400);
     }
@@ -50,13 +53,13 @@ export async function handleTerminateAction(rawUid: string, env: any, request: R
       keyVersion: resolveLatestVersion(newState) || resolveActiveVersion(cardState),
       programmingEndpoint,
     });
-  } catch (err: any) {
-    logger.error("Terminate action failed", { uidHex, error: err.message });
+  } catch (err: unknown) {
+    logger.error("Terminate action failed", { uidHex, error: getErrorMessage(err) });
     return errorResponse("Internal error", 500);
   }
 }
 
-export async function handleRequestWipeAction(rawUid: string, env: any, request: Request): Promise<Response> {
+export async function handleRequestWipeAction(rawUid: string, env: Env, request: Request): Promise<Response> {
   const requestOrigin = getRequestOrigin(request);
   const uidHex: string | null = normalizeSubmittedUid(rawUid);
   if (!uidHex) {
@@ -64,13 +67,13 @@ export async function handleRequestWipeAction(rawUid: string, env: any, request:
   }
 
   try {
-    const cardState: any = await getCardState(env, uidHex);
+    const cardState: CardStateRow = await getCardState(env, uidHex);
     if (cardState.state !== CARD_STATE.ACTIVE) {
       return errorResponse(`Card is in '${cardState.state}' state. Only active cards can request wipe keys.`, 400);
     }
 
     const version: number = resolveActiveVersion(cardState);
-    const keys: any = deriveKeysFromHex(uidHex, env.ISSUER_KEY, version);
+    const keys: any = deriveKeysFromHex(uidHex, env.ISSUER_KEY!, version);
 
     await requestWipe(env, uidHex);
 
@@ -101,13 +104,13 @@ export async function handleRequestWipeAction(rawUid: string, env: any, request:
         k4: keys.k4.toLowerCase(),
       }, null, 2),
     });
-  } catch (err: any) {
-    logger.error("Wipe action failed", { uidHex, error: err.message });
+  } catch (err: unknown) {
+    logger.error("Wipe action failed", { uidHex, error: getErrorMessage(err) });
     return errorResponse("Internal error", 500);
   }
 }
 
-export async function handleTopUpAction(rawUid: string, rawAmount: any, env: any): Promise<Response> {
+export async function handleTopUpAction(rawUid: string, rawAmount: any, env: Env): Promise<Response> {
   const uidHex: string | null = normalizeSubmittedUid(rawUid);
   if (!uidHex) return errorResponse(UID_VALIDATION_MSG, 400);
 
@@ -117,13 +120,13 @@ export async function handleTopUpAction(rawUid: string, rawAmount: any, env: any
   }
 
   try {
-    const result: any = await creditCard(env, uidHex, amount, "Manual top-up via login page");
+    const result: OpResult = await creditCard(env, uidHex, amount, "Manual top-up via login page");
     if (result.ok) {
       return jsonResponse({ success: true, balance: result.balance, message: `Credited ${amount} units` });
     }
     return errorResponse(result.reason || "Top-up failed", 500);
-  } catch (e: any) {
-    logger.error("Top-up failed", { uidHex, amount, error: e.message });
+  } catch (e: unknown) {
+    logger.error("Top-up failed", { uidHex, amount, error: getErrorMessage(e) });
     return errorResponse("Top-up failed", 500);
   }
 }

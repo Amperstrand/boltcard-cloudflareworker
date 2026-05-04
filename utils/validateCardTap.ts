@@ -1,4 +1,6 @@
 import { extractUIDAndCounter, validateCmac } from "../boltCardHelper.js";
+import type { CardStateRow } from "../types/core.js";
+import { getErrorMessage } from "../utils/logger.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { getDeterministicKeys } from "../keygenerator.js";
@@ -43,11 +45,11 @@ export async function validateCardTap(request: Request, env: any, { pHex, cHex, 
   const { uidHex, ctr } = decryption;
   const counterValue = parseInt(ctr, 16);
 
-  let cardState: any;
+  let cardState: CardStateRow;
   try {
     cardState = await getCardState(env, uidHex);
-  } catch (error: any) {
-    logger.error(`${context}: card state check failed`, { uidHex, error: error.message });
+  } catch (error: unknown) {
+    logger.error(`${context}: card state check failed`, { uidHex, error: getErrorMessage(error) });
     return { ok: false, status: 503, error: "Card state unavailable" };
   }
 
@@ -102,8 +104,8 @@ export async function validateCardTap(request: Request, env: any, { pHex, cHex, 
   let replayResult: any;
   try {
     replayResult = await checkAndAdvanceCounter(env, uidHex, counterValue);
-  } catch (error: any) {
-    logger.error(`${context}: replay protection check failed`, { uidHex, counterValue, error: error.message });
+  } catch (error: unknown) {
+    logger.error(`${context}: replay protection check failed`, { uidHex, counterValue, error: getErrorMessage(error) });
     return { ok: false, status: 503, error: "Replay protection unavailable" };
   }
   if (!replayResult.accepted) {
@@ -114,7 +116,7 @@ export async function validateCardTap(request: Request, env: any, { pHex, cHex, 
   recordTapRead(env, uidHex, counterValue, {
     userAgent: request.headers.get("user-agent"),
     requestUrl: request.url,
-  }).catch((e: any) => logger.warn(`Failed to record ${context} tap`, { uidHex, counterValue, error: e.message }));
+  }).catch((e: any) => logger.warn(`Failed to record ${context} tap`, { uidHex, counterValue, error: getErrorMessage(e) }));
 
   return {
     ok: true,

@@ -1,4 +1,5 @@
 import { logger } from "../utils/logger.js";
+import { getErrorMessage } from "../utils/logger.js";
 import { errorResponse } from "../utils/responses.js";
 
 const ALLOWED_REQUEST_HEADERS: string[] = [
@@ -49,8 +50,8 @@ export async function handleProxy(request: Request, uidHex: string, pHex: string
         requestBodyLength: requestBody.length,
       });
     }
-  } catch (error: any) {
-    logger.error("Error reading proxy request body", { uidHex, error: error.message });
+  } catch (error: unknown) {
+    logger.error("Error reading proxy request body", { uidHex, error: getErrorMessage(error) });
   }
 
   const proxyHeaders = filterHeaders(request.headers, ALLOWED_REQUEST_HEADERS);
@@ -80,8 +81,8 @@ export async function handleProxy(request: Request, uidHex: string, pHex: string
       headers: filterHeaders(proxiedResponse.headers, ALLOWED_RESPONSE_HEADERS),
     });
 
-  } catch (error: any) {
-    logger.error("Error fetching from proxy", { uidHex, error: error.message });
+  } catch (error: unknown) {
+    logger.error("Error fetching from proxy", { uidHex, error: getErrorMessage(error) });
     return errorResponse("Proxy error", 500);
   }
 }

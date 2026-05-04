@@ -1,4 +1,5 @@
 import { listTaps, listTransactions } from "../replayProtection.js";
+import { getErrorMessage } from "../utils/logger.js";
 import { logger } from "./logger.js";
 import { HISTORY_LIMIT } from "./constants.js";
 
@@ -32,14 +33,14 @@ export async function getUnifiedHistory(env: any, uidHex: string): Promise<any[]
   try {
     const tapData = await listTaps(env, uidHex, HISTORY_LIMIT);
     taps = tapData.taps || [];
-  } catch (e: any) {
-    logger.warn("Could not load tap history", { uidHex, error: e.message });
+  } catch (e: unknown) {
+    logger.warn("Could not load tap history", { uidHex, error: getErrorMessage(e) });
   }
   try {
     const txData = await listTransactions(env, uidHex, HISTORY_LIMIT);
     transactions = txData.transactions || [];
-  } catch (e: any) {
-    logger.warn("Could not load transactions", { uidHex, error: e.message });
+  } catch (e: unknown) {
+    logger.warn("Could not load transactions", { uidHex, error: getErrorMessage(e) });
   }
   return _mergeHistory(taps, transactions);
 }

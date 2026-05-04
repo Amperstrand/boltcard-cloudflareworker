@@ -1,3 +1,5 @@
+import type { Env } from "./types/core.js";
+
 interface RateLimitOptions {
   maxRequests?: number;
   windowSeconds?: number;
@@ -9,11 +11,8 @@ interface RateLimitResult {
   resetAt: number;
 }
 
-interface EnvLike {
-  RATE_LIMITS?: KVNamespace;
-}
 
-export async function checkRateLimit(request: Request, env: EnvLike, options: RateLimitOptions = {}): Promise<RateLimitResult> {
+export async function checkRateLimit(request: Request, env: Env, options: RateLimitOptions = {}): Promise<RateLimitResult> {
   const maxRequests = options.maxRequests ?? 100;
   const windowSeconds = options.windowSeconds ?? 60;
 

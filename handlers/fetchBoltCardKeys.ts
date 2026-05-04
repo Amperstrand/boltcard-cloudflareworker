@@ -1,4 +1,7 @@
 import { getDeterministicKeys } from "../keygenerator.js";
+import type { CardStateRow } from "../types/core.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { decodeAndValidate, extractUIDAndCounter } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
@@ -11,7 +14,7 @@ import { logger } from "../utils/logger.js";
 
 const UID_OR_LNURLW_REQUIRED = "Must provide UID for programming, or LNURLW for reset";
 
-export async function fetchBoltCardKeys(request: Request, env: any): Promise<Response> {
+export async function fetchBoltCardKeys(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") {
     return errorResponse("Only POST allowed", 405);
   }
@@ -55,21 +58,21 @@ export async function fetchBoltCardKeys(request: Request, env: any): Promise<Res
     }
 
     return errorResponse(UID_OR_LNURLW_REQUIRED, 400);
-  } catch (err: any) {
-    logger.error("fetchBoltCardKeys error", { error: err.message });
+  } catch (err: unknown) {
+    logger.error("fetchBoltCardKeys error", { error: getErrorMessage(err) });
     return errorResponse("Internal error", 500);
   }
 }
 
-async function handleProgrammingFlow(uid: string, env: any, baseUrl: string, cardType: string, lightningAddress: string, minSendable: number, maxSendable: number): Promise<Response> {
+async function handleProgrammingFlow(uid: string, env: Env, baseUrl: string, cardType: string, lightningAddress: string, minSendable: number, maxSendable: number): Promise<Response> {
   const normalizedUid: string = uid.toLowerCase();
   const defaultPullPaymentId: string = env.DEFAULT_PULL_PAYMENT_ID || DEFAULT_PULL_PAYMENT_ID;
 
-  let cardState: any;
+  let cardState: CardStateRow;
   try {
     cardState = await getCardState(env, normalizedUid);
-  } catch (err: any) {
-    logger.error("Failed to get card state during programming", { uid: normalizedUid, error: err.message });
+  } catch (err: unknown) {
+    logger.error("Failed to get card state during programming", { uid: normalizedUid, error: getErrorMessage(err) });
     return errorResponse("Internal error", 500);
   }
 
@@ -89,8 +92,8 @@ async function handleProgrammingFlow(uid: string, env: any, baseUrl: string, car
         key_fingerprint: classified.fingerprint,
         key_label: classified.label,
       });
-    } catch (err: any) {
-      logger.warn("Failed to mark pending during programming", { uid: normalizedUid, error: err.message });
+    } catch (err: unknown) {
+      logger.warn("Failed to mark pending during programming", { uid: normalizedUid, error: getErrorMessage(err) });
     }
   }
 
@@ -110,8 +113,8 @@ async function handleProgrammingFlow(uid: string, env: any, baseUrl: string, car
     });
 
     await resetReplayProtection(env, normalizedUid);
-  } catch (err: any) {
-    logger.error("Programming flow: key delivery or config failed", { uid: normalizedUid, error: err.message });
+  } catch (err: unknown) {
+    logger.error("Programming flow: key delivery or config failed", { uid: normalizedUid, error: getErrorMessage(err) });
     return errorResponse("Internal error", 500);
   }
 
@@ -144,15 +147,15 @@ async function handleProgrammingFlow(uid: string, env: any, baseUrl: string, car
 
   try {
     await setCardConfig(env, normalizedUid, config);
-  } catch (err: any) {
-    logger.error("Programming flow: final config set failed", { uid: normalizedUid, error: err.message });
+  } catch (err: unknown) {
+    logger.error("Programming flow: final config set failed", { uid: normalizedUid, error: getErrorMessage(err) });
     return errorResponse("Internal error", 500);
   }
 
   return generateKeyResponse(normalizedUid, env, baseUrl, cardType, version);
 }
 
-async function handleResetFlow(lnurlw: string, env: any, baseUrl: string): Promise<Response> {
+async function handleResetFlow(lnurlw: string, env: Env, baseUrl: string): Promise<Response> {
   try {
     const lnurl = new URL(lnurlw);
     const pHex: string | null = lnurl.searchParams.get("p");
@@ -166,7 +169,7 @@ async function handleResetFlow(lnurlw: string, env: any, baseUrl: string): Promi
     if (!decryption.success) return errorResponse(decryption.error, 400);
     const { uidHex }: { uidHex: string } = decryption;
 
-    const cardState: any = await getCardState(env, uidHex);
+    const cardState: CardStateRow = await getCardState(env, uidHex);
 
     if (cardState.state !== CARD_STATE.ACTIVE && cardState.state !== CARD_STATE.TERMINATED && cardState.state !== CARD_STATE.NEW && cardState.state !== CARD_STATE.WIPE_REQUESTED) {
       return errorResponse("Card must be active or terminated to retrieve wipe keys", 409);
@@ -194,13 +197,13 @@ async function handleResetFlow(lnurlw: string, env: any, baseUrl: string): Promi
     }
 
     return generateKeyResponse(uidHex, env, baseUrl, "withdraw", wipeVersion);
-  } catch (err: any) {
-    logger.error("fetchBoltCardKeys reset flow error", { error: err.message });
+  } catch (err: unknown) {
+    logger.error("fetchBoltCardKeys reset flow error", { error: getErrorMessage(err) });
     return errorResponse("Internal error", 500);
   }
 }
 
-async function generateKeyResponse(uid: string, env: any, baseUrl: string, cardType: string = "withdraw", version: number = 1): Promise<Response> {
+async function generateKeyResponse(uid: string, env: Env, baseUrl: string, cardType: string = "withdraw", version: number = 1): Promise<Response> {
   const keys: any = getDeterministicKeys(uid, env, version);
   const host: string = baseUrl || DEFAULT_FALLBACK_HOST;
   const hostPart: string = host.replace(/^https?:\/\//, "");

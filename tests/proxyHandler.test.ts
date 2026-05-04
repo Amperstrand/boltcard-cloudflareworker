@@ -1,4 +1,3 @@
-// @ts-nocheck
 ;
 import { handleProxy } from "../handlers/proxyHandler.js";
 
@@ -15,7 +14,7 @@ describe("handleProxy", () => {
   });
 
   afterEach(() => {
-    globalThis.fetch.mockRestore();
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockRestore();
   });
 
   it("proxies GET request to target with p and c params", async () => {
@@ -25,7 +24,7 @@ describe("handleProxy", () => {
     expect(res.status).toBe(200);
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
 
-    const proxiedReq = globalThis.fetch.mock.calls[0][0];
+    const proxiedReq = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0];
     const proxiedUrl = new URL(proxiedReq.url);
     expect(proxiedUrl.origin).toBe("https://backend.example.com");
     expect(proxiedUrl.searchParams.get("p")).toBe("ABCD");
@@ -40,7 +39,7 @@ describe("handleProxy", () => {
       validationDeferred: false,
     });
 
-    const proxiedReq = globalThis.fetch.mock.calls[0][0];
+    const proxiedReq = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(proxiedReq.headers.get("X-BoltCard-CMAC-Validated")).toBe("true");
     expect(proxiedReq.headers.get("X-BoltCard-CMAC-Deferred")).toBe("false");
   });
@@ -52,7 +51,7 @@ describe("handleProxy", () => {
       validationDeferred: true,
     });
 
-    const proxiedReq = globalThis.fetch.mock.calls[0][0];
+    const proxiedReq = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(proxiedReq.headers.get("X-BoltCard-CMAC-Validated")).toBe("false");
     expect(proxiedReq.headers.get("X-BoltCard-CMAC-Deferred")).toBe("true");
   });
@@ -66,7 +65,7 @@ describe("handleProxy", () => {
     const req = new Request("https://test.local/");
     const res = await handleProxy(req, UID, "p", "c", "https://backend.example.com/tap", {});
     expect(res.status).toBe(200);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.tag).toBe("withdrawRequest");
   });
 
@@ -76,7 +75,7 @@ describe("handleProxy", () => {
     const req = new Request("https://test.local/");
     const res = await handleProxy(req, UID, "p", "c", "https://backend.example.com/tap", {});
     expect(res.status).toBe(500);
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.reason).toContain("Proxy error");
   });
 
@@ -94,7 +93,7 @@ describe("handleProxy", () => {
     const req = new Request("https://test.local/");
     await handleProxy(req, UID, "p", "c", "https://backend.example.com/tap", {});
 
-    const proxiedReq = globalThis.fetch.mock.calls[0][0];
+    const proxiedReq = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(proxiedReq.redirect).toBe("manual");
   });
 
@@ -107,7 +106,7 @@ describe("handleProxy", () => {
     const res = await handleProxy(req, UID, "p", "c", "https://backend.example.com/tap", {});
     expect(res.status).toBe(200);
 
-    const proxiedReq = globalThis.fetch.mock.calls[0][0];
+    const proxiedReq = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(proxiedReq.method).toBe("POST");
     const body = await proxiedReq.text();
     expect(body).toContain("lnbc10n1test");
@@ -139,7 +138,7 @@ describe("handleProxy", () => {
     });
     await handleProxy(req, UID, "p", "c", "https://backend.example.com/tap", {});
 
-    const proxiedReq = globalThis.fetch.mock.calls[0][0];
+    const proxiedReq = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(proxiedReq.headers.get("Content-Type")).toBe("application/json");
     expect(proxiedReq.headers.get("User-Agent")).toBe("test");
     expect(proxiedReq.headers.get("Cookie")).toBeNull();

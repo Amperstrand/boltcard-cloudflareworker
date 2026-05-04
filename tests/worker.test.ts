@@ -1,10 +1,8 @@
-// @ts-nocheck
-import { handleRequest } from "../index.js"; // Import the handleRequest function for testing
-;
+import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
 
-const env = {
+const env: Record<string, unknown> = {
   BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
   CLN_PROTOCOL: "https",
   CLN_IP: "192.0.2.10",
@@ -14,7 +12,7 @@ const env = {
   ...TEST_OPERATOR_AUTH,
 };
 
-const LEGACY_UID_CONFIGS = {
+const LEGACY_UID_CONFIGS: Record<string, string> = {
   "04996c6a926980": JSON.stringify({
     K2: "B45775776CB224C75BCDE7CA3704E933",
     payment_method: "clnrest",
@@ -40,53 +38,52 @@ const LEGACY_UID_CONFIGS = {
   }),
 };
 
-const DO_CARD_CONFIGS = {
+const DO_CARD_CONFIGS: Record<string, Record<string, unknown>> = {
   "04996c6a926980": JSON.parse(LEGACY_UID_CONFIGS["04996c6a926980"]),
   "044561fa967380": JSON.parse(LEGACY_UID_CONFIGS["044561fa967380"]),
 };
 
-const seedDoConfigs = (replay, configs = DO_CARD_CONFIGS) => {
+const seedDoConfigs = (replay: ReturnType<typeof makeReplayNamespace>, configs: Record<string, unknown> = DO_CARD_CONFIGS) => {
   Object.entries(configs).forEach(([uid, config]) => {
-    replay.__cardConfigs.set(uid.toLowerCase(), config);
+    (replay as any).__cardConfigs.set(uid.toLowerCase(), config);
   });
   return replay;
 };
 
-seedDoConfigs(env.CARD_REPLAY);
+seedDoConfigs(env.CARD_REPLAY as ReturnType<typeof makeReplayNamespace>);
 
 env.UID_CONFIG = {
-  get: async (key) => LEGACY_UID_CONFIGS[key] ?? null,
+  get: async (key: string) => LEGACY_UID_CONFIGS[key] ?? null,
   put: async () => {},
 };
 
 const baseEnv = env;
 
-const makeKvEnv = (initialStore = {}) => {
+const makeKvEnv = (initialStore: Record<string, string> = {}) => {
   const kvStore = { ...LEGACY_UID_CONFIGS, ...initialStore };
   const replay = seedDoConfigs(makeReplayNamespace());
   return {
     ...baseEnv,
     UID_CONFIG: {
-      get: async (key) => kvStore[key] ?? null,
-      put: async (key, value) => {
+      get: async (key: string) => kvStore[key] ?? null,
+      put: async (key: string, value: string) => {
         kvStore[key] = value;
       },
     },
     CARD_REPLAY: replay,
     __kvStore: kvStore,
-    __replayStore: replay.__counters,
+    __replayStore: (replay as any).__counters,
   };
 };
 
-// Helper function to send requests to the Worker
-async function makeRequest(path, method = "GET", body = null, requestEnv = env) {
-  const url = "https://test.local" + path; // Use a mock domain
-  const options = { method };
+async function makeRequest(path: string, method = "GET", body: Record<string, unknown> | null = null, requestEnv: Record<string, unknown> = env) {
+  const url = "https://test.local" + path;
+  const options: RequestInit & { headers?: Record<string, string> } = { method };
   if (body) {
     options.body = JSON.stringify(body);
     options.headers = { "Content-Type": "application/json" };
   }
-  return handleRequest(new Request(url, options), requestEnv); // Pass the environment
+  return handleRequest(new Request(url, options), requestEnv as unknown as Env);
 }
 
 describe("Cloudflare Worker Tests", () => {
@@ -96,7 +93,7 @@ describe("Cloudflare Worker Tests", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
 
     expect(json).toMatchObject({
       tag: "withdrawRequest",
@@ -114,7 +111,7 @@ describe("Cloudflare Worker Tests", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     
     expect(json).toMatchObject({
       tag: "withdrawRequest",
@@ -138,7 +135,7 @@ describe("Cloudflare Worker Tests", () => {
     );
 
     expect(response.status).toBe(405);
-    const body = await response.json();
+    const body = await response.json() as Record<string, unknown>;
     expect(body.status).toBe("ERROR");
     expect(body.reason).toContain("Method Not Allowed");
   });
@@ -155,12 +152,11 @@ describe("Cloudflare Worker Tests", () => {
     );
 
     expect(response.status).toBe(405);
-    const body2 = await response.json();
+    const body2 = await response.json() as Record<string, unknown>;
     expect(body2.status).toBe("ERROR");
     expect(body2.reason).toContain("Method Not Allowed");
   });
 
-  // New test case for Pull Payment with KeepVersion
   test("should handle pull payment with KeepVersion", async () => {
     const response = await makeRequest(
       "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=KeepVersion",
@@ -171,7 +167,7 @@ describe("Cloudflare Worker Tests", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
 
     expect(json).toMatchObject({
       PROTOCOL_NAME: "NEW_BOLT_CARD_RESPONSE",
@@ -189,12 +185,13 @@ describe("Cloudflare Worker Tests", () => {
 
   test("should proxy relay with DO-backed proxy config", async () => {
     const originalFetch = global.fetch;
-    global.fetch = vi.fn(async () => new Response(JSON.stringify({ status: "OK" }), {
+    const mockFetch = vi.fn(async () => new Response(JSON.stringify({ status: "OK" }), {
       status: 200,
       headers: { "Content-Type": "application/json" }
     }));
+    global.fetch = mockFetch;
 
-    const proxyEnv = {
+    const proxyEnv: Record<string, unknown> = {
       ...env,
       CARD_REPLAY: seedDoConfigs(makeReplayNamespace(), {
         "04996c6a926980": {
@@ -204,9 +201,9 @@ describe("Cloudflare Worker Tests", () => {
             baseurl: "https://relay.example.com/boltcards/api/v1/scan/test-backend"
           }
         },
-      }),
+      } as Record<string, unknown>),
       UID_CONFIG: {
-        get: async (uid) => uid === "04996c6a926980"
+        get: async (uid: string) => uid === "04996c6a926980"
           ? JSON.stringify({
               K2: "B45775776CB224C75BCDE7CA3704E933",
               payment_method: "proxy",
@@ -222,13 +219,13 @@ describe("Cloudflare Worker Tests", () => {
     try {
       const response = await handleRequest(
         new Request("https://test.local/?p=4E2E289D945A66BB13377A728884E867&c=E19CCB1FED8892CE"),
-        proxyEnv
+        proxyEnv as unknown as Env
       );
 
       expect(response.status).toBe(200);
-      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
 
-      const proxiedRequest = global.fetch.mock.calls[0][0];
+      const proxiedRequest = ((mockFetch.mock.calls as unknown[][])[0] as unknown[])[0] as Request;
       expect(proxiedRequest.url).toContain("https://relay.example.com/boltcards/api/v1/scan/test-backend");
       expect(proxiedRequest.url).toContain("p=4E2E289D945A66BB13377A728884E867");
       expect(proxiedRequest.url).toContain("c=E19CCB1FED8892CE");
@@ -241,15 +238,15 @@ describe("Cloudflare Worker Tests", () => {
   });
 
   test("should still require K2 for local withdraw responses", async () => {
-    const localEnv = {
+    const localEnv: Record<string, unknown> = {
       ...env,
       CARD_REPLAY: seedDoConfigs(makeReplayNamespace(), {
         "04996c6a926980": {
           payment_method: "clnrest",
         },
-      }),
+      } as Record<string, unknown>),
       UID_CONFIG: {
-        get: async (uid) => uid === "04996c6a926980"
+        get: async (uid: string) => uid === "04996c6a926980"
           ? JSON.stringify({ payment_method: "clnrest" })
           : null,
         put: async () => {},
@@ -258,11 +255,11 @@ describe("Cloudflare Worker Tests", () => {
 
     const response = await handleRequest(
       new Request("https://test.local/?p=4E2E289D945A66BB13377A728884E867&c=E19CCB1FED8892CE"),
-      localEnv
+      localEnv as unknown as Env
     );
 
     expect(response.status).toBe(403);
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json.reason || json.error).toMatch(/CMAC|K2/i);
   });
 
@@ -277,20 +274,18 @@ describe("Cloudflare Worker Tests", () => {
       const response = await makeRequest(counterThreePath, "GET", null, kvEnv);
 
       expect(response.status).toBe(200);
-      expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(true);
-      expect(kvEnv.__replayStore.get("04996c6a926980")).toBe(3);
+      expect((kvEnv.__replayStore as Map<string, number>).has("04996c6a926980")).toBe(true);
+      expect((kvEnv.__replayStore as Map<string, number>).get("04996c6a926980")).toBe(3);
     });
 
     test("replay is rejected only if counter was previously recorded", async () => {
-      // Simulate counter=3 already recorded (from a previous Step 2 callback)
-      const kvEnv = makeKvEnv();
+      const kvEnv = makeKvEnv() as Record<string, unknown>;
       kvEnv.CARD_REPLAY = seedDoConfigs(makeReplayNamespace({ "04996c6a926980": 3 }));
-      kvEnv.__replayStore = kvEnv.CARD_REPLAY.__counters;
+      kvEnv.__replayStore = (kvEnv.CARD_REPLAY as any).__counters;
 
-      // Same counter=3 in Step 1 -> rejected because stored counter=3
       const replayResponse = await makeRequest(counterThreePath, "GET", null, kvEnv);
       expect(replayResponse.status).toBe(409);
-      const json = await replayResponse.json();
+      const json = await replayResponse.json() as Record<string, unknown>;
       expect(json.reason || json.error).toMatch(/replay|counter/i);
     });
 
@@ -299,42 +294,38 @@ describe("Cloudflare Worker Tests", () => {
       const first = await makeRequest(counterThreePath, "GET", null, kvEnv);
       expect(first.status).toBe(200);
 
-      // Second call with same counter is rejected because counter was atomically advanced
       const second = await makeRequest(counterThreePath, "GET", null, kvEnv);
       expect(second.status).toBe(409);
     });
 
     test("incrementing counter succeeds", async () => {
-      const kvEnv = makeKvEnv({ [counterKey]: "3" });
+      const kvEnv = makeKvEnv({ [counterKey]: "3" }) as Record<string, unknown>;
       kvEnv.CARD_REPLAY = seedDoConfigs(makeReplayNamespace({ "04996c6a926980": 3 }));
-      kvEnv.__replayStore = kvEnv.CARD_REPLAY.__counters;
+      kvEnv.__replayStore = (kvEnv.CARD_REPLAY as any).__counters;
 
       const response = await makeRequest(counterFivePath, "GET", null, kvEnv);
 
       expect(response.status).toBe(200);
-      expect(kvEnv.__replayStore.get("04996c6a926980")).toBe(5);
+      expect((kvEnv.__replayStore as Map<string, number>).get("04996c6a926980")).toBe(5);
     });
 
     test("wipe resets replay state for reprovisioned cards", async () => {
-      const kvEnv = makeKvEnv();
+      const kvEnv = makeKvEnv() as Record<string, unknown>;
 
-      // Card must be active for handleReset to call terminateCard (which resets replay)
-      kvEnv.CARD_REPLAY.__activate("04996c6a926980", 1);
+      (kvEnv.CARD_REPLAY as any).__activate("04996c6a926980", 1);
 
       const firstTap = await makeRequest(counterThreePath, "GET", null, kvEnv);
       expect(firstTap.status).toBe(200);
-      expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(true);
-      expect(kvEnv.__replayStore.get("04996c6a926980")).toBe(3);
+      expect((kvEnv.__replayStore as Map<string, number>).has("04996c6a926980")).toBe(true);
+      expect((kvEnv.__replayStore as Map<string, number>).get("04996c6a926980")).toBe(3);
 
       const wipeResponse = await handleRequest(
         new Request("https://test.local/wipe?uid=04996c6a926980"),
-        kvEnv
+        kvEnv as unknown as Env
       );
       expect(wipeResponse.status).toBe(200);
-      // Wipe terminates card and clears the counter
-      expect(kvEnv.__replayStore.has("04996c6a926980")).toBe(false);
+      expect((kvEnv.__replayStore as Map<string, number>).has("04996c6a926980")).toBe(false);
 
-      // Card is now terminated — tapping returns 403
       const blockedTap = await makeRequest(counterThreePath, "GET", null, kvEnv);
       expect(blockedTap.status).toBe(403);
     });

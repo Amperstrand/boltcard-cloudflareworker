@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { handleCardPage, handleCardInfo, handleCardLock, handleCardReactivate } from "../handlers/cardDashboardHandler.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { virtualTap, buildCardTestEnv } from "./testHelpers.js";
@@ -6,14 +5,14 @@ import { virtualTap, buildCardTestEnv } from "./testHelpers.js";
 const UID = "ff000000000001";
 const ISSUER_KEY = "00000000000000000000000000000001";
 
-function makeTapRequest(uid, issuerKey, counter) {
-  const keys = getDeterministicKeys(uid, { ISSUER_KEY: issuerKey }, 1);
+function makeTapRequest(uid: string, issuerKey: string, counter: number) {
+  const keys = getDeterministicKeys(uid, { ISSUER_KEY: issuerKey } as any, 1);
   const { pHex, cHex } = virtualTap(uid, counter, keys.k1, keys.k2);
   return new Request(`https://test.local/card/info?p=${pHex}&c=${cHex}`);
 }
 
-function setCardState(env, uid, overrides) {
-  const state = env.CARD_REPLAY.__cardStates.get(uid);
+function setCardState(env: any, uid: string, overrides: Record<string, any>) {
+  const state = (env.CARD_REPLAY as any).__cardStates.get(uid);
   Object.assign(state, overrides);
 }
 
@@ -72,7 +71,7 @@ describe("handleCardInfo", () => {
       const req = new Request("https://test.local/card/info?p=deadbeef&c=cafe");
       const res = await handleCardInfo(req, env);
       expect(res.status).toBe(400);
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, any>;
       expect(body.reason).toBe("Invalid card data");
       expect(body.reason).not.toContain("decrypt");
     });
@@ -86,7 +85,7 @@ describe("handleCardInfo", () => {
       const res = await handleCardInfo(makeTapRequest(UID, ISSUER_KEY, 1), env);
       expect(res.status).toBe(200);
 
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, any>;
       expect(body.uid).toBe(UID);
       expect(body.maskedUid).toBeDefined();
       expect(body.state).toBe("active");
@@ -112,7 +111,7 @@ describe("handleCardInfo", () => {
       const res = await handleCardInfo(makeTapRequest(UID, ISSUER_KEY, 1), env);
       expect(res.status).toBe(200);
 
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, any>;
       expect(body.state).toBe("terminated");
       expect(body.programmingRecommended).toBe(false);
       expect(body.history).toEqual([]);
@@ -127,14 +126,14 @@ describe("handleCardInfo", () => {
       const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
       setCardState(env, UID, { state: "terminated", latest_issued_version: 1 });
 
-      const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+      const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
       const { pHex } = virtualTap(UID, 1, keys.k1, keys.k2);
       const req = new Request(`https://test.local/card/info?p=${pHex}&c=00000000000000000000000000000000`);
 
       const res = await handleCardInfo(req, env);
       expect(res.status).toBe(200);
 
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, any>;
       expect(body.state).toBe("terminated");
       expect(body.reactivationAvailable).toBe(false);
     });
@@ -146,7 +145,7 @@ describe("handleCardInfo", () => {
       const res = await handleCardInfo(makeTapRequest(UID, ISSUER_KEY, 1), env);
       expect(res.status).toBe(200);
 
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, any>;
       expect(body.balance).toBe(5000);
     });
 
@@ -162,7 +161,7 @@ describe("handleCardInfo", () => {
       const res = await handleCardInfo(makeTapRequest(UID, ISSUER_KEY, 1), env);
       expect(res.status).toBe(200);
 
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, any>;
       expect(body.state).toBe("discovered");
       expect(body.firstSeenAt).toBe(1700000000);
     });
@@ -174,7 +173,7 @@ describe("handleCardInfo", () => {
       const res = await handleCardInfo(makeTapRequest(UID, ISSUER_KEY, 1), env);
       expect(res.status).toBe(200);
 
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, any>;
       expect(body.state).toBe("wipe_requested");
     });
 
@@ -184,7 +183,7 @@ describe("handleCardInfo", () => {
       const res = await handleCardInfo(makeTapRequest(UID, ISSUER_KEY, 1), env);
       expect(res.status).toBe(200);
 
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, any>;
       expect(body.state).toBe("new");
       expect(body.programmingRecommended).toBe(false);
       expect(body.balance).toBe(0);
@@ -193,12 +192,12 @@ describe("handleCardInfo", () => {
 
     it("returns partial info for keys_delivered card with no K2 in config", async () => {
       const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, cardState: "keys_delivered" });
-      env.CARD_REPLAY.__cardConfigs.delete(UID);
+      (env.CARD_REPLAY as any).__cardConfigs.delete(UID);
 
       const res = await handleCardInfo(makeTapRequest(UID, ISSUER_KEY, 1), env);
       expect(res.status).toBe(200);
 
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, any>;
       expect(body.state).toBe("keys_delivered");
       expect(body.balance).toBe(0);
     });
@@ -207,7 +206,7 @@ describe("handleCardInfo", () => {
   describe("CMAC validation", () => {
     it("returns 403 for invalid CMAC", async () => {
       const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY });
-      const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+      const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
       const { pHex } = virtualTap(UID, 1, keys.k1, keys.k2);
 
       const req = new Request(`https://test.local/card/info?p=${pHex}&c=00000000000000000000000000000000`);
@@ -231,7 +230,7 @@ describe("handleCardInfo", () => {
       setCardState(env, UID, { key_provenance: "public_issuer" });
 
       const res = await handleCardInfo(makeTapRequest(UID, ISSUER_KEY, 1), env);
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, any>;
       expect(body.programmingRecommended).toBe(true);
     });
 
@@ -240,7 +239,7 @@ describe("handleCardInfo", () => {
       setCardState(env, UID, { key_provenance: "env_issuer" });
 
       const res = await handleCardInfo(makeTapRequest(UID, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 1), env);
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, any>;
       expect(body.programmingRecommended).toBe(false);
     });
 
@@ -249,7 +248,7 @@ describe("handleCardInfo", () => {
       setCardState(env, UID, { key_provenance: "unknown" });
 
       const res = await handleCardInfo(makeTapRequest(UID, ISSUER_KEY, 1), env);
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, any>;
       expect(body.programmingRecommended).toBe(false);
     });
 
@@ -258,19 +257,19 @@ describe("handleCardInfo", () => {
       setCardState(env, UID, { key_provenance: "user_provisioned" });
 
       const res = await handleCardInfo(makeTapRequest(UID, ISSUER_KEY, 1), env);
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, any>;
       expect(body.programmingRecommended).toBe(false);
     });
   });
 
   describe("graceful degradation", () => {
-    function interceptDo(env, uid, pathToBlock) {
-      const originalGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
-      env.CARD_REPLAY.get = (id) => {
+    function interceptDo(env: any, uid: string, pathToBlock: string) {
+      const originalGet = (env.CARD_REPLAY as any).get.bind(env.CARD_REPLAY);
+      (env as any).CARD_REPLAY.get = (id: any) => {
         const stub = originalGet(id);
-        const origFetch = stub.fetch;
+        const origFetch = stub.fetch.bind(stub);
         return {
-          fetch: async (req) => {
+          fetch: async (req: Request) => {
             const url = new URL(req.url);
             if (String(id).toLowerCase() === uid && url.pathname === pathToBlock) {
               return new Response("Internal error", { status: 500 });
@@ -283,49 +282,49 @@ describe("handleCardInfo", () => {
 
     it("returns balance 0 when getBalance fails", async () => {
       const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet", balance: 5000 });
-      env.CARD_REPLAY.__cardStates.get(UID).key_provenance = "env_issuer";
+      (env.CARD_REPLAY as any).__cardStates.get(UID).key_provenance = "env_issuer";
       interceptDo(env, UID, "/balance");
 
       const res = await handleCardInfo(makeTapRequest(UID, ISSUER_KEY, 1), env);
       expect(res.status).toBe(200);
 
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, any>;
       expect(body.balance).toBe(0);
     });
 
     it("returns empty history when listTaps fails", async () => {
       const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
-      env.CARD_REPLAY.__cardStates.get(UID).key_provenance = "env_issuer";
+      (env.CARD_REPLAY as any).__cardStates.get(UID).key_provenance = "env_issuer";
       interceptDo(env, UID, "/list-taps");
 
       const res = await handleCardInfo(makeTapRequest(UID, ISSUER_KEY, 1), env);
       expect(res.status).toBe(200);
 
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, any>;
       expect(body.history).toEqual([]);
     });
 
     it("returns 503 when card state DO is unreachable", async () => {
       const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY });
       env.CARD_REPLAY = {
-        idFromName: () => "test",
+        idFromName: () => "test" as any,
         get: () => ({
           fetch: async () => new Response("unavailable", { status: 503 }),
         }),
-      };
+      } as any;
 
       const res = await handleCardInfo(makeTapRequest(UID, ISSUER_KEY, 1), env);
       expect(res.status).toBe(503);
 
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, any>;
       expect(body.reason).toBe("Card state unavailable");
     });
   });
 });
 
 describe("handleCardLock", () => {
-  function makeLockRequest(uid, issuerKey, counter) {
-    const keys = getDeterministicKeys(uid, { ISSUER_KEY: issuerKey }, 1);
+  function makeLockRequest(uid: string, issuerKey: string, counter: number) {
+    const keys = getDeterministicKeys(uid, { ISSUER_KEY: issuerKey } as any, 1);
     const { pHex, cHex } = virtualTap(uid, counter, keys.k1, keys.k2);
     return new Request("https://test.local/api/card/lock", {
       method: "POST",
@@ -339,11 +338,11 @@ describe("handleCardLock", () => {
     const res = await handleCardLock(makeLockRequest(UID, ISSUER_KEY, 1), env);
     expect(res.status).toBe(200);
 
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     expect(body.success).toBe(true);
     expect(body.state).toBe("terminated");
 
-    const state = env.CARD_REPLAY.__cardStates.get(UID);
+    const state = (env.CARD_REPLAY as any).__cardStates.get(UID);
     expect(state.state).toBe("terminated");
   });
 
@@ -354,7 +353,7 @@ describe("handleCardLock", () => {
     const res = await handleCardLock(makeLockRequest(UID, ISSUER_KEY, 1), env);
     expect(res.status).toBe(200);
 
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     expect(body.success).toBe(true);
   });
 
@@ -394,7 +393,7 @@ describe("handleCardLock", () => {
     const res = await handleCardLock(makeLockRequest(UID, ISSUER_KEY, 1), env);
     expect(res.status).toBe(400);
 
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     expect(body.reason).toBe("Card is already locked");
   });
 
@@ -405,13 +404,13 @@ describe("handleCardLock", () => {
     const res = await handleCardLock(makeLockRequest(UID, ISSUER_KEY, 1), env);
     expect(res.status).toBe(400);
 
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     expect(body.reason).toContain("pending");
   });
 
   it("rejects invalid CMAC", async () => {
     const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex } = virtualTap(UID, 1, keys.k1, keys.k2);
 
     const req = new Request("https://test.local/api/card/lock", {
@@ -435,13 +434,13 @@ describe("handleCardLock", () => {
   });
 
   it("returns 500 when DO terminate fails", async () => {
-    const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
+     const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
     const originalGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
-    env.CARD_REPLAY.get = (id) => {
+    (env.CARD_REPLAY as any).get = (id: any) => {
       const stub = originalGet(id);
-      const origFetch = stub.fetch;
+      const origFetch = stub.fetch.bind(stub);
       return {
-        fetch: async (req) => {
+        fetch: async (req: Request) => {
           const url = new URL(req.url);
           if (String(id).toLowerCase() === UID && url.pathname === "/terminate") {
             return new Response("Internal error", { status: 500 });
@@ -457,8 +456,8 @@ describe("handleCardLock", () => {
 });
 
 describe("handleCardReactivate", () => {
-  function makeReactivateRequest(uid, issuerKey, counter) {
-    const keys = getDeterministicKeys(uid, { ISSUER_KEY: issuerKey }, 1);
+  function makeReactivateRequest(uid: string, issuerKey: string, counter: number) {
+    const keys = getDeterministicKeys(uid, { ISSUER_KEY: issuerKey } as any, 1);
     const { pHex, cHex } = virtualTap(uid, counter, keys.k1, keys.k2);
     return new Request("https://test.local/api/card/reactivate", {
       method: "POST",
@@ -474,13 +473,13 @@ describe("handleCardReactivate", () => {
     const res = await handleCardReactivate(makeReactivateRequest(UID, ISSUER_KEY, 1), env);
     expect(res.status).toBe(200);
 
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     expect(body.success).toBe(true);
     expect(body.state).toBe("keys_delivered");
     expect(body.uid).toBe(UID);
     expect(body.version).toBe(4);
 
-    const state = env.CARD_REPLAY.__cardStates.get(UID);
+    const state = (env.CARD_REPLAY as any).__cardStates.get(UID);
     expect(state.state).toBe("keys_delivered");
     expect(state.latest_issued_version).toBe(4);
   });
@@ -492,8 +491,8 @@ describe("handleCardReactivate", () => {
     const res = await handleCardReactivate(makeReactivateRequest(UID, ISSUER_KEY, 1), env);
     expect(res.status).toBe(200);
 
-    const state = env.CARD_REPLAY.__cardStates.get(UID);
-    expect(state.balance).toBe(5000);
+    const state2 = (env.CARD_REPLAY as any).__cardStates.get(UID);
+    expect(state2.balance).toBe(5000);
   });
 
   it("rejects GET request", async () => {
@@ -520,7 +519,7 @@ describe("handleCardReactivate", () => {
     const res = await handleCardReactivate(makeReactivateRequest(UID, ISSUER_KEY, 1), env);
     expect(res.status).toBe(400);
 
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     expect(body.reason).toContain("not terminated");
   });
 
@@ -528,7 +527,7 @@ describe("handleCardReactivate", () => {
     const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
     setCardState(env, UID, { state: "terminated", latest_issued_version: 1 });
 
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex } = virtualTap(UID, 1, keys.k1, keys.k2);
     const req = new Request("https://test.local/api/card/reactivate", {
       method: "POST",
@@ -553,12 +552,12 @@ describe("handleCardReactivate", () => {
   it("returns 500 when deliverKeys fails", async () => {
     const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
     setCardState(env, UID, { state: "terminated", latest_issued_version: 1 });
-    const originalGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
-    env.CARD_REPLAY.get = (id) => {
+     const originalGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
+    (env.CARD_REPLAY as any).get = (id: any) => {
       const stub = originalGet(id);
-      const origFetch = stub.fetch;
+      const origFetch = stub.fetch.bind(stub);
       return {
-        fetch: async (req) => {
+        fetch: async (req: Request) => {
           const url = new URL(req.url);
           if (String(id).toLowerCase() === UID && url.pathname === "/deliver-keys") {
             return new Response("Internal error", { status: 500 });

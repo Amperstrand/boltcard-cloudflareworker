@@ -1,12 +1,12 @@
-// @ts-nocheck
-import { getDeterministicKeys } from "../keygenerator.js"; // Ensure correct path
+import { getDeterministicKeys } from "../keygenerator.js";
 import { bytesToHex } from "../cryptoutils.js";
 import { extractUIDAndCounter } from "../boltCardHelper.js";
 import { getBoltCardK1 } from "../getUidConfig.js";
+import type { Env } from "../types/core.js";
 
 test("Generate deterministic keys for known UID", async () => {
   const uid = "04a39493cc8680";
-  const keys = getDeterministicKeys(uid);
+  const keys = getDeterministicKeys(uid, undefined, 1);
 
   const expectedKeys = {
     k0: "a29119fcb48e737d1591d3489557e49b",
@@ -28,7 +28,7 @@ test("Generate deterministic keys for known UID", async () => {
 });
 
 test("getBoltCardK1 derives deterministic K1 from ISSUER_KEY when explicit K1 is absent", async () => {
-  const env = { ISSUER_KEY: "00000000000000000000000000000001" };
+  const env = { ISSUER_KEY: "00000000000000000000000000000001" } as unknown as Env;
 
   const derivedK1Keys = getBoltCardK1(env);
   const deterministicKeys = getDeterministicKeys("04a39493cc8680", env);
@@ -50,24 +50,24 @@ test("extractUIDAndCounter works with ISSUER_KEY-only env", () => {
 });
 
 test("getDeterministicKeys throws in production when ISSUER_KEY is missing", () => {
-  const prodEnv = { WORKER_ENV: "production" };
+  const prodEnv = { WORKER_ENV: "production" } as unknown as Env;
   expect(() => getDeterministicKeys("04a39493cc8680", prodEnv)).toThrow("ISSUER_KEY must be set in production");
 });
 
 test("getDeterministicKeys uses fallback in dev when ISSUER_KEY is missing", async () => {
-  const devEnv = {};
+  const devEnv = {} as Env;
   const keys = getDeterministicKeys("04a39493cc8680", devEnv);
   expect(keys.k0).toBe("a29119fcb48e737d1591d3489557e49b");
 });
 
 test("getDeterministicKeys throws for empty uidHex", () => {
-  expect(() => getDeterministicKeys("", {})).toThrow(/Invalid UID.*no characters/);
+  expect(() => getDeterministicKeys("", {} as Env)).toThrow(/Invalid UID.*no characters/);
 });
 
 test("getDeterministicKeys throws for null uidHex", () => {
-  expect(() => getDeterministicKeys(null, {})).toThrow(/Invalid UID.*no characters/);
+  expect(() => getDeterministicKeys(null as any, {} as Env)).toThrow(/Invalid UID.*no characters/);
 });
 
 test("getDeterministicKeys throws for short uidHex", () => {
-  expect(() => getDeterministicKeys("04a394", {})).toThrow(/Invalid UID.*6 characters/);
+  expect(() => getDeterministicKeys("04a394", {} as Env)).toThrow(/Invalid UID.*6 characters/);
 });

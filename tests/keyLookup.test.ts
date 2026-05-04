@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { getAllIssuerKeyCandidates, _getIssuerKeysForDomain, getPerCardKeys, _getPerCardDomains, getUniquePerCardK1s, fingerprintHex, classifyIssuerKey } from "../utils/keyLookup.js";
 import { PERCARD_KEYS } from "../utils/generatedKeyData.js";
 import { KEY_PROVENANCE } from "../utils/constants.js";
@@ -31,14 +30,14 @@ describe("keyLookup — issuer key lookup", () => {
 
 describe("keyLookup — getAllIssuerKeyCandidates", () => {
   test("includes env ISSUER_KEY first", () => {
-    const env = { ISSUER_KEY: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" };
+    const env = { ISSUER_KEY: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" } as any;
     const candidates = getAllIssuerKeyCandidates(env);
     expect(candidates[0].hex).toBe("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     expect(candidates[0].label).toBe("current");
   });
 
   test("includes RECOVERY_ISSUER_KEYS from env", () => {
-    const env = { RECOVERY_ISSUER_KEYS: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,cccccccccccccccccccccccccccccccc" };
+    const env = { RECOVERY_ISSUER_KEYS: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,cccccccccccccccccccccccccccccccc" } as any;
     const candidates = getAllIssuerKeyCandidates(env);
     const hexes = candidates.map((c) => c.hex);
     expect(hexes).toContain("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
@@ -46,14 +45,14 @@ describe("keyLookup — getAllIssuerKeyCandidates", () => {
   });
 
   test("deduplicates keys", () => {
-    const env = { ISSUER_KEY: "00000000000000000000000000000001" };
+    const env = { ISSUER_KEY: "00000000000000000000000000000001" } as any;
     const candidates = getAllIssuerKeyCandidates(env);
     const count01 = candidates.filter((c) => c.hex === "00000000000000000000000000000001").length;
     expect(count01).toBe(1);
   });
 
   test("returns CSV keys when no env set", () => {
-    const candidates = getAllIssuerKeyCandidates({});
+    const candidates = getAllIssuerKeyCandidates(undefined);
     const hexes = candidates.map((c) => c.hex);
     expect(hexes).toContain("b0733959686c5da274123084b5c07820");
     expect(hexes).toContain("00000000000000000000000000000000");
@@ -66,8 +65,7 @@ describe("keyLookup — per-card keys", () => {
   });
 
   test("returns per-card entry by UID", () => {
-    const entry = getPerCardKeys("040a69fa967380");
-    expect(entry).not.toBeNull();
+    const entry = getPerCardKeys("040a69fa967380")!;
     expect(entry.k0).toBe("d6672015edcef27c2615e76be0f3f4a2");
     expect(entry.k1).toBe("3db8852a71d11fa0adb6babaf274af89");
     expect(entry.k2).toBe("ce08c57983d65fceaa571e248390790f");
@@ -137,50 +135,45 @@ describe("keyLookup — fingerprintHex", () => {
 
 describe("keyLookup — classifyIssuerKey", () => {
   test("classifies public key from generatedKeyData", () => {
-    const env = {};
-    const result = classifyIssuerKey(env, "00000000000000000000000000000000");
+    const result = classifyIssuerKey({} as any, "00000000000000000000000000000000");
     expect(result.provenance).toBe(KEY_PROVENANCE.PUBLIC_ISSUER);
     expect(result.label).toBe("all-zeros");
     expect(result.fingerprint).toHaveLength(16);
   });
 
   test("classifies domain-specific public key", () => {
-    const env = {};
-    const result = classifyIssuerKey(env, "b0733959686c5da274123084b5c07820");
+    const result = classifyIssuerKey({} as any, "b0733959686c5da274123084b5c07820");
     expect(result.provenance).toBe(KEY_PROVENANCE.PUBLIC_ISSUER);
     expect(result.label).toBe("boltpoc-1");
   });
 
   test("classifies env key that is not public as env_issuer", () => {
-    const env = { ISSUER_KEY: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" };
-    const result = classifyIssuerKey(env, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    const result = classifyIssuerKey({ ISSUER_KEY: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" } as any, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     expect(result.provenance).toBe(KEY_PROVENANCE.ENV_ISSUER);
     expect(result.label).toBe("current");
   });
 
   test("classifies public key even when it matches env ISSUER_KEY", () => {
-    const env = { ISSUER_KEY: "00000000000000000000000000000000" };
-    const result = classifyIssuerKey(env, "00000000000000000000000000000000");
+    const result = classifyIssuerKey({ ISSUER_KEY: "00000000000000000000000000000000" } as any, "00000000000000000000000000000000");
     expect(result.provenance).toBe(KEY_PROVENANCE.PUBLIC_ISSUER);
   });
 
   test("classifies unknown key not in env or public set", () => {
-    const env = { ISSUER_KEY: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" };
-    const result = classifyIssuerKey(env, "ffffffffffffffffffffffffffffffff");
+    const result = classifyIssuerKey({ ISSUER_KEY: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" } as any, "ffffffffffffffffffffffffffffffff");
     expect(result.provenance).toBe(KEY_PROVENANCE.UNKNOWN);
     expect(result.label).toContain("ffffffff");
   });
 
   test("returns unknown for null/undefined key", () => {
-    const result = classifyIssuerKey({}, null);
+    const result = classifyIssuerKey({} as any, null as unknown as string | undefined);
     expect(result.provenance).toBe(KEY_PROVENANCE.UNKNOWN);
     expect(result.label).toBeNull();
     expect(result.fingerprint).toBeNull();
   });
 
   test("is case-insensitive", () => {
-    const upper = classifyIssuerKey({}, "00000000000000000000000000000000");
-    const lower = classifyIssuerKey({}, "00000000000000000000000000000000".toUpperCase());
+    const upper = classifyIssuerKey({} as any, "00000000000000000000000000000000");
+    const lower = classifyIssuerKey({} as any, "00000000000000000000000000000000".toUpperCase());
     expect(upper.provenance).toBe(lower.provenance);
     expect(upper.fingerprint).toBe(lower.fingerprint);
   });

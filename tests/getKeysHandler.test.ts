@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { handleRequest } from "../index.js";
 import { buildCardTestEnv } from "./testHelpers.js";
 
@@ -6,9 +5,9 @@ const env = buildCardTestEnv({ operatorAuth: true });
 
 const VALID_UID = "040660fa967380";
 
-async function makeRequest(path, method = "GET", body = null, requestEnv = env) {
+async function makeRequest(path: string, method = "GET", body: Record<string, unknown> | null = null, requestEnv: any = env) {
   const url = "https://test.local" + path;
-  const options = { method };
+  const options: RequestInit = { method };
   if (body) {
     options.body = JSON.stringify(body);
     options.headers = { "Content-Type": "application/json" };
@@ -20,14 +19,14 @@ describe("GET /api/keys", () => {
   test("missing uid returns 400", async () => {
     const response = await makeRequest("/api/keys");
     expect(response.status).toBe(400);
-    const json = await response.json();
+    const json = await response.json() as Record<string, any>;
     expect(json.error).toMatch(/missing/i);
   });
 
   test("invalid uid (too short) returns 400", async () => {
     const response = await makeRequest("/api/keys?uid=abc");
     expect(response.status).toBe(400);
-    const json = await response.json();
+    const json = await response.json() as Record<string, any>;
     expect(json.error).toMatch(/invalid/i);
   });
 
@@ -36,7 +35,7 @@ describe("GET /api/keys", () => {
       `/api/keys?uid=${VALID_UID}&format=boltcard`
     );
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as Record<string, any>;
     expect(json.PROTOCOL_NAME).toBe("NEW_BOLT_CARD_RESPONSE");
     expect(json.K0).toMatch(/^[0-9A-F]{32}$/);
     expect(json.K1).toMatch(/^[0-9A-F]{32}$/);
@@ -50,11 +49,11 @@ describe("GET /api/keys", () => {
   test("valid uid without format returns keysets array", async () => {
     const response = await makeRequest(`/api/keys?uid=${VALID_UID}`);
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as Record<string, any>;
     expect(json.uid).toBe(VALID_UID.toLowerCase());
     expect(Array.isArray(json.keysets)).toBe(true);
     expect(json.keysets.length).toBeGreaterThan(0);
-    const ks = json.keysets[0];
+    const ks: Record<string, unknown> = json.keysets[0];
     expect(ks.k0).toBeTruthy();
     expect(ks.k1).toBeTruthy();
     expect(ks.k2).toBeTruthy();
@@ -73,9 +72,9 @@ describe("GET /api/keys", () => {
   test("per-card UID returns percard keyset in listing", async () => {
     const response = await makeRequest("/api/keys?uid=040a69fa967380");
     expect(response.status).toBe(200);
-    const json = await response.json();
-    expect(json.keysets.some(ks => ks.source === "percard")).toBe(true);
-    const percard = json.keysets.find(ks => ks.source === "percard");
+    const json = await response.json() as Record<string, any>;
+    expect(json.keysets.some((ks: Record<string, any>) => ks.source === "percard")).toBe(true);
+    const percard: Record<string, any> = json.keysets.find((ks: Record<string, any>) => ks.source === "percard");
     expect(percard.k0).toBeDefined();
     expect(percard.k1).toBeDefined();
     expect(percard.k2).toBeDefined();
@@ -84,7 +83,7 @@ describe("GET /api/keys", () => {
   test("per-card UID with format=boltcard returns boltcard response", async () => {
     const response = await makeRequest("/api/keys?uid=040a69fa967380&format=boltcard");
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as Record<string, any>;
     expect(json.PROTOCOL_NAME).toBe("NEW_BOLT_CARD_RESPONSE");
     expect(json.K0).toMatch(/^[0-9A-F]{32}$/);
   });
@@ -92,15 +91,15 @@ describe("GET /api/keys", () => {
   test("per-card UID with format=boltcard via POST", async () => {
     const response = await makeRequest("/api/keys", "POST", { uid: "040a69fa967380" });
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as Record<string, any>;
     expect(json.PROTOCOL_NAME).toBe("NEW_BOLT_CARD_RESPONSE");
   });
 
   test("keysets include card_key for deterministic entries", async () => {
     const response = await makeRequest(`/api/keys?uid=${VALID_UID}`);
     expect(response.status).toBe(200);
-    const json = await response.json();
-    const det = json.keysets.find(ks => ks.source === "deterministic");
+    const json = await response.json() as Record<string, any>;
+    const det: Record<string, any> = json.keysets.find((ks: Record<string, any>) => ks.source === "deterministic");
     expect(det).toBeDefined();
     expect(det.card_key).toMatch(/^[0-9a-f]{32}$/);
   });
@@ -108,8 +107,8 @@ describe("GET /api/keys", () => {
   test("keysets include version info", async () => {
     const response = await makeRequest(`/api/keys?uid=${VALID_UID}`);
     expect(response.status).toBe(200);
-    const json = await response.json();
-    const det = json.keysets.find(ks => ks.source === "deterministic");
+    const json = await response.json() as Record<string, any>;
+    const det: Record<string, any> = json.keysets.find((ks: Record<string, any>) => ks.source === "deterministic");
     expect(det.version).toBeDefined();
   });
 });
@@ -120,7 +119,7 @@ describe("POST /api/keys", () => {
       UID: VALID_UID,
     });
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as Record<string, any>;
     expect(json.PROTOCOL_NAME).toBe("NEW_BOLT_CARD_RESPONSE");
   });
 

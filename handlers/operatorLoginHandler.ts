@@ -1,4 +1,6 @@
 import { renderOperatorLoginPage } from "../templates/operatorLoginPage.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { htmlResponse, errorResponse, redirect } from "../utils/responses.js";
 import {
   requireOperator,
@@ -17,7 +19,7 @@ export function handleOperatorLoginPage(request: Request): Response {
   return htmlResponse(renderOperatorLoginPage({ error: undefined as any, returnTo }));
 }
 
-export async function handleOperatorLogin(request: Request, env: any): Promise<Response> {
+export async function handleOperatorLogin(request: Request, env: Env): Promise<Response> {
   if (!validatePinConfig(env)) {
     logger.error("Operator login attempted but OPERATOR_PIN not configured");
     return errorResponse("Operator PIN not configured", 500);
@@ -55,13 +57,13 @@ export async function handleOperatorLogin(request: Request, env: any): Promise<R
     const resp: Response = redirect(returnUrl);
     resp.headers.append("Set-Cookie", cookie);
     return resp;
-  } catch (error: any) {
-    logger.error("Session creation failed", { error: error.message });
+  } catch (error: unknown) {
+    logger.error("Session creation failed", { error: getErrorMessage(error) });
     return errorResponse("Session error", 500);
   }
 }
 
-export function handleOperatorLogout(request: Request, env: any): Response {
+export function handleOperatorLogout(request: Request, env: Env): Response {
   requireOperator(request, env);
   logger.info("Operator logged out");
   const resp: Response = redirect("/operator/login");

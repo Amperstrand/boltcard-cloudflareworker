@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { cmacScanVersions } from "../utils/cmacScan.js";
 import { hexToBytes } from "../cryptoutils.js";
 
@@ -14,7 +13,7 @@ const wrongK2 = hexToBytes("00000000000000000000000000000000");
 describe("cmacScanVersions", () => {
   test("returns matchedVersion when K2 matches", async () => {
     const { matchedVersion } = await cmacScanVersions(TV.uid, TV.ctr, TV.c, {
-      k2ForVersion: () => TV.k2,
+      k2ForVersion: async () => TV.k2,
       highVersion: 3,
       lowVersion: 1,
     });
@@ -23,7 +22,7 @@ describe("cmacScanVersions", () => {
 
   test("scans downward and finds match at lower version", async () => {
     const { matchedVersion } = await cmacScanVersions(TV.uid, TV.ctr, TV.c, {
-      k2ForVersion: (v) => v === 1 ? TV.k2 : wrongK2,
+      k2ForVersion: async (v) => v === 1 ? TV.k2 : wrongK2,
       highVersion: 5,
       lowVersion: 1,
     });
@@ -32,7 +31,7 @@ describe("cmacScanVersions", () => {
 
   test("returns null when no version matches", async () => {
     const { matchedVersion, attempts } = await cmacScanVersions(TV.uid, TV.ctr, TV.c, {
-      k2ForVersion: () => wrongK2,
+      k2ForVersion: async () => wrongK2,
       highVersion: 5,
       lowVersion: 1,
     });
@@ -43,7 +42,7 @@ describe("cmacScanVersions", () => {
 
   test("stopOnFirst=false scans all versions and collects all matches", async () => {
     const { matchedVersion, attempts } = await cmacScanVersions(TV.uid, TV.ctr, TV.c, {
-      k2ForVersion: (v) => (v === 2 || v === 5) ? TV.k2 : wrongK2,
+      k2ForVersion: async (v) => (v === 2 || v === 5) ? TV.k2 : wrongK2,
       highVersion: 5,
       lowVersion: 1,
       stopOnFirst: false,
@@ -57,7 +56,7 @@ describe("cmacScanVersions", () => {
 
   test("scans upward when highVersion < lowVersion", async () => {
     const { matchedVersion, attempts } = await cmacScanVersions(TV.uid, TV.ctr, TV.c, {
-      k2ForVersion: (v) => v === 4 ? TV.k2 : wrongK2,
+      k2ForVersion: async (v) => v === 4 ? TV.k2 : wrongK2,
       highVersion: 0,
       lowVersion: 5,
       stopOnFirst: false,
@@ -70,7 +69,7 @@ describe("cmacScanVersions", () => {
 
   test("single version range works", async () => {
     const { matchedVersion, attempts } = await cmacScanVersions(TV.uid, TV.ctr, TV.c, {
-      k2ForVersion: () => TV.k2,
+      k2ForVersion: async () => TV.k2,
       highVersion: 3,
       lowVersion: 3,
     });
@@ -80,7 +79,7 @@ describe("cmacScanVersions", () => {
 
   test("attempts are ordered from highVersion to lowVersion", async () => {
     const { attempts } = await cmacScanVersions(TV.uid, TV.ctr, TV.c, {
-      k2ForVersion: () => wrongK2,
+      k2ForVersion: async () => wrongK2,
       highVersion: 5,
       lowVersion: 2,
     });

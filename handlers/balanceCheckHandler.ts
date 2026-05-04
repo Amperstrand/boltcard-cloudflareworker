@@ -1,9 +1,11 @@
 import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { getBalance } from "../replayProtection.js";
 import { validateCardTap } from "../utils/validateCardTap.js";
 import { logger } from "../utils/logger.js";
 
-export async function handleBalanceCheck(request: Request, env: any): Promise<Response> {
+export async function handleBalanceCheck(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") return errorResponse("Method not allowed", 405);
   const body: any = await parseJsonBody(request);
   if (!body) return errorResponse("Invalid JSON body", 400);
@@ -16,8 +18,8 @@ export async function handleBalanceCheck(request: Request, env: any): Promise<Re
   try {
     const balanceData: any = await getBalance(env, tap.uidHex);
     return jsonResponse({ success: true, balance: balanceData.balance, uidHex: tap.uidHex });
-  } catch (error: any) {
-    logger.error("Balance check failed", { uidHex: tap.uidHex, error: error.message });
+  } catch (error: unknown) {
+    logger.error("Balance check failed", { uidHex: tap.uidHex, error: getErrorMessage(error) });
     return errorResponse("Failed to retrieve balance", 500);
   }
 }

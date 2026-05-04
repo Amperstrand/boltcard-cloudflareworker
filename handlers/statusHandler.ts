@@ -1,7 +1,9 @@
 import { logger } from "../utils/logger.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { jsonResponse, redirect } from "../utils/responses.js";
 
-export async function handleStatus(request: Request, env: any): Promise<Response> {
+export async function handleStatus(request: Request, env: Env): Promise<Response> {
   if (env?.UID_CONFIG) {
     try {
       const testKey = 'health-' + Date.now();
@@ -13,8 +15,8 @@ export async function handleStatus(request: Request, env: any): Promise<Response
         kv_status: testValue === 'ok' ? 'working' : 'not working',
         message: 'Server is running'
       });
-    } catch (error: any) {
-      logger.error('KV health check error', { error: error.message });
+    } catch (error: unknown) {
+      logger.error('KV health check error', { error: getErrorMessage(error) });
       return jsonResponse({
         status: 'ERROR',
         kv_status: 'error',

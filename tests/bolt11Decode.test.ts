@@ -1,12 +1,12 @@
-// @ts-nocheck
 import { generateFakeBolt11, decodeBolt11, decodeBolt11Amount } from "../utils/bolt11.js";
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
+import type { Env } from "../types/core.js";
 
 describe("decodeBolt11", () => {
   test("returns error for null input", () => {
-    expect(decodeBolt11(null)).toEqual({ ok: false, error: "Invoice is required" });
+    expect(decodeBolt11(null as any)).toEqual({ ok: false, error: "Invoice is required" });
   });
 
   test("returns error for empty string", () => {
@@ -20,6 +20,7 @@ describe("decodeBolt11", () => {
   test("returns error for invalid bech32", () => {
     const result = decodeBolt11("lnbc1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq");
     expect(result.ok).toBe(false);
+    if (result.ok) return;
     expect(result.error).toMatch(/invalid bech32/i);
   });
 
@@ -28,6 +29,7 @@ describe("decodeBolt11", () => {
     const result = decodeBolt11(inv);
 
     expect(result.ok).toBe(true);
+    if (!result.ok) return;
     expect(result.network).toBe("mainnet");
     expect(result.amountMsat).toBe(20000);
     expect(result.expiry).toBe(3600);
@@ -52,6 +54,7 @@ describe("decodeBolt11", () => {
     const result = decodeBolt11(inv);
 
     expect(result.ok).toBe(true);
+    if (!result.ok) return;
     expect(result.amountMsat).toBe(1000);
     expect(result.signatureValid).toBe(true);
   });
@@ -61,6 +64,7 @@ describe("decodeBolt11", () => {
     const result = decodeBolt11(inv);
 
     expect(result.ok).toBe(true);
+    if (!result.ok) return;
     expect(result.amountMsat).toBe(1);
     expect(result.signatureValid).toBe(true);
   });
@@ -70,6 +74,7 @@ describe("decodeBolt11", () => {
     const result = decodeBolt11(inv);
 
     expect(result.ok).toBe(true);
+    if (!result.ok) return;
     expect(result.amountMsat).toBe(100000000);
     expect(result.signatureValid).toBe(true);
   });
@@ -79,6 +84,7 @@ describe("decodeBolt11", () => {
     const result = decodeBolt11(inv);
 
     expect(result.ok).toBe(true);
+    if (!result.ok) return;
     expect(result.tags.description).toBe("POS order #42");
   });
 
@@ -88,6 +94,7 @@ describe("decodeBolt11", () => {
     const result = decodeBolt11(inv);
 
     expect(result.ok).toBe(true);
+    if (!result.ok) return;
     expect(result.tags.payment_secret).toBe(secret);
   });
 
@@ -95,6 +102,7 @@ describe("decodeBolt11", () => {
     const inv = generateFakeBolt11(10000);
     const result = decodeBolt11(inv);
 
+    if (!result.ok) return;
     expect(result.signatureValid).toBe(true);
     expect(result.payee).toBeTruthy();
     expect(result.payee).toMatch(/^(02|03)[0-9a-f]{64}$/);
@@ -106,6 +114,7 @@ describe("decodeBolt11", () => {
     const r1 = decodeBolt11(inv1);
     const r2 = decodeBolt11(inv2);
 
+    if (!r1.ok || !r2.ok) return;
     expect(r1.payee).not.toBe(r2.payee);
   });
 
@@ -113,6 +122,7 @@ describe("decodeBolt11", () => {
     const inv = generateFakeBolt11(20000);
     const result = decodeBolt11(inv);
 
+    if (!result.ok) return;
     expect(result.amountDisplay).toMatch(/200 nanoBTC/);
   });
 
@@ -120,6 +130,7 @@ describe("decodeBolt11", () => {
     const inv = generateFakeBolt11(1000);
     const result = decodeBolt11(inv);
 
+    if (!result.ok) return;
     expect(result.timestampISO).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
     expect(new Date(result.timestampISO).getTime()).not.toBeNaN();
   });
@@ -128,6 +139,7 @@ describe("decodeBolt11", () => {
     const inv = generateFakeBolt11(1000);
     const result = decodeBolt11(inv);
 
+    if (!result.ok) return;
     expect(result.isExpired).toBe(false);
   });
 
@@ -135,7 +147,8 @@ describe("decodeBolt11", () => {
     const inv = generateFakeBolt11(1000);
     const result = decodeBolt11(inv);
 
-    const codes = result.rawTags.map(t => t.code);
+    if (!result.ok) return;
+    const codes = result.rawTags.map((t: any) => t.code);
     expect(codes).toContain(1);
     expect(codes).toContain(13);
     expect(codes).toContain(6);
@@ -148,7 +161,10 @@ describe("decodeBolt11", () => {
     const inv = generateFakeBolt11(1000);
     const result = decodeBolt11(inv);
 
-    const featuresTag = result.rawTags.find(t => t.code === 9);
+    if (!result.ok) return;
+    const featuresTag = result.rawTags.find((t: any) => t.code === 9);
+    expect(featuresTag).toBeDefined();
+    if (!featuresTag) return;
     expect(featuresTag.rawHex).toBe("41");
     expect(featuresTag.value).toEqual(
       expect.arrayContaining(["var_onion_optin", "payment_secret"])
@@ -160,21 +176,22 @@ describe("decodeBolt11", () => {
     for (const amt of amounts) {
       const inv = generateFakeBolt11(amt);
       const result = decodeBolt11(inv);
+      if (!result.ok) return;
       expect(result.amountMsat).toBe(decodeBolt11Amount(inv));
     }
   });
 });
 
 describe("GET /decode", () => {
-  function makeEnv() {
+  function makeEnv(): Env {
     return {
       BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
-      CARD_REPLAY: makeReplayNamespace(),
-      UID_CONFIG: { get: async () => null, put: async () => {} },
-    };
+      CARD_REPLAY: makeReplayNamespace() as any,
+      UID_CONFIG: { get: async () => null, put: async () => {} } as any,
+    } as unknown as Env;
   }
 
-  async function makeRequest(path, env) {
+  async function makeRequest(path: string, env: Env) {
     return handleRequest(new Request("https://test.local" + path), env);
   }
 
@@ -192,7 +209,7 @@ describe("GET /decode", () => {
     const resp = await worker.default.fetch(
       new Request("https://test.local/decode"),
       makeEnv(),
-      {},
+      {} as any,
     );
     expect(resp.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(resp.headers.get("X-Frame-Options")).toBe("DENY");
@@ -200,15 +217,15 @@ describe("GET /decode", () => {
 });
 
 describe("GET /api/decode", () => {
-  function makeEnv() {
+  function makeEnv(): Env {
     return {
       BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
-      CARD_REPLAY: makeReplayNamespace(),
-      UID_CONFIG: { get: async () => null, put: async () => {} },
-    };
+      CARD_REPLAY: makeReplayNamespace() as any,
+      UID_CONFIG: { get: async () => null, put: async () => {} } as any,
+    } as unknown as Env;
   }
 
-  async function makeRequest(path, env) {
+  async function makeRequest(path: string, env: Env) {
     return handleRequest(new Request("https://test.local" + path), env);
   }
 
@@ -217,7 +234,7 @@ describe("GET /api/decode", () => {
     const resp = await makeRequest("/api/decode?invoice=" + encodeURIComponent(inv), makeEnv());
     expect(resp.status).toBe(200);
 
-    const data = await resp.json();
+    const data = await resp.json() as any;
     expect(data.ok).toBe(true);
     expect(data.amountMsat).toBe(20000);
     expect(data.signatureValid).toBe(true);
@@ -227,14 +244,14 @@ describe("GET /api/decode", () => {
   test("returns 400 for missing invoice param", async () => {
     const resp = await makeRequest("/api/decode", makeEnv());
     expect(resp.status).toBe(400);
-    const json = await resp.json();
+    const json = await resp.json() as any;
     expect(json.reason).toMatch(/missing.*invoice/i);
   });
 
   test("returns error for invalid invoice", async () => {
     const resp = await makeRequest("/api/decode?invoice=garbage", makeEnv());
     expect(resp.status).toBe(200);
-    const json = await resp.json();
+    const json = await resp.json() as any;
     expect(json.ok).toBe(false);
     expect(json.error).toBeTruthy();
   });
@@ -243,7 +260,7 @@ describe("GET /api/decode", () => {
     const inv = generateFakeBolt11(5000);
     const resp = await makeRequest("/api/decode?q=" + encodeURIComponent(inv), makeEnv());
     expect(resp.status).toBe(200);
-    const data = await resp.json();
+    const data = await resp.json() as any;
     expect(data.ok).toBe(true);
     expect(data.amountMsat).toBe(5000);
   });
@@ -251,14 +268,14 @@ describe("GET /api/decode", () => {
   test("decodes invoice with custom description", async () => {
     const inv = generateFakeBolt11(30000, { description: "Coffee payment" });
     const resp = await makeRequest("/api/decode?invoice=" + encodeURIComponent(inv), makeEnv());
-    const data = await resp.json();
+    const data = await resp.json() as any;
     expect(data.tags.description).toBe("Coffee payment");
   });
 
   test("response includes all expected fields", async () => {
     const inv = generateFakeBolt11(10000);
     const resp = await makeRequest("/api/decode?invoice=" + encodeURIComponent(inv), makeEnv());
-    const data = await resp.json();
+    const data = await resp.json() as any;
 
     expect(data).toHaveProperty("ok", true);
     expect(data).toHaveProperty("network");

@@ -1,4 +1,7 @@
 import { logger } from "../utils/logger.js";
+import type { CardStateRow } from "../types/core.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { renderIdentityPage } from "../templates/identityPage.js";
 import { buildMaskedUid } from "../utils/validation.js";
@@ -59,7 +62,7 @@ function buildIdentityProfile(uidHex: string, record: Record<string, any> = {}):
   };
 }
 
-async function resolveIdentityContext({ p, c }: { p: string | null; c: string | null }, env: any): Promise<Partial<IdentityContext> & { response?: Response }> {
+async function resolveIdentityContext({ p, c }: { p: string | null; c: string | null }, env: Env): Promise<Partial<IdentityContext> & { response?: Response }> {
   const auth: any = await resolveCardIdentity(p ?? undefined, c ?? undefined, env, { context: "identity" });
   if (!auth.ok) {
     const resp = (auth.status === 404 || auth.status === 403)
@@ -73,8 +76,8 @@ async function resolveIdentityContext({ p, c }: { p: string | null; c: string | 
   let kvRaw: string | null;
   try {
     kvRaw = await env.UID_CONFIG.get(uidHex);
-  } catch (error: any) {
-    logger.error("KV lookup failed during identity verification", { uidHex, error: error.message });
+  } catch (error: unknown) {
+    logger.error("KV lookup failed during identity verification", { uidHex, error: getErrorMessage(error) });
     return { response: errorResponse("Identity lookup failed", 500) };
   }
   const enrollment = parseIdentityRecord(kvRaw);
@@ -95,7 +98,7 @@ export function handleIdentityPage(request: Request): Response {
   return htmlResponse(renderIdentityPage({ host: url.origin }));
 }
 
-export async function handleIdentityVerify(request: Request, env: any): Promise<Response> {
+export async function handleIdentityVerify(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const context = await resolveIdentityContext({
     p: url.searchParams.get("p"),
@@ -113,11 +116,11 @@ export async function handleIdentityVerify(request: Request, env: any): Promise<
   let keyProvenance: string | null = null;
   let programmingRecommended = false;
   try {
-    const cardState: any = await getCardState(env, uidHex);
+    const cardState: CardStateRow = await getCardState(env, uidHex);
     keyProvenance = cardState.key_provenance || null;
     programmingRecommended = keyProvenance === KEY_PROVENANCE.PUBLIC_ISSUER;
-  } catch (e: any) {
-    logger.warn("Card state lookup failed in identity verify", { uidHex, error: e.message });
+  } catch (e: unknown) {
+    logger.warn("Card state lookup failed in identity verify", { uidHex, error: getErrorMessage(e) });
   }
 
   logger.info("Identity verified", { uidHex, counterValue, keyProvenance });
@@ -132,7 +135,7 @@ export async function handleIdentityVerify(request: Request, env: any): Promise<
   });
 }
 
-export async function handleIdentityProfileUpdate(request: Request, env: any): Promise<Response> {
+export async function handleIdentityProfileUpdate(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") return errorResponse("Method not allowed", 405);
   const body: any = await parseJsonBody(request);
   if (!body) return errorResponse("Invalid JSON body", 400);
@@ -160,8 +163,8 @@ export async function handleIdentityProfileUpdate(request: Request, env: any): P
 
   try {
     await env.UID_CONFIG.put(uidHex, JSON.stringify(updatedRecord));
-  } catch (err: any) {
-    logger.error("Identity profile update KV write failed", { uidHex, error: err.message });
+  } catch (err: unknown) {
+    logger.error("Identity profile update KV write failed", { uidHex, error: getErrorMessage(err) });
     return errorResponse("Failed to save profile", 500);
   }
 

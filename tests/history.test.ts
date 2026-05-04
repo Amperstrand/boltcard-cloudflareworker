@@ -1,16 +1,15 @@
-// @ts-nocheck
 
 import { _mergeHistory, getUnifiedHistory } from "../utils/history.js";
 import { buildCardTestEnv } from "./testHelpers.js";
 
 describe("_mergeHistory", () => {
   it("returns empty array for null taps and null transactions", () => {
-    const result = _mergeHistory(null, null);
+    const result = _mergeHistory(null as unknown as any[], null as unknown as any[]);
     expect(result).toEqual([]);
   });
 
   it("returns empty array for undefined taps and transactions", () => {
-    const result = _mergeHistory(undefined, undefined);
+    const result = _mergeHistory(undefined as unknown as any[], undefined as unknown as any[]);
     expect(result).toEqual([]);
   });
 
@@ -97,7 +96,7 @@ describe("getUnifiedHistory", () => {
   it("returns merged history from DO", async () => {
     const env = buildCardTestEnv({ uid: "04a39493cc8680", issuerKey: "00000000000000000000000000000001" });
     const uid = "04a39493cc8680";
-    env.CARD_REPLAY.__activate(uid, 1);
+    (env.CARD_REPLAY as any).__activate(uid, 1);
 
     const id = env.CARD_REPLAY.idFromName(uid);
     const stub = env.CARD_REPLAY.get(id);
@@ -122,12 +121,12 @@ describe("getUnifiedHistory", () => {
     const env = buildCardTestEnv({ uid: "04a39493cc8680" });
     const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
     env.CARD_REPLAY.get = (id) => ({
-      fetch: async (req) => {
-        const url = new URL(req.url);
+      fetch: async (req: Request) => {
+        const url = new URL((req as Request).url);
         if (url.pathname === "/list-taps") throw new Error("DO unavailable");
         return origGet(id).fetch(req);
       },
-    });
+    } as unknown as DurableObjectStub);
     const result = await getUnifiedHistory(env, "04a39493cc8680");
     expect(result).toEqual([]);
   });
@@ -136,12 +135,12 @@ describe("getUnifiedHistory", () => {
     const env = buildCardTestEnv({ uid: "04a39493cc8680" });
     const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
     env.CARD_REPLAY.get = (id) => ({
-      fetch: async (req) => {
-        const url = new URL(req.url);
+      fetch: async (req: Request) => {
+        const url = new URL((req as Request).url);
         if (url.pathname === "/transactions") throw new Error("DO unavailable");
         return origGet(id).fetch(req);
       },
-    });
+    } as unknown as DurableObjectStub);
     const result = await getUnifiedHistory(env, "04a39493cc8680");
     expect(result).toEqual([]);
   });
@@ -150,12 +149,12 @@ describe("getUnifiedHistory", () => {
     const env = buildCardTestEnv({ uid: "04a39493cc8680" });
     const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
     env.CARD_REPLAY.get = (id) => ({
-      fetch: async (req) => {
-        const url = new URL(req.url);
+      fetch: async (req: Request) => {
+        const url = new URL((req as Request).url);
         if (url.pathname === "/list-taps") return Response.json({});
         return origGet(id).fetch(req);
       },
-    });
+    } as unknown as DurableObjectStub);
     const result = await getUnifiedHistory(env, "04a39493cc8680");
     expect(result).toEqual([]);
   });
@@ -164,12 +163,12 @@ describe("getUnifiedHistory", () => {
     const env = buildCardTestEnv({ uid: "04a39493cc8680" });
     const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
     env.CARD_REPLAY.get = (id) => ({
-      fetch: async (req) => {
-        const url = new URL(req.url);
+      fetch: async (req: Request) => {
+        const url = new URL((req as Request).url);
         if (url.pathname === "/transactions") return Response.json({});
         return origGet(id).fetch(req);
       },
-    });
+    } as unknown as DurableObjectStub);
     const result = await getUnifiedHistory(env, "04a39493cc8680");
     expect(result).toEqual([]);
   });

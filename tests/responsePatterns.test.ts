@@ -1,4 +1,3 @@
-// @ts-nocheck
 import worker, { handleRequest } from "../index.js";
 ;
 import { makeReplayNamespace } from "./replayNamespace.js";
@@ -58,7 +57,7 @@ const DO_CARD_CONFIGS = {
   "04d070fa967380": JSON.parse(LEGACY_UID_CONFIGS["04d070fa967380"]),
 };
 
-const seedDoConfigs = (replay, configs = DO_CARD_CONFIGS) => {
+const seedDoConfigs = (replay: any, configs: any = DO_CARD_CONFIGS) => {
   Object.entries(configs).forEach(([uid, config]) => {
     replay.__cardConfigs.set(uid.toLowerCase(), config);
   });
@@ -66,16 +65,16 @@ const seedDoConfigs = (replay, configs = DO_CARD_CONFIGS) => {
 };
 
 const makeKvEnv = (initialStore = {}) => {
-  const kvStore = { ...LEGACY_UID_CONFIGS, ...initialStore };
+  const kvStore: Record<string, string> = { ...LEGACY_UID_CONFIGS, ...initialStore };
   const replay = seedDoConfigs(makeReplayNamespace());
   return {
     ...env,
     UID_CONFIG: {
-      get: async (key) => kvStore[key] ?? null,
-      put: async (key, value) => {
+      get: async (key: string) => kvStore[key] ?? null,
+      put: async (key: string, value: string) => {
         kvStore[key] = value;
       },
-      delete: async (key) => {
+      delete: async (key: string) => {
         delete kvStore[key];
       },
     },
@@ -86,9 +85,9 @@ const makeKvEnv = (initialStore = {}) => {
   };
 };
 
-async function makeRequest(path, method = "GET", body = null, requestEnv = env) {
+async function makeRequest(path: string, method: string = "GET", body: Record<string, unknown> | null = null, requestEnv: any = env) {
   const url = "https://test.local" + path;
-  const options = { method };
+  const options: RequestInit = { method };
   if (body) {
     options.body = JSON.stringify(body);
     options.headers = { "Content-Type": "application/json" };
@@ -96,7 +95,7 @@ async function makeRequest(path, method = "GET", body = null, requestEnv = env) 
   return handleRequest(new Request(url, options), requestEnv);
 }
 
-const expectBoltcardKeys = (json) => {
+const expectBoltcardKeys = (json: any) => {
   expect(json).toMatchObject({
     PROTOCOL_NAME: "NEW_BOLT_CARD_RESPONSE",
     PROTOCOL_VERSION: "1",
@@ -492,7 +491,7 @@ describe("response patterns", () => {
         get: async () => "100",
         put: async () => {},
       },
-    });
+    } as any, {} as ExecutionContext);
 
     expect(response.status).toBe(429);
     expect(response.headers.get("Content-Type")).toContain("application/json");
@@ -537,7 +536,7 @@ describe("response patterns", () => {
     const k1Bytes = hexToBytes(k1Hex);
 
     // K2 for CMAC = from deterministic keys (what was stored in KV)
-    const keys = getDeterministicKeys(zeroUid, kvEnv);
+    const keys = getDeterministicKeys(zeroUid, kvEnv as any);
     const k2Bytes = hexToBytes(keys.k2);
 
     // Build PICCData plaintext: [0xC7][UID 7 bytes][Counter LE 3 bytes][Padding 5 bytes]
@@ -614,7 +613,7 @@ describe("response patterns", () => {
         },
       }),
       UID_CONFIG: {
-        get: async (uid) => uid === "04996c6a926980"
+        get: async (uid: string) => uid === "04996c6a926980"
           ? JSON.stringify({
               K2: "B45775776CB224C75BCDE7CA3704E933",
               payment_method: "proxy",

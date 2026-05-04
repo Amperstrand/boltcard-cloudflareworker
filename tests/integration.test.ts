@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Integration tests for end-to-end payment flows
  * Tests complete NFC payment processing from request to payment completion
@@ -44,7 +43,7 @@ const DO_CARD_CONFIGS = {
   '044561fa967380': JSON.parse(LEGACY_UID_CONFIGS['044561fa967380'])
 };
 
-const seedDoConfigs = (replay, configs = DO_CARD_CONFIGS) => {
+const seedDoConfigs = (replay: any, configs = DO_CARD_CONFIGS) => {
   Object.entries(configs).forEach(([uid, config]) => {
     replay.__cardConfigs.set(uid.toLowerCase(), config);
   });
@@ -54,7 +53,7 @@ const seedDoConfigs = (replay, configs = DO_CARD_CONFIGS) => {
 const mockEnv = {
   BOLT_CARD_K1: '55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d',
   UID_CONFIG: {
-    get: async (key) => LEGACY_UID_CONFIGS[key] ?? null,
+    get: async (key: string) => LEGACY_UID_CONFIGS[key as keyof typeof LEGACY_UID_CONFIGS] ?? null,
     put: async () => {}
   },
   CARD_REPLAY: seedDoConfigs(makeReplayNamespace()),
@@ -96,7 +95,7 @@ describe('End-to-End Payment Flow Integration Tests', () => {
     mockEnv.CARD_REPLAY = seedDoConfigs(makeReplayNamespace());
     mockEnv.BOLT_CARD_K1 = '55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d';
     mockEnv.UID_CONFIG = {
-      get: async (key) => LEGACY_UID_CONFIGS[key] ?? null,
+      get: async (key: string) => LEGACY_UID_CONFIGS[key as keyof typeof LEGACY_UID_CONFIGS] ?? null,
       put: async () => {}
     };
   });
@@ -132,7 +131,7 @@ describe('End-to-End Payment Flow Integration Tests', () => {
 
   describe('Card Keys Generation', () => {
     it('should generate boltcard keys for valid UID', async () => {
-      const testCase = TEST_DATA.find(test => test.name.includes('Card Keys Request - UpdateVersion'));
+      const testCase = TEST_DATA.find(test => test.name.includes('Card Keys Request - UpdateVersion'))!;
       const request = new Request(testCase.url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -206,7 +205,7 @@ describe('End-to-End Payment Flow Integration Tests', () => {
     });
 
     it('should redirect to /login when UID_CONFIG is missing', async () => {
-      const noKvEnv = { ...mockEnv };
+      const noKvEnv = { ...mockEnv } as Record<string, unknown>;
       delete noKvEnv.UID_CONFIG;
       const request = new Request('https://test.local/status');
       const response = await handleRequest(request, noKvEnv);
@@ -250,7 +249,7 @@ describe('End-to-End Payment Flow Integration Tests', () => {
 
   describe('Cryptographic Validation Integration', () => {
     it('should properly validate CMAC for valid requests', async () => {
-      const testCase = TEST_DATA.find(test => test.name.includes('Payment - Counter 3'));
+      const testCase = TEST_DATA.find(test => test.name.includes('Payment - Counter 3'))!;
       const request = new Request(testCase.url);
       
       const response = await handleRequest(request, mockEnv);
@@ -270,7 +269,7 @@ describe('End-to-End Payment Flow Integration Tests', () => {
 
   describe('Performance and Security Integration', () => {
     it('should handle requests efficiently', async () => {
-      const testCase = TEST_DATA.find(test => test.name.includes('Payment - Counter 3'));
+      const testCase = TEST_DATA.find(test => test.name.includes('Payment - Counter 3'))!;
       const request = new Request(testCase.url);
       
       const startTime = Date.now();
@@ -349,7 +348,7 @@ describe('Rate Limiting', () => {
     const request = new Request('https://test.local/status', {
       headers: { 'CF-Connecting-IP': '1.2.3.4' },
     });
-    const response = await defaultFetch(request, env, {});
+    const response = await defaultFetch(request, env, {} as ExecutionContext);
     expect(response.status).toBe(429);
     expect(response.headers.get('Retry-After')).toBeDefined();
     expect(response.headers.get('X-RateLimit-Remaining')).toBe('0');
@@ -366,15 +365,15 @@ describe('Rate Limiting', () => {
     const request = new Request('https://test.local/status', {
       headers: { 'CF-Connecting-IP': '1.2.3.4' },
     });
-    const response = await defaultFetch(request, env, {});
+    const response = await defaultFetch(request, env, {} as ExecutionContext);
     expect(response.status).toBe(200);
   });
 
   it('skips rate limiting when no RATE_LIMITS binding', async () => {
-    const env = { ...mockEnv };
+    const env: Record<string, unknown> = { ...mockEnv };
     delete env.RATE_LIMITS;
     const request = new Request('https://test.local/status');
-    const response = await defaultFetch(request, env, {});
+    const response = await defaultFetch(request, env as any, {} as ExecutionContext);
     expect(response.status).toBe(200);
   });
 });
@@ -395,7 +394,7 @@ describe('CSRF Validation', () => {
     });
     const res = await handleRequest(req, env);
     expect(res.status).toBe(403);
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.reason).toContain('CSRF');
   });
 
@@ -442,9 +441,9 @@ describe('Unhandled Error', () => {
     const req = new Request('https://test.local/status', {
       headers: { 'CF-Connecting-IP': '1.2.3.4' },
     });
-    const res = await defaultFetch(req, env, {});
+    const res = await defaultFetch(req, env, {} as ExecutionContext);
     expect(res.status).toBe(500);
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.reason).toContain('Internal server error');
   });
 });

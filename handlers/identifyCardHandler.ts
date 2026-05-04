@@ -1,4 +1,7 @@
 import { extractUIDAndCounter, validateCmac } from "../boltCardHelper.js";
+import type { CardStateRow } from "../types/core.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { hexToBytes } from "../cryptoutils.js";
@@ -8,7 +11,7 @@ import { cmacScanVersions } from "../utils/cmacScan.js";
 import { logger } from "../utils/logger.js";
 import { CARD_STATE, MISSING_PARAMS_MSG, VERSION_SCAN_RANGE } from "../utils/constants.js";
 
-export async function handleIdentifyCard(request: Request, env: any): Promise<Response> {
+export async function handleIdentifyCard(request: Request, env: Env): Promise<Response> {
   const body: any = await parseJsonBody(request);
   const pHex = body?.p || new URL(request.url).searchParams.get("p");
   const cHex = body?.c || new URL(request.url).searchParams.get("c");
@@ -27,11 +30,11 @@ export async function handleIdentifyCard(request: Request, env: any): Promise<Re
   const ctrBytes = hexToBytes(ctr);
   const counterValue = parseInt(ctr, 16);
 
-  let cardState: any = null;
+  let cardState: CardStateRow | null = null;
   try {
     cardState = await getCardState(env, uidHex);
-  } catch (e: any) {
-    logger.warn("Identify card: getCardState failed", { uidHex, error: e.message });
+  } catch (e: unknown) {
+    logger.warn("Identify card: getCardState failed", { uidHex, error: getErrorMessage(e) });
   }
 
   const results: any[] = [];
@@ -41,8 +44,8 @@ export async function handleIdentifyCard(request: Request, env: any): Promise<Re
     let config: any;
     try {
       config = await getUidConfig(uidHex, env, activeVersion);
-    } catch (e: any) {
-      logger.warn("Identify card: getUidConfig failed", { uidHex, error: e.message });
+    } catch (e: unknown) {
+      logger.warn("Identify card: getUidConfig failed", { uidHex, error: getErrorMessage(e) });
     }
 
     if (config && config.K2) {
@@ -67,8 +70,8 @@ export async function handleIdentifyCard(request: Request, env: any): Promise<Re
           const keys = getDeterministicKeys(uidHex, env, v);
           keyCache.set(v, keys);
           return hexToBytes(keys.k2);
-        } catch (e: any) {
-          logger.warn("Identify card: key derivation failed", { uidHex, version: v, error: e.message });
+        } catch (e: unknown) {
+          logger.warn("Identify card: key derivation failed", { uidHex, version: v, error: getErrorMessage(e) });
           return new Uint8Array(16);
         }
       },
@@ -77,8 +80,8 @@ export async function handleIdentifyCard(request: Request, env: any): Promise<Re
       stopOnFirst: false,
     });
     detAttempts = scanResult.attempts;
-  } catch (e: any) {
-    logger.warn("Identify card: CMAC scan failed", { uidHex, error: e.message });
+  } catch (e: unknown) {
+    logger.warn("Identify card: CMAC scan failed", { uidHex, error: getErrorMessage(e) });
   }
 
   for (const attempt of detAttempts) {

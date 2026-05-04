@@ -1,4 +1,6 @@
 import { getAnalytics } from "../replayProtection.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { renderAnalyticsPage } from "../templates/analyticsPage.js";
 import { htmlResponse, errorResponse, jsonResponse } from "../utils/responses.js";
 import { validateUid } from "../utils/validation.js";
@@ -9,7 +11,7 @@ export function handleAnalyticsPage(): Response {
   return htmlResponse(renderAnalyticsPage());
 }
 
-export async function handleAnalyticsData(request: Request, env: any): Promise<Response> {
+export async function handleAnalyticsData(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const uid = url.searchParams.get("uid");
 
@@ -25,8 +27,8 @@ export async function handleAnalyticsData(request: Request, env: any): Promise<R
   try {
     const analytics: any = await getAnalytics(env, normalizedUid);
     return jsonResponse(analytics);
-  } catch (error: any) {
-    logger.error("Analytics data fetch failed", { uid, error: error.message });
+  } catch (error: unknown) {
+    logger.error("Analytics data fetch failed", { uid, error: getErrorMessage(error) });
     return errorResponse("Failed to retrieve analytics data", 500);
   }
 }

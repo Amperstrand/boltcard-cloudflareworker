@@ -1,12 +1,9 @@
 import { ISSUER_KEYS_BY_DOMAIN, PERCARD_KEYS } from "./generatedKeyData.js";
+import type { Env } from "../types/core.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "../cryptoutils.js";
 import { KEY_PROVENANCE } from "./constants.js";
 
-interface EnvLike {
-  ISSUER_KEY?: string;
-  RECOVERY_ISSUER_KEYS?: string;
-}
 
 interface KeyCandidate {
   hex: string;
@@ -47,7 +44,7 @@ export function _getIssuerKeysForDomain(domain: string): KeyCandidate[] {
   return [...domainKeys, ...defaultKeys];
 }
 
-export function getAllIssuerKeyCandidates(env: EnvLike | undefined): KeyCandidate[] {
+export function getAllIssuerKeyCandidates(env: Env | undefined): KeyCandidate[] {
   const seen = new Set<string>();
   const result: KeyCandidate[] = [];
 
@@ -102,7 +99,7 @@ export function fingerprintHex(hex: string): string {
   return bytesToHex(sha256(data)).slice(0, 16);
 }
 
-export function classifyIssuerKey(env: EnvLike | undefined, issuerKeyHex: string | undefined): ClassifyResult {
+export function classifyIssuerKey(env: Env | undefined, issuerKeyHex: string | undefined): ClassifyResult {
   if (!issuerKeyHex) {
     return { provenance: KEY_PROVENANCE.UNKNOWN, label: null, fingerprint: null };
   }

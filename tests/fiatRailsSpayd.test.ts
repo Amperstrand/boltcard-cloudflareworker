@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {
   isSpaydUri,
   parseSpayd,
@@ -28,23 +27,23 @@ describe("parseSpayd", () => {
       "SPD*1.0*ACC:CZ5855000000001265098001*AM:480.50*CC:CZK*MSG:Payment%20for%20goods"
     );
     expect(result).not.toBeNull();
-    expect(result.acc).toBe("CZ5855000000001265098001");
-    expect(result.am).toBeCloseTo(480.5, 1);
-    expect(result.cc).toBe("CZK");
-    expect(result.msg).toBe("Payment for goods");
+    expect(result!.acc).toBe("CZ5855000000001265098001");
+    expect(result!.am).toBeCloseTo(480.5, 1);
+    expect(result!.cc).toBe("CZK");
+    expect(result!.msg).toBe("Payment for goods");
   });
 
   test("parses spayd:// prefixed URI", () => {
     const result = parseSpayd("spayd://SPD*1.0*ACC:NO9386011117947*AM:100.00*CC:NOK");
-    expect(result.acc).toBe("NO9386011117947");
-    expect(result.am).toBe(100);
-    expect(result.cc).toBe("NOK");
+    expect(result!.acc).toBe("NO9386011117947");
+    expect(result!.am).toBe(100);
+    expect(result!.cc).toBe("NOK");
   });
 
   test("parses minimal SPAYD with only ACC", () => {
     const result = parseSpayd("SPD*1.0*ACC:DE89370400440532013000");
-    expect(result.acc).toBe("DE89370400440532013000");
-    expect(result.am).toBeUndefined();
+    expect(result!.acc).toBe("DE89370400440532013000");
+    expect(result!.am).toBeUndefined();
   });
 
   test("returns null for empty input", () => {
@@ -62,12 +61,12 @@ describe("parseSpayd", () => {
 
   test("handles RN (recipient name) attribute", () => {
     const result = parseSpayd("SPD*1.0*ACC:CZ5855000000001265098001*RN:Test%20Shop");
-    expect(result.rn).toBe("Test Shop");
+    expect(result!.rn).toBe("Test Shop");
   });
 
   test("handles DT (date) attribute", () => {
     const result = parseSpayd("SPD*1.0*ACC:CZ5855000000001265098001*DT:20260427");
-    expect(result.dt).toBe("20260427");
+    expect(result!.dt).toBe("20260427");
   });
 });
 
@@ -85,12 +84,12 @@ describe("encodeSpayd", () => {
   });
 
   test("throws if ACC is missing", () => {
-    expect(() => encodeSpayd({ AM: "100" })).toThrow("missing required 'ACC'");
+    expect(() => encodeSpayd({ AM: "100" } as Record<string, string | string[] | undefined>)).toThrow("missing required 'ACC'");
   });
 
   test("throws for non-object input", () => {
-    expect(() => encodeSpayd(null)).toThrow("must be an object");
-    expect(() => encodeSpayd("string")).toThrow("must be an object");
+    expect(() => encodeSpayd(null as unknown as Record<string, string | string[] | undefined>)).toThrow("must be an object");
+    expect(() => encodeSpayd("string" as unknown as Record<string, string | string[] | undefined>)).toThrow("must be an object");
   });
 
   test("includes CRC32 when requested", () => {
@@ -112,10 +111,10 @@ describe("encodeSpayd", () => {
     const original = { ACC: "NO9386011117947", AM: "100", CC: "NOK", MSG: "Test message" };
     const encoded = encodeSpayd(original);
     const parsed = parseSpayd(encoded);
-    expect(parsed.acc).toBe(original.ACC);
-    expect(parsed.am).toBe(100);
-    expect(parsed.cc).toBe(original.CC);
-    expect(parsed.msg).toBe(original.MSG);
+    expect(parsed!.acc).toBe(original.ACC);
+    expect(parsed!.am).toBe(100);
+    expect(parsed!.cc).toBe(original.CC);
+    expect(parsed!.msg).toBe(original.MSG);
   });
 
   test("sort attributes option produces stable output", () => {
@@ -135,7 +134,7 @@ describe("encodeSpayd", () => {
   });
 
   test("skips null/undefined values", () => {
-    const result = encodeSpayd({ ACC: "DE89370400440532013000", AM: null, CC: undefined });
+    const result = encodeSpayd({ ACC: "DE89370400440532013000", AM: null as unknown as string, CC: undefined as unknown as string });
     expect(result).not.toContain("*AM:");
     expect(result).not.toContain("*CC:");
   });

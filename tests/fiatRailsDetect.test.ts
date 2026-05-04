@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { detectFiatRail, parseFiatRailDetails } from "../utils/fiat-rails/index.js";
 
 describe("detectFiatRail", () => {
@@ -81,7 +80,7 @@ describe("parseFiatRailDetails", () => {
   });
 
   test("returns null for bolt11 type", () => {
-    expect(parseFiatRailDetails("bolt11", null)).toBeNull();
+    expect(parseFiatRailDetails("bolt11", "")).toBeNull();
   });
 
   test("returns null for unknown type", () => {

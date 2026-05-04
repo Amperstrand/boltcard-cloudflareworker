@@ -1,4 +1,3 @@
-// @ts-nocheck
 ;
 import { handleLnurlw } from "../handlers/lnurlwHandler.js";
 import { getDeterministicKeys } from "../keygenerator.js";
@@ -9,10 +8,10 @@ const UID = "04a39493cc8680";
 const ISSUER_KEY = "00000000000000000000000000000001";
 
 function buildEnv(paymentMethod = "fakewallet", extraConfig = {}) {
-  return buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod, cardConfig: { payment_method: paymentMethod, ...extraConfig } });
+  return buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod, cardConfig: { payment_method: paymentMethod as any, ...extraConfig } as any });
 }
 
-function tapRequest(uid, counter, k1, k2, baseUrl = "https://test.local") {
+function tapRequest(uid: string, counter: number, k1: string, k2: string, baseUrl = "https://test.local") {
   const { pHex, cHex } = virtualTap(uid, counter, k1, k2);
   return new Request(`${baseUrl}/?p=${pHex}&c=${cHex}`);
 }
@@ -23,7 +22,7 @@ describe("handleLnurlw", () => {
     const req = new Request("https://test.local/?c=ABCDEF0123456789");
     const res = await handleLnurlw(req, env);
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     expect(body.reason).toContain("p and c");
   });
 
@@ -43,11 +42,11 @@ describe("handleLnurlw", () => {
 
   it("returns fakewallet withdraw response for valid tap", async () => {
     const env = buildEnv("fakewallet");
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req = tapRequest(UID, 2, keys.k1, keys.k2);
     const res = await handleLnurlw(req, env);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     expect(body.tag).toBe("withdrawRequest");
     expect(body.callback).toContain("/boltcards/api/v1/lnurl/cb/");
     expect(body.k1).toBeDefined();
@@ -65,11 +64,11 @@ describe("handleLnurlw", () => {
         rune: "test",
       },
     });
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req = tapRequest(UID, 2, keys.k1, keys.k2);
     const res = await handleLnurlw(req, env);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     expect(body.tag).toBe("withdrawRequest");
     expect(body.minWithdrawable).toBe(1000);
     expect(body.maxWithdrawable).toBe(1000);
@@ -77,7 +76,7 @@ describe("handleLnurlw", () => {
 
   it("rejects replay with same counter", async () => {
     const env = buildEnv("fakewallet");
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req1 = tapRequest(UID, 3, keys.k1, keys.k2);
     const res1 = await handleLnurlw(req1, env);
     expect(res1.status).toBe(200);
@@ -85,13 +84,13 @@ describe("handleLnurlw", () => {
     const req2 = tapRequest(UID, 3, keys.k1, keys.k2);
     const res2 = await handleLnurlw(req2, env);
     expect(res2.status).toBe(409);
-    const body = await res2.json();
+    const body = (await res2.json()) as Record<string, any>;
     expect(body.reason).toContain("replay");
   });
 
   it("rejects replay with lower counter", async () => {
     const env = buildEnv("fakewallet");
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req1 = tapRequest(UID, 5, keys.k1, keys.k2);
     const res1 = await handleLnurlw(req1, env);
     expect(res1.status).toBe(200);
@@ -103,57 +102,57 @@ describe("handleLnurlw", () => {
 
   it("rejects terminated card", async () => {
     const env = buildEnv("fakewallet");
-    env.CARD_REPLAY.__cardStates.get(UID).state = "terminated";
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    (env.CARD_REPLAY as any).__cardStates.get(UID).state = "terminated";
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req = tapRequest(UID, 2, keys.k1, keys.k2);
     const res = await handleLnurlw(req, env);
     expect(res.status).toBe(403);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     expect(body.reason).toContain("terminated");
   });
 
   it("rejects invalid CMAC", async () => {
     const env = buildEnv("fakewallet");
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex } = virtualTap(UID, 2, keys.k1, keys.k2);
     const req = new Request(`https://test.local/?p=${pHex}&c=DEADBEEFDEADBEEF`);
     const res = await handleLnurlw(req, env);
     expect(res.status).toBe(403);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     expect(body.reason).toContain("CMAC");
   });
 
   it("returns error for unsupported payment method", async () => {
     const env = buildEnv("unknown_method");
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req = tapRequest(UID, 2, keys.k1, keys.k2);
     const res = await handleLnurlw(req, env);
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     expect(body.reason).toContain("Unsupported payment method");
   });
 
   it("handles legacy new state cards with version 1", async () => {
     const env = buildEnv("fakewallet");
-    env.CARD_REPLAY.__cardStates.get(UID).state = "new";
-    env.CARD_REPLAY.__cardStates.get(UID).active_version = null;
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    (env.CARD_REPLAY as any).__cardStates.get(UID).state = "new";
+    (env.CARD_REPLAY as any).__cardStates.get(UID).active_version = null;
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req = tapRequest(UID, 2, keys.k1, keys.k2);
     const res = await handleLnurlw(req, env);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     expect(body.tag).toBe("withdrawRequest");
   });
 
   it("accepts sequential taps with increasing counter", async () => {
     const env = buildEnv("fakewallet");
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
 
     for (let counter = 2; counter <= 5; counter++) {
       const req = tapRequest(UID, counter, keys.k1, keys.k2);
       const res = await handleLnurlw(req, env);
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, any>;
       expect(body.tag).toBe("withdrawRequest");
     }
   });
@@ -162,39 +161,39 @@ describe("handleLnurlw", () => {
     const env = buildEnv("lnurlpay", {
       lightning_address: "test@example.com",
     });
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req = tapRequest(UID, 2, keys.k1, keys.k2);
     const res = await handleLnurlw(req, env);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     expect(body.tag).toBe("payRequest");
   });
 
   it("auto-activates keys_delivered card and returns withdraw response", async () => {
     const env = buildEnv("fakewallet");
-    env.CARD_REPLAY.__cardStates.get(UID).state = "keys_delivered";
-    env.CARD_REPLAY.__cardStates.get(UID).latest_issued_version = 1;
-    env.CARD_REPLAY.__cardStates.get(UID).active_version = null;
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    (env.CARD_REPLAY as any).__cardStates.get(UID).state = "keys_delivered";
+    (env.CARD_REPLAY as any).__cardStates.get(UID).latest_issued_version = 1;
+    (env.CARD_REPLAY as any).__cardStates.get(UID).active_version = null;
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req = tapRequest(UID, 2, keys.k1, keys.k2);
     const res = await handleLnurlw(req, env);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     expect(body.tag).toBe("withdrawRequest");
-    expect(env.CARD_REPLAY.__cardStates.get(UID).state).toBe("active");
+    expect((env.CARD_REPLAY as any).__cardStates.get(UID).state).toBe("active");
   });
 
   it("rejects keys_delivered card with version mismatch", async () => {
     const env = buildEnv("fakewallet");
-    env.CARD_REPLAY.__cardStates.get(UID).state = "keys_delivered";
-    env.CARD_REPLAY.__cardStates.get(UID).latest_issued_version = 20;
-    env.CARD_REPLAY.__cardStates.get(UID).active_version = null;
-    const keysV1 = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    (env.CARD_REPLAY as any).__cardStates.get(UID).state = "keys_delivered";
+    (env.CARD_REPLAY as any).__cardStates.get(UID).latest_issued_version = 20;
+    (env.CARD_REPLAY as any).__cardStates.get(UID).active_version = null;
+    const keysV1 = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex } = virtualTap(UID, 2, keysV1.k1, keysV1.k2);
     const req = new Request(`https://test.local/?p=${pHex}&c=DEADBEEFDEADBEEF`);
     const res = await handleLnurlw(req, env);
     expect(res.status).toBe(403);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     expect(body.reason).toContain("Version mismatch");
   });
 
@@ -202,14 +201,14 @@ describe("handleLnurlw", () => {
     const env = buildEnv("proxy", {
       proxy: { baseurl: "https://backend.example.com/tap" },
     });
-    delete env.CARD_REPLAY.__cardConfigs.get(UID).K2;
+    delete (env.CARD_REPLAY as any).__cardConfigs.get(UID).K2;
 
     const originalFetch = globalThis.fetch;
     globalThis.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ status: "OK" }), { status: 200 })
     );
 
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req = tapRequest(UID, 2, keys.k1, keys.k2);
     const res = await handleLnurlw(req, env);
 
@@ -228,14 +227,14 @@ describe("handleLnurlw", () => {
       new Response(JSON.stringify({ status: "OK" }), { status: 200 })
     );
 
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex } = virtualTap(UID, 3, keys.k1, keys.k2);
     const badC = "DEADBEEFDEADBEEF";
     const req = new Request(`https://test.local/?p=${pHex}&c=${badC}`);
     const res = await handleLnurlw(req, env);
 
     expect(res.status).toBe(403);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     expect(body.reason).toContain("CMAC");
     globalThis.fetch = originalFetch;
   });
@@ -249,11 +248,11 @@ describe("handleLnurlw", () => {
       new Response(JSON.stringify({ status: "OK" }), { status: 200 })
     );
 
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req = tapRequest(UID, 2, keys.k1, keys.k2);
     await handleLnurlw(req, env);
 
-    const proxiedReq = globalThis.fetch.mock.calls[0][0];
+    const proxiedReq = (globalThis.fetch as any).mock.calls[0][0];
     expect(proxiedReq.headers.get("X-BoltCard-CMAC-Validated")).toBe("true");
     expect(proxiedReq.headers.get("X-BoltCard-CMAC-Deferred")).toBe("false");
     globalThis.fetch = originalFetch;
@@ -261,8 +260,8 @@ describe("handleLnurlw", () => {
 
   it("resolves config from deterministic keys when DO config has no K2", async () => {
     const env = buildEnv("fakewallet");
-    delete env.CARD_REPLAY.__cardConfigs.get(UID).K2;
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    delete (env.CARD_REPLAY as any).__cardConfigs.get(UID).K2;
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req = tapRequest(UID, 2, keys.k1, keys.k2);
     const res = await handleLnurlw(req, env);
     expect(res.status).toBe(200);
@@ -270,12 +269,12 @@ describe("handleLnurlw", () => {
 
   it("handles active card with active_version set", async () => {
     const env = buildEnv("fakewallet");
-    env.CARD_REPLAY.__cardStates.get(UID).active_version = 1;
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    (env.CARD_REPLAY as any).__cardStates.get(UID).active_version = 1;
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req = tapRequest(UID, 2, keys.k1, keys.k2);
     const res = await handleLnurlw(req, env);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     expect(body.tag).toBe("withdrawRequest");
   });
 
@@ -288,11 +287,11 @@ describe("handleLnurlw", () => {
         rune: "test",
       },
     });
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req = tapRequest(UID, 2, keys.k1, keys.k2);
     const res = await handleLnurlw(req, env);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, any>;
     expect(body.minWithdrawable).toBe(1000);
     expect(body.maxWithdrawable).toBe(1000);
   });
@@ -301,8 +300,8 @@ describe("handleLnurlw", () => {
     const env = buildEnv("proxy", {
       proxy: { baseurl: "https://backend.example.com/tap" },
     });
-    delete env.CARD_REPLAY.__cardConfigs.get(UID).K2;
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    delete (env.CARD_REPLAY as any).__cardConfigs.get(UID).K2;
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req1 = tapRequest(UID, 2, keys.k1, keys.k2);
 
     const originalFetch = globalThis.fetch;
@@ -316,7 +315,7 @@ describe("handleLnurlw", () => {
     const req2 = tapRequest(UID, 2, keys.k1, keys.k2);
     const res2 = await handleLnurlw(req2, env);
     expect(res2.status).toBe(409);
-    const body = await res2.json();
+    const body = (await res2.json()) as Record<string, any>;
     expect(body.reason).toMatch(/replay/i);
   });
 
@@ -328,10 +327,10 @@ describe("handleLnurlw", () => {
         max_sendable: 1000,
       },
     });
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req = tapRequest(UID, 2, keys.k1, keys.k2);
     await handleLnurlw(req, env);
-    expect(env.CARD_REPLAY.__counters.has(UID)).toBe(false);
+    expect((env.CARD_REPLAY as any).__counters.has(UID)).toBe(false);
   });
 
   it("returns error when p decrypts but uid is undefined", async () => {
@@ -343,11 +342,11 @@ describe("handleLnurlw", () => {
 
   it("returns 503 when card state check throws", async () => {
     const env = buildEnv("fakewallet");
-    const origGet = env.CARD_REPLAY.get;
-    env.CARD_REPLAY.get = () => ({
+    const origGet = (env.CARD_REPLAY as any).get;
+    (env.CARD_REPLAY as any).get = () => ({
       fetch: async () => Response.json({ error: "broken" }, { status: 500 }),
     });
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req = tapRequest(UID, 2, keys.k1, keys.k2);
     const res = await handleLnurlw(req, env);
     expect(res.status).toBe(503);
@@ -362,10 +361,10 @@ describe("handleLnurlw", () => {
         rune: "test",
       },
     });
-    const origGet = env.CARD_REPLAY.get;
+    const origGet = (env.CARD_REPLAY as any).get;
     let callCount = 0;
-    env.CARD_REPLAY.get = (id) => ({
-      fetch: async (req) => {
+    (env.CARD_REPLAY as any).get = (id: string) => ({
+      fetch: async (req: Request) => {
         callCount++;
         const url = new URL(req.url);
         if (url.pathname === "/check") {
@@ -375,7 +374,7 @@ describe("handleLnurlw", () => {
         return stub.fetch(req);
       },
     });
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req = tapRequest(UID, 2, keys.k1, keys.k2);
     const res = await handleLnurlw(req, env);
     expect(res.status).toBe(500);
@@ -385,10 +384,10 @@ describe("handleLnurlw", () => {
     const env = buildEnv("proxy", {
       proxy: { baseurl: "https://backend.example.com/tap" },
     });
-    delete env.CARD_REPLAY.__cardConfigs.get(UID).K2;
-    const origGet = env.CARD_REPLAY.get;
-    env.CARD_REPLAY.get = () => ({
-      fetch: async (req) => {
+    delete (env.CARD_REPLAY as any).__cardConfigs.get(UID).K2;
+    const origGet = (env.CARD_REPLAY as any).get;
+    (env.CARD_REPLAY as any).get = () => ({
+      fetch: async (req: Request) => {
         const url = new URL(req.url);
         if (url.pathname === "/check") {
           return Response.json({ reason: "DO down" }, { status: 500 });
@@ -397,7 +396,7 @@ describe("handleLnurlw", () => {
         return stub.fetch(req);
       },
     });
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req = tapRequest(UID, 2, keys.k1, keys.k2);
     const res = await handleLnurlw(req, env);
     expect(res.status).toBe(500);
@@ -405,14 +404,14 @@ describe("handleLnurlw", () => {
 
   it("returns 500 when card activation fails for keys_delivered card", async () => {
     const env = buildEnv("fakewallet");
-    env.CARD_REPLAY.__cardStates.get(UID).state = "keys_delivered";
-    env.CARD_REPLAY.__cardStates.get(UID).latest_issued_version = 1;
-    env.CARD_REPLAY.__cardStates.get(UID).active_version = null;
-    const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
-    env.CARD_REPLAY.get = (id) => {
+    (env.CARD_REPLAY as any).__cardStates.get(UID).state = "keys_delivered";
+    (env.CARD_REPLAY as any).__cardStates.get(UID).latest_issued_version = 1;
+    (env.CARD_REPLAY as any).__cardStates.get(UID).active_version = null;
+    const origGet = (env.CARD_REPLAY as any).get.bind(env.CARD_REPLAY);
+    (env.CARD_REPLAY as any).get = (id: string) => {
       const obj = origGet(id);
       return {
-        fetch: async (request) => {
+        fetch: async (request: Request) => {
           const url = new URL(request.url);
           if (url.pathname === "/activate") {
             return Response.json({ ok: false, error: "DO error" }, { status: 500 });
@@ -421,7 +420,7 @@ describe("handleLnurlw", () => {
         },
       };
     };
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req = tapRequest(UID, 2, keys.k1, keys.k2);
     const res = await handleLnurlw(req, env);
     expect(res.status).toBe(500);
@@ -438,15 +437,15 @@ describe("handleLnurlw", () => {
         cardConfig: null,
       });
 
-      const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY }, 1);
+      const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY } as any, 1);
       const req = tapRequest(discoveryUid, 1, keys.k1, keys.k2);
 
       const res = await handleLnurlw(req, env);
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, any>;
       expect(body.tag).toBe("withdrawRequest");
 
-      const cardState = env.CARD_REPLAY.__cardStates.get(discoveryUid);
+      const cardState = (env.CARD_REPLAY as any).__cardStates.get(discoveryUid);
       expect(cardState).toBeDefined();
       expect(cardState.state).toBe("discovered");
       expect(cardState.key_provenance).toBe("public_issuer");
@@ -456,9 +455,9 @@ describe("handleLnurlw", () => {
     it("discovers unknown card even without prior DO row", async () => {
       const discoveryUid = "ff000000000002";
       const replay = makeReplayNamespace({}, {});
-      const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY }, 1);
+      const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY } as any, 1);
 
-      const env = {
+      const env: any = {
         ISSUER_KEY,
         BOLT_CARD_K1: keys.k1,
         CARD_REPLAY: replay,
@@ -469,7 +468,7 @@ describe("handleLnurlw", () => {
       const res = await handleLnurlw(req, env);
 
       expect(res.status).toBe(200);
-      const cardState = replay.__cardStates.get(discoveryUid);
+      const cardState = replay.__cardStates.get(discoveryUid)!;
       expect(cardState).toBeDefined();
       expect(cardState.state).toBe("discovered");
       expect(cardState.key_provenance).toBe("public_issuer");
@@ -477,7 +476,7 @@ describe("handleLnurlw", () => {
 
     it("handles discovered card on subsequent tap without re-discovery", async () => {
       const discoveryUid = "ff000000000003";
-      const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY }, 1);
+      const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY } as any, 1);
       const replay = makeReplayNamespace({}, {});
 
       replay.__cardStates.set(discoveryUid, {
@@ -496,7 +495,7 @@ describe("handleLnurlw", () => {
       });
       replay.__cardConfigs.set(discoveryUid, { payment_method: "fakewallet", K2: keys.k2 });
 
-      const env = {
+      const env: any = {
         ISSUER_KEY,
         BOLT_CARD_K1: keys.k1,
         CARD_REPLAY: replay,
@@ -519,7 +518,7 @@ describe("handleLnurlw", () => {
         cardConfig: null,
       });
 
-      env.CARD_REPLAY.__cardStates.set(discoveryUid, {
+      (env.CARD_REPLAY as any).__cardStates.set(discoveryUid, {
         state: "pending",
         latest_issued_version: 0,
         active_version: null,
@@ -534,13 +533,13 @@ describe("handleLnurlw", () => {
         first_seen_at: Math.floor(Date.now() / 1000),
       });
 
-      const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY }, 1);
+      const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY } as any, 1);
       const req = tapRequest(discoveryUid, 1, keys.k1, keys.k2);
 
       const res = await handleLnurlw(req, env);
       expect(res.status).toBe(200);
 
-      const cardState = env.CARD_REPLAY.__cardStates.get(discoveryUid);
+      const cardState = (env.CARD_REPLAY as any).__cardStates.get(discoveryUid);
       expect(cardState.state).toBe("discovered");
       expect(cardState.active_version).toBe(1);
     });
@@ -549,9 +548,9 @@ describe("handleLnurlw", () => {
       const discoveryUid = "ff000000000005";
       const nonPublicKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
       const replay = makeReplayNamespace({}, {});
-      const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: nonPublicKey }, 1);
+      const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: nonPublicKey } as any, 1);
 
-      const env = {
+      const env: any = {
         ISSUER_KEY: nonPublicKey,
         BOLT_CARD_K1: keys.k1,
         CARD_REPLAY: replay,
@@ -562,7 +561,7 @@ describe("handleLnurlw", () => {
       const res = await handleLnurlw(req, env);
 
       expect(res.status).toBe(200);
-      const cardState = replay.__cardStates.get(discoveryUid);
+      const cardState = replay.__cardStates.get(discoveryUid)!;
       expect(cardState.state).toBe("discovered");
       expect(cardState.key_provenance).toBe("env_issuer");
     });
@@ -570,10 +569,10 @@ describe("handleLnurlw", () => {
     it("discovers card via RECOVERY_ISSUER_KEYS (second candidate)", async () => {
       const discoveryUid = "ff000000000006";
       const recoveryKey = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-      const recoveryKeys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: recoveryKey }, 1);
+      const recoveryKeys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: recoveryKey } as any, 1);
       const replay = makeReplayNamespace({}, {});
 
-      const env = {
+      const env: any = {
         ISSUER_KEY: "cccccccccccccccccccccccccccccccc",
         RECOVERY_ISSUER_KEYS: recoveryKey,
         BOLT_CARD_K1: recoveryKeys.k1,
@@ -585,7 +584,7 @@ describe("handleLnurlw", () => {
       const res = await handleLnurlw(req, env);
 
       expect(res.status).toBe(200);
-      const cardState = replay.__cardStates.get(discoveryUid);
+      const cardState = replay.__cardStates.get(discoveryUid)!;
       expect(cardState).toBeDefined();
       expect(cardState.state).toBe("discovered");
       expect(cardState.key_provenance).toBe("unknown");
@@ -594,7 +593,7 @@ describe("handleLnurlw", () => {
     it("returns 403 when pending card has no matching key candidate", async () => {
       const discoveryUid = "ff000000000007";
       const wrongKey = "dddddddddddddddddddddddddddddddd";
-      const wrongKeys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: wrongKey }, 1);
+      const wrongKeys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: wrongKey } as any, 1);
       const replay = makeReplayNamespace({}, {});
 
       replay.__cardStates.set(discoveryUid, {
@@ -612,7 +611,7 @@ describe("handleLnurlw", () => {
         first_seen_at: Math.floor(Date.now() / 1000),
       });
 
-      const env = {
+      const env: any = {
         ISSUER_KEY: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
         BOLT_CARD_K1: wrongKeys.k1,
         CARD_REPLAY: replay,
@@ -623,17 +622,17 @@ describe("handleLnurlw", () => {
       const res = await handleLnurlw(req, env);
 
       expect(res.status).toBe(403);
-      const body = await res.json();
+      const body = (await res.json()) as Record<string, any>;
       expect(body.reason).toContain("Unable to identify card key");
     });
 
     it("returns error for new card with no matching key (CMAC fails)", async () => {
       const discoveryUid = "ff000000000008";
       const unknownKey = "ffffffffffffffffffffffffffffffff";
-      const unknownKeys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: unknownKey }, 1);
+      const unknownKeys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: unknownKey } as any, 1);
       const replay = makeReplayNamespace({}, {});
 
-      const env = {
+      const env: any = {
         ISSUER_KEY: "11111111111111111111111111111111",
         BOLT_CARD_K1: unknownKeys.k1,
         CARD_REPLAY: replay,
@@ -649,7 +648,7 @@ describe("handleLnurlw", () => {
     it("discovers legacy card on first tap", async () => {
       const discoveryUid = "ff000000000009";
       const replay = makeReplayNamespace({}, {});
-      const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY }, 1);
+      const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY } as any, 1);
 
       replay.__cardStates.set(discoveryUid, {
         state: "legacy",
@@ -666,7 +665,7 @@ describe("handleLnurlw", () => {
         first_seen_at: null,
       });
 
-      const env = {
+      const env: any = {
         ISSUER_KEY,
         BOLT_CARD_K1: keys.k1,
         CARD_REPLAY: replay,
@@ -683,10 +682,10 @@ describe("handleLnurlw", () => {
       const discoveryUid = "ff000000000010";
       const recoveryKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
       const mainKey = "cccccccccccccccccccccccccccccccc";
-      const recoveryKeys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: recoveryKey }, 1);
+      const recoveryKeys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: recoveryKey } as any, 1);
       const replay = makeReplayNamespace({}, {});
 
-      const env = {
+      const env: any = {
         ISSUER_KEY: mainKey,
         RECOVERY_ISSUER_KEYS: recoveryKey,
         BOLT_CARD_K1: recoveryKeys.k1,
@@ -698,17 +697,17 @@ describe("handleLnurlw", () => {
       const res1 = await handleLnurlw(req1, env);
       expect(res1.status).toBe(200);
 
-      const cardState = replay.__cardStates.get(discoveryUid);
+      const cardState = replay.__cardStates.get(discoveryUid)!;
       expect(cardState.state).toBe("discovered");
 
-      const cardConfig = replay.__cardConfigs.get(discoveryUid);
+      const cardConfig = replay.__cardConfigs.get(discoveryUid)!;
       expect(cardConfig).toBeDefined();
       expect(cardConfig.K2).toBe(recoveryKeys.k2);
 
       const req2 = tapRequest(discoveryUid, 2, recoveryKeys.k1, recoveryKeys.k2);
       const res2 = await handleLnurlw(req2, env);
       expect(res2.status).toBe(200);
-      const body = await res2.json();
+      const body = (await res2.json()) as Record<string, any>;
       expect(body.tag).toBe("withdrawRequest");
     });
   });

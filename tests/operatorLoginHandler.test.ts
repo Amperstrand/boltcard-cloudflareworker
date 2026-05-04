@@ -1,4 +1,3 @@
-// @ts-nocheck
 
 import { handleRequest } from "../index.js";
 import { buildCardTestEnv } from "./testHelpers.js";
@@ -41,7 +40,7 @@ describe("POST /operator/login", () => {
       makeEnv({ OPERATOR_PIN: "12" }),
     );
     expect(res.status).toBe(500);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.reason).toMatch(/not configured/i);
   });
 
@@ -112,16 +111,16 @@ describe("POST /operator/login", () => {
       makeEnv(),
     );
     expect(res.status).toBe(400);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.reason).toMatch(/invalid form/i);
   });
 
   it("returns 429 when rate limited", async () => {
-    const kvStore = {};
+    const kvStore: Record<string, string> = {};
     const rateLimitedEnv = makeEnv({
       RATE_LIMITS: {
-        get: async (key) => kvStore[key] ?? null,
-        put: async (key, val) => { kvStore[key] = val; },
+        get: async (key: string) => kvStore[key] ?? null,
+        put: async (key: string, val: string) => { kvStore[key] = val; },
       },
     });
 
@@ -151,7 +150,7 @@ describe("POST /operator/login", () => {
       rateLimitedEnv,
     );
     expect(res.status).toBe(429);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.reason).toMatch(/too many/i);
   });
 });

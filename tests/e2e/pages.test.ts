@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { handleRequest } from "../../index.js";
 import { makeReplayNamespace } from "../replayNamespace.js";
 import { TEST_OPERATOR_AUTH, virtualTap, buildCardTestEnv } from "../testHelpers.js";
@@ -8,12 +7,12 @@ const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59a
 
 const worker = (await import("../../index.js")).default;
 
-async function req(path, method = "GET", body = null, env, headers = {}) {
+async function req(path: string, method = "GET", body: Record<string, unknown> | null = null, env: Record<string, unknown>, headers: Record<string, string> = {}) {
   const url = "https://boltcardpoc.psbt.me" + path;
-  const opts = { method, headers };
+  const opts: RequestInit = { method, headers };
   if (body) {
     opts.body = JSON.stringify(body);
-    opts.headers["Content-Type"] = "application/json";
+    (opts.headers as Record<string, string>)["Content-Type"] = "application/json";
   }
   return handleRequest(new Request(url, opts), env);
 }
@@ -117,13 +116,13 @@ describe("E2E: /card/info API", () => {
   it("returns card info for valid tap", async () => {
     const uid = "04a111fa967380";
     const env = buildCardTestEnv({ uid, operatorAuth: true, cardState: "active" });
-    const keys = getDeterministicKeys(uid, { ISSUER_KEY: env.ISSUER_KEY }, 1);
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const keys = getDeterministicKeys(uid, { ISSUER_KEY: env.ISSUER_KEY } as any, 1);
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
     const { pHex, cHex } = virtualTap(uid, 1, k1Hex, keys.k2);
 
-    const resp = await req(`/card/info?p=${pHex}&c=${cHex}`, "GET", null, env);
+    const resp = await req(`/card/info?p=${pHex}&c=${cHex}`, "GET", null, env as any);
     expect(resp.status).toBe(200);
-    const json = await resp.json();
+    const json = await resp.json() as Record<string, unknown>;
     expect(json.uid).toBe(uid);
     expect(json.state).toBe("active");
     expect(json.balance).toBe(0);
@@ -138,17 +137,17 @@ describe("E2E: /card/info API", () => {
   it("returns terminated state for terminated card", async () => {
     const uid = "04a222fa967380";
     const env = buildCardTestEnv({ uid, operatorAuth: true, cardState: "active" });
-    const keys = getDeterministicKeys(uid, { ISSUER_KEY: env.ISSUER_KEY }, 1);
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const keys = getDeterministicKeys(uid, { ISSUER_KEY: env.ISSUER_KEY } as any, 1);
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
 
-    const state = env.CARD_REPLAY.__cardStates.get(uid.toLowerCase());
+    const state = (env.CARD_REPLAY as any).__cardStates.get(uid.toLowerCase());
     state.state = "terminated";
     state.terminated_at = Math.floor(Date.now() / 1000);
 
     const { pHex, cHex } = virtualTap(uid, 1, k1Hex, keys.k2);
-    const resp = await req(`/card/info?p=${pHex}&c=${cHex}`, "GET", null, env);
+    const resp = await req(`/card/info?p=${pHex}&c=${cHex}`, "GET", null, env as any);
     expect(resp.status).toBe(200);
-    const json = await resp.json();
+    const json = await resp.json() as Record<string, unknown>;
     expect(json.state).toBe("terminated");
     expect(json.programmingRecommended).toBe(false);
   });
@@ -165,7 +164,7 @@ describe("E2E: /operator/cards/data API", () => {
     const env = makePageEnv();
     const resp = await req("/operator/cards/data?state=active", "GET", null, env);
     expect(resp.status).toBe(200);
-    const json = await resp.json();
+    const json = await resp.json() as Record<string, unknown>;
     expect(json.cards).toEqual([]);
   });
 });
@@ -173,7 +172,7 @@ describe("E2E: /operator/cards/data API", () => {
 describe("E2E: Security headers on all responses", () => {
   it("GET /login has security headers", async () => {
     const env = makePageEnv();
-    const resp = await worker.fetch(new Request("https://boltcardpoc.psbt.me/login"), env, {});
+    const resp = await worker.fetch(new Request("https://boltcardpoc.psbt.me/login"), env, {} as ExecutionContext);
     expect(resp.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(resp.headers.get("X-Frame-Options")).toBe("DENY");
     expect(resp.headers.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
@@ -181,14 +180,14 @@ describe("E2E: Security headers on all responses", () => {
 
   it("GET /operator/login has security headers", async () => {
     const env = makePageEnv();
-    const resp = await worker.fetch(new Request("https://boltcardpoc.psbt.me/operator/login"), env, {});
+    const resp = await worker.fetch(new Request("https://boltcardpoc.psbt.me/operator/login"), env, {} as ExecutionContext);
     expect(resp.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(resp.headers.get("X-Frame-Options")).toBe("DENY");
   });
 
   it("GET /status has security headers", async () => {
     const env = makePageEnv();
-    const resp = await worker.fetch(new Request("https://boltcardpoc.psbt.me/status"), env, {});
+    const resp = await worker.fetch(new Request("https://boltcardpoc.psbt.me/status"), env, {} as ExecutionContext);
     expect(resp.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(resp.headers.get("X-Frame-Options")).toBe("DENY");
   });
@@ -199,7 +198,7 @@ describe("E2E: Security headers on all responses", () => {
       CARD_REPLAY: makeReplayNamespace(),
       UID_CONFIG: { get: async () => null, put: async () => {} },
     };
-    const resp = await worker.fetch(new Request("https://boltcardpoc.psbt.me/operator/pos"), env, {});
+    const resp = await worker.fetch(new Request("https://boltcardpoc.psbt.me/operator/pos"), env, {} as ExecutionContext);
     expect(resp.status).toBe(302);
     expect(resp.headers.get("X-Content-Type-Options")).toBe("nosniff");
   });

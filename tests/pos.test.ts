@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { hexToBytes, bytesToHex } from "../cryptoutils.js";
@@ -6,16 +5,15 @@ import { getDeterministicKeys } from "../keygenerator.js";
 import { buildVerificationData } from "../cryptoutils.js";
 import aesjs from "aes-js";
 import { buildCardTestEnv } from "./testHelpers.js";
+import type { Env } from "../types/core.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const TEST_UID = "04996c6a926980";
 
-// Real crypto: encrypt a valid p parameter and compute valid c for a given UID + counter
-function generateRealPandC(uidHex, counter, k1Hex) {
+function generateRealPandC(uidHex: string, counter: number, k1Hex: string) {
   const k1 = hexToBytes(k1Hex);
   const uid = hexToBytes(uidHex);
 
-  // Counter in little-endian at positions 8-10
   const plaintext = new Uint8Array(16);
   plaintext[0] = 0xC7;
   plaintext.set(uid, 1);
@@ -27,7 +25,6 @@ function generateRealPandC(uidHex, counter, k1Hex) {
   const encrypted = aes.encrypt(plaintext);
   const pHex = bytesToHex(new Uint8Array(encrypted));
 
-  // Extract counter as decryptP would return it (big-endian after reversal)
   const ctrHex = bytesToHex(new Uint8Array([
     (counter >> 16) & 0xff,
     (counter >> 8) & 0xff,
@@ -37,8 +34,7 @@ function generateRealPandC(uidHex, counter, k1Hex) {
   return { pHex, ctrHex };
 }
 
-// Compute a valid BoltCard CMAC (c) for given UID, ctr (big-endian hex), K2
-function computeRealC(uidHex, ctrHex, k2Hex) {
+function computeRealC(uidHex: string, ctrHex: string, k2Hex: string) {
   const uid = hexToBytes(uidHex);
   const ctr = hexToBytes(ctrHex);
   const k2 = hexToBytes(k2Hex);
@@ -46,13 +42,13 @@ function computeRealC(uidHex, ctrHex, k2Hex) {
   return bytesToHex(vd.ct);
 }
 
-function makeEnv(replayInitial = {}, balance = 0) {
+function makeEnv(replayInitial: Record<string, number> = {}, balance: number = 0): Env & { __kvStore?: Record<string, string> } {
   return buildCardTestEnv({ uid: TEST_UID, replayInitial, balance, operatorAuth: true, extraEnv: { BOLT_CARD_K1 } });
 }
 
-async function makeRequest(path, method = "GET", body = null, requestEnv) {
+async function makeRequest(path: string, method: string = "GET", body: Record<string, unknown> | null = null, requestEnv: Env): Promise<Response> {
   const url = "https://test.local" + path;
-  const options = { method };
+  const options: RequestInit = { method };
   if (body) {
     options.body = JSON.stringify(body);
     options.headers = { "Content-Type": "application/json" };
@@ -61,7 +57,7 @@ async function makeRequest(path, method = "GET", body = null, requestEnv) {
 }
 
 describe("POS Page", () => {
-  function makeEnv() {
+  function makeEnv(): Env {
     return buildCardTestEnv({ operatorAuth: true, extraEnv: { BOLT_CARD_K1 } });
   }
 
@@ -87,17 +83,16 @@ describe("POS Page", () => {
 });
 
 describe("POS Amount Parameter Support", () => {
-  let keys;
+  let keys: ReturnType<typeof getDeterministicKeys>;
 
-  beforeAll(async () => {
-    const env = { BOLT_CARD_K1: BOLT_CARD_K1 };
-    keys = getDeterministicKeys(TEST_UID, env);
+  beforeAll(() => {
+    keys = getDeterministicKeys(TEST_UID, { BOLT_CARD_K1 } as any);
   });
 
   test("callback handler accepts amount query parameter alongside pr", async () => {
     const env = makeEnv({}, 100000);
     env.UID_CONFIG = {
-      get: async (uid) => {
+      get: async (uid: string) => {
         if (uid === TEST_UID) {
           return JSON.stringify({
             payment_method: "fakewallet",
@@ -107,7 +102,7 @@ describe("POS Amount Parameter Support", () => {
         return null;
       },
       put: async () => {},
-    };
+    } as any;
 
     const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
@@ -120,14 +115,13 @@ describe("POS Amount Parameter Support", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as any;
     expect(json.status).toBe("OK");
 
-    // Verify the tap was recorded with the explicit amount
     const id = env.CARD_REPLAY.idFromName(TEST_UID);
     const stub = env.CARD_REPLAY.get(id);
     const listResp = await stub.fetch(new Request("https://internal/list-taps"));
-    const listJson = await listResp.json();
+    const listJson = await listResp.json() as any;
 
     expect(listJson.taps).toHaveLength(1);
     expect(listJson.taps[0].amount_msat).toBe(5000);
@@ -136,7 +130,7 @@ describe("POS Amount Parameter Support", () => {
   test("callback handler works when only amount is provided (no pr) - for fakewallet POS", async () => {
     const env = makeEnv({}, 100000);
     env.UID_CONFIG = {
-      get: async (uid) => {
+      get: async (uid: string) => {
         if (uid === TEST_UID) {
           return JSON.stringify({
             payment_method: "fakewallet",
@@ -146,7 +140,7 @@ describe("POS Amount Parameter Support", () => {
         return null;
       },
       put: async () => {},
-    };
+    } as any;
 
     const { pHex, ctrHex } = generateRealPandC(TEST_UID, 2, BOLT_CARD_K1.split(",")[0]);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
@@ -159,14 +153,13 @@ describe("POS Amount Parameter Support", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as any;
     expect(json.status).toBe("OK");
 
-    // Verify the tap was recorded with the explicit amount
     const id = env.CARD_REPLAY.idFromName(TEST_UID);
     const stub = env.CARD_REPLAY.get(id);
     const listResp = await stub.fetch(new Request("https://internal/list-taps"));
-    const listJson = await listResp.json();
+    const listJson = await listResp.json() as any;
 
     expect(listJson.taps).toHaveLength(1);
     expect(listJson.taps[0].amount_msat).toBe(10000);
@@ -176,7 +169,7 @@ describe("POS Amount Parameter Support", () => {
   test("callback handler rejects request when both pr and amount are missing", async () => {
     const env = makeEnv();
     env.UID_CONFIG = {
-      get: async (uid) => {
+      get: async (uid: string) => {
         if (uid === TEST_UID) {
           return JSON.stringify({
             payment_method: "fakewallet",
@@ -186,7 +179,7 @@ describe("POS Amount Parameter Support", () => {
         return null;
       },
       put: async () => {},
-    };
+    } as any;
 
     const { pHex, ctrHex } = generateRealPandC(TEST_UID, 3, BOLT_CARD_K1.split(",")[0]);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
@@ -199,7 +192,7 @@ describe("POS Amount Parameter Support", () => {
     );
 
     expect(response.status).toBe(400);
-    const json = await response.json();
+    const json = await response.json() as any;
     expect(json.status).toBe("ERROR");
     expect(json.reason).toBe("Missing pr or amount parameter");
   });
@@ -207,7 +200,7 @@ describe("POS Amount Parameter Support", () => {
   test("existing callback tests still pass - amount from bolt11 invoice", async () => {
     const env = makeEnv({}, 100000);
     env.UID_CONFIG = {
-      get: async (uid) => {
+      get: async (uid: string) => {
         if (uid === TEST_UID) {
           return JSON.stringify({
             payment_method: "fakewallet",
@@ -217,13 +210,12 @@ describe("POS Amount Parameter Support", () => {
         return null;
       },
       put: async () => {},
-    };
+    } as any;
 
     const { pHex, ctrHex } = generateRealPandC(TEST_UID, 4, BOLT_CARD_K1.split(",")[0]);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
-    // Use a realistic bolt11 invoice with amount
-    const bolt11Invoice = "lnbc1000n1pjrw..." + "u".repeat(50); // Simulated invoice
+    const bolt11Invoice = "lnbc1000n1pjrw..." + "u".repeat(50);
     const response = await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}&pr=${bolt11Invoice}`,
       "GET",
@@ -232,14 +224,14 @@ describe("POS Amount Parameter Support", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as any;
     expect(json.status).toBe("OK");
   });
 
   test("explicit amount takes precedence over bolt11 amount when both provided", async () => {
     const env = makeEnv({}, 100000);
     env.UID_CONFIG = {
-      get: async (uid) => {
+      get: async (uid: string) => {
         if (uid === TEST_UID) {
           return JSON.stringify({
             payment_method: "fakewallet",
@@ -249,12 +241,11 @@ describe("POS Amount Parameter Support", () => {
         return null;
       },
       put: async () => {},
-    };
+    } as any;
 
     const { pHex, ctrHex } = generateRealPandC(TEST_UID, 5, BOLT_CARD_K1.split(",")[0]);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
-    // Provide both pr and amount - amount should take precedence
     const response = await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}&pr=lnbc1000n1testinvoice&amount=25000`,
       "GET",
@@ -263,14 +254,13 @@ describe("POS Amount Parameter Support", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as any;
     expect(json.status).toBe("OK");
 
-    // Verify the tap was recorded with the explicit amount (25000), not the bolt11 amount
     const id = env.CARD_REPLAY.idFromName(TEST_UID);
     const stub = env.CARD_REPLAY.get(id);
     const listResp = await stub.fetch(new Request("https://internal/list-taps"));
-    const listJson = await listResp.json();
+    const listJson = await listResp.json() as any;
 
     expect(listJson.taps).toHaveLength(1);
     expect(listJson.taps[0].amount_msat).toBe(25000);
@@ -279,7 +269,7 @@ describe("POS Amount Parameter Support", () => {
   test("fakewallet debits correct amount when explicit amount provided", async () => {
     const env = makeEnv();
     env.UID_CONFIG = {
-      get: async (uid) => {
+      get: async (uid: string) => {
         if (uid === TEST_UID) {
           return JSON.stringify({
             payment_method: "fakewallet",
@@ -289,9 +279,8 @@ describe("POS Amount Parameter Support", () => {
         return null;
       },
       put: async () => {},
-    };
+    } as any;
 
-    // Credit the card with initial balance
     const id = env.CARD_REPLAY.idFromName(TEST_UID);
     const stub = env.CARD_REPLAY.get(id);
     await stub.fetch(new Request("https://internal/credit", {
@@ -312,8 +301,8 @@ describe("POS Amount Parameter Support", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as any;
     expect(json.status).toBe("OK");
-    expect(json.balance).toBe(35000); // 50000 - 15000
+    expect(json.balance).toBe(35000);
   });
 });

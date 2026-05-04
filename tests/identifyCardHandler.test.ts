@@ -1,4 +1,3 @@
-// @ts-nocheck
 
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
@@ -11,7 +10,7 @@ const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59a
 const TEST_UID = "04aabbccdd7788";
 const K1_HEX = BOLT_CARD_K1.split(",")[0];
 
-function generateP(uidHex, counter, k1Hex) {
+function generateP(uidHex: string, counter: number, k1Hex: string) {
   const k1 = hexToBytes(k1Hex);
   const uid = hexToBytes(uidHex);
   const plaintext = new Uint8Array(16);
@@ -25,19 +24,19 @@ function generateP(uidHex, counter, k1Hex) {
   return bytesToHex(new Uint8Array(encrypted));
 }
 
-function computeC(uidHex, ctrHex, k2Hex) {
+function computeC(uidHex: string, ctrHex: string, k2Hex: string) {
   const vd = buildVerificationData(hexToBytes(uidHex), hexToBytes(ctrHex), hexToBytes(k2Hex));
   return bytesToHex(vd.ct);
 }
 
 function makeEnv(replay = makeReplayNamespace({ [TEST_UID]: 1 })) {
-  return buildCardTestEnv({ operatorAuth: true, extraEnv: { CARD_REPLAY: replay, BOLT_CARD_K1 } });
+  return buildCardTestEnv({ operatorAuth: true, extraEnv: { CARD_REPLAY: replay as unknown as DurableObjectNamespace, BOLT_CARD_K1 } });
 }
 
-let keys;
+let keys: { k2: string };
 
 beforeAll(() => {
-  keys = getDeterministicKeys(TEST_UID, { BOLT_CARD_K1 });
+  keys = getDeterministicKeys(TEST_UID, { BOLT_CARD_K1 } as any);
 });
 
 describe("POST /api/identify-card", () => {
@@ -142,7 +141,7 @@ describe("POST /api/identify-card", () => {
     const counter = 2;
     const pHex = generateP(TEST_UID, counter, K1_HEX);
     const ctrHex = bytesToHex(new Uint8Array([(counter >> 16) & 0xff, (counter >> 8) & 0xff, counter & 0xff]));
-    const version3Keys = getDeterministicKeys(TEST_UID, { BOLT_CARD_K1 }, 3);
+    const version3Keys = getDeterministicKeys(TEST_UID, { BOLT_CARD_K1 } as any, 3);
     const cHex = computeC(TEST_UID, ctrHex, version3Keys.k2);
 
     const res = await handleRequest(

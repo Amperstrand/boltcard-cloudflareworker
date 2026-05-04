@@ -1,14 +1,13 @@
-// @ts-nocheck
 import { indexCard, _deindexCard as _deindexCard, _getIndexedCard as _getIndexedCard, listIndexedCards, repairCardIndex } from "../utils/cardIndex.js";
 
 describe("cardIndex", () => {
-  function makeKvEnv(store = {}) {
+  function makeKvEnv(store: Record<string, any> = {}) {
     return {
       UID_CONFIG: {
-        get: async (key) => store[key] ?? null,
-        put: async (key, val, opts) => { store[key] = { value: val, opts }; },
-        delete: async (key) => { delete store[key]; },
-        list: async ({ prefix, limit, cursor } = {}) => {
+        get: async (key: string) => store[key] ?? null,
+        put: async (key: string, val: string, opts?: any) => { store[key] = { value: val, opts }; },
+        delete: async (key: string) => { delete store[key]; },
+        list: async ({ prefix, limit, cursor }: { prefix?: string; limit?: number; cursor?: string } = {}) => {
           const keys = Object.keys(store)
             .filter(k => k.startsWith(prefix || ""))
             .sort()
@@ -18,7 +17,7 @@ describe("cardIndex", () => {
         },
       },
       __store: store,
-    };
+    } as any;
   }
 
   describe("indexCard", () => {
@@ -30,7 +29,7 @@ describe("cardIndex", () => {
         keyLabel: "prod",
       });
 
-      const stored = env.__store["card_idx:ff000000000001"];
+      const stored = (env as any).__store["card_idx:ff000000000001"];
       expect(stored).toBeDefined();
       const parsed = JSON.parse(stored.value);
       expect(parsed.uid).toBe("ff000000000001");
@@ -42,19 +41,19 @@ describe("cardIndex", () => {
     it("normalizes UID to lowercase", async () => {
       const env = makeKvEnv();
       await indexCard(env, "FF000000000001", { state: "active" });
-      expect(env.__store["card_idx:ff000000000001"]).toBeDefined();
-      expect(env.__store["card_idx:FF000000000001"]).toBeUndefined();
+      expect((env as any).__store["card_idx:ff000000000001"]).toBeDefined();
+      expect((env as any).__store["card_idx:FF000000000001"]).toBeUndefined();
     });
 
     it("sets TTL on KV entry", async () => {
       const env = makeKvEnv();
       await indexCard(env, "ff000000000002", { state: "discovered" });
-      const stored = env.__store["card_idx:ff000000000002"];
+      const stored = (env as any).__store["card_idx:ff000000000002"];
       expect(stored.opts.expirationTtl).toBe(7 * 24 * 60 * 60);
     });
 
     it("silently fails when UID_CONFIG is missing", async () => {
-      const env = {};
+      const env = {} as any;
       await expect(indexCard(env, "ff000000000001", { state: "active" })).resolves.toBeUndefined();
     });
 
@@ -68,7 +67,7 @@ describe("cardIndex", () => {
         UID_CONFIG: {
           put: async () => { throw new Error("KV error"); },
         },
-      };
+      } as any;
       await expect(indexCard(env, "ff000000000001", { state: "active" })).resolves.toBeUndefined();
     });
   });
@@ -77,11 +76,11 @@ describe("cardIndex", () => {
     it("removes card from KV", async () => {
       const env = makeKvEnv({ "card_idx:ff000000000001": '{"uid":"ff000000000001"}' });
       await _deindexCard(env, "ff000000000001");
-      expect(env.__store["card_idx:ff000000000001"]).toBeUndefined();
+      expect((env as any).__store["card_idx:ff000000000001"]).toBeUndefined();
     });
 
     it("silently fails when UID_CONFIG is missing", async () => {
-      await expect(_deindexCard({}, "ff000000000001")).resolves.toBeUndefined();
+      await expect(_deindexCard({} as any, "ff000000000001")).resolves.toBeUndefined();
     });
   });
 
@@ -91,8 +90,8 @@ describe("cardIndex", () => {
         "card_idx:ff000000000001": JSON.stringify({ uid: "ff000000000001", state: "active" }),
       });
       const card = await _getIndexedCard(env, "ff000000000001");
-      expect(card.uid).toBe("ff000000000001");
-      expect(card.state).toBe("active");
+      expect(card!.uid).toBe("ff000000000001");
+      expect(card!.state).toBe("active");
     });
 
     it("returns null when card not found", async () => {
@@ -102,7 +101,7 @@ describe("cardIndex", () => {
     });
 
     it("returns null when UID_CONFIG is missing", async () => {
-      const card = await _getIndexedCard({}, "ff000000000001");
+      const card = await _getIndexedCard({} as any, "ff000000000001");
       expect(card).toBeNull();
     });
   });
@@ -138,7 +137,7 @@ describe("cardIndex", () => {
     });
 
     it("returns empty result when UID_CONFIG is missing", async () => {
-      const result = await listIndexedCards({});
+      const result = await listIndexedCards({} as any);
       expect(result.cards).toEqual([]);
     });
 
@@ -153,14 +152,14 @@ describe("cardIndex", () => {
     });
 
     it("passes cursor through and returns next cursor when list incomplete", async () => {
-      const store = {};
+      const store: Record<string, any> = {};
       for (let i = 1; i <= 5; i++) {
         const uid = `ff00000000000${i}`;
         store[`card_idx:${uid}`] = JSON.stringify({ uid, state: "active" });
       }
       const env = {
         UID_CONFIG: {
-          list: async ({ prefix, limit, cursor }) => {
+          list: async ({ prefix, limit, cursor }: { prefix: string; limit: number; cursor?: string }) => {
             const allKeys = Object.keys(store).filter(k => k.startsWith(prefix)).sort();
             const startIdx = cursor ? allKeys.indexOf(cursor) + 1 : 0;
             const batch = allKeys.slice(startIdx, startIdx + limit);
@@ -171,9 +170,9 @@ describe("cardIndex", () => {
               cursor: listComplete ? null : batch[batch.length - 1],
             };
           },
-          get: async (key) => store[key] ?? null,
+          get: async (key: string) => store[key] ?? null,
         },
-      };
+      } as any;
 
       const page1 = await listIndexedCards(env, { limit: 2 });
       expect(page1.cards).toHaveLength(2);
@@ -189,7 +188,7 @@ describe("cardIndex", () => {
     });
 
     it("fetches cards in parallel", async () => {
-      const getCallOrder = [];
+      const getCallOrder: string[] = [];
       const env = {
         UID_CONFIG: {
           list: async () => ({
@@ -200,13 +199,13 @@ describe("cardIndex", () => {
             list_complete: true,
             cursor: null,
           }),
-          get: async (key) => {
+          get: async (key: string) => {
             getCallOrder.push(key);
             await new Promise((r) => setTimeout(r, 10));
             return JSON.stringify({ uid: key.split(":")[1], state: "active" });
           },
         },
-      };
+      } as any;
       const result = await listIndexedCards(env);
       expect(result.cards).toHaveLength(2);
       expect(getCallOrder).toHaveLength(2);
@@ -215,24 +214,24 @@ describe("cardIndex", () => {
 
   describe("repairCardIndex", () => {
     it("repairs cards with stale KV state", async () => {
-      const store = {};
+      const store: Record<string, any> = {};
       store["card_idx:ff000000000001"] = JSON.stringify({ uid: "ff000000000001", state: "wipe_requested", updatedAt: Date.now() });
       store["card_idx:ff000000000002"] = JSON.stringify({ uid: "ff000000000002", state: "active", updatedAt: Date.now() });
 
       const env = {
         UID_CONFIG: {
-          get: async (key) => store[key] ?? null,
-          put: async (key, val, opts) => { store[key] = { value: val, opts }; },
-          delete: async (key) => { delete store[key]; },
-          list: async ({ prefix, limit }) => {
+          get: async (key: string) => store[key] ?? null,
+          put: async (key: string, val: string, opts?: any) => { store[key] = { value: val, opts }; },
+          delete: async (key: string) => { delete store[key]; },
+          list: async ({ prefix, limit }: { prefix: string; limit: number }) => {
             const keys = Object.keys(store).filter(k => k.startsWith(prefix)).slice(0, limit).map(k => ({ name: k }));
             return { keys, list_complete: true, cursor: null };
           },
         },
         CARD_REPLAY: {},
-      };
+      } as any;
 
-      const getCardStateFn = async (_env, uid) => {
+      const getCardStateFn = async (_env: any, uid: string) => {
         if (uid === "ff000000000001") return { state: "active" };
         return { state: "active" };
       };
@@ -247,20 +246,20 @@ describe("cardIndex", () => {
     });
 
     it("returns zero repaired when all states match", async () => {
-      const store = {};
+      const store: Record<string, any> = {};
       store["card_idx:ff000000000001"] = JSON.stringify({ uid: "ff000000000001", state: "active" });
 
       const env = {
         UID_CONFIG: {
-          get: async (key) => store[key] ?? null,
-          put: async (key, val) => { store[key] = val; },
-          list: async ({ prefix }) => ({
+          get: async (key: string) => store[key] ?? null,
+          put: async (key: string, val: string) => { store[key] = val; },
+          list: async ({ prefix }: { prefix: string }) => ({
             keys: Object.keys(store).filter(k => k.startsWith(prefix)).map(k => ({ name: k })),
             list_complete: true,
           }),
         },
         CARD_REPLAY: {},
-      };
+      } as any;
 
       const result = await repairCardIndex(env, async () => ({ state: "active" }));
       expect(result.scanned).toBe(1);
@@ -275,7 +274,7 @@ describe("cardIndex", () => {
           list: async () => ({ keys: [], list_complete: true }),
         },
         CARD_REPLAY: {},
-      };
+      } as any;
 
       const result = await repairCardIndex(env, async () => ({ state: "active" }));
       expect(result.scanned).toBe(0);
@@ -283,32 +282,32 @@ describe("cardIndex", () => {
     });
 
     it("returns zeros when UID_CONFIG missing", async () => {
-      const result = await repairCardIndex({}, async () => ({ state: "active" }));
+      const result = await repairCardIndex({} as any, async () => ({ state: "active" }));
       expect(result.scanned).toBe(0);
       expect(result.repaired).toBe(0);
     });
 
     it("returns zeros when CARD_REPLAY missing", async () => {
-      const result = await repairCardIndex({ UID_CONFIG: {} }, async () => ({ state: "active" }));
+      const result = await repairCardIndex({ UID_CONFIG: {} } as any, async () => ({ state: "active" }));
       expect(result.scanned).toBe(0);
       expect(result.repaired).toBe(0);
     });
 
     it("collects errors from getCardState failures", async () => {
-      const store = {};
+      const store: Record<string, any> = {};
       store["card_idx:ff000000000001"] = JSON.stringify({ uid: "ff000000000001", state: "active" });
 
       const env = {
         UID_CONFIG: {
-          get: async (key) => store[key] ?? null,
-          put: async (key, val) => { store[key] = val; },
-          list: async ({ prefix }) => ({
+          get: async (key: string) => store[key] ?? null,
+          put: async (key: string, val: string) => { store[key] = val; },
+          list: async ({ prefix }: { prefix: string }) => ({
             keys: Object.keys(store).filter(k => k.startsWith(prefix)).map(k => ({ name: k })),
             list_complete: true,
           }),
         },
         CARD_REPLAY: {},
-      };
+      } as any;
 
       const getCardStateFn = async () => { throw new Error("DO unavailable"); };
       const result = await repairCardIndex(env, getCardStateFn);
@@ -319,7 +318,7 @@ describe("cardIndex", () => {
     });
 
     it("paginates through KV entries", async () => {
-      const store = {};
+      const store: Record<string, any> = {};
       for (let i = 1; i <= 5; i++) {
         const uid = `ff00000000000${i}`;
         store[`card_idx:${uid}`] = JSON.stringify({ uid, state: "wipe_requested" });
@@ -329,9 +328,9 @@ describe("cardIndex", () => {
       const PAGE_SIZE = 2;
       const env = {
         UID_CONFIG: {
-          get: async (key) => store[key] ?? null,
-          put: async (key, val) => { store[key] = val; },
-          list: async ({ prefix, limit, cursor }) => {
+          get: async (key: string) => store[key] ?? null,
+          put: async (key: string, val: string) => { store[key] = val; },
+          list: async ({ prefix, limit, cursor }: { prefix: string; limit: number; cursor?: string }) => {
             listCallCount++;
             const allKeys = Object.keys(store).filter(k => k.startsWith(prefix)).sort();
             const effectiveLimit = Math.min(limit, PAGE_SIZE);
@@ -346,7 +345,7 @@ describe("cardIndex", () => {
           },
         },
         CARD_REPLAY: {},
-      };
+      } as any;
 
       const result = await repairCardIndex(env, async () => ({ state: "active" }));
       expect(result.scanned).toBe(5);
@@ -355,7 +354,7 @@ describe("cardIndex", () => {
     });
 
     it("preserves metadata when repairing", async () => {
-      const store = {};
+      const store: Record<string, any> = {};
       store["card_idx:ff000000000001"] = JSON.stringify({
         uid: "ff000000000001",
         state: "wipe_requested",
@@ -369,15 +368,15 @@ describe("cardIndex", () => {
 
       const env = {
         UID_CONFIG: {
-          get: async (key) => store[key] ?? null,
-          put: async (key, val, opts) => { store[key] = { value: val, opts }; },
-          list: async ({ prefix }) => ({
+          get: async (key: string) => store[key] ?? null,
+          put: async (key: string, val: string, opts?: any) => { store[key] = { value: val, opts }; },
+          list: async ({ prefix }: { prefix: string }) => ({
             keys: Object.keys(store).filter(k => k.startsWith(prefix)).map(k => ({ name: k })),
             list_complete: true,
           }),
         },
         CARD_REPLAY: {},
-      };
+      } as any;
 
       await repairCardIndex(env, async () => ({ state: "active" }));
       const repaired = JSON.parse(store["card_idx:ff000000000001"].value);

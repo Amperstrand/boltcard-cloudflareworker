@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { handleActivateCardSubmit, handleActivateCardPage } from "../handlers/activateCardHandler.js";
 import { handleActivatePage } from "../handlers/activatePageHandler.js";
 import { buildCardTestEnv } from "./testHelpers.js";
@@ -10,7 +9,7 @@ function buildEnv() {
   return buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY });
 }
 
-function postRequest(body) {
+function postRequest(body: Record<string, unknown>) {
   return new Request("https://test.local/activate/form", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -32,7 +31,7 @@ describe("handleActivateCardSubmit", () => {
     const req = postRequest({ uid: UID });
     const res = await handleActivateCardSubmit(req, env);
     expect(res.status).toBe(201);
-    const body = await res.json();
+    const body = await res.json() as Record<string, any>;
     expect(body.status).toBe("SUCCESS");
     expect(body.uid).toBe(UID);
     expect(body.config.K2).toBeDefined();
@@ -49,7 +48,7 @@ describe("handleActivateCardSubmit", () => {
     });
     const res = await handleActivateCardSubmit(req, env);
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.reason).toContain("Invalid JSON");
   });
 
@@ -58,7 +57,7 @@ describe("handleActivateCardSubmit", () => {
     const req = postRequest({});
     const res = await handleActivateCardSubmit(req, env);
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.reason).toContain("UID");
   });
 
@@ -67,7 +66,7 @@ describe("handleActivateCardSubmit", () => {
     const req = postRequest({ uid: "ZZZZZZZZZZZZZZ" });
     const res = await handleActivateCardSubmit(req, env);
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.reason).toContain("UID");
   });
 
@@ -82,7 +81,7 @@ describe("handleActivateCardSubmit", () => {
     const env = buildEnv();
     const req = postRequest({ uid: UID });
     await handleActivateCardSubmit(req, env);
-    const storedConfig = env.CARD_REPLAY.__cardConfigs.get(UID);
+    const storedConfig = (env.CARD_REPLAY as any).__cardConfigs.get(UID);
     expect(storedConfig).toBeDefined();
     expect(storedConfig.payment_method).toBe("fakewallet");
     expect(storedConfig.K2).toMatch(/^[0-9a-f]{32}$/);
@@ -95,8 +94,8 @@ describe("handleActivateCardSubmit", () => {
     const req2 = postRequest({ uid: UID });
     const res1 = await handleActivateCardSubmit(req1, env1);
     const res2 = await handleActivateCardSubmit(req2, env2);
-    const body1 = await res1.json();
-    const body2 = await res2.json();
+    const body1 = await res1.json() as Record<string, any>;
+    const body2 = await res2.json() as Record<string, any>;
     expect(body1.config.K2).toBe(body2.config.K2);
   });
 
@@ -107,8 +106,8 @@ describe("handleActivateCardSubmit", () => {
     const req2 = postRequest({ uid: "04a39493cc8681" });
     const res1 = await handleActivateCardSubmit(req1, env1);
     const res2 = await handleActivateCardSubmit(req2, env2);
-    const body1 = await res1.json();
-    const body2 = await res2.json();
+    const body1 = await res1.json() as Record<string, any>;
+    const body2 = await res2.json() as Record<string, any>;
     expect(body1.config.K2).not.toBe(body2.config.K2);
   });
 
@@ -117,22 +116,24 @@ describe("handleActivateCardSubmit", () => {
     const req = postRequest({ uid: "04A39493CC8680" });
     const res = await handleActivateCardSubmit(req, env);
     expect(res.status).toBe(201);
-    const body = await res.json();
+    const body = await res.json() as Record<string, unknown>;
     expect(body.uid).toBe("04a39493cc8680");
   });
 });
 
 describe("handleActivatePage", () => {
+  const minimalEnv = { UID_CONFIG: {} as KVNamespace, CARD_REPLAY: {} as DurableObjectNamespace };
+
   it("returns HTML with default pullPaymentId", () => {
     const req = new Request("https://test.local/experimental/activate");
-    const res = handleActivatePage(req);
+    const res = handleActivatePage(req, minimalEnv);
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toContain("text/html");
   });
 
   it("uses pullPaymentId from URL query param", async () => {
     const req = new Request("https://test.local/experimental/activate?pullPaymentId=custom-pp-999");
-    const res = handleActivatePage(req);
+    const res = handleActivatePage(req, minimalEnv);
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain("custom-pp-999");
@@ -140,15 +141,15 @@ describe("handleActivatePage", () => {
 
   it("uses DEFAULT_PULL_PAYMENT_ID from env when no URL param", async () => {
     const req = new Request("https://test.local/experimental/activate");
-    const res = handleActivatePage(req, { DEFAULT_PULL_PAYMENT_ID: "env-pp-42" });
+    const res = handleActivatePage(req, { ...minimalEnv, DEFAULT_PULL_PAYMENT_ID: "env-pp-42" });
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain("env-pp-42");
   });
 
-  it("works without env (default parameter)", () => {
+  it("works with minimal env", () => {
     const req = new Request("https://test.local/experimental/activate");
-    const res = handleActivatePage(req);
+    const res = handleActivatePage(req, minimalEnv);
     expect(res.status).toBe(200);
   });
 });

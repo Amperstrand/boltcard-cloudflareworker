@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { jsonResponse, _buildErrorPayload, errorResponse, htmlResponse, buildBoltCardResponse, parseJsonBody, buildResetDeeplink, redirect } from "../utils/responses.js";
 
 describe("jsonResponse", () => {
@@ -54,7 +53,7 @@ describe("errorResponse", () => {
 
   it("includes error payload in body", async () => {
     const res = errorResponse("test error", 400, { detail: "info" });
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, unknown>;
     expect(body.status).toBe("ERROR");
     expect(body.detail).toBe("info");
   });
@@ -120,13 +119,13 @@ describe("buildBoltCardResponse", () => {
 
 describe("parseJsonBody", () => {
   it("parses valid JSON body", async () => {
-    const request = { json: vi.fn().mockResolvedValue({ foo: "bar" }) };
+    const request = { json: vi.fn().mockResolvedValue({ foo: "bar" }) } as any as Request;
     const result = await parseJsonBody(request);
     expect(result).toEqual({ foo: "bar" });
   });
 
   it("returns null on JSON parse errors", async () => {
-    const request = { json: vi.fn().mockRejectedValue(new Error("invalid json")) };
+    const request = { json: vi.fn().mockRejectedValue(new Error("invalid json")) } as any as Request;
     const result = await parseJsonBody(request);
     expect(result).toBeNull();
   });

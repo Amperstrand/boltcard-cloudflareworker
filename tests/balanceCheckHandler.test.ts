@@ -1,4 +1,3 @@
-// @ts-nocheck
 
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
@@ -6,12 +5,13 @@ import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js
 import { getDeterministicKeys } from "../keygenerator.js";
 import aesjs from "aes-js";
 import { TEST_OPERATOR_AUTH, buildCardTestEnv } from "./testHelpers.js";
+import type { Env } from "../types/core.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const TEST_UID = "04aabbccdd7788";
 const K1_HEX = BOLT_CARD_K1.split(",")[0];
 
-function generateP(uidHex, counter, k1Hex) {
+function generateP(uidHex: string, counter: number, k1Hex: string) {
   const k1 = hexToBytes(k1Hex);
   const uid = hexToBytes(uidHex);
   const plaintext = new Uint8Array(16);
@@ -25,17 +25,17 @@ function generateP(uidHex, counter, k1Hex) {
   return bytesToHex(new Uint8Array(encrypted));
 }
 
-function computeC(uidHex, ctrHex, k2Hex) {
+function computeC(uidHex: string, ctrHex: string, k2Hex: string) {
   const vd = buildVerificationData(hexToBytes(uidHex), hexToBytes(ctrHex), hexToBytes(k2Hex));
   return bytesToHex(vd.ct);
 }
 
-function makeEnv(replay = makeReplayNamespace({ [TEST_UID]: 1 })) {
-  return buildCardTestEnv({ operatorAuth: true, extraEnv: { CARD_REPLAY: replay, BOLT_CARD_K1 } });
+function makeEnv(replay: ReturnType<typeof makeReplayNamespace> = makeReplayNamespace({ [TEST_UID]: 1 })) {
+  return buildCardTestEnv({ operatorAuth: true, extraEnv: { CARD_REPLAY: replay as unknown as DurableObjectNamespace, BOLT_CARD_K1 } });
 }
 
-async function provisionCard(env, replay, balance = 0) {
-  const keys = getDeterministicKeys(TEST_UID, env);
+async function provisionCard(env: ReturnType<typeof buildCardTestEnv>, replay: ReturnType<typeof makeReplayNamespace>, balance = 0) {
+  const keys = getDeterministicKeys(TEST_UID, env as unknown as Env);
   const config = { K2: keys.k2, payment_method: "fakewallet" };
   env.UID_CONFIG.put(TEST_UID, JSON.stringify(config));
   if (balance > 0) {
@@ -50,14 +50,14 @@ async function provisionCard(env, replay, balance = 0) {
 }
 
 describe("POST /api/balance-check", () => {
-  let env;
-  let replay;
-  let keys;
+  let env: ReturnType<typeof buildCardTestEnv>;
+  let replay: ReturnType<typeof makeReplayNamespace>;
+  let keys: ReturnType<typeof getDeterministicKeys>;
 
   beforeEach(async () => {
     replay = makeReplayNamespace({ [TEST_UID]: 1 });
     env = makeEnv(replay);
-    keys = getDeterministicKeys(TEST_UID, { BOLT_CARD_K1 });
+    keys = getDeterministicKeys(TEST_UID, { BOLT_CARD_K1 } as unknown as Env);
     await provisionCard(env, replay, 5000);
   });
 
@@ -76,7 +76,7 @@ describe("POST /api/balance-check", () => {
       env,
     );
     expect(res.status).toBe(200);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.success).toBe(true);
     expect(json.balance).toBe(5000);
     expect(json.uidHex).toBe(TEST_UID);
@@ -116,7 +116,7 @@ describe("POST /api/balance-check", () => {
       env,
     );
     expect(res.status).toBe(400);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.reason).toMatch(/invalid json/i);
   });
 
@@ -164,7 +164,7 @@ describe("POST /api/balance-check", () => {
       emptyEnv,
     );
     expect(res.status).toBe(200);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.balance).toBe(0);
   });
 });

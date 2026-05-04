@@ -1,11 +1,13 @@
 import { logger } from "../utils/logger.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { CLN_REST_PAY_PATH, PAYMENT_METHOD, UID_VALIDATION_MSG } from "../utils/constants.js";
 import { recordTap, updateTapStatus, debitCard, claimTap } from "../replayProtection.js";
 import { decodeBolt11Amount } from "../utils/bolt11.js";
 import { resolveCardIdentity } from "../utils/cardAuth.js";
 
-export async function handleLnurlpPayment(request: Request, env: any): Promise<Response> {
+export async function handleLnurlpPayment(request: Request, env: Env): Promise<Response> {
   try {
     const url = new URL(request.url);
     const pathname = url.pathname;
@@ -84,17 +86,17 @@ export async function handleLnurlpPayment(request: Request, env: any): Promise<R
             return jsonResponse({ status: "ERROR", reason: "Counter already used — possible replay" }, 409);
           }
         }
-      } catch (error: any) {
-        logger.error("Tap recording failed", { uidHex: normalizedUidHex, counterValue, error: error.message });
+      } catch (error: unknown) {
+        logger.error("Tap recording failed", { uidHex: normalizedUidHex, counterValue, error: getErrorMessage(error) });
         return errorResponse("Replay protection unavailable", 500);
       }
 
       const withdrawalResponse: Response = await processWithdrawalPayment(normalizedUidHex, invoice || null, env, counterValue, explicitAmount ? parseInt(explicitAmount, 10) : undefined, auth.config);
 
       if (withdrawalResponse.status === 200 || withdrawalResponse.status === 201) {
-        await updateTapStatus(env, normalizedUidHex, counterValue, "completed").catch((e: any) => logger.warn("Failed to update tap status to completed", { uidHex: normalizedUidHex, error: e.message }));
+        await updateTapStatus(env, normalizedUidHex, counterValue, "completed").catch((e: any) => logger.warn("Failed to update tap status to completed", { uidHex: normalizedUidHex, error: getErrorMessage(e) }));
       } else {
-        await updateTapStatus(env, normalizedUidHex, counterValue, "failed").catch((e: any) => logger.warn("Failed to update tap status to failed", { uidHex: normalizedUidHex, error: e.message }));
+        await updateTapStatus(env, normalizedUidHex, counterValue, "failed").catch((e: any) => logger.warn("Failed to update tap status to failed", { uidHex: normalizedUidHex, error: getErrorMessage(e) }));
       }
       
       if (withdrawalResponse instanceof Response) {
@@ -104,15 +106,15 @@ export async function handleLnurlpPayment(request: Request, env: any): Promise<R
       logger.error("processWithdrawalPayment returned unexpected value", { uidHex: normalizedUidHex });
       return errorResponse("Payment processing failed", 500);
     }
-  } catch (err: any) {
-    logger.error("Error processing LNURL withdraw request", { error: err.message });
+  } catch (err: unknown) {
+    logger.error("Error processing LNURL withdraw request", { error: getErrorMessage(err) });
     return errorResponse("Internal error", 500);
   }
 
   return errorResponse("Internal error", 500);
 }
 
-async function processWithdrawalPayment(rawUid: string, pr: string | null, env: any, counterValue: number, explicitAmount: number | undefined, config: any): Promise<Response> {
+async function processWithdrawalPayment(rawUid: string, pr: string | null, env: Env, counterValue: number, explicitAmount: number | undefined, config: any): Promise<Response> {
   if (!rawUid) {
     logger.error("Received undefined UID in processWithdrawalPayment");
     return jsonResponse({ status: "ERROR", reason: UID_VALIDATION_MSG }, 400);
@@ -130,8 +132,8 @@ async function processWithdrawalPayment(rawUid: string, pr: string | null, env: 
     let result: any;
     try {
       result = await debitCard(env, normalizedUid, counterValue, amount, `Payment: ${amount} units`);
-    } catch (error: any) {
-      logger.error("Fakewallet debit threw", { uid: normalizedUid, amount, error: error.message });
+    } catch (error: unknown) {
+      logger.error("Fakewallet debit threw", { uid: normalizedUid, amount, error: getErrorMessage(error) });
       return jsonResponse({ status: "ERROR", reason: "Debit failed" }, 500);
     }
     if (result.ok) {
@@ -181,8 +183,8 @@ async function processWithdrawalPayment(rawUid: string, pr: string | null, env: 
 
       logger.error("CLN REST error", { uid: normalizedUid, status: response.status, body: JSON.stringify(responseBody) });
       return jsonResponse({ status: "ERROR", reason: `Payment failed with status ${response.status}` }, response.status);
-    } catch (error: any) {
-      logger.error("CLN REST pay request failed", { uid: normalizedUid, error: error.message });
+    } catch (error: unknown) {
+      logger.error("CLN REST pay request failed", { uid: normalizedUid, error: getErrorMessage(error) });
       return jsonResponse({ status: "ERROR", reason: "Payment request failed" }, 500);
     }
   }

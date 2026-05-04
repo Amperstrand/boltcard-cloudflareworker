@@ -1,4 +1,5 @@
 import { decodeBolt11 } from "../utils/bolt11.js";
+import { getErrorMessage } from "../utils/logger.js";
 import { renderBolt11DecodePage } from "../templates/bolt11DecodePage.js";
 import { jsonResponse, errorResponse, htmlResponse } from "../utils/responses.js";
 import { logger } from "../utils/logger.js";
@@ -18,8 +19,8 @@ export function handleDecodeApi(request: Request): Response {
   try {
     const result = decodeBolt11(invoice);
     return jsonResponse(result);
-  } catch (err: any) {
-    logger.error("BOLT11 decode API error", { error: err.message });
+  } catch (err: unknown) {
+    logger.error("BOLT11 decode API error", { error: getErrorMessage(err) });
     return errorResponse("Internal error", 500);
   }
 }

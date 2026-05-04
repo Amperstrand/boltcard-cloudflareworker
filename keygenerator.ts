@@ -1,4 +1,5 @@
 import { computeAesCmac, hexToBytes, bytesToHex } from "./cryptoutils.js";
+import type { Env } from "./types/core.js";
 
 interface DerivedKeys {
   k0: string;
@@ -10,12 +11,7 @@ interface DerivedKeys {
   id: string;
 }
 
-interface EnvLike {
-  ISSUER_KEY?: string;
-  WORKER_ENV?: string;
-}
-
-export function getDeterministicKeys(uidHex: string, env: EnvLike | null | undefined, version: number = 1): DerivedKeys {
+export function getDeterministicKeys(uidHex: string, env: Env | null | undefined, version: number = 1): DerivedKeys {
   if (!uidHex || uidHex.length !== 14) {
     throw new Error(`Invalid UID: "${uidHex}" is not exactly 7 bytes (14 hex characters). Received ${uidHex ? uidHex.length : 'no'} characters.`);
   }

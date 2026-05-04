@@ -1,4 +1,3 @@
-// @ts-nocheck
 
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
@@ -6,11 +5,11 @@ import { TEST_OPERATOR_AUTH, buildCardTestEnv } from "./testHelpers.js";
 
 const TEST_UID = "04aabbccdd7788";
 
-function makeEnv(replay = makeReplayNamespace({ [TEST_UID]: 1 })) {
-  return buildCardTestEnv({ replayInitial: { [TEST_UID]: 1 }, operatorAuth: true, extraEnv: { CARD_REPLAY: replay } });
+function makeEnv(replay: ReturnType<typeof makeReplayNamespace> = makeReplayNamespace({ [TEST_UID]: 1 })) {
+  return buildCardTestEnv({ replayInitial: { [TEST_UID]: 1 }, operatorAuth: true, extraEnv: { CARD_REPLAY: replay as unknown as DurableObjectNamespace } });
 }
 
-async function recordTap(replay, uid, counter, amountMsat, status) {
+async function recordTap(replay: ReturnType<typeof makeReplayNamespace>, uid: string, counter: number, amountMsat: number, status: string) {
   const id = replay.idFromName(uid.toLowerCase());
   const stub = replay.get(id);
   await stub.fetch(new Request("https://card-replay.internal/record-tap", {
@@ -44,7 +43,7 @@ describe("GET /experimental/analytics", () => {
 
   it("requires operator auth", async () => {
     const env = makeEnv();
-    delete env.__TEST_OPERATOR_SESSION;
+    delete (env as any).__TEST_OPERATOR_SESSION;
     const res = await handleRequest(
       new Request("https://test.local/experimental/analytics"),
       env,
@@ -55,7 +54,7 @@ describe("GET /experimental/analytics", () => {
 });
 
 describe("GET /experimental/analytics/data", () => {
-  let replay;
+  let replay: ReturnType<typeof makeReplayNamespace>;
 
   beforeEach(() => {
     replay = makeReplayNamespace({ [TEST_UID]: 1 });
@@ -69,7 +68,7 @@ describe("GET /experimental/analytics/data", () => {
       makeEnv(replay),
     );
     expect(res.status).toBe(400);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.reason).toMatch(/missing uid/i);
   });
 
@@ -81,7 +80,7 @@ describe("GET /experimental/analytics/data", () => {
       makeEnv(replay),
     );
     expect(res.status).toBe(200);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.totalTaps).toBe(0);
     expect(json.completedMsat).toBe(0);
     expect(json.failedMsat).toBe(0);
@@ -100,7 +99,7 @@ describe("GET /experimental/analytics/data", () => {
       makeEnv(replay),
     );
     expect(res.status).toBe(200);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.totalTaps).toBe(3);
     expect(json.completedMsat).toBe(3000);
     expect(json.completedTaps).toBe(2);
@@ -118,7 +117,7 @@ describe("GET /experimental/analytics/data", () => {
       makeEnv(replay),
     );
     expect(res.status).toBe(200);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.totalTaps).toBe(1);
     expect(json.pendingMsat).toBe(1000);
     expect(json.pendingTaps).toBe(1);
@@ -126,7 +125,7 @@ describe("GET /experimental/analytics/data", () => {
 
   it("requires operator auth", async () => {
     const env = makeEnv(replay);
-    delete env.__TEST_OPERATOR_SESSION;
+    delete (env as any).__TEST_OPERATOR_SESSION;
     const res = await handleRequest(
       new Request(`https://test.local/experimental/analytics/data?uid=${TEST_UID}`),
       env,
@@ -142,7 +141,7 @@ describe("GET /experimental/analytics/data", () => {
       makeEnv(replay),
     );
     expect(res.status).toBe(400);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.reason).toContain("UID");
   });
 
@@ -152,7 +151,7 @@ describe("GET /experimental/analytics/data", () => {
         throw new Error("DO instantiation broken");
       },
       get: () => ({}),
-    };
+    } as unknown as ReturnType<typeof makeReplayNamespace>;
     const res = await handleRequest(
       new Request(`https://test.local/experimental/analytics/data?uid=${TEST_UID}`, {
         headers: { Cookie: "op_session=test" },
@@ -160,7 +159,7 @@ describe("GET /experimental/analytics/data", () => {
       makeEnv(brokenReplay),
     );
     expect(res.status).toBe(500);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.reason).toContain("analytics");
   });
 });

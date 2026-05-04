@@ -1,4 +1,5 @@
 import { deriveKeysFromHex } from "../keygenerator.js";
+import { getErrorMessage } from "../utils/logger.js";
 import { jsonResponse, buildBoltCardResponse, buildResetDeeplink, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { getRequestOrigin, validateUid } from "../utils/validation.js";
 import { UID_VALIDATION_MSG } from "../utils/constants.js";
@@ -45,8 +46,8 @@ export async function handleBulkWipeKeys(request: Request): Promise<Response> {
     const reset_deeplink = buildResetDeeplink(endpointUrl);
 
     return jsonResponse({ uid, boltcard_response, wipe_json, reset_deeplink }, 200);
-  } catch (err: any) {
-    logger.error("Bulk wipe handler error", { error: err.message });
+  } catch (err: unknown) {
+    logger.error("Bulk wipe handler error", { error: getErrorMessage(err) });
     return errorResponse("Internal error", 500);
   }
 }

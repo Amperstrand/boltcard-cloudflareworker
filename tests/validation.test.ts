@@ -1,4 +1,3 @@
-// @ts-nocheck
 
 import { validateUid, getRequestOrigin } from "../utils/validation.js";
 
@@ -42,14 +41,14 @@ describe("validateUid", () => {
 
 describe("getRequestOrigin", () => {
   it("extracts origin from URL with path", () => {
-    expect(getRequestOrigin({ url: "https://example.com/path?q=1" })).toBe("https://example.com");
+    expect(getRequestOrigin(new Request("https://example.com/path?q=1"))).toBe("https://example.com");
   });
 
   it("extracts origin from URL with port", () => {
-    expect(getRequestOrigin({ url: "http://localhost:8787/api" })).toBe("http://localhost:8787");
+    expect(getRequestOrigin(new Request("http://localhost:8787/api"))).toBe("http://localhost:8787");
   });
 
   it("extracts origin from root URL", () => {
-    expect(getRequestOrigin({ url: "https://boltcardpoc.psbt.me/" })).toBe("https://boltcardpoc.psbt.me");
+    expect(getRequestOrigin(new Request("https://boltcardpoc.psbt.me/"))).toBe("https://boltcardpoc.psbt.me");
   });
 });

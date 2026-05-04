@@ -1,4 +1,6 @@
 import { jsonResponse, errorResponse } from "../utils/responses.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { logger } from "../utils/logger.js";
 
 const MENU_PREFIX = "pos_menu:";
@@ -7,19 +9,19 @@ function menuKey(terminalId: string): string {
   return `${MENU_PREFIX}${terminalId}`;
 }
 
-export async function getMenu(env: any, terminalId: string): Promise<{ items: any[] }> {
+export async function getMenu(env: Env, terminalId: string): Promise<{ items: any[] }> {
   if (!env.UID_CONFIG) return { items: [] };
   try {
     const raw = await env.UID_CONFIG.get(menuKey(terminalId));
     if (!raw) return { items: [] };
     return JSON.parse(raw);
-  } catch (e: any) {
-    logger.warn("Failed to load POS menu", { terminalId, error: e.message });
+  } catch (e: unknown) {
+    logger.warn("Failed to load POS menu", { terminalId, error: getErrorMessage(e) });
     return { items: [] };
   }
 }
 
-export async function saveMenu(env: any, terminalId: string, menu: any): Promise<Response> {
+export async function saveMenu(env: Env, terminalId: string, menu: any): Promise<Response> {
   if (!env.UID_CONFIG) return errorResponse("KV not available", 500);
   if (!menu.items || !Array.isArray(menu.items)) {
     return errorResponse("menu.items must be an array", 400);
@@ -36,8 +38,8 @@ export async function saveMenu(env: any, terminalId: string, menu: any): Promise
   try {
     await env.UID_CONFIG.put(menuKey(terminalId), JSON.stringify(menu));
     return jsonResponse({ success: true, terminalId, itemCount: menu.items.length });
-  } catch (e: any) {
-    logger.error("Failed to save POS menu", { terminalId, error: e.message });
+  } catch (e: unknown) {
+    logger.error("Failed to save POS menu", { terminalId, error: getErrorMessage(e) });
     return errorResponse("Failed to save menu", 500);
   }
 }

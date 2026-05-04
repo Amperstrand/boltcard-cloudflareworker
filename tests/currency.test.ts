@@ -1,39 +1,39 @@
-// @ts-nocheck
 
 import { getCurrencyLabel, getCurrencyDecimals, formatAmount, _parseAmount } from "../utils/currency.js";
+import type { Env } from "../types/core.js";
 
-function makeEnv(overrides = {}) {
-  return { CURRENCY_LABEL: "credits", CURRENCY_DECIMALS: "0", ...overrides };
+function makeEnv(overrides: Record<string, unknown> = {}): Env {
+  return { CURRENCY_LABEL: "credits", CURRENCY_DECIMALS: "0", ...overrides } as Env;
 }
 
 describe("getCurrencyLabel", () => {
   it("returns CURRENCY_LABEL from env", () => {
-    expect(getCurrencyLabel({ CURRENCY_LABEL: "GBP" })).toBe("GBP");
+    expect(getCurrencyLabel({ CURRENCY_LABEL: "GBP" } as Env)).toBe("GBP");
   });
 
   it("defaults to 'credits'", () => {
-    expect(getCurrencyLabel({})).toBe("credits");
-    expect(getCurrencyLabel({ CURRENCY_LABEL: "" })).toBe("credits");
+    expect(getCurrencyLabel({} as Env)).toBe("credits");
+    expect(getCurrencyLabel({ CURRENCY_LABEL: "" } as Env)).toBe("credits");
   });
 });
 
 describe("getCurrencyDecimals", () => {
   it("returns parsed CURRENCY_DECIMALS from env", () => {
-    expect(getCurrencyDecimals({ CURRENCY_DECIMALS: "2" })).toBe(2);
+    expect(getCurrencyDecimals({ CURRENCY_DECIMALS: "2" } as Env)).toBe(2);
   });
 
   it("defaults to 0", () => {
-    expect(getCurrencyDecimals({})).toBe(0);
-    expect(getCurrencyDecimals({ CURRENCY_DECIMALS: "" })).toBe(0);
-    expect(getCurrencyDecimals({ CURRENCY_DECIMALS: "invalid" })).toBe(0);
+    expect(getCurrencyDecimals({} as Env)).toBe(0);
+    expect(getCurrencyDecimals({ CURRENCY_DECIMALS: "" } as Env)).toBe(0);
+    expect(getCurrencyDecimals({ CURRENCY_DECIMALS: "invalid" } as Env)).toBe(0);
   });
 
   it("clamps negative to 0", () => {
-    expect(getCurrencyDecimals({ CURRENCY_DECIMALS: "-1" })).toBe(0);
+    expect(getCurrencyDecimals({ CURRENCY_DECIMALS: "-1" } as Env)).toBe(0);
   });
 
   it("clamps above 6 to 6", () => {
-    expect(getCurrencyDecimals({ CURRENCY_DECIMALS: "10" })).toBe(6);
+    expect(getCurrencyDecimals({ CURRENCY_DECIMALS: "10" } as Env)).toBe(6);
   });
 });
 
@@ -59,12 +59,12 @@ describe("formatAmount", () => {
 
   it("handles non-number input", () => {
     expect(formatAmount("abc", makeEnv())).toBe("0 credits");
-    expect(formatAmount(null, makeEnv())).toBe("0 credits");
-    expect(formatAmount(undefined, makeEnv())).toBe("0 credits");
+    expect(formatAmount(null as any, makeEnv())).toBe("0 credits");
+    expect(formatAmount(undefined as any, makeEnv())).toBe("0 credits");
   });
 
   it("uses default env when env is empty", () => {
-    expect(formatAmount(500, {})).toBe("500 credits");
+    expect(formatAmount(500, {} as Env)).toBe("500 credits");
   });
 });
 

@@ -1,13 +1,19 @@
+// @ts-nocheck
 import aesjs from "aes-js";
 import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
+import type { Env, CardConfig, SessionPayload } from "../types/core.js";
 
 const DEFAULT_BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const DEFAULT_ISSUER_KEY = "00000000000000000000000000000001";
 const DEFAULT_UID = "04a39493cc8680";
 
-export const TEST_OPERATOR_AUTH = {
+export const TEST_OPERATOR_AUTH: {
+  OPERATOR_PIN: string;
+  OPERATOR_SESSION_SECRET: string;
+  __TEST_OPERATOR_SESSION: SessionPayload;
+} = {
   OPERATOR_PIN: "1234",
   OPERATOR_SESSION_SECRET: "test-session-secret-for-jest",
   __TEST_OPERATOR_SESSION: {
@@ -48,17 +54,17 @@ interface BuildCardTestEnvOptions {
   paymentMethod?: string;
   balance?: number;
   cardState?: string;
-  cardConfig?: Record<string, any> | null;
+  cardConfig?: CardConfig | null;
   kvData?: string | null;
   replayInitial?: Record<string, number>;
   initialCards?: Record<string, number>;
   operatorAuth?: boolean;
   exposeKvStore?: boolean;
   noIssuerKey?: boolean;
-  extraEnv?: Record<string, any>;
+  extraEnv?: Partial<Env>;
 }
 
-export function buildCardTestEnv(options: BuildCardTestEnvOptions = {}): Record<string, any> {
+export function buildCardTestEnv(options: BuildCardTestEnvOptions = {}): Env & { __kvStore?: Record<string, string> } {
   const {
     uid = DEFAULT_UID,
     issuerKey = DEFAULT_ISSUER_KEY,
@@ -75,7 +81,7 @@ export function buildCardTestEnv(options: BuildCardTestEnvOptions = {}): Record<
     extraEnv = {},
   } = options;
 
-  const keys = issuerKey ? getDeterministicKeys(uid, { ISSUER_KEY: issuerKey }, 1) : null;
+  const keys = issuerKey ? getDeterministicKeys(uid, { ISSUER_KEY: issuerKey } as Env, 1) : null;
   const replay = makeReplayNamespace(replayInitial, initialCards);
 
   const hasInitialCards = Object.keys(initialCards).length > 0;
@@ -92,10 +98,14 @@ export function buildCardTestEnv(options: BuildCardTestEnvOptions = {}): Record<
       keys_delivered_at: Math.floor(Date.now() / 1000),
       wipe_keys_fetched_at: null,
       balance: 0,
+      key_provenance: null,
+      key_fingerprint: null,
+      key_label: null,
+      first_seen_at: null,
     });
   }
 
-  const effectiveConfig = cardConfig || (keys ? { K2: keys.k2, payment_method: paymentMethod } : null);
+  const effectiveConfig = cardConfig || (keys ? { K2: keys.k2, payment_method: paymentMethod } as CardConfig : null);
   if (effectiveConfig && cardState !== "new") {
     replay.__cardConfigs.set(uid.toLowerCase(), effectiveConfig);
   }
@@ -107,7 +117,7 @@ export function buildCardTestEnv(options: BuildCardTestEnvOptions = {}): Record<
   const kvStore: Record<string, string> = {};
   if (kvData) kvStore[uid] = kvData;
 
-  const env: Record<string, any> = {};
+  const env: Env & { __kvStore?: Record<string, string> } = {} as Env;
 
   if (!noIssuerKey && issuerKey) {
     env.ISSUER_KEY = issuerKey;
@@ -117,13 +127,13 @@ export function buildCardTestEnv(options: BuildCardTestEnvOptions = {}): Record<
   } else {
     env.BOLT_CARD_K1 = DEFAULT_BOLT_CARD_K1;
   }
-  env.CARD_REPLAY = replay;
+  env.CARD_REPLAY = replay as unknown as DurableObjectNamespace;
   env.UID_CONFIG = {
     get: async (key: string) => kvStore[key] ?? null,
     put: async (key: string, val: string) => {
       kvStore[key] = val;
     },
-  };
+  } as KVNamespace;
   if (operatorAuth) {
     Object.assign(env, TEST_OPERATOR_AUTH);
   }

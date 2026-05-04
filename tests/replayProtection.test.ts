@@ -1,19 +1,18 @@
-// @ts-nocheck
 import { recordTap, updateTapStatus, listTaps, resetReplayProtection, getCardState, deliverKeys, activateCard, terminateCard, requestWipe, getCardConfig, setCardConfig, debitCard, creditCard, getBalance, listTransactions, recordTapRead, getAnalytics, checkAndAdvanceCounter, markPending, discoverCard } from "../replayProtection.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 
 const UID = "04a39493cc8680";
 
-function makeEnv() {
-  return { CARD_REPLAY: makeReplayNamespace({}, { [UID]: 1 }) };
+function makeEnv(): any {
+  return { CARD_REPLAY: makeReplayNamespace({} as any, { [UID]: 1 }) };
 }
 
-function makeErrorEnv(statusCode, reason) {
+function makeErrorEnv(statusCode: number, reason: string): any {
   return {
     CARD_REPLAY: {
       idFromName: () => "stub",
       get: () => ({
-        fetch: async (req) => {
+        fetch: async (req: Request) => {
           if (req.method === "GET") {
             return Response.json({ error: reason }, { status: statusCode });
           }
@@ -56,7 +55,7 @@ describe("replayProtection", () => {
     });
 
     it("throws when CARD_REPLAY missing", async () => {
-      await expect(checkAndAdvanceCounter({}, UID, 1)).rejects.toThrow("not configured");
+      await expect(checkAndAdvanceCounter({} as any, UID, 1)).rejects.toThrow("not configured");
     });
   });
 
@@ -78,7 +77,7 @@ describe("replayProtection", () => {
     });
 
     it("throws when CARD_REPLAY missing", async () => {
-      await expect(recordTap({}, UID, 1, {})).rejects.toThrow("not configured");
+      await expect(recordTap({} as any, UID, 1, {})).rejects.toThrow("not configured");
     });
   });
 
@@ -89,7 +88,7 @@ describe("replayProtection", () => {
     });
 
     it("does nothing when CARD_REPLAY missing", async () => {
-      await expect(recordTapRead({}, UID, 2)).resolves.toBeUndefined();
+      await expect(recordTapRead({} as any, UID, 2)).resolves.toBeUndefined();
     });
   });
 
@@ -101,7 +100,7 @@ describe("replayProtection", () => {
     });
 
     it("does nothing when CARD_REPLAY missing", async () => {
-      await expect(updateTapStatus({}, UID, 2, "completed")).resolves.toBeUndefined();
+      await expect(updateTapStatus({} as any, UID, 2, "completed")).resolves.toBeUndefined();
     });
   });
 
@@ -121,7 +120,7 @@ describe("replayProtection", () => {
     });
 
     it("returns empty when CARD_REPLAY missing", async () => {
-      const result = await listTaps({}, UID);
+      const result = await listTaps({} as any, UID);
       expect(result.taps).toEqual([]);
     });
   });
@@ -136,7 +135,7 @@ describe("replayProtection", () => {
     });
 
     it("throws when CARD_REPLAY missing", async () => {
-      await expect(resetReplayProtection({}, UID)).rejects.toThrow("not configured");
+      await expect(resetReplayProtection({} as any, UID)).rejects.toThrow("not configured");
     });
   });
 
@@ -155,7 +154,7 @@ describe("replayProtection", () => {
     });
 
     it("returns new state when CARD_REPLAY missing", async () => {
-      const state = await getCardState({}, UID);
+      const state = await getCardState({} as any, UID);
       expect(state.state).toBe("new");
     });
   });
@@ -163,28 +162,28 @@ describe("replayProtection", () => {
   describe("deliverKeys", () => {
     it("delivers keys for new card", async () => {
       const env = makeEnv();
-      env.CARD_REPLAY.__cardStates.get(UID).state = "new";
+      env.CARD_REPLAY.__cardStates.get(UID)!.state = "new";
       const result = await deliverKeys(env, UID);
       expect(result.state).toBe("keys_delivered");
       expect(result.latest_issued_version).toBeGreaterThanOrEqual(1);
     });
 
     it("throws when CARD_REPLAY missing", async () => {
-      await expect(deliverKeys({}, UID)).rejects.toThrow("not configured");
+      await expect(deliverKeys({} as any, UID)).rejects.toThrow("not configured");
     });
   });
 
   describe("activateCard", () => {
     it("activates a card", async () => {
       const env = makeEnv();
-      env.CARD_REPLAY.__cardStates.get(UID).state = "keys_delivered";
+      env.CARD_REPLAY.__cardStates.get(UID)!.state = "keys_delivered";
       const result = await activateCard(env, UID, 1);
       expect(result.state).toBe("active");
       expect(result.active_version).toBe(1);
     });
 
     it("throws when CARD_REPLAY missing", async () => {
-      await expect(activateCard({}, UID, 1)).rejects.toThrow("not configured");
+      await expect(activateCard({} as any, UID, 1)).rejects.toThrow("not configured");
     });
   });
 
@@ -196,7 +195,7 @@ describe("replayProtection", () => {
     });
 
     it("throws when CARD_REPLAY missing", async () => {
-      await expect(terminateCard({}, UID)).rejects.toThrow("not configured");
+      await expect(terminateCard({} as any, UID)).rejects.toThrow("not configured");
     });
   });
 
@@ -208,7 +207,7 @@ describe("replayProtection", () => {
     });
 
     it("throws when CARD_REPLAY missing", async () => {
-      await expect(requestWipe({}, UID)).rejects.toThrow("not configured");
+      await expect(requestWipe({} as any, UID)).rejects.toThrow("not configured");
     });
   });
 
@@ -229,12 +228,12 @@ describe("replayProtection", () => {
     });
 
     it("returns null when CARD_REPLAY missing", async () => {
-      const result = await getCardConfig({}, UID);
+      const result = await getCardConfig({} as any, UID);
       expect(result).toBeNull();
     });
 
     it("setCardConfig does nothing when CARD_REPLAY missing", async () => {
-      await expect(setCardConfig({}, UID, {})).resolves.toBeUndefined();
+      await expect(setCardConfig({} as any, UID, {})).resolves.toBeUndefined();
     });
   });
 
@@ -245,20 +244,20 @@ describe("replayProtection", () => {
       expect(credit.ok).toBe(true);
       expect(credit.balance).toBe(1000);
 
-      const debit = await debitCard(env, UID, null, 300, "payment");
+      const debit = await debitCard(env, UID, null as any, 300, "payment");
       expect(debit.ok).toBe(true);
       expect(debit.balance).toBe(700);
     });
 
     it("returns error when DO unavailable", async () => {
-      const result = await debitCard({}, UID, null, 100, "test");
+      const result = await debitCard({} as any, UID, null as any, 100, "test");
       expect(result.ok).toBe(false);
-      const credit = await creditCard({}, UID, 100, "test");
+      const credit = await creditCard({} as any, UID, 100, "test");
       expect(credit.ok).toBe(false);
     });
 
     it("getBalance returns 0 when DO unavailable", async () => {
-      const result = await getBalance({}, UID);
+      const result = await getBalance({} as any, UID);
       expect(result.balance).toBe(0);
     });
   });
@@ -279,7 +278,7 @@ describe("replayProtection", () => {
     });
 
     it("returns empty when DO unavailable", async () => {
-      const result = await listTransactions({}, UID);
+      const result = await listTransactions({} as any, UID);
       expect(result.transactions).toEqual([]);
     });
   });
@@ -293,7 +292,7 @@ describe("replayProtection", () => {
     });
 
     it("returns zeros when DO unavailable", async () => {
-      const result = await getAnalytics({}, UID);
+      const result = await getAnalytics({} as any, UID);
       expect(result.totalTaps).toBe(0);
     });
   });
@@ -390,14 +389,14 @@ describe("replayProtection", () => {
     });
 
     it("setCardConfig does nothing when CARD_REPLAY missing", async () => {
-      await expect(setCardConfig({}, UID, { foo: "bar" })).resolves.toBeUndefined();
+      await expect(setCardConfig({} as any, UID, { foo: "bar" })).resolves.toBeUndefined();
     });
   });
 
   describe("markPending", () => {
     it("creates pending row with provenance", async () => {
       const freshUid = "ff000000000001";
-      const env = { CARD_REPLAY: makeReplayNamespace({}, {}) };
+      const env = { CARD_REPLAY: makeReplayNamespace({} as any, {}) } as any;
       const result = await markPending(env, freshUid, {
         key_provenance: "public_issuer",
         key_fingerprint: "abc123",
@@ -417,7 +416,7 @@ describe("replayProtection", () => {
     });
 
     it("throws when CARD_REPLAY missing", async () => {
-      await expect(markPending({}, UID, {})).rejects.toThrow("not configured");
+      await expect(markPending({} as any, UID, {})).rejects.toThrow("not configured");
     });
 
     it("throws on server error", async () => {
@@ -429,7 +428,7 @@ describe("replayProtection", () => {
   describe("discoverCard", () => {
     it("creates discovered row from scratch", async () => {
       const freshUid = "ff000000000002";
-      const env = { CARD_REPLAY: makeReplayNamespace({}, {}) };
+      const env = { CARD_REPLAY: makeReplayNamespace({} as any, {}) } as any;
       const result = await discoverCard(env, freshUid, {
         key_provenance: "public_issuer",
         key_fingerprint: "abc",
@@ -444,7 +443,7 @@ describe("replayProtection", () => {
 
     it("upgrades pending to discovered", async () => {
       const freshUid = "ff000000000003";
-      const env = { CARD_REPLAY: makeReplayNamespace({}, {}) };
+      const env = { CARD_REPLAY: makeReplayNamespace({} as any, {}) } as any;
       await markPending(env, freshUid, { key_provenance: "public_issuer" });
       const result = await discoverCard(env, freshUid, {
         key_provenance: "public_issuer",
@@ -457,7 +456,7 @@ describe("replayProtection", () => {
     });
 
     it("throws when CARD_REPLAY missing", async () => {
-      await expect(discoverCard({}, UID, {})).rejects.toThrow("not configured");
+      await expect(discoverCard({} as any, UID, {})).rejects.toThrow("not configured");
     });
 
     it("throws on server error", async () => {

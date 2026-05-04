@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
@@ -12,9 +11,9 @@ const env = {
 const VALID_UID = "040660fa967380";
 const VALID_KEY = "00000000000000000000000000000001";
 
-async function makeRequest(path, method = "GET", body = null, requestEnv = env) {
+async function makeRequest(path: string, method = "GET", body: unknown = null, requestEnv = env) {
   const url = "https://test.local" + path;
-  const options = { method };
+  const options: RequestInit = { method };
   if (body) {
     options.body = JSON.stringify(body);
     options.headers = { "Content-Type": "application/json" };

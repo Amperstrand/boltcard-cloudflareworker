@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 
@@ -11,17 +10,17 @@ const VALID_P = "4E2E289D945A66BB13377A728884E867";
 const VALID_C = "E19CCB1FED8892CE";
 const TEST_UID = "04996c6a926980";
 
-async function makeRequest(path, method = "GET", body = null, requestEnv = baseEnv) {
+async function makeRequest(path: string, method: string = "GET", body: Record<string, unknown> | null = null, requestEnv: Record<string, unknown> = baseEnv) {
   const url = "https://test.local" + path;
-  const options = { method };
+  const options: RequestInit = { method };
   if (body) {
     options.body = JSON.stringify(body);
     options.headers = { "Content-Type": "application/json" };
   }
-  return handleRequest(new Request(url, options), requestEnv);
+  return handleRequest(new Request(url, options), requestEnv as any);
 }
 
-function makeKvEnv(uidConfig) {
+function makeKvEnv(uidConfig: Record<string, string>) {
   const replay = makeReplayNamespace();
   const kvStore = { ...uidConfig };
   Object.entries(kvStore).forEach(([uid, config]) => {
@@ -30,8 +29,8 @@ function makeKvEnv(uidConfig) {
   return {
     ...baseEnv,
     UID_CONFIG: {
-      get: async (key) => kvStore[key] ?? null,
-      put: async (key, value) => { kvStore[key] = value; },
+      get: async (key: string) => kvStore[key] ?? null,
+      put: async (key: string, value: string) => { kvStore[key] = value; },
     },
     CARD_REPLAY: replay,
   };
@@ -132,7 +131,7 @@ describe("GET /2fa", () => {
       kvEnv
     );
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json.totpCode).toMatch(/^\d{6}$/);
     expect(json.hotpCode).toMatch(/^\d{6}$/);
     expect(json.uidHex).toBe(TEST_UID);

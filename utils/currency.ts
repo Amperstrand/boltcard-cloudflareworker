@@ -1,16 +1,14 @@
+import type { Env } from "../types/core.js";
+
 const DEFAULT_LABEL = "credits";
 const DEFAULT_DECIMALS = 0;
 
-interface EnvLike {
-  CURRENCY_LABEL?: string;
-  CURRENCY_DECIMALS?: string | number;
-}
 
-export function getCurrencyLabel(env: EnvLike): string {
+export function getCurrencyLabel(env: Env): string {
   return env.CURRENCY_LABEL || DEFAULT_LABEL;
 }
 
-export function getCurrencyDecimals(env: EnvLike): number {
+export function getCurrencyDecimals(env: Env): number {
   const raw = env.CURRENCY_DECIMALS;
   if (raw === undefined || raw === null || raw === "") return DEFAULT_DECIMALS;
   const n = parseInt(String(raw), 10);
@@ -18,7 +16,7 @@ export function getCurrencyDecimals(env: EnvLike): number {
   return Math.min(n, 6);
 }
 
-export function formatAmount(raw: number | string, env: EnvLike): string {
+export function formatAmount(raw: number | string, env: Env): string {
   const decimals = getCurrencyDecimals(env);
   const label = getCurrencyLabel(env);
   const value = typeof raw === "number" ? raw : parseInt(raw, 10);
@@ -32,7 +30,7 @@ export function formatAmount(raw: number | string, env: EnvLike): string {
   return `${formatted} ${label}`;
 }
 
-export function _parseAmount(input: unknown, env: EnvLike): number | null {
+export function _parseAmount(input: unknown, env: Env): number | null {
   if (input === undefined || input === null) return null;
   const decimals = getCurrencyDecimals(env);
   const str = String(input).trim();

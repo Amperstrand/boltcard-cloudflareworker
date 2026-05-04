@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
@@ -10,14 +9,14 @@ const env = {
   BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
   ISSUER_KEY: "00000000000000000000000000000001",
   CARD_REPLAY: makeReplayNamespace(),
-};
+} as any;
 
 // Test vector: p/c that decrypts with K1=55da174c9608993dc27bb3f30a4a7314
 const VALID_P = "4E2E289D945A66BB13377A728884E867";
 const VALID_C = "E19CCB1FED8892CE";
 const ACTION_UID = "04a39493cc8680";
 
-function makeEnv(replay = makeReplayNamespace()) {
+function makeEnv(replay = makeReplayNamespace()): any {
   return {
     ...env,
     CARD_REPLAY: replay,
@@ -25,7 +24,7 @@ function makeEnv(replay = makeReplayNamespace()) {
   };
 }
 
-function makeEnvWithoutIssuerKey(replay = makeReplayNamespace()) {
+function makeEnvWithoutIssuerKey(replay = makeReplayNamespace()): any {
   const { ISSUER_KEY, ...envWithoutKey } = env;
   return {
     ...envWithoutKey,
@@ -34,9 +33,9 @@ function makeEnvWithoutIssuerKey(replay = makeReplayNamespace()) {
   };
 }
 
-async function makeRequest(path, method = "GET", body = null, requestEnv = env) {
+async function makeRequest(path: string, method: string = "GET", body: Record<string, unknown> | null = null, requestEnv: any = env) {
   const url = "https://test.local" + path;
-  const options = { method };
+  const options: RequestInit = { method };
   if (body) {
     options.body = JSON.stringify(body);
     options.headers = { "Content-Type": "application/json" };
@@ -61,7 +60,7 @@ describe("POST /login (handleLoginVerify)", () => {
   test("missing p returns 400", async () => {
     const response = await makeRequest("/login", "POST", { c: VALID_C });
     expect(response.status).toBe(400);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json).toMatchObject({
       status: "ERROR",
       success: false,
@@ -74,7 +73,7 @@ describe("POST /login (handleLoginVerify)", () => {
   test("missing c returns 400", async () => {
     const response = await makeRequest("/login", "POST", { p: VALID_P });
     expect(response.status).toBe(400);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json).toMatchObject({
       status: "ERROR",
       success: false,
@@ -86,7 +85,7 @@ describe("POST /login (handleLoginVerify)", () => {
   test("missing both p and c returns 400", async () => {
     const response = await makeRequest("/login", "POST", {});
     expect(response.status).toBe(400);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json).toMatchObject({
       status: "ERROR",
       success: false,
@@ -101,7 +100,7 @@ describe("POST /login (handleLoginVerify)", () => {
       c: "FFFFFFFFFFFFFFFF",
     });
     expect(response.status).toBe(400);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json).toMatchObject({
       status: "ERROR",
       success: false,
@@ -117,7 +116,7 @@ describe("POST /login (handleLoginVerify)", () => {
       c: VALID_C,
     });
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json.success).toBe(true);
     expect(json.uidHex).toBeTruthy();
     expect(json.uidHex).toMatch(/^[0-9a-f]{14}$/);
@@ -140,7 +139,7 @@ describe("POST /login (handleLoginVerify)", () => {
       c: "0000000000000000",
     });
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json.success).toBe(true);
     expect(json.cmacValid).toBe(false);
   });
@@ -150,7 +149,7 @@ describe("POST /login (handleLoginVerify)", () => {
       p: VALID_P,
       c: VALID_C,
     });
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(typeof json.counterValue).toBe("number");
     expect(json.counterValue).toBeGreaterThan(0);
   });
@@ -160,7 +159,7 @@ describe("POST /login (handleLoginVerify)", () => {
       p: VALID_P,
       c: VALID_C,
     });
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json.ndef).toMatch(/^https:\/\//);
     expect(json.ndef).toContain("p=");
     expect(json.ndef).toContain("c=");
@@ -171,7 +170,7 @@ describe("POST /login (handleLoginVerify)", () => {
       p: VALID_P,
       c: VALID_C,
     });
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(typeof json.cardType).toBe("string");
   });
 
@@ -180,7 +179,7 @@ describe("POST /login (handleLoginVerify)", () => {
       p: VALID_P,
       c: VALID_C,
     });
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(typeof json.issuerKey).toBe("string");
     expect(json.issuerKey.length).toBeGreaterThan(0);
   });
@@ -190,7 +189,7 @@ describe("POST /login (handleLoginVerify)", () => {
       p: VALID_P,
       c: VALID_C,
     });
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(typeof json.timestamp).toBe("number");
     expect(json.timestamp).toBeGreaterThan(0);
   });
@@ -199,7 +198,7 @@ describe("POST /login (handleLoginVerify)", () => {
     const response = await makeRequest("/login", "POST", { uid: ACTION_UID }, makeEnv());
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json).toMatchObject({
       success: true,
       uidHex: ACTION_UID,
@@ -226,7 +225,7 @@ describe("POST /login (handleLoginVerify)", () => {
         : { uid: ACTION_UID, action };
       const response = await makeRequest("/login", "POST", body, unauthorizedEnv);
       expect(response.status).toBe(401);
-      const json = await response.json();
+      const json = (await response.json()) as Record<string, any>;
       expect(json.error).toMatch(/operator authentication required/i);
     }
   });
@@ -240,7 +239,7 @@ describe("POST /login (handleLoginVerify)", () => {
     );
 
     expect(response.status).toBe(400);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json).toMatchObject({
       status: "ERROR",
       success: false,
@@ -261,7 +260,7 @@ describe("POST /login (handleLoginVerify)", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json).toMatchObject({
       success: true,
       uidHex: ACTION_UID,
@@ -282,7 +281,7 @@ describe("POST /login (handleLoginVerify)", () => {
     );
 
     expect(response.status).toBe(400);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json).toMatchObject({
       status: "ERROR",
       success: false,
@@ -303,7 +302,7 @@ describe("POST /login (handleLoginVerify)", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json).toMatchObject({
       success: true,
       uidHex: ACTION_UID,
@@ -322,7 +321,7 @@ describe("POST /login (handleLoginVerify)", () => {
     );
 
     expect(response.status).toBe(400);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json).toMatchObject({
       status: "ERROR",
       success: false,
@@ -340,7 +339,7 @@ describe("POST /login (handleLoginVerify)", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json).toEqual({
       success: true,
       balance: 2500,
@@ -359,7 +358,7 @@ describe("POST /login (handleLoginVerify)", () => {
       env
     );
     expect(response.status).toBe(400);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json).toMatchObject({
       status: "ERROR",
       success: false,
@@ -386,7 +385,7 @@ describe("POST /login (handleLoginVerify)", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json).toMatchObject({
       status: "ERROR",
       success: false,
@@ -404,7 +403,7 @@ describe("POST /login (handleLoginVerify)", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json).toMatchObject({
       status: "ERROR",
       success: false,
@@ -427,7 +426,7 @@ describe("POST /login (handleLoginVerify)", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json).toMatchObject({
       status: "ERROR",
       success: false,
@@ -451,7 +450,7 @@ describe("POST /login (handleLoginVerify)", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json.deployed).toBe(true);
     expect(json.keyVersion).toBe(3);
   });
@@ -477,7 +476,7 @@ describe("POST /login (handleLoginVerify)", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json.cardState).toBe("keys_delivered");
     expect(json.awaitingProgramming).toBe(true);
   });
@@ -485,7 +484,7 @@ describe("POST /login (handleLoginVerify)", () => {
   test("terminate wipe_requested card succeeds", async () => {
     const replay = makeReplayNamespace();
     replay.__activate(ACTION_UID, 2);
-    replay.__cardStates.get(ACTION_UID).state = "wipe_requested";
+    replay.__cardStates.get(ACTION_UID)!.state = "wipe_requested";
 
     const response = await makeRequest(
       "/login",
@@ -495,7 +494,7 @@ describe("POST /login (handleLoginVerify)", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json.success).toBe(true);
     expect(json.cardState).toBe("terminated");
   });
@@ -535,27 +534,27 @@ describe("POST /login (handleLoginVerify)", () => {
 
   test("response includes tapHistory for valid login", async () => {
     const response = await makeRequest("/login", "POST", { p: VALID_P, c: VALID_C });
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json.tapHistory).toBeDefined();
     expect(Array.isArray(json.tapHistory)).toBe(true);
   });
 
   test("response includes balance field", async () => {
     const response = await makeRequest("/login", "POST", { p: VALID_P, c: VALID_C });
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(typeof json.balance).toBe("number");
   });
 
   test("response includes debug info", async () => {
     const response = await makeRequest("/login", "POST", { p: VALID_P, c: VALID_C });
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json.debug).toBeDefined();
     expect(typeof json.debug.issuerKey).toBe("string");
   });
 
   test("response includes card state", async () => {
     const response = await makeRequest("/login", "POST", { p: VALID_P, c: VALID_C });
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(typeof json.cardState).toBe("string");
   });
 
@@ -597,7 +596,7 @@ describe("POST /login (handleLoginVerify)", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json.success).toBe(true);
     expect(json.uidHex).toBe(perCardUid);
     expect(json.cmacValid).toBe(true);
@@ -643,7 +642,7 @@ describe("POST /login (handleLoginVerify)", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json.success).toBe(true);
     expect(json.cmacValid).toBe(true);
     expect(json.compromised).toBe(true);
@@ -671,7 +670,7 @@ describe("POST /login (handleLoginVerify)", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json.keysDeliveredAt).toBeGreaterThan(0);
   });
 
@@ -697,7 +696,7 @@ describe("POST /login (handleLoginVerify)", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = (await response.json()) as Record<string, any>;
     expect(json.programmingEndpoint).toContain("/api/v1/pull-payments/");
   });
 
@@ -715,7 +714,7 @@ describe("POST /login (handleLoginVerify)", () => {
     const SCAN_UID = "04a39493cc8680";
 
     function buildScanTapEnv(replay = makeReplayNamespace()) {
-      const keys = getDeterministicKeys(SCAN_UID, { ISSUER_KEY: env.ISSUER_KEY }, 1);
+      const keys = getDeterministicKeys(SCAN_UID, { ISSUER_KEY: env.ISSUER_KEY } as any, 1);
       const uid = hexToBytes(SCAN_UID);
       const counter = 7;
       const plaintext = new Uint8Array(16);
@@ -737,7 +736,7 @@ describe("POST /login (handleLoginVerify)", () => {
       const { pHex, cHex, replay } = buildScanTapEnv();
       const response = await makeRequest("/login", "POST", { p: pHex, c: cHex }, makeEnv(replay));
       expect(response.status).toBe(200);
-      const json = await response.json();
+      const json = (await response.json()) as Record<string, any>;
       expect(json.success).toBe(true);
       expect(json.cmacValid).toBe(true);
       expect(json.uidHex).toBe(SCAN_UID);
@@ -746,7 +745,7 @@ describe("POST /login (handleLoginVerify)", () => {
     test("valid issuer-derived CMAC includes matchedVersion in debug", async () => {
       const { pHex, cHex, replay } = buildScanTapEnv();
       const response = await makeRequest("/login", "POST", { p: pHex, c: cHex }, makeEnv(replay));
-      const json = await response.json();
+      const json = (await response.json()) as Record<string, any>;
       expect(json.debug.matchedVersion).toBe(1);
     });
   });
@@ -770,14 +769,14 @@ describe("POST /login (handleLoginVerify)", () => {
         };
       };
 
-      const warns = [];
+      const warns: string[] = [];
       const origWarn = console.warn;
       console.warn = (...args) => warns.push(args.join(" "));
 
       try {
         const response = await makeRequest("/login", "POST", { p: VALID_P, c: VALID_C }, makeEnv(replay));
         expect(response.status).toBe(200);
-        const json = await response.json();
+        const json = (await response.json()) as Record<string, any>;
         expect(json.balance).toBe(0);
         const warnLog = warns.find(l => l.includes("Could not fetch balance"));
         expect(warnLog).toBeDefined();
@@ -796,7 +795,7 @@ describe("POST /login (handleLoginVerify)", () => {
         return origIdFromName(name);
       };
 
-      const warns = [];
+      const warns: string[] = [];
       const origWarn = console.warn;
       console.warn = (...args) => warns.push(args.join(" "));
 
@@ -827,14 +826,14 @@ describe("POST /login (handleLoginVerify)", () => {
         };
       };
 
-      const warns = [];
+      const warns: string[] = [];
       const origWarn = console.warn;
       console.warn = (...args) => warns.push(args.join(" "));
 
       try {
         const response = await makeRequest("/login", "POST", { p: VALID_P, c: VALID_C }, makeEnv(replay));
         expect(response.status).toBe(200);
-        const json = await response.json();
+        const json = (await response.json()) as Record<string, any>;
         expect(json.tapHistory).toEqual([]);
         const warnLog = warns.find(l => l.includes("Could not load tap history"));
         expect(warnLog).toBeDefined();
@@ -859,7 +858,7 @@ describe("POST /login (handleLoginVerify)", () => {
         };
       };
 
-      const warns = [];
+      const warns: string[] = [];
       const origWarn = console.warn;
       console.warn = (...args) => warns.push(args.join(" "));
 
@@ -878,7 +877,7 @@ describe("POST /login (handleLoginVerify)", () => {
     test("UID-only login with invalid UID (no action) returns 400 (line 243)", async () => {
       const response = await makeRequest("/login", "POST", { uid: "ZZZZ" }, makeEnv());
       expect(response.status).toBe(400);
-      const json = await response.json();
+      const json = (await response.json()) as Record<string, any>;
       expect(json.error).toMatch(/invalid uid/i);
     });
 
@@ -899,14 +898,14 @@ describe("POST /login (handleLoginVerify)", () => {
         };
       };
 
-      const warns = [];
+      const warns: string[] = [];
       const origWarn = console.warn;
       console.warn = (...args) => warns.push(args.join(" "));
 
       try {
         const response = await makeRequest("/login", "POST", { uid: ACTION_UID }, makeEnv(replay));
         expect(response.status).toBe(200);
-        const json = await response.json();
+        const json = (await response.json()) as Record<string, any>;
         expect(json.balance).toBe(0);
         const warnLog = warns.find(l => l.includes("Could not fetch balance"));
         expect(warnLog).toBeDefined();
@@ -926,7 +925,7 @@ describe("POST /login (handleLoginVerify)", () => {
         return origIdFromName(name);
       };
 
-      const warns = [];
+      const warns: string[] = [];
       const origWarn = console.warn;
       console.warn = (...args) => warns.push(args.join(" "));
 
@@ -958,7 +957,7 @@ describe("POST /login (handleLoginVerify)", () => {
         };
       };
 
-      const warns = [];
+      const warns: string[] = [];
       const origWarn = console.warn;
       console.warn = (...args) => warns.push(args.join(" "));
 
@@ -998,7 +997,7 @@ describe("POST /login (handleLoginVerify)", () => {
         makeEnv(replay)
       );
       expect(response.status).toBe(500);
-      const json = await response.json();
+      const json = (await response.json()) as Record<string, any>;
       expect(json.error).toContain("Credit limit exceeded");
     });
 
@@ -1019,7 +1018,7 @@ describe("POST /login (handleLoginVerify)", () => {
         };
       };
 
-      const errors = [];
+      const errors: string[] = [];
       const origError = console.error;
       console.error = (...args) => errors.push(args.join(" "));
 
@@ -1031,7 +1030,7 @@ describe("POST /login (handleLoginVerify)", () => {
           makeEnv(replay)
         );
         expect(response.status).toBe(500);
-        const json = await response.json();
+        const json = (await response.json()) as Record<string, any>;
         expect(json.error).toContain("Top-up failed");
         const errLog = errors.find(l => l.includes("Top-up failed"));
         expect(errLog).toBeDefined();
@@ -1044,9 +1043,9 @@ describe("POST /login (handleLoginVerify)", () => {
 
 describe("loginActions branch coverage", () => {
   test("normalizeSubmittedUid handles non-string input", () => {
-    expect(normalizeSubmittedUid(null)).toBeNull();
-    expect(normalizeSubmittedUid(undefined)).toBeNull();
-    expect(normalizeSubmittedUid(123)).toBeNull();
+    expect(normalizeSubmittedUid(null as any)).toBeNull();
+    expect(normalizeSubmittedUid(undefined as any)).toBeNull();
+    expect(normalizeSubmittedUid(123 as any)).toBeNull();
   });
 
   test("normalizeSubmittedUid strips colons from valid UID", () => {
@@ -1056,27 +1055,27 @@ describe("loginActions branch coverage", () => {
   test("terminate returns keyVersion fallback when latest_issued_version is null", async () => {
     const replay = makeReplayNamespace();
     replay.__activate(ACTION_UID, 1);
-    const state = replay.__cardStates.get(ACTION_UID);
+     const state = replay.__cardStates.get(ACTION_UID)!;
     state.active_version = 2;
-    state.latest_issued_version = null;
+    state.latest_issued_version = null as any;
     const testEnv = makeEnv(replay);
     const req = new Request("https://test.local/login");
     const res = await handleTerminateAction(ACTION_UID, testEnv, req);
     expect(res.status).toBe(200);
-    const json = await res.json();
+    const json = (await res.json()) as Record<string, any>;
     expect(json.keyVersion).toBe(2);
   });
 
   test("request-wipe uses version 1 when active_version is null", async () => {
     const replay = makeReplayNamespace();
     replay.__activate(ACTION_UID, 1);
-    const state = replay.__cardStates.get(ACTION_UID);
+     const state = replay.__cardStates.get(ACTION_UID)!;
     state.active_version = null;
     const testEnv = makeEnv(replay);
     const req = new Request("https://test.local/login");
     const res = await handleRequestWipeAction(ACTION_UID, testEnv, req);
     expect(res.status).toBe(200);
-    const json = await res.json();
+    const json = (await res.json()) as Record<string, any>;
     expect(json.keyVersion).toBe(1);
   });
 
@@ -1085,11 +1084,11 @@ describe("loginActions branch coverage", () => {
     replay.__activate(ACTION_UID, 1);
     const testEnv = makeEnv(replay);
     const origGet = testEnv.CARD_REPLAY.get.bind(testEnv.CARD_REPLAY);
-    testEnv.CARD_REPLAY.get = (id) => {
+     (testEnv.CARD_REPLAY as any).get = (id: any) => {
       const obj = origGet(id);
       const origFetch = obj.fetch.bind(obj);
       return {
-        fetch: async (request) => {
+        fetch: async (request: Request) => {
           const url = new URL(request.url);
           if (request.method === "POST" && url.pathname === "/credit") {
             return Response.json({ ok: false });
@@ -1099,9 +1098,9 @@ describe("loginActions branch coverage", () => {
       };
     };
     const req = new Request("https://test.local/login");
-    const res = await handleTopUpAction(ACTION_UID, "500", testEnv, req);
+     const res = await (handleTopUpAction as any)(ACTION_UID, "500", testEnv, req);
     expect(res.status).toBe(500);
-    const json = await res.json();
+    const json = (await res.json()) as Record<string, any>;
     expect(json.reason).toContain("Top-up failed");
   });
 });

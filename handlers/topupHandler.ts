@@ -1,4 +1,7 @@
 import { getCurrencyLabel } from "../utils/currency.js";
+import type { SessionPayload , OpResult} from "../types/core.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { creditCard } from "../replayProtection.js";
 import { validateCardTap } from "../utils/validateCardTap.js";
@@ -7,13 +10,13 @@ import { renderTopupPage } from "../templates/topupPage.js";
 import { getRequestOrigin } from "../utils/validation.js";
 import { recordAuditEvent } from "../utils/auditLog.js";
 
-export function handleTopupPage(request: Request, env: any): Response {
+export function handleTopupPage(request: Request, env: Env): Response {
   const host = getRequestOrigin(request);
   const currencyLabel = getCurrencyLabel(env);
   return htmlResponse(renderTopupPage({ host, currencyLabel }));
 }
 
-export async function handleTopupApply(request: Request, env: any, session: any): Promise<Response> {
+export async function handleTopupApply(request: Request, env: Env, session: SessionPayload): Promise<Response> {
   if (request.method !== "POST") return errorResponse("Method not allowed", 405);
   const body: any = await parseJsonBody(request);
   if (!body) return errorResponse("Invalid JSON body", 400);
@@ -39,13 +42,13 @@ export async function handleTopupApply(request: Request, env: any, session: any)
   const note: string = `topup:${shiftId}`;
 
   try {
-    const result: any = await creditCard(env, tap.uidHex, parsedAmount, note);
+    const result: OpResult = await creditCard(env, tap.uidHex, parsedAmount, note);
     if (!result.ok) {
       logger.error("Top-up: credit failed", { uidHex: tap.uidHex, amount: parsedAmount, reason: result.reason });
       return errorResponse(result.reason || "Credit failed", 500);
     }
 
-    const newBalance: number = result.balance;
+    const newBalance: number = result.balance!;
 
     logger.info("Top-up successful", { uidHex: tap.uidHex, amount: parsedAmount, newBalance, shiftId });
     await recordAuditEvent(env, { action: "topup", uidHex: tap.uidHex, operatorShiftId: shiftId, details: { amount: parsedAmount, balance: newBalance } });
@@ -55,8 +58,8 @@ export async function handleTopupApply(request: Request, env: any, session: any)
       balance: newBalance,
       note,
     });
-  } catch (error: any) {
-    logger.error("Top-up: unexpected error", { uidHex: tap.uidHex, amount: parsedAmount, error: error.message });
+  } catch (error: unknown) {
+    logger.error("Top-up: unexpected error", { uidHex: tap.uidHex, amount: parsedAmount, error: getErrorMessage(error) });
     return errorResponse("Top-up failed", 500);
   }
 }

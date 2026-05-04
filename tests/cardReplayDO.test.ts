@@ -1,7 +1,7 @@
-// @ts-nocheck
+// @ts-expect-error -- better-sqlite3 has no type declarations
 import Database from "better-sqlite3";
 
-function createDoDb() {
+function createDoDb(): any {
   const db = new Database(":memory:");
   db.pragma("journal_mode = WAL");
 
@@ -60,7 +60,7 @@ function nowSec() {
 }
 
 describe("CardReplayDO SQL logic", () => {
-  let db;
+  let db: any;
 
   beforeEach(() => {
     db = createDoDb();
@@ -609,7 +609,7 @@ describe("CardReplayDO SQL logic", () => {
       const stateRows = db.prepare("SELECT * FROM card_state WHERE singleton = 1").all();
       const cardState = stateRows[0];
 
-      const events = [];
+      const events: any[] = [];
       if (cardState.keys_delivered_at) {
         events.push({ counter: null, status: 'provisioned', created_at: cardState.keys_delivered_at });
       }
@@ -617,7 +617,7 @@ describe("CardReplayDO SQL logic", () => {
         events.push({ counter: null, status: 'activated', created_at: cardState.activated_at });
       }
 
-      const merged = [...taps, ...events].sort((a, b) => {
+      const merged = [...taps, ...events].sort((a: any, b: any) => {
         const timeDiff = (b.created_at || 0) - (a.created_at || 0);
         if (timeDiff !== 0) return timeDiff;
         return (b.counter || 0) - (a.counter || 0);
@@ -638,7 +638,7 @@ describe("CardReplayDO SQL logic", () => {
       ).run(nowSec());
 
       const row = db.prepare("SELECT * FROM card_config WHERE singleton = 1").get();
-      let config = { payment_method: row.payment_method };
+      let config: Record<string, any> = { payment_method: row.payment_method };
       if (row.K2) config.K2 = row.K2;
       if (row.config_json) {
         const extra = JSON.parse(row.config_json);
@@ -658,7 +658,7 @@ describe("CardReplayDO SQL logic", () => {
       ).run(nowSec());
 
       const row = db.prepare("SELECT * FROM card_config WHERE singleton = 1").get();
-      let config = { payment_method: row.payment_method };
+      const config: Record<string, any> = { payment_method: row.payment_method };
       if (row.K2) config.K2 = row.K2;
 
       expect(config.payment_method).toBe("fakewallet");

@@ -1,21 +1,13 @@
 import { computeAesCmac, hexToBytes } from './cryptoutils.js';
+import { getErrorMessage } from "./utils/logger.js";
+import type { Env } from "./types/core.js";
 import { logger } from './utils/logger.js';
 import { getDeterministicKeys } from "./keygenerator.js";
 import { getCardConfig } from "./replayProtection.js";
 import { PAYMENT_METHOD } from "./utils/constants.js";
 
-interface EnvLike {
-  BOLT_CARD_K1_0?: string;
-  BOLT_CARD_K1_1?: string;
-  BOLT_CARD_K1?: string;
-  ISSUER_KEY?: string;
-  WORKER_ENV?: string;
-  ENVIRONMENT?: string;
-  UID_CONFIG?: KVNamespace;
-  CARD_REPLAY?: DurableObjectNamespace;
-}
 
-export function getBoltCardK1(env: EnvLike | null | undefined): Uint8Array[] {
+export function getBoltCardK1(env: Env | null | undefined): Uint8Array[] {
   if (env && env.BOLT_CARD_K1_0 && env.BOLT_CARD_K1_1) {
     return [
       hexToBytes(env.BOLT_CARD_K1_0),
@@ -44,7 +36,7 @@ export function getBoltCardK1(env: EnvLike | null | undefined): Uint8Array[] {
   ];
 }
 
-async function withDeterministicK2IfMissing(uidHex: string, config: Record<string, any> | null, env: EnvLike, source: string, version: number = 1): Promise<Record<string, any> | null> {
+async function withDeterministicK2IfMissing(uidHex: string, config: Record<string, any> | null, env: Env, source: string, version: number = 1): Promise<Record<string, any> | null> {
   if (!config || config.K2) {
     return config;
   }
@@ -55,18 +47,18 @@ async function withDeterministicK2IfMissing(uidHex: string, config: Record<strin
       logger.debug("Resolved deterministic K2 for UID config", { uidHex, source });
       return { ...config, K2: keys.k2 };
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error("Error deriving deterministic K2 for UID config", {
       uidHex,
       source,
-      error: error.message,
+      error: getErrorMessage(error),
     });
   }
 
   return config;
 }
 
-export async function getUidConfig(uidHex: string, env: EnvLike, version: number = 1): Promise<Record<string, any> | null> {
+export async function getUidConfig(uidHex: string, env: Env, version: number = 1): Promise<Record<string, any> | null> {
   const normalizedUid = uidHex.toLowerCase();
   logger.trace("Looking up UID config", { uidHex: normalizedUid });
 
@@ -81,10 +73,10 @@ export async function getUidConfig(uidHex: string, env: EnvLike, version: number
       return withDeterministicK2IfMissing(normalizedUid, doConfig, env, "do", version);
     }
     logger.trace("No UID config found in DO", { uidHex: normalizedUid });
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error("Error retrieving UID config from DO", {
       uidHex: normalizedUid,
-      error: error.message,
+      error: getErrorMessage(error),
     });
   }
 
@@ -105,10 +97,10 @@ export async function getUidConfig(uidHex: string, env: EnvLike, version: number
     } else {
       logger.error("Failed to generate valid K2 key", { uidHex: normalizedUid });
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error("Error generating deterministic keys", {
       uidHex: normalizedUid,
-      error: err.message,
+      error: getErrorMessage(err),
     });
   }
 

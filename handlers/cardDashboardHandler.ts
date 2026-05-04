@@ -1,4 +1,6 @@
 import { extractUIDAndCounter, validateCmac } from "../boltCardHelper.js";
+import type { CardStateRow, CardConfig, Env } from "../types/core.js";
+import { getErrorMessage } from "../utils/logger.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { logger } from "../utils/logger.js";
@@ -8,7 +10,7 @@ import { buildMaskedUid } from "../utils/validation.js";
 import { renderCardDashboardPage } from "../templates/cardDashboardPage.js";
 import { CARD_STATE, KEY_PROVENANCE, PAYMENT_METHOD } from "../utils/constants.js";
 import { getUnifiedHistory } from "../utils/history.js";
-import { resolveCardIdentity } from "../utils/cardAuth.js";
+import { resolveCardIdentity, type ResolveResult } from "../utils/cardAuth.js";
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   [PAYMENT_METHOD.FAKEWALLET]: "Internal Wallet",
@@ -18,20 +20,20 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   [PAYMENT_METHOD.TWOFACTOR]: "2FA Token",
 };
 
-async function resolveCardAuth(body: any, env: any, endpoint: string): Promise<{ error?: Response; uidHex?: string; ctr?: number; cardState?: any; config?: any; activeVersion?: number }> {
+async function resolveCardAuth(body: any, env: Env, endpoint: string): Promise<{ error?: Response; uidHex?: string; ctr?: string; cardState?: CardStateRow; config?: CardConfig; activeVersion?: number }> {
   const { p: pHex, c: cHex }: { p?: string; c?: string } = body || {};
-  const auth: any = await resolveCardIdentity(pHex, cHex, env, { requireState: true, context: endpoint });
+  const auth: ResolveResult = await resolveCardIdentity(pHex, cHex, env, { requireState: true, context: endpoint });
   if (!auth.ok) {
     return { error: errorResponse(auth.error, auth.status) };
   }
   return { uidHex: auth.uidHex, ctr: auth.ctr, cardState: auth.cardState, config: auth.config, activeVersion: auth.activeVersion };
 }
 
-export async function handleCardPage(request: Request, env: any): Promise<Response> {
+export async function handleCardPage(request: Request, env: Env): Promise<Response> {
   return htmlResponse(renderCardDashboardPage());
 }
 
-export async function handleCardInfo(request: Request, env: any): Promise<Response> {
+export async function handleCardInfo(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const pHex: string | null = url.searchParams.get("p");
   const cHex: string | null = url.searchParams.get("c");
@@ -40,31 +42,32 @@ export async function handleCardInfo(request: Request, env: any): Promise<Respon
     return errorResponse("Missing p or c parameters", 400);
   }
 
-  const auth: any = await resolveCardIdentity(pHex, cHex, env, { requireState: true, skipCmac: true, context: "/card/info" });
+  const auth: ResolveResult = await resolveCardIdentity(pHex, cHex, env, { requireState: true, skipCmac: true, context: "/card/info" });
   if (!auth.ok) {
     return errorResponse(auth.error, auth.status);
   }
 
-  const { uidHex, cardState, cmac_validated }: { uidHex: string; cardState: any; cmac_validated: boolean } = auth;
+  const { uidHex, cardState, cmac_validated } = auth;
+  const state = cardState!;
 
-  if (cardState.state === CARD_STATE.TERMINATED) {
-    const currentVersion: number = resolveLatestVersion(cardState);
+  if (state.state === CARD_STATE.TERMINATED) {
+    const currentVersion: number = resolveLatestVersion(state);
 
     const balance: number = (await safeGetBalance(env, uidHex)).balance;
 
     return jsonResponse({
       uid: uidHex,
       maskedUid: buildMaskedUid(uidHex),
-      state: cardState.state,
-      keyProvenance: cardState.key_provenance || null,
+      state: state.state,
+      keyProvenance: state.key_provenance || null,
       programmingRecommended: false,
       balance,
       history: [],
       analytics: null,
       paymentMethod: null,
       paymentMethodLabel: null,
-      activatedAt: cardState.activated_at || null,
-      terminatedAt: cardState.terminated_at || null,
+      activatedAt: state.activated_at || null,
+      terminatedAt: state.terminated_at || null,
       currentVersion,
       reactivationAvailable: cmac_validated,
     });
@@ -79,15 +82,15 @@ export async function handleCardInfo(request: Request, env: any): Promise<Respon
   let history: any[] = [];
   try {
     history = await getUnifiedHistory(env, uidHex);
-  } catch (e: any) {
-    logger.warn("History fetch failed in /card/info", { uidHex, error: e.message });
+  } catch (e: unknown) {
+    logger.warn("History fetch failed in /card/info", { uidHex, error: getErrorMessage(e) });
   }
 
   let analytics: any = null;
   try {
     analytics = await getAnalytics(env, uidHex);
-  } catch (e: any) {
-    logger.warn("Analytics fetch failed in /card/info", { uidHex, error: e.message });
+  } catch (e: unknown) {
+    logger.warn("Analytics fetch failed in /card/info", { uidHex, error: getErrorMessage(e) });
   }
 
   let paymentMethod: string | null = null;
@@ -99,23 +102,23 @@ export async function handleCardInfo(request: Request, env: any): Promise<Respon
       paymentMethod = cardConfig.payment_method || null;
       paymentMethodLabel = PAYMENT_METHOD_LABELS[paymentMethod!] || paymentMethod;
     }
-  } catch (e: any) {
-    logger.warn("Config fetch failed in /card/info", { uidHex, error: e.message });
+  } catch (e: unknown) {
+    logger.warn("Config fetch failed in /card/info", { uidHex, error: getErrorMessage(e) });
   }
 
-  const programmingRecommended: boolean = cardState.key_provenance === KEY_PROVENANCE.PUBLIC_ISSUER;
+  const programmingRecommended: boolean = state.key_provenance === KEY_PROVENANCE.PUBLIC_ISSUER;
 
-  logger.info("Card info requested", { uidHex, state: cardState.state, provenance: cardState.key_provenance });
+  logger.info("Card info requested", { uidHex, state: state.state, provenance: state.key_provenance });
 
   return jsonResponse({
     uid: uidHex,
     maskedUid: buildMaskedUid(uidHex),
-    state: cardState.state,
-    keyProvenance: cardState.key_provenance || null,
-    keyLabel: cardState.key_label || null,
-    keyFingerprint: cardState.key_fingerprint || null,
-    firstSeenAt: cardState.first_seen_at || null,
-    activatedAt: cardState.activated_at || null,
+    state: state.state,
+    keyProvenance: state.key_provenance || null,
+    keyLabel: state.key_label || null,
+    keyFingerprint: state.key_fingerprint || null,
+    firstSeenAt: state.first_seen_at || null,
+    activatedAt: state.activated_at || null,
     activeVersion: auth.activeVersion,
     programmingRecommended,
     balance,
@@ -126,7 +129,7 @@ export async function handleCardInfo(request: Request, env: any): Promise<Respon
   });
 }
 
-export async function handleCardLock(request: Request, env: any): Promise<Response> {
+export async function handleCardLock(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") {
     return errorResponse("Method not allowed", 405);
   }
@@ -136,10 +139,11 @@ export async function handleCardLock(request: Request, env: any): Promise<Respon
     return errorResponse("Invalid JSON body", 400);
   }
 
-  const auth: any = await resolveCardAuth(body, env, "/api/card/lock");
+  const auth = await resolveCardAuth(body, env, "/api/card/lock");
   if (auth.error) return auth.error;
 
-  const { uidHex, cardState }: { uidHex: string; cardState: any } = auth;
+  const uidHex = auth.uidHex!;
+  const cardState = auth.cardState!;
 
   if (cardState.state === CARD_STATE.TERMINATED) {
     return errorResponse("Card is already locked", 400);
@@ -153,13 +157,13 @@ export async function handleCardLock(request: Request, env: any): Promise<Respon
     await terminateCard(env, uidHex);
     logger.info("Card locked by cardholder", { uidHex });
     return jsonResponse({ success: true, state: "terminated" });
-  } catch (err: any) {
-    logger.error("Card lock failed", { uidHex, error: err.message });
+  } catch (err: unknown) {
+    logger.error("Card lock failed", { uidHex, error: getErrorMessage(err) });
     return errorResponse("Failed to lock card", 500);
   }
 }
 
-export async function handleCardReactivate(request: Request, env: any): Promise<Response> {
+export async function handleCardReactivate(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") {
     return errorResponse("Method not allowed", 405);
   }
@@ -169,10 +173,11 @@ export async function handleCardReactivate(request: Request, env: any): Promise<
     return errorResponse("Invalid JSON body", 400);
   }
 
-  const auth: any = await resolveCardAuth(body, env, "/api/card/reactivate");
+  const auth = await resolveCardAuth(body, env, "/api/card/reactivate");
   if (auth.error) return auth.error;
 
-  const { uidHex, cardState }: { uidHex: string; cardState: any } = auth;
+  const uidHex = auth.uidHex!;
+  const cardState = auth.cardState!;
 
   if (cardState.state !== CARD_STATE.TERMINATED) {
     return errorResponse(`Card is not terminated (state: ${cardState.state})`, 400);
@@ -190,8 +195,8 @@ export async function handleCardReactivate(request: Request, env: any): Promise<
       uid: uidHex,
       version: newVersion,
     });
-  } catch (err: any) {
-    logger.error("Card re-activation failed", { uidHex, error: err.message });
+  } catch (err: unknown) {
+    logger.error("Card re-activation failed", { uidHex, error: getErrorMessage(err) });
     return errorResponse("Failed to re-activate card", 500);
   }
 }

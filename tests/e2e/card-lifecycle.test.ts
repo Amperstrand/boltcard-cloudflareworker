@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, test, expect, beforeEach, vi } from "vitest";
 import { VirtualCard } from "../helpers/virtualCard.js";
 import { getDeterministicKeys } from "../../keygenerator.js";
@@ -166,7 +165,7 @@ describe("Virtual Card — Full Lifecycle Scenarios", () => {
 
       const cbResp = await card.lnurlPayCallback(pHex, cHex, 1000);
       expect(cbResp.status).toBe(200);
-      const cbJson = await cbResp.json();
+      const cbJson = (await cbResp.json()) as Record<string, unknown>;
       expect(cbJson.pr).toBe("lnbc10n1posinvoice");
     });
 
@@ -211,7 +210,7 @@ describe("Virtual Card — Full Lifecycle Scenarios", () => {
         balance: 0,
       });
 
-      const keys = getDeterministicKeys(card.uid, { ISSUER_KEY: card.issuerKey }, 1);
+      const keys = getDeterministicKeys(card.uid, { ISSUER_KEY: card.issuerKey } as any, 1);
       card.keys = keys;
       card.version = 1;
 
@@ -259,6 +258,82 @@ describe("Virtual Card — Full Lifecycle Scenarios", () => {
       const { cbResp } = await card.fullPayment(1000);
       expect(cbResp.status).toBe(200);
       expect(card.counter).toBe(1000);
+    });
+  });
+
+  describe("Version migration", () => {
+    test("v1 card → wipe → re-provision v2 → old keys rejected", async () => {
+      const card = await VirtualCard.createProvisioned();
+      await card.credit(10000);
+      const v1K2 = card.keys.k2;
+
+      await card.wipe();
+      expect(await card.getCardState()).toBe("terminated");
+
+      const result = await card.provision();
+      expect(result.version).toBe(2);
+      const v2K2 = result.keys.k2;
+      expect(v2K2).not.toBe(v1K2);
+
+      await card.activateViaDO(2);
+      await card.credit(5000);
+
+      const { response: goodTap } = await card.tapRequest(1);
+      expect(goodTap.status).toBe(200);
+
+      const oldKeys = { ...card.keys, k2: v1K2 };
+      card.keys = oldKeys;
+      card.version = 1;
+      const { response: oldKeyTap } = await card.tapRequest(2);
+      expect(oldKeyTap.status).toBe(403);
+    });
+  });
+
+  describe("Batch operations", () => {
+    test("terminate cards via batch endpoint using shared DO namespace", async () => {
+      const card1 = await VirtualCard.createProvisioned();
+      const card2 = await VirtualCard.createProvisioned();
+      const card3 = await VirtualCard.createProvisioned();
+
+      await card1.credit(1000);
+      await card2.credit(2000);
+      await card3.credit(3000);
+
+      const resp = await card1.request("/operator/cards/batch", "POST", {
+        action: "terminate",
+        uids: [card1.uid],
+      });
+
+      expect(resp.status).toBe(200);
+      const json = (await resp.json()) as Record<string, unknown>;
+      expect(json.results).toBeDefined();
+
+      expect(await card1.getCardState()).toBe("terminated");
+
+      const resp2 = await card2.request("/operator/cards/batch", "POST", {
+        action: "terminate",
+        uids: [card2.uid],
+      });
+      expect(resp2.status).toBe(200);
+      expect(await card2.getCardState()).toBe("terminated");
+
+      expect(await card3.getCardState()).toBe("active");
+    });
+  });
+
+  describe("Balance across wipe cycle", () => {
+    test("balance persists across terminate → re-provision → activate", async () => {
+      const card = await VirtualCard.createProvisioned();
+      await card.credit(5000);
+
+      await card.wipe();
+      expect(await card.getCardState()).toBe("terminated");
+      expect(await card.getBalance()).toBe(5000);
+
+      const result = await card.provision();
+      await card.activateViaDO(result.version);
+
+      expect(await card.getBalance()).toBe(5000);
     });
   });
 });

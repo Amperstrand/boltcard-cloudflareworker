@@ -1,16 +1,16 @@
-// @ts-nocheck
 import { fetchBoltCardKeys } from "../handlers/fetchBoltCardKeys.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { virtualTap, buildCardTestEnv } from "./testHelpers.js";
+import type { CardConfig } from "../types/core.js";
 
 const UID = "04a39493cc8680";
 const ISSUER_KEY = "00000000000000000000000000000001";
 
-function buildEnv(cardState = "new", config = null) {
+function buildEnv(cardState: string = "new", config: CardConfig | null = null) {
   return buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, cardState, cardConfig: config });
 }
 
-function postRequest(url, body) {
+function postRequest(url: string, body: Record<string, unknown>) {
   return new Request(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -47,7 +47,7 @@ describe("fetchBoltCardKeys", () => {
     );
     const res = await fetchBoltCardKeys(req, env);
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.reason).toContain("UID");
   });
 
@@ -59,7 +59,7 @@ describe("fetchBoltCardKeys", () => {
     );
     const res = await fetchBoltCardKeys(req, env);
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.reason).toContain("UID");
   });
 
@@ -71,7 +71,7 @@ describe("fetchBoltCardKeys", () => {
     );
     const res = await fetchBoltCardKeys(req, env);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.PROTOCOL_NAME).toBe("NEW_BOLT_CARD_RESPONSE");
     expect(body.K0).toMatch(/^[0-9a-fA-F]{32}$/);
     expect(body.K1).toMatch(/^[0-9a-fA-F]{32}$/);
@@ -89,7 +89,7 @@ describe("fetchBoltCardKeys", () => {
     );
     const res = await fetchBoltCardKeys(req, env);
     expect(res.status).toBe(409);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.reason).toContain("active");
   });
 
@@ -101,7 +101,7 @@ describe("fetchBoltCardKeys", () => {
     );
     const res = await fetchBoltCardKeys(req, env);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.PROTOCOL_NAME).toBe("NEW_BOLT_CARD_RESPONSE");
   });
 
@@ -113,10 +113,10 @@ describe("fetchBoltCardKeys", () => {
     );
     const res = await fetchBoltCardKeys(req, env);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.LNURLW).toContain("lnurlp://");
 
-    const storedConfig = env.CARD_REPLAY.__cardConfigs.get(UID);
+    const storedConfig = (env.CARD_REPLAY as any).__cardConfigs.get(UID);
     expect(storedConfig.payment_method).toBe("lnurlpay");
   });
 
@@ -128,7 +128,7 @@ describe("fetchBoltCardKeys", () => {
     );
     const res = await fetchBoltCardKeys(req, env);
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.reason).toContain("lightning_address");
   });
 
@@ -140,19 +140,19 @@ describe("fetchBoltCardKeys", () => {
     );
     const res = await fetchBoltCardKeys(req, env);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.LNURLW).toContain("/2fa");
 
-    const storedConfig = env.CARD_REPLAY.__cardConfigs.get(UID);
+    const storedConfig = (env.CARD_REPLAY as any).__cardConfigs.get(UID);
     expect(storedConfig.payment_method).toBe("twofactor");
   });
 
   it("resets via LNURLW KeepVersion flow", async () => {
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const env = buildEnv("active", {
-      K2: getDeterministicKeys(UID, { ISSUER_KEY }, 1).k2,
+      K2: keys.k2,
       payment_method: "fakewallet",
     });
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
     const lnurlw = `lnurlw://boltcardpoc.psbt.me/lnurl?p=${pHex}&c=${cHex}`;
 
@@ -162,7 +162,7 @@ describe("fetchBoltCardKeys", () => {
     );
     const res = await fetchBoltCardKeys(req, env);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.PROTOCOL_NAME).toBe("NEW_BOLT_CARD_RESPONSE");
   });
 
@@ -174,7 +174,7 @@ describe("fetchBoltCardKeys", () => {
     );
     const res = await fetchBoltCardKeys(req, env);
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.reason).toContain("LNURLW");
   });
 
@@ -187,16 +187,16 @@ describe("fetchBoltCardKeys", () => {
     );
     const res = await fetchBoltCardKeys(req, env);
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.reason).toContain("UID");
   });
 
   it("resets via LNURLW without onExisting param", async () => {
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const env = buildEnv("active", {
-      K2: getDeterministicKeys(UID, { ISSUER_KEY }, 1).k2,
+      K2: keys.k2,
       payment_method: "fakewallet",
     });
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
     const lnurlw = `lnurlw://boltcardpoc.psbt.me/lnurl?p=${pHex}&c=${cHex}`;
 
@@ -209,12 +209,12 @@ describe("fetchBoltCardKeys", () => {
   });
 
   it("reset flow rejects keys_delivered card state", async () => {
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const env = buildEnv("active", {
-      K2: getDeterministicKeys(UID, { ISSUER_KEY }, 1).k2,
+      K2: keys.k2,
       payment_method: "fakewallet",
     });
-    env.CARD_REPLAY.__cardStates.get(UID).state = "keys_delivered";
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    (env.CARD_REPLAY as any).__cardStates.get(UID).state = "keys_delivered";
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
     const lnurlw = `lnurlw://boltcardpoc.psbt.me/lnurl?p=${pHex}&c=${cHex}`;
 
@@ -224,16 +224,16 @@ describe("fetchBoltCardKeys", () => {
     );
     const res = await fetchBoltCardKeys(req, env);
     expect(res.status).toBe(409);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.reason).toContain("active or terminated");
   });
 
   it("reset flow rejects invalid CMAC", async () => {
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const env = buildEnv("active", {
-      K2: getDeterministicKeys(UID, { ISSUER_KEY }, 1).k2,
+      K2: keys.k2,
       payment_method: "fakewallet",
     });
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
     const { pHex } = virtualTap(UID, 2, keys.k1, keys.k2);
     const lnurlw = `lnurlw://boltcardpoc.psbt.me/lnurl?p=${pHex}&c=DEADBEEFDEADBEEF`;
 
@@ -243,17 +243,17 @@ describe("fetchBoltCardKeys", () => {
     );
     const res = await fetchBoltCardKeys(req, env);
     expect(res.status).toBe(403);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.reason).toContain("CMAC");
   });
 
   it("reset flow handles terminated card", async () => {
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const env = buildEnv("active", {
-      K2: getDeterministicKeys(UID, { ISSUER_KEY }, 1).k2,
+      K2: keys.k2,
       payment_method: "fakewallet",
     });
-    env.CARD_REPLAY.__cardStates.get(UID).state = "terminated";
-    const keys = getDeterministicKeys(UID, { ISSUER_KEY }, 1);
+    (env.CARD_REPLAY as any).__cardStates.get(UID).state = "terminated";
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
     const lnurlw = `lnurlw://boltcardpoc.psbt.me/lnurl?p=${pHex}&c=${cHex}`;
 
@@ -274,7 +274,7 @@ describe("fetchBoltCardKeys", () => {
     );
     const res = await fetchBoltCardKeys(req, env);
     expect(res.status).toBe(400);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.reason).toContain("p");
   });
 

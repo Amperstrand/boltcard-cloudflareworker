@@ -1,16 +1,16 @@
-// @ts-nocheck
 
 import { handleRequest } from "../index.js";
-import { makeReplayNamespace } from "./replayNamespace.js";
+import { makeReplayNamespace, type ReplayNamespace } from "./replayNamespace.js";
 import { buildCardTestEnv } from "./testHelpers.js";
+import type { Env } from "../types/core.js";
 
 const TEST_UID = "04aabbccdd7788";
 
-function makeEnv(replay = makeReplayNamespace({ [TEST_UID]: 1 })) {
-  return buildCardTestEnv({ operatorAuth: true, extraEnv: { CARD_REPLAY: replay } });
+function makeEnv(replay: ReplayNamespace = makeReplayNamespace({ [TEST_UID]: 1 })): Env {
+  return buildCardTestEnv({ operatorAuth: true, extraEnv: { CARD_REPLAY: replay as unknown as DurableObjectNamespace } });
 }
 
-async function creditCard(replay, uid, amount, note) {
+async function creditCard(replay: ReplayNamespace, uid: string, amount: number, note: string | null): Promise<Response> {
   const id = replay.idFromName(uid.toLowerCase());
   const stub = replay.get(id);
   return stub.fetch(new Request("https://card-replay.internal/credit", {
@@ -20,7 +20,7 @@ async function creditCard(replay, uid, amount, note) {
   }));
 }
 
-async function debitCard(replay, uid, counter, amount, note) {
+async function debitCard(replay: ReplayNamespace, uid: string, counter: number, amount: number, note: string | null): Promise<Response> {
   const id = replay.idFromName(uid.toLowerCase());
   const stub = replay.get(id);
   return stub.fetch(new Request("https://card-replay.internal/debit", {
@@ -31,8 +31,8 @@ async function debitCard(replay, uid, counter, amount, note) {
 }
 
 describe("GET /api/receipt/:txnId", () => {
-  let env;
-  let replay;
+  let env: Env;
+  let replay: ReplayNamespace;
 
   beforeEach(() => {
     replay = makeReplayNamespace({ [TEST_UID]: 1 });
@@ -47,7 +47,7 @@ describe("GET /api/receipt/:txnId", () => {
       env,
     );
     expect(res.status).toBe(400);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.reason).toMatch(/uid required/i);
   });
 
@@ -59,7 +59,7 @@ describe("GET /api/receipt/:txnId", () => {
       env,
     );
     expect(res.status).toBe(400);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.reason).toMatch(/transaction id required/i);
   });
 
@@ -71,14 +71,14 @@ describe("GET /api/receipt/:txnId", () => {
       env,
     );
     expect(res.status).toBe(404);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.reason).toMatch(/not found/i);
   });
 
   it("returns plain-text receipt for a credit transaction", async () => {
     const creditRes = await creditCard(replay, TEST_UID, 1000, "Top-up");
-    const creditData = await creditRes.json();
-    const txnId = creditData.transaction.id;
+    const creditData = await creditRes.json() as Record<string, unknown>;
+    const txnId = (creditData.transaction as Record<string, unknown>).id;
 
     const res = await handleRequest(
       new Request(`https://test.local/api/receipt/${txnId}?uid=${TEST_UID}`, {
@@ -98,8 +98,8 @@ describe("GET /api/receipt/:txnId", () => {
 
   it("returns receipt without reference line when no note", async () => {
     const creditRes = await creditCard(replay, TEST_UID, 500, null);
-    const creditData = await creditRes.json();
-    const txnId = creditData.transaction.id;
+    const creditData = await creditRes.json() as Record<string, unknown>;
+    const txnId = (creditData.transaction as Record<string, unknown>).id;
 
     const res = await handleRequest(
       new Request(`https://test.local/api/receipt/${txnId}?uid=${TEST_UID}`, {
@@ -115,8 +115,8 @@ describe("GET /api/receipt/:txnId", () => {
   it("returns receipt for a debit transaction with balance_after", async () => {
     await creditCard(replay, TEST_UID, 2000, null);
     const debitRes = await debitCard(replay, TEST_UID, 5, 750, "Payment");
-    const debitData = await debitRes.json();
-    const txnId = debitData.transaction.id;
+    const debitData = await debitRes.json() as Record<string, unknown>;
+    const txnId = (debitData.transaction as Record<string, unknown>).id;
 
     const res = await handleRequest(
       new Request(`https://test.local/api/receipt/${txnId}?uid=${TEST_UID}`, {
@@ -132,10 +132,10 @@ describe("GET /api/receipt/:txnId", () => {
   });
 
   it("uses custom currency label", async () => {
-    const customEnv = { ...env, CURRENCY_LABEL: "sats", CURRENCY_DECIMALS: "0" };
+    const customEnv = { ...env, CURRENCY_LABEL: "sats", CURRENCY_DECIMALS: "0" } as Env;
     const creditRes = await creditCard(replay, TEST_UID, 1000, null);
-    const creditData = await creditRes.json();
-    const txnId = creditData.transaction.id;
+    const creditData = await creditRes.json() as Record<string, unknown>;
+    const txnId = (creditData.transaction as Record<string, unknown>).id;
 
     const res = await handleRequest(
       new Request(`https://test.local/api/receipt/${txnId}?uid=${TEST_UID}`, {
@@ -148,11 +148,11 @@ describe("GET /api/receipt/:txnId", () => {
   });
 
   it("requires operator auth", async () => {
-    const noAuthEnv = { ...env };
+    const noAuthEnv = { ...env } as Record<string, unknown>;
     delete noAuthEnv.__TEST_OPERATOR_SESSION;
     const res = await handleRequest(
       new Request(`https://test.local/api/receipt/1?uid=${TEST_UID}`),
-      noAuthEnv,
+      noAuthEnv as unknown as Env,
     );
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toContain("/operator/login");

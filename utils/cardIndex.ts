@@ -1,4 +1,6 @@
 import { logger } from "./logger.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { KV_LIST_LIMIT, CARD_INDEX_TTL } from "./constants.js";
 
 const KEY_PREFIX = "card_idx:";
@@ -23,16 +25,12 @@ interface IndexedCard {
   updatedAt: number;
 }
 
-interface EnvLike {
-  UID_CONFIG?: KVNamespace;
-  CARD_REPLAY?: DurableObjectNamespace;
-}
 
 function indexKey(uidHex: string): string {
   return KEY_PREFIX + uidHex.toLowerCase();
 }
 
-export async function indexCard(env: EnvLike | undefined, uidHex: string | undefined, metadata: CardIndexMetadata) {
+export async function indexCard(env: Env | undefined, uidHex: string | undefined, metadata: CardIndexMetadata) {
   if (!env?.UID_CONFIG || !uidHex) return;
   try {
     const key = indexKey(uidHex);
@@ -49,33 +47,33 @@ export async function indexCard(env: EnvLike | undefined, uidHex: string | undef
     await env.UID_CONFIG.put(key, JSON.stringify(record), {
       expirationTtl: CARD_INDEX_TTL,
     });
-  } catch (e: any) {
-    logger.warn("Failed to index card", { uidHex, error: e.message });
+  } catch (e: unknown) {
+    logger.warn("Failed to index card", { uidHex, error: getErrorMessage(e) });
   }
 }
 
-export async function _deindexCard(env: EnvLike | undefined, uidHex: string | undefined) {
+export async function _deindexCard(env: Env | undefined, uidHex: string | undefined) {
   if (!env?.UID_CONFIG || !uidHex) return;
   try {
     await env.UID_CONFIG.delete(indexKey(uidHex));
-  } catch (e: any) {
-    logger.warn("Failed to deindex card", { uidHex, error: e.message });
+  } catch (e: unknown) {
+    logger.warn("Failed to deindex card", { uidHex, error: getErrorMessage(e) });
   }
 }
 
-export async function _getIndexedCard(env: EnvLike | undefined, uidHex: string): Promise<IndexedCard | null> {
+export async function _getIndexedCard(env: Env | undefined, uidHex: string): Promise<IndexedCard | null> {
   if (!env?.UID_CONFIG) return null;
   try {
     const raw = await env.UID_CONFIG.get(indexKey(uidHex));
     if (!raw) return null;
     return JSON.parse(raw);
-  } catch (e: any) {
-    logger.warn("Failed to get indexed card", { uidHex, error: e.message });
+  } catch (e: unknown) {
+    logger.warn("Failed to get indexed card", { uidHex, error: getErrorMessage(e) });
     return null;
   }
 }
 
-export async function repairCardIndex(env: EnvLike, getCardStateFn: (env: any, uid: string) => Promise<any>) {
+export async function repairCardIndex(env: Env, getCardStateFn: (env: any, uid: string) => Promise<any>) {
   if (!env?.UID_CONFIG || !env?.CARD_REPLAY) {
     return { scanned: 0, repaired: 0, errors: [] as Array<{ uid: string; error: string }> };
   }
@@ -129,15 +127,15 @@ export async function repairCardIndex(env: EnvLike, getCardStateFn: (env: any, u
         });
         repaired++;
       }
-    } catch (e: any) {
-      errors.push({ uid: card.uid, error: e.message });
+    } catch (e: unknown) {
+      errors.push({ uid: card.uid, error: getErrorMessage(e) });
     }
   }
 
   return { scanned: scanned.length, repaired, errors };
 }
 
-export async function listIndexedCards(env: EnvLike | undefined, { state, prefix, limit = KV_LIST_LIMIT, cursor }: { state?: string; prefix?: string; limit?: number; cursor?: string } = {}) {
+export async function listIndexedCards(env: Env | undefined, { state, prefix, limit = KV_LIST_LIMIT, cursor }: { state?: string; prefix?: string; limit?: number; cursor?: string } = {}) {
   if (!env?.UID_CONFIG) return { cards: [] as IndexedCard[], cursor: null as string | null, total: 0 };
   try {
     const listResult = await env.UID_CONFIG.list({
@@ -153,12 +151,12 @@ export async function listIndexedCards(env: EnvLike | undefined, { state, prefix
           if (!raw) return null;
           try {
             return JSON.parse(raw);
-          } catch (e: any) {
-            logger.warn("Failed to parse indexed card", { key: key.name, error: e.message });
+          } catch (e: unknown) {
+            logger.warn("Failed to parse indexed card", { key: key.name, error: getErrorMessage(e) });
             return null;
           }
         }).catch((e: any) => {
-          logger.warn("Failed to read indexed card", { key: key.name, error: e.message });
+          logger.warn("Failed to read indexed card", { key: key.name, error: getErrorMessage(e) });
           return null;
         })
       )
@@ -174,8 +172,8 @@ export async function listIndexedCards(env: EnvLike | undefined, { state, prefix
       cursor: listResult.list_complete ? null : (listResult as any).cursor,
       total: listResult.keys.length,
     };
-  } catch (e: any) {
-    logger.warn("Failed to list indexed cards", { error: e.message });
+  } catch (e: unknown) {
+    logger.warn("Failed to list indexed cards", { error: getErrorMessage(e) });
     return { cards: [] as IndexedCard[], cursor: null as string | null, total: 0 };
   }
 }

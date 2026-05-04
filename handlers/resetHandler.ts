@@ -1,11 +1,14 @@
 import { getDeterministicKeys } from "../keygenerator.js";
+import type { CardStateRow } from "../types/core.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { getCardState, terminateCard, resolveActiveVersion } from "../replayProtection.js";
 import { jsonResponse, buildBoltCardResponse, errorResponse } from "../utils/responses.js";
 import { validateUid } from "../utils/validation.js";
 import { DEFAULT_FALLBACK_HOST, CARD_STATE, UID_VALIDATION_MSG, isCardUsable, isCardTerminated, isCardNew } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
 
-export async function handleReset(uid: string, env: any, baseUrl?: string): Promise<Response> {
+export async function handleReset(uid: string, env: Env, baseUrl?: string): Promise<Response> {
   const normalizedUid: string | null = validateUid(uid);
   try {
     if (!env?.CARD_REPLAY) {
@@ -20,7 +23,7 @@ export async function handleReset(uid: string, env: any, baseUrl?: string): Prom
       return errorResponse(UID_VALIDATION_MSG, 400);
     }
 
-    const cardState: any = await getCardState(env, normalizedUid);
+    const cardState: CardStateRow = await getCardState(env, normalizedUid);
 
     if (!isCardUsable(cardState.state) && !isCardTerminated(cardState.state) && !isCardNew(cardState.state)) {
       return errorResponse("Card must be active, terminated, or new to retrieve wipe keys.", 409);
@@ -35,8 +38,8 @@ export async function handleReset(uid: string, env: any, baseUrl?: string): Prom
     const keys: any = getDeterministicKeys(normalizedUid, env, wipeVersion);
     const host: string = baseUrl || DEFAULT_FALLBACK_HOST;
     return jsonResponse(buildBoltCardResponse(keys, normalizedUid, host, wipeVersion), 200);
-  } catch (err: any) {
-    logger.error("Reset handler error", { uid: normalizedUid, error: err.message });
+  } catch (err: unknown) {
+    logger.error("Reset handler error", { uid: normalizedUid, error: getErrorMessage(err) });
     return errorResponse("Internal error", 500);
   }
 }

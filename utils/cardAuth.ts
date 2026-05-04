@@ -1,4 +1,6 @@
 import { extractUIDAndCounter, validateCmac } from "../boltCardHelper.js";
+import type { CardStateRow, CardConfig, Env } from "../types/core.js";
+import { getErrorMessage } from "../utils/logger.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { getCardState, resolveActiveVersion } from "../replayProtection.js";
@@ -17,9 +19,9 @@ interface ResolveSuccess {
   uidHex: string;
   ctr: string;
   counterValue: number;
-  config: Record<string, any>;
+  config: CardConfig;
   cmac_validated: boolean;
-  cardState?: any;
+  cardState?: CardStateRow;
   activeVersion?: number;
 }
 
@@ -29,12 +31,12 @@ interface ResolveFailure {
   error: string;
 }
 
-type ResolveResult = ResolveSuccess | ResolveFailure;
+export type ResolveResult = ResolveSuccess | ResolveFailure;
 
 export async function resolveCardIdentity(
   pHex: string | undefined,
   cHex: string | undefined,
-  env: any,
+  env: Env,
   { activeVersion: forcedVersion, requireState = false, skipCmac = false, context = "card-auth" }: ResolveCardIdentityOptions = {}
 ): Promise<ResolveResult> {
   if (!pHex || !cHex) {
@@ -49,23 +51,23 @@ export async function resolveCardIdentity(
   const { uidHex, ctr } = decryption;
   const counterValue = parseInt(ctr, 16);
 
-  let cardState: any = null;
+  let cardState: CardStateRow | null = null;
   if (requireState) {
     try {
       cardState = await getCardState(env, uidHex);
-    } catch (error: any) {
-      logger.error(`${context}: card state check failed`, { uidHex, error: error.message });
+    } catch (error: unknown) {
+      logger.error(`${context}: card state check failed`, { uidHex, error: getErrorMessage(error) });
       return { ok: false, status: 503, error: "Card state unavailable" };
     }
   }
 
   const activeVersion = forcedVersion || (cardState ? resolveActiveVersion(cardState) : undefined);
 
-  let config: Record<string, any> | null;
+  let config: CardConfig | null;
   try {
-    config = await getUidConfig(uidHex, env, activeVersion);
-  } catch (e: any) {
-    logger.error(`${context}: getUidConfig failed`, { uidHex, error: e.message });
+    config = await getUidConfig(uidHex, env, activeVersion) as CardConfig | null;
+  } catch (e: unknown) {
+    logger.error(`${context}: getUidConfig failed`, { uidHex, error: getErrorMessage(e) });
     return { ok: false, status: 500, error: "Card configuration unavailable" };
   }
 

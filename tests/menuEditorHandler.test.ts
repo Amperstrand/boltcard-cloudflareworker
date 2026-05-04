@@ -1,14 +1,14 @@
-// @ts-nocheck
 
 import { handleRequest } from "../index.js";
 import { buildCardTestEnv } from "./testHelpers.js";
+import type { Env } from "../types/core.js";
 
-function makeEnv() {
+function makeEnv(): Env {
   return buildCardTestEnv({ operatorAuth: true });
 }
 
 describe("GET /api/pos/menu", () => {
-  let env;
+  let env: Env;
 
   beforeEach(() => {
     env = makeEnv();
@@ -22,7 +22,7 @@ describe("GET /api/pos/menu", () => {
       env,
     );
     expect(res.status).toBe(200);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.items).toEqual([]);
   });
 
@@ -37,9 +37,9 @@ describe("GET /api/pos/menu", () => {
       env,
     );
     expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.items).toHaveLength(2);
-    expect(json.items[0].name).toBe("Coffee");
+    const json = await res.json() as Record<string, unknown>;
+    expect(json.items as unknown[]).toHaveLength(2);
+    expect((json.items as Record<string, unknown>[])[0].name).toBe("Coffee");
   });
 
   it("returns menu for specific terminal", async () => {
@@ -53,23 +53,23 @@ describe("GET /api/pos/menu", () => {
       env,
     );
     expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.items[0].name).toBe("Espresso");
+    const json = await res.json() as Record<string, unknown>;
+    expect((json.items as Record<string, unknown>[])[0].name).toBe("Espresso");
   });
 
   it("requires operator auth", async () => {
-    const noAuthEnv = { ...env };
+    const noAuthEnv = { ...env } as Record<string, unknown>;
     delete noAuthEnv.__TEST_OPERATOR_SESSION;
     const res = await handleRequest(
       new Request("https://test.local/api/pos/menu"),
-      noAuthEnv,
+      noAuthEnv as unknown as Env,
     );
     expect(res.status).toBe(302);
   });
 });
 
 describe("PUT /operator/pos/menu", () => {
-  let env;
+  let env: Env;
 
   beforeEach(() => {
     env = makeEnv();
@@ -85,7 +85,7 @@ describe("PUT /operator/pos/menu", () => {
       env,
     );
     expect(res.status).toBe(200);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.success).toBe(true);
     expect(json.itemCount).toBe(1);
   });
@@ -102,7 +102,7 @@ describe("PUT /operator/pos/menu", () => {
 
     const raw = await env.UID_CONFIG.get("pos_menu:default");
     expect(raw).toBeTruthy();
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw!);
     expect(parsed.items[0].name).toBe("Mocha");
   });
 
@@ -116,7 +116,7 @@ describe("PUT /operator/pos/menu", () => {
       env,
     );
     expect(res.status).toBe(400);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.reason).toMatch(/must be an array/i);
   });
 
@@ -130,7 +130,7 @@ describe("PUT /operator/pos/menu", () => {
       env,
     );
     expect(res.status).toBe(400);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.reason).toMatch(/must have a name/i);
   });
 
@@ -144,7 +144,7 @@ describe("PUT /operator/pos/menu", () => {
       env,
     );
     expect(res.status).toBe(400);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.reason).toMatch(/invalid price/i);
   });
 
@@ -161,7 +161,7 @@ describe("PUT /operator/pos/menu", () => {
   });
 
   it("requires operator auth", async () => {
-    const noAuthEnv = { ...env };
+    const noAuthEnv = { ...env } as Record<string, unknown>;
     delete noAuthEnv.__TEST_OPERATOR_SESSION;
     const res = await handleRequest(
       new Request("https://test.local/operator/pos/menu", {
@@ -169,14 +169,14 @@ describe("PUT /operator/pos/menu", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: [] }),
       }),
-      noAuthEnv,
+      noAuthEnv as unknown as Env,
     );
     expect(res.status).toBe(302);
   });
 });
 
 describe("GET /operator/pos/menu", () => {
-  let env;
+  let env: Env;
 
   beforeEach(() => {
     env = makeEnv();
@@ -196,11 +196,11 @@ describe("GET /operator/pos/menu", () => {
   });
 
   it("requires operator auth", async () => {
-    const noAuthEnv = { ...env };
+    const noAuthEnv = { ...env } as Record<string, unknown>;
     delete noAuthEnv.__TEST_OPERATOR_SESSION;
     const res = await handleRequest(
       new Request("https://test.local/operator/pos/menu"),
-      noAuthEnv,
+      noAuthEnv as unknown as Env,
     );
     expect(res.status).toBe(302);
   });
@@ -211,8 +211,8 @@ describe("GET /operator/pos/menu", () => {
       UID_CONFIG: {
         get: async () => { throw new Error("KV down"); },
         put: async () => {},
-      },
-    };
+      } as unknown as KVNamespace,
+    } as Env;
     const res = await handleRequest(
       new Request("https://test.local/operator/pos/menu", {
         headers: { Cookie: "op_session=test" },
@@ -271,7 +271,7 @@ describe("GET /operator/pos/menu", () => {
 describe("GET /api/pos/menu error handling", () => {
   it("gracefully handles broken KV by returning empty items", async () => {
     const env = makeEnv();
-    env.UID_CONFIG = { get: async () => { throw new Error("KV exploded"); }, put: async () => {} };
+    env.UID_CONFIG = { get: async () => { throw new Error("KV exploded"); }, put: async () => {} } as unknown as KVNamespace;
     const res = await handleRequest(
       new Request("https://test.local/api/pos/menu", {
         headers: { Cookie: "op_session=test" },
@@ -279,7 +279,7 @@ describe("GET /api/pos/menu error handling", () => {
       env,
     );
     expect(res.status).toBe(200);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.items).toEqual([]);
   });
 });

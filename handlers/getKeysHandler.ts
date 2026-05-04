@@ -1,4 +1,7 @@
 import { getDeterministicKeys } from "../keygenerator.js";
+import type { CardStateRow } from "../types/core.js";
+import { getErrorMessage } from "../utils/logger.js";
+import type { Env } from "../types/core.js";
 import { getPerCardKeys, getAllIssuerKeyCandidates } from "../utils/keyLookup.js";
 import { jsonResponse, buildBoltCardResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { getCardState } from "../replayProtection.js";
@@ -6,7 +9,7 @@ import { validateUid, getRequestOrigin } from "../utils/validation.js";
 import { UID_VALIDATION_MSG } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
 
-async function findFirstKeyset(normalizedUid: string, env: any): Promise<any> {
+async function findFirstKeyset(normalizedUid: string, env: Env): Promise<any> {
   const perCard: any = getPerCardKeys(normalizedUid);
   if (perCard && perCard.k0 && perCard.k1 && perCard.k2) {
     return {
@@ -17,11 +20,11 @@ async function findFirstKeyset(normalizedUid: string, env: any): Promise<any> {
     };
   }
 
-  let cardState: any;
+  let cardState: CardStateRow | undefined;
   try {
     cardState = await getCardState(env, normalizedUid);
-  } catch (e: any) {
-    logger.warn("getCardState failed in findFirstKeyset", { uid: normalizedUid, error: e.message });
+  } catch (e: unknown) {
+    logger.warn("getCardState failed in findFirstKeyset", { uid: normalizedUid, error: getErrorMessage(e) });
   }
   const activeVersion = cardState?.active_version || cardState?.latest_issued_version;
   const versions = activeVersion && activeVersion > 1
@@ -43,8 +46,8 @@ async function findFirstKeyset(normalizedUid: string, env: any): Promise<any> {
             source: "deterministic", label: candidate.label, version,
           };
         }
-      } catch (e: any) {
-        logger.warn("Key derivation failed for candidate", { error: e.message });
+      } catch (e: unknown) {
+        logger.warn("Key derivation failed for candidate", { error: getErrorMessage(e) });
         continue;
       }
     }
@@ -52,7 +55,7 @@ async function findFirstKeyset(normalizedUid: string, env: any): Promise<any> {
   return null;
 }
 
-export async function handleGetKeys(request: Request, env: any): Promise<Response> {
+export async function handleGetKeys(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const uidParam = url.searchParams.get("uid");
   const baseUrl = getRequestOrigin(request);
@@ -73,8 +76,8 @@ export async function handleGetKeys(request: Request, env: any): Promise<Respons
     let keys: any;
     try {
       keys = await findFirstKeyset(validatedUid, env);
-    } catch (err: any) {
-      logger.error("Key lookup failed", { uid: validatedUid, error: err.message });
+    } catch (err: unknown) {
+      logger.error("Key lookup failed", { uid: validatedUid, error: getErrorMessage(err) });
       return errorResponse("Key lookup failed", 500);
     }
     if (!keys) {
@@ -97,8 +100,8 @@ export async function handleGetKeys(request: Request, env: any): Promise<Respons
     let keys: any;
     try {
       keys = await findFirstKeyset(validatedUid, env);
-    } catch (err: any) {
-      logger.error("Key lookup failed", { uid: validatedUid, error: err.message });
+    } catch (err: unknown) {
+      logger.error("Key lookup failed", { uid: validatedUid, error: getErrorMessage(err) });
       return errorResponse("Key lookup failed", 500);
     }
     if (!keys) {
@@ -122,8 +125,8 @@ export async function handleGetKeys(request: Request, env: any): Promise<Respons
   let cardStateDetail: any;
   try {
     cardStateDetail = await getCardState(env, validatedUid);
-  } catch (e: any) {
-    logger.warn("getCardState failed in keyset builder", { uid: validatedUid, error: e.message });
+  } catch (e: unknown) {
+    logger.warn("getCardState failed in keyset builder", { uid: validatedUid, error: getErrorMessage(e) });
   }
   const activeVersionDetail = cardStateDetail?.active_version || cardStateDetail?.latest_issued_version;
   const detailVersions = activeVersionDetail && activeVersionDetail > 1
@@ -141,8 +144,8 @@ export async function handleGetKeys(request: Request, env: any): Promise<Respons
           k0: k.k0, k1: k.k1, k2: k.k2, k3: k.k3, k4: k.k4,
           version, source: "deterministic", label: candidate.label, card_key: k.cardKey,
         });
-      } catch (e: any) {
-        logger.warn("Key derivation failed for bulk key candidate", { error: e.message });
+      } catch (e: unknown) {
+        logger.warn("Key derivation failed for bulk key candidate", { error: getErrorMessage(e) });
         continue;
       }
     }

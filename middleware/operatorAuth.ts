@@ -4,18 +4,11 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { getCookieValue, constantTimeEqual } from "../utils/cookies.js";
 import { OPERATOR_SESSION_MAX_AGE, OPERATOR_CSRF_MAX_AGE } from "../utils/constants.js";
 import { redirect } from "../utils/responses.js";
+import type { Env, SessionPayload } from "../types/core.js";
 
-interface EnvLike {
-  OPERATOR_SESSION_SECRET?: string;
-  OPERATOR_PIN?: string;
-  WORKER_ENV?: string;
-  __TEST_OPERATOR_SESSION?: Record<string, unknown>;
-}
-
-interface SessionPayload {
-  iat: number;
-  exp: number;
-  shiftId: string;
+interface CsrfToken {
+  value: string;
+  expiresAt: number;
 }
 
 interface RequireOperatorResult {
@@ -105,7 +98,7 @@ function buildExpiredCookie(): string {
   return `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/`;
 }
 
-export function requireOperator(request: Request, env: EnvLike): OperatorAuthResult {
+export function requireOperator(request: Request, env: Env): OperatorAuthResult {
   const secret = env.OPERATOR_SESSION_SECRET || DEV_SESSION_SECRET;
 
   if (env.__TEST_OPERATOR_SESSION && env.WORKER_ENV !== "production") {
@@ -125,7 +118,7 @@ export function requireOperator(request: Request, env: EnvLike): OperatorAuthRes
   return { authorized: true, session };
 }
 
-export function validatePinConfig(env: EnvLike): boolean {
+export function validatePinConfig(env: Env): boolean {
   if (env.WORKER_ENV === "production") {
     if (!env.OPERATOR_PIN || typeof env.OPERATOR_PIN !== "string" || env.OPERATOR_PIN.length < MIN_PIN_LENGTH) {
       return false;
@@ -141,7 +134,7 @@ export function validatePinConfig(env: EnvLike): boolean {
   return true;
 }
 
-export function checkPin(provided: string | undefined, env: EnvLike): boolean {
+export function checkPin(provided: string | undefined, env: Env): boolean {
   if (env.WORKER_ENV === "production" && !env.OPERATOR_PIN) {
     throw new Error("OPERATOR_PIN must be set in production");
   }
@@ -149,7 +142,7 @@ export function checkPin(provided: string | undefined, env: EnvLike): boolean {
   return constantTimeComparePin(provided, expected);
 }
 
-export function createSession(env: EnvLike): { cookie: string; shiftId: string } {
+export function createSession(env: Env): { cookie: string; shiftId: string } {
   if (env.WORKER_ENV === "production" && !env.OPERATOR_SESSION_SECRET) {
     throw new Error("OPERATOR_SESSION_SECRET must be set in production");
   }
