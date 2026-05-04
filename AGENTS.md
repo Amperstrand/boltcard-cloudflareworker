@@ -303,6 +303,8 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | Card state predicates extracted | Done | `isCardUsable`, `isCardTerminated`, etc. in `utils/constants.js` |
 | `parsePositiveInt()` extracted | Done | Shared positive int validator in `utils/validation.js` |
 | `resolveCardIdentity()` shared pipeline | Done | `utils/cardAuth.js` — decrypt→state→config→CMAC across 5 handlers |
+| TypeScript type tightening | Done | Source `: any` 318→151; `// @ts-nocheck` removed from all test files except `testHelpers.ts` and `do/cardReplayDO.real.test.ts`; `types/core.ts` centralizes shared types; `catch(e: unknown)` + `getErrorMessage()` throughout |
+| Shared `Env` type | Done | `types/core.ts` → `worker-configuration.d.ts` — eliminated 9 duplicate `EnvLike` interfaces |
 
 ### Feature Development
 
