@@ -1,0 +1,156 @@
+import { getDeterministicKeys } from "../keygenerator.js";
+import { getPerCardKeys, getAllIssuerKeyCandidates } from "../utils/keyLookup.js";
+import { jsonResponse, buildBoltCardResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
+import { getCardState } from "../replayProtection.js";
+import { validateUid, getRequestOrigin } from "../utils/validation.js";
+import { UID_VALIDATION_MSG } from "../utils/constants.js";
+import { logger } from "../utils/logger.js";
+
+async function findFirstKeyset(normalizedUid: string, env: any): Promise<any> {
+  const perCard: any = getPerCardKeys(normalizedUid);
+  if (perCard && perCard.k0 && perCard.k1 && perCard.k2) {
+    return {
+      k0: perCard.k0, k1: perCard.k1, k2: perCard.k2,
+      k3: perCard.k3 || perCard.k1,
+      k4: perCard.k4 || perCard.k2,
+      source: "percard", label: perCard.card_name || "per-card import",
+    };
+  }
+
+  let cardState: any;
+  try {
+    cardState = await getCardState(env, normalizedUid);
+  } catch (e: any) {
+    logger.warn("getCardState failed in findFirstKeyset", { uid: normalizedUid, error: e.message });
+  }
+  const activeVersion = cardState?.active_version || cardState?.latest_issued_version;
+  const versions = activeVersion && activeVersion > 1
+    ? [activeVersion, activeVersion - 1, 1, 0]
+    : [1, 0];
+  const seenVersions = new Set<number>();
+  const uniqueVersions = versions.filter((v: number) => { if (seenVersions.has(v)) return false; seenVersions.add(v); return true; });
+
+  const issuerCandidates: any[] = getAllIssuerKeyCandidates(env);
+  for (const candidate of issuerCandidates) {
+    for (const version of uniqueVersions) {
+      try {
+        const tempEnv = { ...env, ISSUER_KEY: candidate.hex };
+        const keys: any = getDeterministicKeys(normalizedUid, tempEnv, version);
+        if (keys.k0 && keys.k1 && keys.k2 && keys.k3 && keys.k4) {
+          return {
+            k0: keys.k0, k1: keys.k1, k2: keys.k2,
+            k3: keys.k3, k4: keys.k4,
+            source: "deterministic", label: candidate.label, version,
+          };
+        }
+      } catch (e: any) {
+        logger.warn("Key derivation failed for candidate", { error: e.message });
+        continue;
+      }
+    }
+  }
+  return null;
+}
+
+export async function handleGetKeys(request: Request, env: any): Promise<Response> {
+  const url = new URL(request.url);
+  const uidParam = url.searchParams.get("uid");
+  const baseUrl = getRequestOrigin(request);
+
+  if (request.method === "POST") {
+    const body: any = await parseJsonBody(request);
+    if (!body) return errorResponse("Invalid JSON body", 400);
+
+    let uid: string | null = uidParam;
+    if (!uid && body.UID) uid = body.UID;
+    if (!uid && body.uid) uid = body.uid;
+    const validatedUid = validateUid(uid);
+
+    if (!validatedUid) {
+      return errorResponse(UID_VALIDATION_MSG, 400);
+    }
+
+    let keys: any;
+    try {
+      keys = await findFirstKeyset(validatedUid, env);
+    } catch (err: any) {
+      logger.error("Key lookup failed", { uid: validatedUid, error: err.message });
+      return errorResponse("Key lookup failed", 500);
+    }
+    if (!keys) {
+      return errorResponse("No keys found for UID", 404, { uid: validatedUid });
+    }
+
+    return jsonResponse(buildBoltCardResponse(keys, validatedUid, baseUrl));
+  }
+
+  if (!uidParam) {
+    return errorResponse("Missing required parameter: uid", 400);
+  }
+
+  const validatedUid = validateUid(uidParam);
+  if (!validatedUid) {
+    return errorResponse(UID_VALIDATION_MSG, 400);
+  }
+
+  if (url.searchParams.get("format") === "boltcard") {
+    let keys: any;
+    try {
+      keys = await findFirstKeyset(validatedUid, env);
+    } catch (err: any) {
+      logger.error("Key lookup failed", { uid: validatedUid, error: err.message });
+      return errorResponse("Key lookup failed", 500);
+    }
+    if (!keys) {
+      return errorResponse("No keys found for UID", 404, { uid: validatedUid });
+    }
+    return jsonResponse(buildBoltCardResponse(keys, validatedUid, baseUrl));
+  }
+
+  const keysets: any[] = [];
+
+  const perCard: any = getPerCardKeys(validatedUid);
+  if (perCard) {
+    keysets.push({
+      k0: perCard.k0, k1: perCard.k1, k2: perCard.k2,
+      k3: perCard.k3 || null, k4: perCard.k4 || null,
+      version: null, source: "percard", label: perCard.card_name || "per-card import",
+    });
+  }
+
+  const issuerCandidates: any[] = getAllIssuerKeyCandidates(env);
+  let cardStateDetail: any;
+  try {
+    cardStateDetail = await getCardState(env, validatedUid);
+  } catch (e: any) {
+    logger.warn("getCardState failed in keyset builder", { uid: validatedUid, error: e.message });
+  }
+  const activeVersionDetail = cardStateDetail?.active_version || cardStateDetail?.latest_issued_version;
+  const detailVersions = activeVersionDetail && activeVersionDetail > 1
+    ? [activeVersionDetail, activeVersionDetail - 1, 1, 0]
+    : [1, 0];
+  const seenDetail = new Set<number>();
+  const uniqueDetailVersions = detailVersions.filter((v: number) => { if (seenDetail.has(v)) return false; seenDetail.add(v); return true; });
+
+  for (const candidate of issuerCandidates) {
+    for (const version of uniqueDetailVersions) {
+      try {
+        const tempEnv = { ...env, ISSUER_KEY: candidate.hex };
+        const k: any = getDeterministicKeys(validatedUid, tempEnv, version);
+        keysets.push({
+          k0: k.k0, k1: k.k1, k2: k.k2, k3: k.k3, k4: k.k4,
+          version, source: "deterministic", label: candidate.label, card_key: k.cardKey,
+        });
+      } catch (e: any) {
+        logger.warn("Key derivation failed for bulk key candidate", { error: e.message });
+        continue;
+      }
+    }
+  }
+
+  if (keysets.length === 0) {
+    return errorResponse("No keys found for this UID", 404, { uid: validatedUid });
+  }
+
+  return jsonResponse({ uid: validatedUid, keysets });
+}

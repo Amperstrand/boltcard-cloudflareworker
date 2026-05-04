@@ -1,0 +1,28 @@
+import { logger } from "../utils/logger.js";
+import { jsonResponse, redirect } from "../utils/responses.js";
+
+export async function handleStatus(request: Request, env: any): Promise<Response> {
+  if (env?.UID_CONFIG) {
+    try {
+      const testKey = 'health-' + Date.now();
+      await env.UID_CONFIG.put(testKey, 'ok');
+      const testValue = await env.UID_CONFIG.get(testKey);
+      await env.UID_CONFIG.delete(testKey);
+      return jsonResponse({
+        status: 'OK',
+        kv_status: testValue === 'ok' ? 'working' : 'not working',
+        message: 'Server is running'
+      });
+    } catch (error: any) {
+      logger.error('KV health check error', { error: error.message });
+      return jsonResponse({
+        status: 'ERROR',
+        kv_status: 'error',
+        error: 'KV health check failed'
+      });
+    }
+  }
+
+  const origin = new URL(request.url).origin;
+  return redirect(`${origin}/login`);
+}
