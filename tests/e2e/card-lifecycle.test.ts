@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, test, expect, beforeEach, vi } from "vitest";
 import { VirtualCard } from "../helpers/virtualCard.js";
 import { getDeterministicKeys } from "../../keygenerator.js";

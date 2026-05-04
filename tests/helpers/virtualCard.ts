@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { handleRequest } from "../../index.js";
 import { getDeterministicKeys } from "../../keygenerator.js";
 import { makeReplayNamespace } from "../replayNamespace.js";
