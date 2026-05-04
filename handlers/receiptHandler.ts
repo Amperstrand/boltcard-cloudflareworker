@@ -1,6 +1,6 @@
 import { errorResponse } from "../utils/responses.js";
 import { getErrorMessage } from "../utils/logger.js";
-import type { Env } from "../types/core.js";
+import type { Env, ListTransactionsResult, Transaction } from "../types/core.js";
 import { listTransactions } from "../replayProtection.js";
 import { formatAmount, getCurrencyLabel } from "../utils/currency.js";
 import { logger } from "../utils/logger.js";
@@ -21,9 +21,9 @@ export async function handleReceipt(request: Request, env: Env): Promise<Respons
   }
 
   try {
-    const txData: any = await listTransactions(env, uid, RECEIPT_TXN_LOOKUP_LIMIT);
-    const transactions: any[] = txData.transactions || [];
-    const txn = transactions.find((t: any) => String(t.id) === txnId);
+    const txData: ListTransactionsResult = await listTransactions(env, uid, RECEIPT_TXN_LOOKUP_LIMIT);
+    const transactions: Transaction[] = txData.transactions || [];
+    const txn = transactions.find((t: Transaction) => String(t.id) === txnId);
 
     if (!txn) {
       return errorResponse("Transaction not found", 404);

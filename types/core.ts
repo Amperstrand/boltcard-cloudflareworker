@@ -87,6 +87,88 @@ export interface OpResult {
   state?: CardStateValue;
 }
 
+export interface CounterCheckResult {
+  accepted: boolean;
+  lastCounter: number | null;
+  reason?: string;
+}
+
+export interface TapRecordResult {
+  accepted: boolean;
+  lastCounter?: number;
+  tapRecorded?: boolean;
+  reason?: string;
+}
+
+export interface TapEntry {
+  counter: number | null;
+  bolt11: string | null;
+  status: string;
+  payment_hash: string | null;
+  amount_msat: number | null;
+  user_agent: string | null;
+  request_url: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ListTapsResult {
+  taps: TapEntry[];
+}
+
+export interface ClaimTapResult {
+  claimed: boolean;
+  reason?: string;
+  bolt11?: string;
+}
+
+export interface AnalyticsResult {
+  totalTaps: number;
+  totalMsat: number;
+  completedMsat: number;
+  failedMsat: number;
+  pendingMsat: number;
+  completedTaps: number;
+  failedTaps: number;
+  pendingTaps: number;
+}
+
+export interface BalanceResult {
+  balance: number;
+}
+
+export interface ListTransactionsResult {
+  transactions: Transaction[];
+}
+
+export interface DiscoverResult {
+  state: string;
+  latest_issued_version?: number;
+  active_version?: number | null;
+  key_provenance?: string | null;
+  key_fingerprint?: string | null;
+  key_label?: string | null;
+  first_seen_at?: number | null;
+  already_exists?: boolean;
+  balance?: number;
+  counter?: number;
+  activated_at?: number | null;
+  terminated_at?: number | null;
+  keys_delivered_at?: number | null;
+  wipe_keys_fetched_at?: number | null;
+  created_at?: number;
+  updated_at?: number;
+}
+
+export interface MarkPendingResult {
+  state: string;
+  key_provenance?: string | null;
+  key_fingerprint?: string | null;
+  key_label?: string | null;
+  first_seen_at?: number | null;
+  already_exists?: boolean;
+}
+
 export interface IndexedCard {
   uidHex: string;
   state?: CardStateValue;

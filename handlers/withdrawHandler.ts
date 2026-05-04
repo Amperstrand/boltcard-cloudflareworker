@@ -1,7 +1,7 @@
 import { logger } from "../utils/logger.js";
 import { DEFAULT_FALLBACK_HOST, WITHDRAW_MIN_MSAT, WITHDRAW_MAX_MSAT_FAKWALLET, PAYMENT_METHOD } from "../utils/constants.js";
 
-interface WithdrawResponse {
+export interface WithdrawResponse {
   status?: string;
   reason?: string;
   tag?: string;

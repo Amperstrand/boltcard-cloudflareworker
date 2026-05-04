@@ -1,7 +1,6 @@
 import { getDeterministicKeys } from "../keygenerator.js";
-import type { CardStateRow } from "../types/core.js";
+import type { CardStateRow, Env } from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
-import type { Env } from "../types/core.js";
 import { getPerCardKeys, getAllIssuerKeyCandidates } from "../utils/keyLookup.js";
 import { jsonResponse, buildBoltCardResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { getCardState } from "../replayProtection.js";
@@ -9,8 +8,21 @@ import { validateUid, getRequestOrigin } from "../utils/validation.js";
 import { UID_VALIDATION_MSG } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
 
-async function findFirstKeyset(normalizedUid: string, env: Env): Promise<any> {
-  const perCard: any = getPerCardKeys(normalizedUid);
+type DerivedKeys = ReturnType<typeof getDeterministicKeys>;
+
+interface KeysetResult {
+  k0: string;
+  k1: string;
+  k2: string;
+  k3: string;
+  k4: string;
+  source: string;
+  label: string;
+  version?: number;
+}
+
+async function findFirstKeyset(normalizedUid: string, env: Env): Promise<KeysetResult | null> {
+  const perCard = getPerCardKeys(normalizedUid);
   if (perCard && perCard.k0 && perCard.k1 && perCard.k2) {
     return {
       k0: perCard.k0, k1: perCard.k1, k2: perCard.k2,
@@ -33,12 +45,12 @@ async function findFirstKeyset(normalizedUid: string, env: Env): Promise<any> {
   const seenVersions = new Set<number>();
   const uniqueVersions = versions.filter((v: number) => { if (seenVersions.has(v)) return false; seenVersions.add(v); return true; });
 
-  const issuerCandidates: any[] = getAllIssuerKeyCandidates(env);
+  const issuerCandidates = getAllIssuerKeyCandidates(env);
   for (const candidate of issuerCandidates) {
     for (const version of uniqueVersions) {
       try {
         const tempEnv = { ...env, ISSUER_KEY: candidate.hex };
-        const keys: any = getDeterministicKeys(normalizedUid, tempEnv, version);
+        const keys: DerivedKeys = getDeterministicKeys(normalizedUid, tempEnv, version);
         if (keys.k0 && keys.k1 && keys.k2 && keys.k3 && keys.k4) {
           return {
             k0: keys.k0, k1: keys.k1, k2: keys.k2,
@@ -61,19 +73,19 @@ export async function handleGetKeys(request: Request, env: Env): Promise<Respons
   const baseUrl = getRequestOrigin(request);
 
   if (request.method === "POST") {
-    const body: any = await parseJsonBody(request);
+    const body: Record<string, unknown> | null = await parseJsonBody(request);
     if (!body) return errorResponse("Invalid JSON body", 400);
 
     let uid: string | null = uidParam;
-    if (!uid && body.UID) uid = body.UID;
-    if (!uid && body.uid) uid = body.uid;
+    if (!uid && body.UID) uid = String(body.UID);
+    if (!uid && body.uid) uid = String(body.uid);
     const validatedUid = validateUid(uid);
 
     if (!validatedUid) {
       return errorResponse(UID_VALIDATION_MSG, 400);
     }
 
-    let keys: any;
+    let keys: KeysetResult | null;
     try {
       keys = await findFirstKeyset(validatedUid, env);
     } catch (err: unknown) {
@@ -97,7 +109,7 @@ export async function handleGetKeys(request: Request, env: Env): Promise<Respons
   }
 
   if (url.searchParams.get("format") === "boltcard") {
-    let keys: any;
+    let keys: KeysetResult | null;
     try {
       keys = await findFirstKeyset(validatedUid, env);
     } catch (err: unknown) {
@@ -110,9 +122,9 @@ export async function handleGetKeys(request: Request, env: Env): Promise<Respons
     return jsonResponse(buildBoltCardResponse(keys, validatedUid, baseUrl));
   }
 
-  const keysets: any[] = [];
+  const keysets: Record<string, unknown>[] = [];
 
-  const perCard: any = getPerCardKeys(validatedUid);
+  const perCard = getPerCardKeys(validatedUid);
   if (perCard) {
     keysets.push({
       k0: perCard.k0, k1: perCard.k1, k2: perCard.k2,
@@ -121,8 +133,8 @@ export async function handleGetKeys(request: Request, env: Env): Promise<Respons
     });
   }
 
-  const issuerCandidates: any[] = getAllIssuerKeyCandidates(env);
-  let cardStateDetail: any;
+  const issuerCandidates = getAllIssuerKeyCandidates(env);
+  let cardStateDetail: CardStateRow | undefined;
   try {
     cardStateDetail = await getCardState(env, validatedUid);
   } catch (e: unknown) {
@@ -139,7 +151,7 @@ export async function handleGetKeys(request: Request, env: Env): Promise<Respons
     for (const version of uniqueDetailVersions) {
       try {
         const tempEnv = { ...env, ISSUER_KEY: candidate.hex };
-        const k: any = getDeterministicKeys(validatedUid, tempEnv, version);
+        const k: DerivedKeys = getDeterministicKeys(validatedUid, tempEnv, version);
         keysets.push({
           k0: k.k0, k1: k.k1, k2: k.k2, k3: k.k3, k4: k.k4,
           version, source: "deterministic", label: candidate.label, card_key: k.cardKey,

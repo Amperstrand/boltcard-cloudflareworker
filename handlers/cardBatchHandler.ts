@@ -23,12 +23,12 @@ export async function handleCardBatchAction(request: Request, env: Env, session:
     return errorResponse("Method not allowed", 405);
   }
 
-  const body: any = await parseJsonBody(request);
+  const body: Record<string, unknown> | null = await parseJsonBody(request);
   if (!body) {
     return errorResponse("Invalid JSON body", 400);
   }
 
-  const { uids, action }: { uids: string[]; action: string } = body;
+  const { uids, action } = body as { uids: string[]; action: string };
 
   if (!Array.isArray(uids) || uids.length === 0) {
     return errorResponse("uids must be a non-empty array", 400);
@@ -90,7 +90,7 @@ export async function handleCardBatchAction(request: Request, env: Env, session:
           results.push({ uid, status: "skipped", reason: `card must be terminated to re-provision (state: ${cardState.state})` });
           continue;
         }
-        const delivered: any = await deliverKeys(env, uid);
+        const delivered: CardStateRow & { version: number } = await deliverKeys(env, uid);
         const newVersion: number = delivered.latest_issued_version || delivered.version || (cardState.latest_issued_version || 0) + 1;
         results.push({ uid, status: "reprovisioned", version: newVersion });
       }

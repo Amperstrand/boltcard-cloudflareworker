@@ -1,11 +1,26 @@
 import { listTaps, listTransactions } from "../replayProtection.js";
+import type { TapEntry, Transaction, Env } from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
 import { logger } from "./logger.js";
 import { HISTORY_LIMIT } from "./constants.js";
 
-export function _mergeHistory(taps: any[], transactions: any[]): any[] {
-  const txEntries = (transactions || []).map((tx) => ({
-    counter: tx.counter,
+export interface HistoryEntry {
+  counter: number | null;
+  bolt11: string | null;
+  status: string;
+  payment_hash: string | null;
+  amount_msat: number | null;
+  user_agent: string | null;
+  request_url: string | null;
+  created_at: number;
+  updated_at: number;
+  note?: string | null;
+  balance_after?: number;
+}
+
+export function _mergeHistory(taps: TapEntry[], transactions: Transaction[]): HistoryEntry[] {
+  const txEntries: HistoryEntry[] = (transactions || []).map((tx) => ({
+    counter: tx.counter ?? null,
     bolt11: null,
     status: tx.amount > 0 ? "topup" : "payment",
     payment_hash: null,
@@ -18,7 +33,7 @@ export function _mergeHistory(taps: any[], transactions: any[]): any[] {
     balance_after: tx.balance_after,
   }));
 
-  const merged = [...(taps || []), ...txEntries].sort((a, b) => {
+  const merged: HistoryEntry[] = [...(taps || []), ...txEntries].sort((a, b) => {
     const timeDiff = (b.created_at || 0) - (a.created_at || 0);
     if (timeDiff !== 0) return timeDiff;
     return (b.counter || 0) - (a.counter || 0);
@@ -27,9 +42,9 @@ export function _mergeHistory(taps: any[], transactions: any[]): any[] {
   return merged.slice(0, HISTORY_LIMIT);
 }
 
-export async function getUnifiedHistory(env: any, uidHex: string): Promise<any[]> {
-  let taps: any[] = [];
-  let transactions: any[] = [];
+export async function getUnifiedHistory(env: Env, uidHex: string): Promise<HistoryEntry[]> {
+  let taps: TapEntry[] = [];
+  let transactions: Transaction[] = [];
   try {
     const tapData = await listTaps(env, uidHex, HISTORY_LIMIT);
     taps = tapData.taps || [];

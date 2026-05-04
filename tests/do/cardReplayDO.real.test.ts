@@ -1,15 +1,15 @@
-// @ts-nocheck
 import { env } from "cloudflare:workers";
 
 let testCounter = 0;
 
-function makeStub() {
+function makeStub(): DurableObjectStub {
   testCounter++;
-  const id = env.CARD_REPLAY.idFromName(`test-do-real-${testCounter}`);
-  return env.CARD_REPLAY.get(id);
+  const ns = (env as Env & { CARD_REPLAY: DurableObjectNamespace }).CARD_REPLAY;
+  const id = ns.idFromName(`test-do-real-${testCounter}`);
+  return ns.get(id);
 }
 
-async function doPost(stub, path, body) {
+async function doPost(stub: DurableObjectStub, path: string, body?: Record<string, unknown>): Promise<Response> {
   return stub.fetch(new Request(`http://do${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -17,12 +17,16 @@ async function doPost(stub, path, body) {
   }));
 }
 
-async function doGet(stub, path, qs = "") {
+async function doGet(stub: DurableObjectStub, path: string, qs = ""): Promise<Response> {
   return stub.fetch(new Request(`http://do${path}${qs}`));
 }
 
+async function json(res: Response): Promise<Record<string, any>> {
+  return res.json() as Promise<Record<string, any>>;
+}
+
 describe("CardReplayDO real SQLite", () => {
-  let stub;
+  let stub: DurableObjectStub;
 
   beforeEach(() => {
     stub = makeStub();
@@ -31,7 +35,7 @@ describe("CardReplayDO real SQLite", () => {
   describe("counter check", () => {
     it("accepts first counter", async () => {
       const res = await doPost(stub, "/check", { counterValue: 5 });
-      const data = await res.json();
+      const data = await json(res);
       expect(res.status).toBe(200);
       expect(data.accepted).toBe(true);
       expect(data.lastCounter).toBe(5);
@@ -41,7 +45,7 @@ describe("CardReplayDO real SQLite", () => {
       await doPost(stub, "/check", { counterValue: 5 });
       const res = await doPost(stub, "/check", { counterValue: 5 });
       expect(res.status).toBe(409);
-      const data = await res.json();
+      const data = await json(res);
       expect(data.accepted).toBe(false);
       expect(data.lastCounter).toBe(5);
     });
@@ -49,7 +53,7 @@ describe("CardReplayDO real SQLite", () => {
     it("accepts higher counter after previous", async () => {
       await doPost(stub, "/check", { counterValue: 5 });
       const res = await doPost(stub, "/check", { counterValue: 6 });
-      const data = await res.json();
+      const data = await json(res);
       expect(data.accepted).toBe(true);
       expect(data.lastCounter).toBe(6);
     });
@@ -62,10 +66,10 @@ describe("CardReplayDO real SQLite", () => {
     it("check-readonly does not advance counter", async () => {
       await doPost(stub, "/check", { counterValue: 5 });
       const ro = await doPost(stub, "/check-readonly", { counterValue: 10 });
-      const roData = await ro.json();
+      const roData = await json(ro);
       expect(roData.accepted).toBe(true);
       const res = await doPost(stub, "/check", { counterValue: 6 });
-      const data = await res.json();
+      const data = await json(res);
       expect(data.accepted).toBe(true);
       expect(data.lastCounter).toBe(6);
     });
@@ -74,7 +78,7 @@ describe("CardReplayDO real SQLite", () => {
       await doPost(stub, "/check", { counterValue: 5 });
       const res = await doPost(stub, "/check-readonly", { counterValue: 3 });
       expect(res.status).toBe(409);
-      const data = await res.json();
+      const data = await json(res);
       expect(data.accepted).toBe(false);
     });
   });
@@ -82,7 +86,7 @@ describe("CardReplayDO real SQLite", () => {
   describe("card state lifecycle", () => {
     it("starts as new with no DO row", async () => {
       const res = await doGet(stub, "/card-state");
-      const data = await res.json();
+      const data = await json(res);
       expect(data.state).toBe("new");
       expect(data.balance).toBe(0);
       expect(data.active_version).toBeNull();
@@ -94,7 +98,7 @@ describe("CardReplayDO real SQLite", () => {
         key_fingerprint: "abc123",
         key_label: "test-key",
       });
-      const data = await res.json();
+      const data = await json(res);
       expect(data.state).toBe("pending");
       expect(data.key_provenance).toBe("public_issuer");
       expect(data.key_fingerprint).toBe("abc123");
@@ -105,7 +109,7 @@ describe("CardReplayDO real SQLite", () => {
     it("mark-pending returns already_exists on second call", async () => {
       await doPost(stub, "/mark-pending", { key_provenance: "public_issuer" });
       const res = await doPost(stub, "/mark-pending", { key_provenance: "env_issuer" });
-      const data = await res.json();
+      const data = await json(res);
       expect(data.already_exists).toBe(true);
       expect(data.state).toBe("pending");
     });
@@ -118,7 +122,7 @@ describe("CardReplayDO real SQLite", () => {
         key_label: "dev-01",
         active_version: 1,
       });
-      const data = await res.json();
+      const data = await json(res);
       expect(data.state).toBe("discovered");
       expect(data.active_version).toBe(1);
       expect(data.already_exists).toBe(true);
@@ -130,7 +134,7 @@ describe("CardReplayDO real SQLite", () => {
         key_fingerprint: "def456",
         active_version: 2,
       });
-      const data = await res.json();
+      const data = await json(res);
       expect(data.state).toBe("discovered");
       expect(data.latest_issued_version).toBe(2);
       expect(data.active_version).toBe(2);
@@ -143,13 +147,13 @@ describe("CardReplayDO real SQLite", () => {
         key_provenance: "env_issuer",
         active_version: 1,
       });
-      const data = await res.json();
+      const data = await json(res);
       expect(data.state).toBe("active");
     });
 
     it("deliver-keys transitions to keys_delivered with version increment", async () => {
       const res = await doPost(stub, "/deliver-keys");
-      const data = await res.json();
+      const data = await json(res);
       expect(data.state).toBe("keys_delivered");
       expect(data.version).toBe(1);
       expect(data.latest_issued_version).toBe(1);
@@ -158,14 +162,14 @@ describe("CardReplayDO real SQLite", () => {
     it("deliver-keys increments version on re-delivery", async () => {
       await doPost(stub, "/deliver-keys");
       const res = await doPost(stub, "/deliver-keys");
-      const data = await res.json();
+      const data = await json(res);
       expect(data.version).toBe(2);
     });
 
     it("activate transitions from keys_delivered to active", async () => {
       await doPost(stub, "/deliver-keys");
       const res = await doPost(stub, "/activate", { active_version: 1 });
-      const data = await res.json();
+      const data = await json(res);
       expect(data.state).toBe("active");
       expect(data.active_version).toBe(1);
       expect(data.activated_at).toBeGreaterThan(0);
@@ -183,24 +187,24 @@ describe("CardReplayDO real SQLite", () => {
       await doPost(stub, "/record-tap", { counterValue: 5, bolt11: "lnbc100" });
 
       const res = await doPost(stub, "/terminate");
-      const data = await res.json();
+      const data = await json(res);
       expect(data.state).toBe("terminated");
       expect(data.terminated_at).toBeGreaterThan(0);
 
-      const counterTaps = (await doGet(stub, "/list-taps")).json().then(d =>
-        d.taps.filter(t => t.counter !== null)
+      const counterTaps = json(await doGet(stub, "/list-taps")).then(d =>
+        d.taps.filter((t: Record<string, any>) => t.counter !== null)
       );
       expect(await counterTaps).toHaveLength(0);
 
       const checkRes = await doPost(stub, "/check", { counterValue: 1 });
-      expect((await checkRes.json()).accepted).toBe(true);
+      expect((await json(checkRes)).accepted).toBe(true);
     });
 
     it("request-wipe transitions to wipe_requested", async () => {
       await doPost(stub, "/deliver-keys");
       await doPost(stub, "/activate", { active_version: 1 });
       const res = await doPost(stub, "/request-wipe");
-      const data = await res.json();
+      const data = await json(res);
       expect(data.state).toBe("wipe_requested");
       expect(data.wipe_keys_fetched_at).toBeGreaterThan(0);
     });
@@ -214,13 +218,13 @@ describe("CardReplayDO real SQLite", () => {
   describe("balance and transactions", () => {
     it("starts with zero balance", async () => {
       const res = await doGet(stub, "/balance");
-      const data = await res.json();
+      const data = await json(res);
       expect(data.balance).toBe(0);
     });
 
     it("credit increases balance", async () => {
       const res = await doPost(stub, "/credit", { amount: 1000, note: "top-up" });
-      const data = await res.json();
+      const data = await json(res);
       expect(data.ok).toBe(true);
       expect(data.balance).toBe(1000);
       expect(data.transaction.amount).toBe(1000);
@@ -230,7 +234,7 @@ describe("CardReplayDO real SQLite", () => {
     it("debit decreases balance", async () => {
       await doPost(stub, "/credit", { amount: 1000 });
       const res = await doPost(stub, "/debit", { counter: 1, amount: 300, note: "payment" });
-      const data = await res.json();
+      const data = await json(res);
       expect(data.ok).toBe(true);
       expect(data.balance).toBe(700);
       expect(data.transaction.amount).toBe(-300);
@@ -240,7 +244,7 @@ describe("CardReplayDO real SQLite", () => {
       await doPost(stub, "/credit", { amount: 100 });
       const res = await doPost(stub, "/debit", { counter: 1, amount: 200 });
       expect(res.status).toBe(400);
-      const data = await res.json();
+      const data = await json(res);
       expect(data.ok).toBe(false);
       expect(data.reason).toBe("Insufficient balance");
       expect(data.balance).toBe(100);
@@ -264,7 +268,7 @@ describe("CardReplayDO real SQLite", () => {
     it("exact drain leaves zero balance", async () => {
       await doPost(stub, "/credit", { amount: 500 });
       const res = await doPost(stub, "/debit", { counter: 1, amount: 500 });
-      const data = await res.json();
+      const data = await json(res);
       expect(data.balance).toBe(0);
     });
 
@@ -272,7 +276,7 @@ describe("CardReplayDO real SQLite", () => {
       await doPost(stub, "/credit", { amount: 1000, note: "first" });
       await doPost(stub, "/credit", { amount: 500, note: "second" });
       const res = await doGet(stub, "/transactions");
-      const data = await res.json();
+      const data = await json(res);
       expect(data.transactions.length).toBe(2);
       expect(data.transactions[0].amount).toBe(500);
       expect(data.transactions[1].amount).toBe(1000);
@@ -283,7 +287,7 @@ describe("CardReplayDO real SQLite", () => {
         await doPost(stub, "/credit", { amount: 100 });
       }
       const res = await doGet(stub, "/transactions", "?limit=2");
-      const data = await res.json();
+      const data = await json(res);
       expect(data.transactions.length).toBe(2);
     });
   });
@@ -295,7 +299,7 @@ describe("CardReplayDO real SQLite", () => {
         bolt11: "lnbc100",
         amountMsat: 100000,
       });
-      const data = await res.json();
+      const data = await json(res);
       expect(data.accepted).toBe(true);
       expect(data.tapRecorded).toBe(true);
     });
@@ -312,7 +316,7 @@ describe("CardReplayDO real SQLite", () => {
         userAgent: "test",
         requestUrl: "http://test",
       });
-      const data = await res.json();
+      const data = await json(res);
       expect(data.recorded).toBe(true);
     });
 
@@ -320,7 +324,7 @@ describe("CardReplayDO real SQLite", () => {
       const res = await doPost(stub, "/record-read", {
         counterValue: -1,
       });
-      const data = await res.json();
+      const data = await json(res);
       expect(data.recorded).toBe(true);
     });
 
@@ -330,7 +334,7 @@ describe("CardReplayDO real SQLite", () => {
         bolt11: "lnbc50",
         amountMsat: 50000,
       });
-      const data = await res.json();
+      const data = await json(res);
       expect(data.claimed).toBe(true);
     });
 
@@ -341,7 +345,7 @@ describe("CardReplayDO real SQLite", () => {
         bolt11: "lnbc100",
         amountMsat: 100000,
       });
-      const data = await res.json();
+      const data = await json(res);
       expect(data.claimed).toBe(true);
     });
 
@@ -349,7 +353,7 @@ describe("CardReplayDO real SQLite", () => {
       await doPost(stub, "/claim-tap", { counter: 5, bolt11: "lnbc1" });
       const res = await doPost(stub, "/claim-tap", { counter: 5, bolt11: "lnbc2" });
       expect(res.status).toBe(409);
-      const data = await res.json();
+      const data = await json(res);
       expect(data.claimed).toBe(false);
       expect(data.reason).toBe("Tap already claimed");
       expect(data.bolt11).toBe("lnbc1");
@@ -366,10 +370,10 @@ describe("CardReplayDO real SQLite", () => {
         counter: 5,
         status: "completed",
       });
-      const data = await res.json();
+      const data = await json(res);
       expect(data.updated).toBe(true);
-      const tapsData = await (await doGet(stub, "/list-taps")).json();
-      const t5 = tapsData.taps.find(t => t.counter === 5);
+      const tapsData = await json(await doGet(stub, "/list-taps"));
+      const t5 = tapsData.taps.find((t: Record<string, any>) => t.counter === 5);
       expect(t5.status).toBe("completed");
     });
 
@@ -386,7 +390,7 @@ describe("CardReplayDO real SQLite", () => {
         counter: 999,
         status: "completed",
       });
-      const data = await res.json();
+      const data = await json(res);
       expect(data.updated).toBe(false);
     });
   });
@@ -398,8 +402,8 @@ describe("CardReplayDO real SQLite", () => {
       await doPost(stub, "/record-tap", { counterValue: 5, bolt11: "lnbc100" });
 
       const res = await doGet(stub, "/list-taps");
-      const data = await res.json();
-      const statuses = data.taps.map(t => t.status);
+      const data = await json(res);
+      const statuses = data.taps.map((t: Record<string, any>) => t.status);
       expect(statuses).toContain("pending");
       expect(statuses).toContain("activated");
       expect(statuses).toContain("provisioned");
@@ -410,7 +414,7 @@ describe("CardReplayDO real SQLite", () => {
         await doPost(stub, "/record-tap", { counterValue: i, bolt11: `lnbc${i}` });
       }
       const res = await doGet(stub, "/list-taps", "?limit=3");
-      const data = await res.json();
+      const data = await json(res);
       expect(data.taps.length).toBe(3);
     });
   });
@@ -418,7 +422,7 @@ describe("CardReplayDO real SQLite", () => {
   describe("analytics", () => {
     it("returns zero stats for empty DO", async () => {
       const res = await doGet(stub, "/analytics");
-      const data = await res.json();
+      const data = await json(res);
       expect(data.totalTaps).toBe(0);
       expect(data.totalMsat).toBe(0);
     });
@@ -431,7 +435,7 @@ describe("CardReplayDO real SQLite", () => {
       await doPost(stub, "/record-tap", { counterValue: 3, amountMsat: 3000 });
 
       const res = await doGet(stub, "/analytics");
-      const data = await res.json();
+      const data = await json(res);
       expect(data.totalTaps).toBe(3);
       expect(data.completedMsat).toBe(1000);
       expect(data.failedMsat).toBe(2000);
@@ -442,7 +446,7 @@ describe("CardReplayDO real SQLite", () => {
   describe("config", () => {
     it("returns null when no config set", async () => {
       const res = await doGet(stub, "/get-config");
-      const data = await res.json();
+      const data = await json(res);
       expect(data).toBeNull();
     });
 
@@ -453,7 +457,7 @@ describe("CardReplayDO real SQLite", () => {
         ln_address: "test@example.com",
       });
       const res = await doGet(stub, "/get-config");
-      const data = await res.json();
+      const data = await json(res);
       expect(data.payment_method).toBe("clnrest");
       expect(data.K2).toBe("deadbeef");
       expect(data.ln_address).toBe("test@example.com");
@@ -463,7 +467,7 @@ describe("CardReplayDO real SQLite", () => {
       await doPost(stub, "/set-config", { K2: "old", payment_method: "clnrest" });
       await doPost(stub, "/set-k2", { K2: "new" });
       const res = await doGet(stub, "/get-config");
-      const data = await res.json();
+      const data = await json(res);
       expect(data.K2).toBe("new");
       expect(data.payment_method).toBe("clnrest");
     });
@@ -471,7 +475,7 @@ describe("CardReplayDO real SQLite", () => {
     it("set-k2 creates config row if missing", async () => {
       await doPost(stub, "/set-k2", { K2: "abc" });
       const res = await doGet(stub, "/get-config");
-      const data = await res.json();
+      const data = await json(res);
       expect(data.K2).toBe("abc");
       expect(data.payment_method).toBe("fakewallet");
     });
@@ -484,10 +488,10 @@ describe("CardReplayDO real SQLite", () => {
       await doPost(stub, "/reset", {});
 
       const checkRes = await doPost(stub, "/check", { counterValue: 1 });
-      expect((await checkRes.json()).accepted).toBe(true);
+      expect((await json(checkRes)).accepted).toBe(true);
 
-      const counterTaps = await (await doGet(stub, "/list-taps")).json().then(d =>
-        d.taps.filter(t => t.counter !== null)
+      const counterTaps = await json(await doGet(stub, "/list-taps")).then(d =>
+        d.taps.filter((t: Record<string, any>) => t.counter !== null)
       );
       expect(counterTaps).toHaveLength(0);
     });
@@ -501,7 +505,7 @@ describe("CardReplayDO real SQLite", () => {
         key_label: "production",
       });
       const res = await doGet(stub, "/card-state");
-      const data = await res.json();
+      const data = await json(res);
       expect(data.key_provenance).toBe("env_issuer");
       expect(data.key_fingerprint).toBe("abcd1234efgh5678");
       expect(data.key_label).toBe("production");
@@ -519,7 +523,7 @@ describe("CardReplayDO real SQLite", () => {
         active_version: 1,
       });
       const res = await doGet(stub, "/card-state");
-      const data = await res.json();
+      const data = await json(res);
       expect(data.key_provenance).toBe("public_issuer");
       expect(data.key_fingerprint).toBe("aaa");
       expect(data.key_label).toBe("override-label");

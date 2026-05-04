@@ -1,5 +1,5 @@
 import { extractUIDAndCounter, validateCmac } from "../boltCardHelper.js";
-import type { CardStateRow } from "../types/core.js";
+import type { CardStateRow, CardConfig, Env, CounterCheckResult } from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
@@ -19,8 +19,8 @@ interface ValidateCardTapSuccess {
   uidHex: string;
   counterValue: number;
   activeVersion: number;
-  config: Record<string, any>;
-  cardState: Record<string, any>;
+  config: CardConfig;
+  cardState: CardStateRow;
 }
 
 interface ValidateCardTapFailure {
@@ -29,16 +29,16 @@ interface ValidateCardTapFailure {
   error: string;
 }
 
-type ValidateCardTapResult = ValidateCardTapSuccess | ValidateCardTapFailure;
+export type ValidateCardTapResult = ValidateCardTapSuccess | ValidateCardTapFailure;
 
-export async function validateCardTap(request: Request, env: any, { pHex, cHex, context = "tap" }: ValidateCardTapOptions): Promise<ValidateCardTapResult> {
+export async function validateCardTap(request: Request, env: Env, { pHex, cHex, context = "tap" }: ValidateCardTapOptions): Promise<ValidateCardTapResult> {
   if (!pHex || !cHex) {
     return { ok: false, status: 400, error: "Missing card parameters (p and c required)" };
   }
 
   const decryption = extractUIDAndCounter(pHex, env);
   if (!decryption.success) {
-    logger.warn(`${context}: failed to decrypt card`, { error: (decryption as any).error });
+    logger.warn(`${context}: failed to decrypt card`, { error: decryption.error });
     return { ok: false, status: 400, error: "Could not read card — decryption failed" };
   }
 
@@ -82,7 +82,7 @@ export async function validateCardTap(request: Request, env: any, { pHex, cHex, 
     activeVersion = 1;
   }
 
-  const config = await getUidConfig(uidHex, env, activeVersion);
+  const config = (await getUidConfig(uidHex, env, activeVersion)) as CardConfig | null;
   if (!config) {
     logger.warn(`${context}: UID not found in config`, { uidHex });
     return { ok: false, status: 404, error: "Card not registered" };
@@ -101,7 +101,7 @@ export async function validateCardTap(request: Request, env: any, { pHex, cHex, 
     }
   }
 
-  let replayResult: any;
+  let replayResult: CounterCheckResult;
   try {
     replayResult = await checkAndAdvanceCounter(env, uidHex, counterValue);
   } catch (error: unknown) {
@@ -116,7 +116,7 @@ export async function validateCardTap(request: Request, env: any, { pHex, cHex, 
   recordTapRead(env, uidHex, counterValue, {
     userAgent: request.headers.get("user-agent"),
     requestUrl: request.url,
-  }).catch((e: any) => logger.warn(`Failed to record ${context} tap`, { uidHex, counterValue, error: getErrorMessage(e) }));
+  }).catch((e: unknown) => logger.warn(`Failed to record ${context} tap`, { uidHex, counterValue, error: getErrorMessage(e) }));
 
   return {
     ok: true,

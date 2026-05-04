@@ -1,5 +1,5 @@
 import { extractUIDAndCounter, validateCmac } from "../boltCardHelper.js";
-import type { CardStateRow, CardConfig, Env } from "../types/core.js";
+import type { CardStateRow, CardConfig, Env, BalanceResult, AnalyticsResult } from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
@@ -9,7 +9,7 @@ import { getCardState, getCardConfig, safeGetBalance, getAnalytics, terminateCar
 import { buildMaskedUid } from "../utils/validation.js";
 import { renderCardDashboardPage } from "../templates/cardDashboardPage.js";
 import { CARD_STATE, KEY_PROVENANCE, PAYMENT_METHOD } from "../utils/constants.js";
-import { getUnifiedHistory } from "../utils/history.js";
+import { getUnifiedHistory, type HistoryEntry } from "../utils/history.js";
 import { resolveCardIdentity, type ResolveResult } from "../utils/cardAuth.js";
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
@@ -20,7 +20,7 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   [PAYMENT_METHOD.TWOFACTOR]: "2FA Token",
 };
 
-async function resolveCardAuth(body: any, env: Env, endpoint: string): Promise<{ error?: Response; uidHex?: string; ctr?: string; cardState?: CardStateRow; config?: CardConfig; activeVersion?: number }> {
+async function resolveCardAuth(body: Record<string, unknown> | null, env: Env, endpoint: string): Promise<{ error?: Response; uidHex?: string; ctr?: string; cardState?: CardStateRow; config?: CardConfig; activeVersion?: number }> {
   const { p: pHex, c: cHex }: { p?: string; c?: string } = body || {};
   const auth: ResolveResult = await resolveCardIdentity(pHex, cHex, env, { requireState: true, context: endpoint });
   if (!auth.ok) {
@@ -79,14 +79,14 @@ export async function handleCardInfo(request: Request, env: Env): Promise<Respon
 
   const balance: number = (await safeGetBalance(env, uidHex)).balance;
 
-  let history: any[] = [];
+  let history: HistoryEntry[] = [];
   try {
     history = await getUnifiedHistory(env, uidHex);
   } catch (e: unknown) {
     logger.warn("History fetch failed in /card/info", { uidHex, error: getErrorMessage(e) });
   }
 
-  let analytics: any = null;
+  let analytics: AnalyticsResult | null = null;
   try {
     analytics = await getAnalytics(env, uidHex);
   } catch (e: unknown) {
@@ -95,7 +95,7 @@ export async function handleCardInfo(request: Request, env: Env): Promise<Respon
 
   let paymentMethod: string | null = null;
   let paymentMethodLabel: string | null = null;
-  let cardConfig: any = null;
+  let cardConfig: CardConfig | null = null;
   try {
     cardConfig = await getCardConfig(env, uidHex);
     if (cardConfig) {
@@ -134,7 +134,7 @@ export async function handleCardLock(request: Request, env: Env): Promise<Respon
     return errorResponse("Method not allowed", 405);
   }
 
-  const body: any = await parseJsonBody(request);
+  const body: Record<string, unknown> | null = await parseJsonBody(request);
   if (!body) {
     return errorResponse("Invalid JSON body", 400);
   }
@@ -168,7 +168,7 @@ export async function handleCardReactivate(request: Request, env: Env): Promise<
     return errorResponse("Method not allowed", 405);
   }
 
-  const body: any = await parseJsonBody(request);
+  const body: Record<string, unknown> | null = await parseJsonBody(request);
   if (!body) {
     return errorResponse("Invalid JSON body", 400);
   }
@@ -186,7 +186,7 @@ export async function handleCardReactivate(request: Request, env: Env): Promise<
   const currentVersion: number = resolveLatestVersion(cardState);
 
   try {
-    const delivered: any = await deliverKeys(env, uidHex);
+    const delivered: CardStateRow & { version: number } = await deliverKeys(env, uidHex);
     const newVersion: number = delivered.latest_issued_version || delivered.version || currentVersion + 1;
     logger.info("Card re-activated by cardholder", { uidHex, oldVersion: currentVersion, newVersion });
     return jsonResponse({

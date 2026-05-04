@@ -4,7 +4,7 @@ import { getErrorMessage } from "../utils/logger.js";
 import type { Env } from "../types/core.js";
 import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { creditCard } from "../replayProtection.js";
-import { validateCardTap } from "../utils/validateCardTap.js";
+import { validateCardTap, type ValidateCardTapResult } from "../utils/validateCardTap.js";
 import { logger } from "../utils/logger.js";
 import { renderTopupPage } from "../templates/topupPage.js";
 import { getRequestOrigin } from "../utils/validation.js";
@@ -18,12 +18,12 @@ export function handleTopupPage(request: Request, env: Env): Response {
 
 export async function handleTopupApply(request: Request, env: Env, session: SessionPayload): Promise<Response> {
   if (request.method !== "POST") return errorResponse("Method not allowed", 405);
-  const body: any = await parseJsonBody(request);
+  const body: Record<string, unknown> | null = await parseJsonBody(request);
   if (!body) return errorResponse("Invalid JSON body", 400);
 
-  const { p: pHex, c: cHex, amount } = body;
+  const { p: pHex, c: cHex, amount } = body as { p?: string; c?: string; amount?: string };
 
-  const parsedAmount: number = parseInt(amount, 10);
+  const parsedAmount: number = parseInt(amount!, 10);
   if (!Number.isInteger(parsedAmount) || parsedAmount <= 0) {
     return errorResponse("Amount must be a positive integer", 400);
   }
@@ -35,7 +35,7 @@ export async function handleTopupApply(request: Request, env: Env, session: Sess
     }
   }
 
-  const tap: any = await validateCardTap(request, env, { pHex, cHex, context: "Top-up" });
+  const tap: ValidateCardTapResult = await validateCardTap(request, env, { pHex: pHex || "", cHex: cHex || "", context: "Top-up" });
   if (!tap.ok) return errorResponse(tap.error, tap.status);
 
   const shiftId: string = session?.shiftId || "unknown";

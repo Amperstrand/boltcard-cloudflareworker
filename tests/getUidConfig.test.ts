@@ -202,7 +202,7 @@ describe('getUidConfig', () => {
     expect(config.payment_method).toBe('fakewallet');
     expect(config.K2).toBeDefined();
     expect(typeof config.K2).toBe('string');
-    expect(config.K2.length).toBeGreaterThan(0);
+    expect(config!.K2!.length).toBeGreaterThan(0);
   });
 
   it('returns DO config when available with K2', async () => {
@@ -233,7 +233,7 @@ describe('getUidConfig', () => {
     if (!config) return;
     expect(config.payment_method).toBe('proxy');
     expect(config.K2).toBeDefined();
-    expect(config.K2.length).toBeGreaterThan(0);
+    expect(config!.K2!.length).toBeGreaterThan(0);
   });
 
   it('falls back to deterministic keys when DO throws', async () => {

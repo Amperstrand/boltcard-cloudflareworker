@@ -35,7 +35,7 @@ export async function handleReset(uid: string, env: Env, baseUrl?: string): Prom
       await terminateCard(env, normalizedUid);
     }
 
-    const keys: any = getDeterministicKeys(normalizedUid, env, wipeVersion);
+    const keys: ReturnType<typeof getDeterministicKeys> = getDeterministicKeys(normalizedUid, env, wipeVersion);
     const host: string = baseUrl || DEFAULT_FALLBACK_HOST;
     return jsonResponse(buildBoltCardResponse(keys, normalizedUid, host, wipeVersion), 200);
   } catch (err: unknown) {

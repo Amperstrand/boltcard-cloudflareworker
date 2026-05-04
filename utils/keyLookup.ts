@@ -22,7 +22,7 @@ interface PerCardEntry {
   card_name?: string;
 }
 
-interface ClassifyResult {
+export interface ClassifyResult {
   provenance: string;
   label: string | null;
   fingerprint: string | null;

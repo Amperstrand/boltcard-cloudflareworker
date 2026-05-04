@@ -21,7 +21,7 @@ interface RequireOperatorDenied {
   response: Response;
 }
 
-type OperatorAuthResult = RequireOperatorResult | RequireOperatorDenied;
+export type OperatorAuthResult = RequireOperatorResult | RequireOperatorDenied;
 
 function authRedirect(request: Request): Response {
   const url = new URL(request.url);

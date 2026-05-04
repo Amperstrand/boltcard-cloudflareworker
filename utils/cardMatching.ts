@@ -4,10 +4,26 @@ import { deriveKeysFromHex } from "../keygenerator.js";
 import { getAllIssuerKeyCandidates, getPerCardKeys, getUniquePerCardK1s, fingerprintHex } from "./keyLookup.js";
 import { getCardState } from "../replayProtection.js";
 import { cmacScanVersions } from "./cmacScan.js";
+import type { Env } from "../types/core.js";
 import { logger } from "./logger.js";
 import { MAX_ISSUER_CANDIDATES, VERSION_SCAN_RANGE } from "./constants.js";
 
-interface MatchResult {
+interface PerCardKeyData {
+  uid: string;
+  k0?: string;
+  k1: string;
+  k2: string;
+  k3?: string;
+  k4?: string;
+  card_name?: string;
+}
+
+interface CmacScanAttempt {
+  version: number;
+  cmac_validated: boolean;
+}
+
+export interface MatchResult {
   matched: boolean;
   uidHex?: string;
   ctr?: string;
@@ -17,14 +33,14 @@ interface MatchResult {
   issuerLabel?: string;
   issuerFingerprint?: string;
   isPercard?: boolean;
-  perCard?: any;
+  perCard?: PerCardKeyData | null;
   cmacValid?: boolean;
   perCardOverride?: boolean;
   perCardSource?: string;
-  versionAttempts?: any[];
+  versionAttempts?: CmacScanAttempt[];
 }
 
-export async function matchCardIssuer(pHex: string, cHex: string, env: any): Promise<MatchResult> {
+export async function matchCardIssuer(pHex: string, cHex: string, env: Env): Promise<MatchResult> {
   const candidates = getAllIssuerKeyCandidates(env);
   if (candidates.length > MAX_ISSUER_CANDIDATES) {
     candidates.length = MAX_ISSUER_CANDIDATES;

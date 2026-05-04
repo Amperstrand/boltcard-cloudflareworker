@@ -25,11 +25,25 @@ function validateAmountMsat(amountMsat: number) {
   }
 }
 
-async function parseJsonResponse(response: Response, url: string, errorPrefix: string): Promise<any> {
-  let data: any;
+interface LnurlPayRequest {
+  tag: string;
+  callback: string;
+  minSendable: number;
+  maxSendable: number;
+  [key: string]: unknown;
+}
+
+interface LnurlPayInvoice {
+  pr: string;
+  routes: never[];
+  [key: string]: unknown;
+}
+
+async function parseJsonResponse(response: Response, url: string, errorPrefix: string): Promise<Record<string, unknown>> {
+  let data: Record<string, unknown>;
 
   try {
-    data = await response.json();
+    data = await response.json() as Record<string, unknown>;
   } catch (error: unknown) {
     throw new Error(`${errorPrefix}: invalid JSON response from ${url}: ${getErrorMessage(error)}`);
   }
@@ -46,7 +60,7 @@ async function parseJsonResponse(response: Response, url: string, errorPrefix: s
   return data;
 }
 
-async function fetchJson(url: string, errorPrefix: string): Promise<any> {
+async function fetchJson(url: string, errorPrefix: string): Promise<Record<string, unknown>> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -78,7 +92,7 @@ export async function resolveLightningAddress(lightningAddress: string, amountMs
   const payRequest = await fetchJson(
     metadataUrl,
     "Lightning Address resolution failed"
-  );
+  ) as LnurlPayRequest;
 
   if (payRequest.tag !== "payRequest") {
     throw new Error(`Lightning Address resolution failed: ${metadataUrl} returned invalid tag: ${payRequest.tag}`);
@@ -117,7 +131,7 @@ export async function resolveLightningAddress(lightningAddress: string, amountMs
   const invoiceData = await fetchJson(
     callbackUrl.toString(),
     "Lightning Address callback failed"
-  );
+  ) as LnurlPayInvoice;
 
   if (typeof invoiceData.pr !== "string" || !invoiceData.pr) {
     throw new Error(`Lightning Address callback failed: ${callbackUrl.toString()} missing pr`);

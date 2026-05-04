@@ -1,5 +1,5 @@
 import { logger } from "../utils/logger.js";
-import type { CardStateRow , OpResult} from "../types/core.js";
+import type { CardStateRow, CardConfig, OpResult } from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
 import type { Env } from "../types/core.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
@@ -8,7 +8,7 @@ import { getCardState, getCardConfig, terminateCard, requestWipe, creditCard, re
 import { validateUid, getRequestOrigin } from "../utils/validation.js";
 import { DEFAULT_PULL_PAYMENT_ID, CARD_STATE, UID_VALIDATION_MSG } from "../utils/constants.js";
 
-function resolvePullPaymentId(env: Env, cardConfig: any): string {
+function resolvePullPaymentId(env: Env, cardConfig: CardConfig | null): string {
   return cardConfig?.pull_payment_id || env.DEFAULT_PULL_PAYMENT_ID || DEFAULT_PULL_PAYMENT_ID;
 }
 
@@ -16,8 +16,8 @@ function buildProgrammingEndpoint(requestOrigin: string, pullPaymentId: string):
   return `${requestOrigin}/api/v1/pull-payments/${pullPaymentId}/boltcards?onExisting=UpdateVersion`;
 }
 
-async function getCardProgrammingEndpoint(env: Env, uidHex: string, requestOrigin: string): Promise<{ cardConfig: any; pullPaymentId: string; programmingEndpoint: string }> {
-  const cardConfig: any = await getCardConfig(env, uidHex);
+async function getCardProgrammingEndpoint(env: Env, uidHex: string, requestOrigin: string): Promise<{ cardConfig: CardConfig | null; pullPaymentId: string; programmingEndpoint: string }> {
+  const cardConfig: CardConfig | null = await getCardConfig(env, uidHex);
   const pullPaymentId: string = resolvePullPaymentId(env, cardConfig);
   return { cardConfig, pullPaymentId, programmingEndpoint: buildProgrammingEndpoint(requestOrigin, pullPaymentId) };
 }
@@ -41,7 +41,7 @@ export async function handleTerminateAction(rawUid: string, env: Env, request: R
 
     await terminateCard(env, uidHex);
 
-    const newState: any = await getCardState(env, uidHex);
+    const newState: CardStateRow = await getCardState(env, uidHex);
     const { programmingEndpoint }: { programmingEndpoint: string } = await getCardProgrammingEndpoint(env, uidHex, requestOrigin);
 
     logger.info("Card terminated via wipe confirmation", { uidHex, previousVersion: cardState.active_version, newVersion: newState.latest_issued_version });
@@ -73,7 +73,7 @@ export async function handleRequestWipeAction(rawUid: string, env: Env, request:
     }
 
     const version: number = resolveActiveVersion(cardState);
-    const keys: any = deriveKeysFromHex(uidHex, env.ISSUER_KEY!, version);
+    const keys: { k0: string; k1: string; k2: string; k3: string; k4: string; cardKey: string } = deriveKeysFromHex(uidHex, env.ISSUER_KEY!, version);
 
     await requestWipe(env, uidHex);
 
@@ -110,11 +110,11 @@ export async function handleRequestWipeAction(rawUid: string, env: Env, request:
   }
 }
 
-export async function handleTopUpAction(rawUid: string, rawAmount: any, env: Env): Promise<Response> {
+export async function handleTopUpAction(rawUid: string, rawAmount: unknown, env: Env): Promise<Response> {
   const uidHex: string | null = normalizeSubmittedUid(rawUid);
   if (!uidHex) return errorResponse(UID_VALIDATION_MSG, 400);
 
-  const amount: number = parseInt(rawAmount, 10);
+  const amount: number = parseInt(String(rawAmount), 10);
   if (!Number.isInteger(amount) || amount <= 0) {
     return errorResponse("Amount must be a positive integer", 400);
   }

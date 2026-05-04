@@ -15,8 +15,8 @@ export async function handleBulkWipeKeys(request: Request): Promise<Response> {
 
   let key: string | null = url.searchParams.get("key");
   if (request.method === "POST") {
-    const body: any = await parseJsonBody(request);
-    if (body?.key) key = body.key;
+    const body: Record<string, unknown> | null = await parseJsonBody(request);
+    if (body?.key) key = String(body.key);
   }
 
   if (!uid || !validateUid(uid)) {
@@ -27,7 +27,7 @@ export async function handleBulkWipeKeys(request: Request): Promise<Response> {
   }
 
   try {
-    const keys: any = deriveKeysFromHex(uid, key, version);
+    const keys: ReturnType<typeof deriveKeysFromHex> = deriveKeysFromHex(uid, key, version);
 
     const host = getRequestOrigin(request);
     const boltcard_response = buildBoltCardResponse(keys, uid, host, version);

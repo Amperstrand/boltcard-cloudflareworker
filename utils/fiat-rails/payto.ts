@@ -86,8 +86,8 @@ export function parsePaytoUri(paytoUri: string | null | undefined): PaytoPayment
       safeDecode(params.get("message")),
       params.get("x-execdate") || params.get("execdate") || undefined
     );
-  } catch (error: any) {
-    logger.error("Failed to parse PayTo URI", { error: error.message });
+  } catch (error: unknown) {
+    logger.error("Failed to parse PayTo URI", { error: error instanceof Error ? error.message : String(error) });
     return null;
   }
 }

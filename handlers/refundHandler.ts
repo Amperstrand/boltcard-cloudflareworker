@@ -1,11 +1,11 @@
 import { renderRefundPage } from "../templates/refundPage.js";
-import type { SessionPayload , OpResult} from "../types/core.js";
+import type { SessionPayload, OpResult, BalanceResult } from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
 import type { Env } from "../types/core.js";
 import { getCurrencyLabel } from "../utils/currency.js";
 import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
 import { debitCard, getBalance } from "../replayProtection.js";
-import { validateCardTap } from "../utils/validateCardTap.js";
+import { validateCardTap, type ValidateCardTapResult } from "../utils/validateCardTap.js";
 import { logger } from "../utils/logger.js";
 import { getRequestOrigin } from "../utils/validation.js";
 import { recordAuditEvent } from "../utils/auditLog.js";
@@ -18,22 +18,24 @@ export function handleRefundPage(request: Request, env: Env): Response {
 
 export async function handleRefundApply(request: Request, env: Env, session: SessionPayload): Promise<Response> {
   if (request.method !== "POST") return errorResponse("Method not allowed", 405);
-  const body: any = await parseJsonBody(request);
+  const body: Record<string, unknown> | null = await parseJsonBody(request);
   if (!body) return errorResponse("Invalid JSON body", 400);
 
-  const { p: pHex, c: cHex, amount } = body;
+  const pHex = body.p as string | undefined;
+  const cHex = body.c as string | undefined;
+  const amount = body.amount;
   const fullRefund: boolean = body.fullRefund === true;
 
-  if (!fullRefund && (!amount || parseInt(amount, 10) <= 0)) {
+  if (!fullRefund && (!amount || parseInt(String(amount), 10) <= 0)) {
     return errorResponse("Amount must be a positive integer for partial refund", 400);
   }
 
-  const tap: any = await validateCardTap(request, env, { pHex, cHex, context: "Refund" });
+  const tap: ValidateCardTapResult = await validateCardTap(request, env, { pHex: pHex || "", cHex: cHex || "", context: "Refund" });
   if (!tap.ok) return errorResponse(tap.error, tap.status);
 
   let refundAmount: number;
   if (fullRefund) {
-    let balanceData: any;
+    let balanceData: BalanceResult;
     try {
       balanceData = await getBalance(env, tap.uidHex);
     } catch (err: unknown) {
@@ -45,8 +47,8 @@ export async function handleRefundApply(request: Request, env: Env, session: Ses
       return jsonResponse({ success: true, amount: 0, balance: 0, note: "refund:zero" });
     }
   } else {
-    refundAmount = parseInt(amount, 10);
-    let balanceData: any;
+    refundAmount = parseInt(String(amount), 10);
+    let balanceData: BalanceResult;
     try {
       balanceData = await getBalance(env, tap.uidHex);
     } catch (err: unknown) {

@@ -1,4 +1,7 @@
 import { detectFiatRail, parseFiatRailDetails } from "../utils/fiat-rails/index.js";
+import type { PaytoPaymentDetails } from "../utils/fiat-rails/payto.js";
+import type { UpiPaymentDetails } from "../utils/fiat-rails/upi.js";
+import type { SpaydPaymentDetails } from "../utils/fiat-rails/spayd.js";
 
 describe("detectFiatRail", () => {
   test("detects payto:// URIs", () => {
@@ -54,29 +57,29 @@ describe("parseFiatRailDetails", () => {
     const details = parseFiatRailDetails(
       "payto",
       "payto://iban/DE89370400440532013000?amount=EUR:10.00"
-    );
+    ) as PaytoPaymentDetails;
     expect(details).not.toBeNull();
-    expect(details.iban).toBe("DE89370400440532013000");
-    expect(details.currency).toBe("EUR");
+    expect(details!.iban).toBe("DE89370400440532013000");
+    expect(details!.currency).toBe("EUR");
   });
 
   test("parses upi details", () => {
     const details = parseFiatRailDetails(
       "upi",
       "upi://pay?pa=merchant@bank&am=100.00&cu=INR"
-    );
+    ) as UpiPaymentDetails;
     expect(details).not.toBeNull();
-    expect(details.pa).toBe("merchant@bank");
-    expect(details.am).toBe(100);
+    expect(details!.pa).toBe("merchant@bank");
+    expect(details!.am).toBe(100);
   });
 
   test("parses spayd details", () => {
     const details = parseFiatRailDetails(
       "spayd",
       "SPD*1.0*ACC:CZ5855000000001265098001*AM:480.50*CC:CZK"
-    );
+    ) as SpaydPaymentDetails;
     expect(details).not.toBeNull();
-    expect(details.acc).toBe("CZ5855000000001265098001");
+    expect(details!.acc).toBe("CZ5855000000001265098001");
   });
 
   test("returns null for bolt11 type", () => {

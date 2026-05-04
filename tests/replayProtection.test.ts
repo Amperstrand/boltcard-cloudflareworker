@@ -217,8 +217,8 @@ describe("replayProtection", () => {
       const config = { K2: "abcdef0123456789abcdef0123456789", payment_method: "fakewallet" };
       await setCardConfig(env, UID, config);
       const retrieved = await getCardConfig(env, UID);
-      expect(retrieved.payment_method).toBe("fakewallet");
-      expect(retrieved.K2).toBe(config.K2);
+      expect(retrieved!.payment_method).toBe("fakewallet");
+      expect(retrieved!.K2).toBe(config.K2);
     });
 
     it("returns null when no config set", async () => {

@@ -1,6 +1,7 @@
 import { logger } from "../utils/logger.js";
 import { getErrorMessage } from "../utils/logger.js";
-import type { Env } from "../types/core.js";
+import type { CardConfig, ClaimTapResult, Env, OpResult, TapRecordResult } from "../types/core.js";
+import type { ResolveResult } from "../utils/cardAuth.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { CLN_REST_PAY_PATH, PAYMENT_METHOD, UID_VALIDATION_MSG } from "../utils/constants.js";
 import { recordTap, updateTapStatus, debitCard, claimTap } from "../replayProtection.js";
@@ -52,7 +53,7 @@ export async function handleLnurlpPayment(request: Request, env: Env): Promise<R
         return jsonResponse({ status: "ERROR", reason: "Missing pr or amount parameter" }, 400);
       }
 
-      const auth: any = await resolveCardIdentity(p, c, env, { context: "lnurl-callback" });
+      const auth: ResolveResult = await resolveCardIdentity(p, c, env, { context: "lnurl-callback" });
       if (!auth.ok) {
         return jsonResponse({ status: "ERROR", reason: auth.error }, auth.status);
       }
@@ -66,14 +67,14 @@ export async function handleLnurlpPayment(request: Request, env: Env): Promise<R
       }
 
       try {
-        const tapResult: any = await recordTap(env, normalizedUidHex, counterValue, {
+        const tapResult: TapRecordResult = await recordTap(env, normalizedUidHex, counterValue, {
           bolt11: invoice ?? undefined,
           amountMsat: amountMsat ?? undefined,
           userAgent: request.headers.get("user-agent") || undefined,
           requestUrl: request.url,
         });
         if (!tapResult.accepted) {
-          const claim: any = await claimTap(env, normalizedUidHex, counterValue, {
+          const claim: ClaimTapResult = await claimTap(env, normalizedUidHex, counterValue, {
             bolt11: invoice ?? undefined,
             amountMsat: amountMsat ?? undefined,
           });
@@ -94,9 +95,9 @@ export async function handleLnurlpPayment(request: Request, env: Env): Promise<R
       const withdrawalResponse: Response = await processWithdrawalPayment(normalizedUidHex, invoice || null, env, counterValue, explicitAmount ? parseInt(explicitAmount, 10) : undefined, auth.config);
 
       if (withdrawalResponse.status === 200 || withdrawalResponse.status === 201) {
-        await updateTapStatus(env, normalizedUidHex, counterValue, "completed").catch((e: any) => logger.warn("Failed to update tap status to completed", { uidHex: normalizedUidHex, error: getErrorMessage(e) }));
+        await updateTapStatus(env, normalizedUidHex, counterValue, "completed").catch((e: unknown) => logger.warn("Failed to update tap status to completed", { uidHex: normalizedUidHex, error: getErrorMessage(e) }));
       } else {
-        await updateTapStatus(env, normalizedUidHex, counterValue, "failed").catch((e: any) => logger.warn("Failed to update tap status to failed", { uidHex: normalizedUidHex, error: getErrorMessage(e) }));
+        await updateTapStatus(env, normalizedUidHex, counterValue, "failed").catch((e: unknown) => logger.warn("Failed to update tap status to failed", { uidHex: normalizedUidHex, error: getErrorMessage(e) }));
       }
       
       if (withdrawalResponse instanceof Response) {
@@ -114,7 +115,7 @@ export async function handleLnurlpPayment(request: Request, env: Env): Promise<R
   return errorResponse("Internal error", 500);
 }
 
-async function processWithdrawalPayment(rawUid: string, pr: string | null, env: Env, counterValue: number, explicitAmount: number | undefined, config: any): Promise<Response> {
+async function processWithdrawalPayment(rawUid: string, pr: string | null, env: Env, counterValue: number, explicitAmount: number | undefined, config: CardConfig): Promise<Response> {
   if (!rawUid) {
     logger.error("Received undefined UID in processWithdrawalPayment");
     return jsonResponse({ status: "ERROR", reason: UID_VALIDATION_MSG }, 400);
@@ -129,7 +130,7 @@ async function processWithdrawalPayment(rawUid: string, pr: string | null, env: 
 
   if (config.payment_method === PAYMENT_METHOD.FAKEWALLET) {
     const amount: number = explicitAmount != null ? explicitAmount : (decodeBolt11Amount(pr ?? "") || 0);
-    let result: any;
+    let result: OpResult;
     try {
       result = await debitCard(env, normalizedUid, counterValue, amount, `Payment: ${amount} units`);
     } catch (error: unknown) {
@@ -151,7 +152,7 @@ async function processWithdrawalPayment(rawUid: string, pr: string | null, env: 
     }
 
     try {
-      const clnrest: any = config.clnrest;
+      const clnrest = config.clnrest;
       const clnrest_endpoint = `${clnrest.host}`;
 
       const headers = new Headers();
@@ -170,7 +171,7 @@ async function processWithdrawalPayment(rawUid: string, pr: string | null, env: 
         body: requestBody,
       });
 
-      const responseBody: any = await response.json();
+      const responseBody: Record<string, unknown> = await response.json() as Record<string, unknown>;
 
       if (response.status === 201) {
         if (responseBody.status === "complete") {

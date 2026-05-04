@@ -50,8 +50,8 @@ export function parseUpiUri(upiUri: string | null | undefined): UpiPaymentDetail
       params.get("tr") || undefined,
       params.get("tn") || undefined
     );
-  } catch (error: any) {
-    logger.error("Failed to parse UPI URI", { error: error.message });
+  } catch (error: unknown) {
+    logger.error("Failed to parse UPI URI", { error: error instanceof Error ? error.message : String(error) });
     return null;
   }
 }

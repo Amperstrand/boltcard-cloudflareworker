@@ -1,6 +1,6 @@
 import { getAnalytics } from "../replayProtection.js";
 import { getErrorMessage } from "../utils/logger.js";
-import type { Env } from "../types/core.js";
+import type { Env, AnalyticsResult } from "../types/core.js";
 import { renderAnalyticsPage } from "../templates/analyticsPage.js";
 import { htmlResponse, errorResponse, jsonResponse } from "../utils/responses.js";
 import { validateUid } from "../utils/validation.js";
@@ -25,7 +25,7 @@ export async function handleAnalyticsData(request: Request, env: Env): Promise<R
   }
 
   try {
-    const analytics: any = await getAnalytics(env, normalizedUid);
+    const analytics: AnalyticsResult = await getAnalytics(env, normalizedUid);
     return jsonResponse(analytics);
   } catch (error: unknown) {
     logger.error("Analytics data fetch failed", { uid, error: getErrorMessage(error) });

@@ -1,6 +1,6 @@
-import { isPaytoUri, parsePaytoUri } from "./payto.js";
-import { isUpiUri, parseUpiUri } from "./upi.js";
-import { isSpaydUri, parseSpayd } from "./spayd.js";
+import { isPaytoUri, parsePaytoUri, type PaytoPaymentDetails } from "./payto.js";
+import { isUpiUri, parseUpiUri, type UpiPaymentDetails } from "./upi.js";
+import { isSpaydUri, parseSpayd, type SpaydPaymentDetails } from "./spayd.js";
 
 export { parsePaytoUri, encodePaytoUri, isPaytoUri, PaytoPaymentDetails } from "./payto.js";
 export { parseUpiUri, encodeUpiUri, isUpiUri, UpiPaymentDetails } from "./upi.js";
@@ -55,7 +55,7 @@ export function detectFiatRail(description: string | null | undefined): FiatRail
   return { type: "bolt11", uri: null };
 }
 
-export function parseFiatRailDetails(type: string, uri: string): any {
+export function parseFiatRailDetails(type: string, uri: string): PaytoPaymentDetails | UpiPaymentDetails | SpaydPaymentDetails | null {
   switch (type) {
     case "payto":
       return parsePaytoUri(uri);

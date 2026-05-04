@@ -1,4 +1,3 @@
-// @ts-nocheck
 import aesjs from "aes-js";
 import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";

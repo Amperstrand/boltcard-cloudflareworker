@@ -48,7 +48,7 @@ export async function _listAuditEvents(env: Env | undefined, { limit = AUDIT_LIS
       cursor: cursor || undefined,
     });
 
-    const events: any[] = [];
+    const events: Record<string, unknown>[] = [];
     const values = await Promise.all(
       listResult.keys.map((key) =>
         env.UID_CONFIG!.get(key.name).then((raw) => {
@@ -62,11 +62,11 @@ export async function _listAuditEvents(env: Env | undefined, { limit = AUDIT_LIS
       if (entry) events.push(entry);
     }
 
-    events.sort((a, b) => b.timestamp - a.timestamp);
+    events.sort((a, b) => (b.timestamp as number) - (a.timestamp as number));
 
     return {
       events,
-      cursor: listResult.list_complete ? null : (listResult as any).cursor,
+      cursor: listResult.list_complete ? null : (listResult as { cursor?: string }).cursor,
     };
   } catch (e: unknown) {
     logger.warn("Failed to list audit events", { error: getErrorMessage(e) });

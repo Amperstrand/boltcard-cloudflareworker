@@ -16,7 +16,7 @@ import { LOGIN_RATE_LIMIT_REQUESTS, LOGIN_RATE_LIMIT_WINDOW } from "../utils/con
 export function handleOperatorLoginPage(request: Request): Response {
   const url = new URL(request.url);
   const returnTo: string = url.searchParams.get("return") || "";
-  return htmlResponse(renderOperatorLoginPage({ error: undefined as any, returnTo }));
+  return htmlResponse(renderOperatorLoginPage({ error: undefined, returnTo }));
 }
 
 export async function handleOperatorLogin(request: Request, env: Env): Promise<Response> {
@@ -25,7 +25,7 @@ export async function handleOperatorLogin(request: Request, env: Env): Promise<R
     return errorResponse("Operator PIN not configured", 500);
   }
 
-  const rateLimit: any = await checkRateLimit(request, env, { maxRequests: LOGIN_RATE_LIMIT_REQUESTS, windowSeconds: LOGIN_RATE_LIMIT_WINDOW });
+  const rateLimit: Awaited<ReturnType<typeof checkRateLimit>> = await checkRateLimit(request, env, { maxRequests: LOGIN_RATE_LIMIT_REQUESTS, windowSeconds: LOGIN_RATE_LIMIT_WINDOW });
   if (!rateLimit.allowed) {
     return errorResponse("Too many login attempts. Try again later.", 429);
   }
@@ -39,12 +39,12 @@ export async function handleOperatorLogin(request: Request, env: Env): Promise<R
 
   const pin: string | null = body.get("pin") as string | null;
   if (!pin) {
-    return htmlResponse(renderOperatorLoginPage({ error: "PIN is required", returnTo: undefined as any }));
+    return htmlResponse(renderOperatorLoginPage({ error: "PIN is required" }));
   }
 
   if (!checkPin(pin, env)) {
     logger.warn("Operator login failed — wrong PIN");
-    return htmlResponse(renderOperatorLoginPage({ error: "Incorrect PIN", returnTo: undefined as any }));
+    return htmlResponse(renderOperatorLoginPage({ error: "Incorrect PIN" }));
   }
 
   const rawReturn: string = (body.get("return") as string) || "/operator/pos";

@@ -7,7 +7,7 @@ import { renderIdentityPage } from "../templates/identityPage.js";
 import { buildMaskedUid } from "../utils/validation.js";
 import { getCardState } from "../replayProtection.js";
 import { KEY_PROVENANCE } from "../utils/constants.js";
-import { resolveCardIdentity } from "../utils/cardAuth.js";
+import { resolveCardIdentity, type ResolveResult } from "../utils/cardAuth.js";
 
 const IDENTITY_EMOJI_OPTIONS: string[] = ["👤", "😀", "😎", "🤖", "🧠", "🚀", "🦊", "🦄", "🐸", "🦉", "⚡", "🔥"];
 
@@ -63,7 +63,7 @@ function buildIdentityProfile(uidHex: string, record: Record<string, any> = {}):
 }
 
 async function resolveIdentityContext({ p, c }: { p: string | null; c: string | null }, env: Env): Promise<Partial<IdentityContext> & { response?: Response }> {
-  const auth: any = await resolveCardIdentity(p ?? undefined, c ?? undefined, env, { context: "identity" });
+  const auth: ResolveResult = await resolveCardIdentity(p ?? undefined, c ?? undefined, env, { context: "identity" });
   if (!auth.ok) {
     const resp = (auth.status === 404 || auth.status === 403)
       ? jsonResponse({ verified: false, reason: auth.status === 404 ? "Card not recognized" : "Card authentication failed" })
@@ -137,7 +137,7 @@ export async function handleIdentityVerify(request: Request, env: Env): Promise<
 
 export async function handleIdentityProfileUpdate(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") return errorResponse("Method not allowed", 405);
-  const body: any = await parseJsonBody(request);
+  const body: Record<string, unknown> | null = await parseJsonBody(request);
   if (!body) return errorResponse("Invalid JSON body", 400);
 
   const { p, c, emoji }: { p?: string; c?: string; emoji?: string } = body || {};

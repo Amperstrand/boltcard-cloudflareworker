@@ -13,15 +13,15 @@ export function handleActivateCardPage(): Response {
 }
 
 export async function handleActivateCardSubmit(request: Request, env: Env): Promise<Response> {
-  const data: any = await parseJsonBody(request);
+  const data: Record<string, unknown> | null = await parseJsonBody(request);
   if (!data) return errorResponse("Invalid JSON body", 400);
 
-  const uid: string | null = validateUid(data.uid);
+  const uid: string | null = validateUid(data.uid as string);
   if (!uid) {
     return errorResponse(UID_VALIDATION_MSG, 400);
   }
   
-  const keys: any = getDeterministicKeys(uid, env);
+  const keys: ReturnType<typeof getDeterministicKeys> = getDeterministicKeys(uid, env);
   if (!keys || !keys.k2) {
     return errorResponse("Failed to generate keys for the UID.", 500);
   }

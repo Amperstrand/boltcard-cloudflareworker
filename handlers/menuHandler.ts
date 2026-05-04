@@ -9,7 +9,17 @@ function menuKey(terminalId: string): string {
   return `${MENU_PREFIX}${terminalId}`;
 }
 
-export async function getMenu(env: Env, terminalId: string): Promise<{ items: any[] }> {
+interface MenuItem {
+  name: string;
+  price: number | string;
+  [key: string]: unknown;
+}
+
+interface MenuData {
+  items: MenuItem[];
+}
+
+export async function getMenu(env: Env, terminalId: string): Promise<MenuData> {
   if (!env.UID_CONFIG) return { items: [] };
   try {
     const raw = await env.UID_CONFIG.get(menuKey(terminalId));
@@ -21,16 +31,16 @@ export async function getMenu(env: Env, terminalId: string): Promise<{ items: an
   }
 }
 
-export async function saveMenu(env: Env, terminalId: string, menu: any): Promise<Response> {
+export async function saveMenu(env: Env, terminalId: string, menu: Record<string, unknown>): Promise<Response> {
   if (!env.UID_CONFIG) return errorResponse("KV not available", 500);
   if (!menu.items || !Array.isArray(menu.items)) {
     return errorResponse("menu.items must be an array", 400);
   }
-  for (const item of menu.items) {
+  for (const item of menu.items as MenuItem[]) {
     if (!item.name || typeof item.name !== "string") {
       return errorResponse("Each item must have a name", 400);
     }
-    const price = parseInt(item.price, 10);
+    const price = parseInt(String(item.price), 10);
     if (!Number.isInteger(price) || price < 0) {
       return errorResponse(`Invalid price for item "${item.name}"`, 400);
     }

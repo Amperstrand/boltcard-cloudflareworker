@@ -1,8 +1,8 @@
 import { getDeterministicKeys } from "../keygenerator.js";
-import type { CardStateRow } from "../types/core.js";
+import type { CardStateRow, Env, MarkPendingResult } from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
-import type { Env } from "../types/core.js";
 import { decodeAndValidate, extractUIDAndCounter } from "../boltCardHelper.js";
+import type { ExtractResult } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { resetReplayProtection, getCardState, deliverKeys, setCardConfig, requestWipe, markPending, resolveLatestVersion, resolveActiveVersion } from "../replayProtection.js";
@@ -10,7 +10,10 @@ import { jsonResponse, buildBoltCardResponse, errorResponse, parseJsonBody } fro
 import { getRequestOrigin, validateUid } from "../utils/validation.js";
 import { DEFAULT_PULL_PAYMENT_ID, DEFAULT_FALLBACK_HOST, CARD_STATE, PAYMENT_METHOD, UID_VALIDATION_MSG } from "../utils/constants.js";
 import { classifyIssuerKey } from "../utils/keyLookup.js";
+import type { ClassifyResult } from "../utils/keyLookup.js";
 import { logger } from "../utils/logger.js";
+
+type DerivedKeys = ReturnType<typeof getDeterministicKeys>;
 
 const UID_OR_LNURLW_REQUIRED = "Must provide UID for programming, or LNURLW for reset";
 
@@ -26,7 +29,7 @@ export async function fetchBoltCardKeys(request: Request, env: Env): Promise<Res
     const lightningAddress: string = url.searchParams.get("lightning_address") || "";
     const minSendable: number = parseInt(url.searchParams.get("min_sendable") || "") || 1000;
     const maxSendable: number = parseInt(url.searchParams.get("max_sendable") || "") || 1000;
-    const body: any = await parseJsonBody(request);
+    const body: Record<string, unknown> | null = await parseJsonBody(request);
     if (!body) return errorResponse("Invalid JSON body", 400);
     const { UID: uid, LNURLW: lnurlw }: { UID?: string; LNURLW?: string } = body;
     const baseUrl: string = getRequestOrigin(request);
@@ -85,12 +88,12 @@ async function handleProgrammingFlow(uid: string, env: Env, baseUrl: string, car
   }
 
   if (cardState.state === CARD_STATE.NEW || cardState.state === CARD_STATE.LEGACY || cardState.state === CARD_STATE.PENDING || cardState.state === CARD_STATE.DISCOVERED) {
-    const classified: any = classifyIssuerKey(env, env.ISSUER_KEY);
+    const classified: ClassifyResult = classifyIssuerKey(env, env.ISSUER_KEY);
     try {
       await markPending(env, normalizedUid, {
         key_provenance: classified.provenance,
-        key_fingerprint: classified.fingerprint,
-        key_label: classified.label,
+        key_fingerprint: classified.fingerprint ?? undefined,
+        key_label: classified.label ?? undefined,
       });
     } catch (err: unknown) {
       logger.warn("Failed to mark pending during programming", { uid: normalizedUid, error: getErrorMessage(err) });
@@ -99,10 +102,8 @@ async function handleProgrammingFlow(uid: string, env: Env, baseUrl: string, car
 
   let version: number;
   try {
-    const delivered: any = await deliverKeys(env, normalizedUid);
-    version = typeof delivered === "number"
-      ? delivered
-      : delivered?.version ?? delivered?.latest_issued_version ?? delivered?.active_version;
+    const delivered: CardStateRow & { version?: number } = await deliverKeys(env, normalizedUid) as CardStateRow & { version?: number };
+    version = delivered.version ?? delivered.latest_issued_version ?? (delivered.active_version as number | null) ?? 0;
 
     if (!Number.isInteger(version) || version < 1) {
       throw new Error("Invalid version returned from key delivery");
@@ -118,9 +119,9 @@ async function handleProgrammingFlow(uid: string, env: Env, baseUrl: string, car
     return errorResponse("Internal error", 500);
   }
 
-  const keys: any = getDeterministicKeys(normalizedUid, env, version);
+  const keys: DerivedKeys = getDeterministicKeys(normalizedUid, env, version);
 
-  let config: Record<string, any>;
+  let config: Record<string, unknown>;
   if (cardType === "pos") {
     config = {
       K2: keys.k2,
@@ -165,8 +166,8 @@ async function handleResetFlow(lnurlw: string, env: Env, baseUrl: string): Promi
       return errorResponse("Invalid LNURLW format: missing 'p' or 'c'", 400);
     }
 
-    const decryption: any = extractUIDAndCounter(pHex, env);
-    if (!decryption.success) return errorResponse(decryption.error, 400);
+    const decryption: ExtractResult = extractUIDAndCounter(pHex, env);
+    if (!decryption.success) return errorResponse((decryption as { success: false; error: string }).error, 400);
     const { uidHex }: { uidHex: string } = decryption;
 
     const cardState: CardStateRow = await getCardState(env, uidHex);
@@ -176,7 +177,7 @@ async function handleResetFlow(lnurlw: string, env: Env, baseUrl: string): Promi
     }
 
     const wipeVersion: number = resolveActiveVersion(cardState);
-    const config: any = await getUidConfig(uidHex, env, wipeVersion);
+    const config: Record<string, unknown> | null = await getUidConfig(uidHex, env, wipeVersion) as Record<string, unknown> | null;
 
     if (!config) {
       return errorResponse("UID not found in config", 404);
@@ -186,10 +187,11 @@ async function handleResetFlow(lnurlw: string, env: Env, baseUrl: string): Promi
       return errorResponse("K2 key not available for CMAC validation during reset flow", 500);
     }
 
-    const k2Bytes: Uint8Array = hexToBytes(config.K2);
-    const validation: any = decodeAndValidate(pHex, cHex, env, k2Bytes);
-    if (!validation.cmac_validated) {
-      return errorResponse(validation.cmac_error || "CMAC validation failed", 403);
+    const k2Bytes: Uint8Array = hexToBytes(config.K2 as string);
+    const validation = decodeAndValidate(pHex, cHex, env, k2Bytes);
+    if (!("cmac_validated" in validation) || !validation.cmac_validated) {
+      const errorMsg = "cmac_error" in validation ? validation.cmac_error : null;
+      return errorResponse(errorMsg || "CMAC validation failed", 403);
     }
 
     if (cardState.state === CARD_STATE.ACTIVE) {
@@ -204,11 +206,11 @@ async function handleResetFlow(lnurlw: string, env: Env, baseUrl: string): Promi
 }
 
 async function generateKeyResponse(uid: string, env: Env, baseUrl: string, cardType: string = "withdraw", version: number = 1): Promise<Response> {
-  const keys: any = getDeterministicKeys(uid, env, version);
+  const keys: DerivedKeys = getDeterministicKeys(uid, env, version);
   const host: string = baseUrl || DEFAULT_FALLBACK_HOST;
   const hostPart: string = host.replace(/^https?:\/\//, "");
 
-  const response: Record<string, any> = buildBoltCardResponse(keys, uid, host, version);
+  const response: Record<string, unknown> = buildBoltCardResponse(keys, uid, host, version);
 
   if (cardType === "2fa") {
     response.LNURLW_BASE = `https://${hostPart}/2fa`;

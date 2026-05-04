@@ -18,7 +18,7 @@ interface ExtractFailure {
   error: string;
 }
 
-type ExtractResult = ExtractSuccess | ExtractFailure;
+export type ExtractResult = ExtractSuccess | ExtractFailure;
 
 export function extractUIDAndCounter(pHex: string, env: any): ExtractResult {
   const k1Keys = getBoltCardK1(env);

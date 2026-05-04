@@ -1,39 +1,40 @@
 
 import { _mergeHistory, getUnifiedHistory } from "../utils/history.js";
+import type { TapEntry, Transaction } from "../types/core.js";
 import { buildCardTestEnv } from "./testHelpers.js";
 
 describe("_mergeHistory", () => {
   it("returns empty array for null taps and null transactions", () => {
-    const result = _mergeHistory(null as unknown as any[], null as unknown as any[]);
+    const result = _mergeHistory(null as unknown as TapEntry[], null as unknown as Transaction[]);
     expect(result).toEqual([]);
   });
 
   it("returns empty array for undefined taps and transactions", () => {
-    const result = _mergeHistory(undefined as unknown as any[], undefined as unknown as any[]);
+    const result = _mergeHistory(undefined as unknown as TapEntry[], undefined as unknown as Transaction[]);
     expect(result).toEqual([]);
   });
 
   it("maps positive amount transactions to topup status", () => {
-    const result = _mergeHistory([], [{ amount: 1000, created_at: 100, balance_after: 1000 }]);
+    const result = _mergeHistory([], [{ amount: 1000, created_at: 100, balance_after: 1000 }] as Transaction[]);
     expect(result).toHaveLength(1);
     expect(result[0].status).toBe("topup");
     expect(result[0].amount_msat).toBe(1000);
   });
 
   it("maps negative amount transactions to payment status", () => {
-    const result = _mergeHistory([], [{ amount: -500, created_at: 200, balance_after: 500 }]);
+    const result = _mergeHistory([], [{ amount: -500, created_at: 200, balance_after: 500 }] as Transaction[]);
     expect(result).toHaveLength(1);
     expect(result[0].status).toBe("payment");
     expect(result[0].amount_msat).toBe(500);
   });
 
   it("preserves note when present", () => {
-    const result = _mergeHistory([], [{ amount: 100, created_at: 100, balance_after: 100, note: "Manual top-up" }]);
+    const result = _mergeHistory([], [{ amount: 100, created_at: 100, balance_after: 100, note: "Manual top-up" }] as Transaction[]);
     expect(result[0].note).toBe("Manual top-up");
   });
 
   it("sets note to null when absent", () => {
-    const result = _mergeHistory([], [{ amount: 100, created_at: 100, balance_after: 100 }]);
+    const result = _mergeHistory([], [{ amount: 100, created_at: 100, balance_after: 100 }] as Transaction[]);
     expect(result[0].note).toBeNull();
   });
 
@@ -41,10 +42,10 @@ describe("_mergeHistory", () => {
     const taps = [
       { counter: 1, created_at: 100 },
       { counter: 2, created_at: 300 },
-    ];
+    ] as TapEntry[];
     const txs = [
       { amount: 100, created_at: 200, balance_after: 100 },
-    ];
+    ] as Transaction[];
     const result = _mergeHistory(taps, txs);
     expect(result[0].created_at).toBe(300);
     expect(result[1].created_at).toBe(200);
@@ -55,35 +56,35 @@ describe("_mergeHistory", () => {
     const taps = [
       { counter: 5, created_at: 100 },
       { counter: 10, created_at: 100 },
-    ];
+    ] as TapEntry[];
     const result = _mergeHistory(taps, []);
     expect(result[0].counter).toBe(10);
     expect(result[1].counter).toBe(5);
   });
 
   it("handles entries with missing created_at (sorts as 0)", () => {
-    const taps = [{ counter: 1 }];
-    const txs = [{ amount: 50, created_at: 50, balance_after: 50 }];
+    const taps = [{ counter: 1 }] as TapEntry[];
+    const txs = [{ amount: 50, created_at: 50, balance_after: 50 }] as Transaction[];
     const result = _mergeHistory(taps, txs);
     expect(result[0].created_at).toBe(50);
     expect(result[1].created_at).toBeUndefined();
   });
 
   it("handles entries with missing counter (sorts as 0)", () => {
-    const taps = [{ created_at: 100 }];
+    const taps = [{ created_at: 100 }] as TapEntry[];
     const result = _mergeHistory(taps, []);
     expect(result[0].counter).toBeUndefined();
   });
 
   it("limits to 25 entries", () => {
-    const taps = Array.from({ length: 30 }, (_, i) => ({ counter: i, created_at: i }));
+    const taps = Array.from({ length: 30 }, (_, i) => ({ counter: i, created_at: i })) as TapEntry[];
     const result = _mergeHistory(taps, []);
     expect(result).toHaveLength(25);
   });
 
   it("merges taps and transactions together", () => {
-    const taps = [{ counter: 1, created_at: 100, bolt11: "lnbc1" }];
-    const txs = [{ amount: -200, created_at: 150, balance_after: 800 }];
+    const taps = [{ counter: 1, created_at: 100, bolt11: "lnbc1" }] as TapEntry[];
+    const txs = [{ amount: -200, created_at: 150, balance_after: 800 }] as Transaction[];
     const result = _mergeHistory(taps, txs);
     expect(result).toHaveLength(2);
     expect(result[0].created_at).toBe(150);

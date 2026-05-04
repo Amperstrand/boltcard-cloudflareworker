@@ -1,6 +1,6 @@
 import { computeAesCmac, hexToBytes } from './cryptoutils.js';
 import { getErrorMessage } from "./utils/logger.js";
-import type { Env } from "./types/core.js";
+import type { CardConfig, Env } from "./types/core.js";
 import { logger } from './utils/logger.js';
 import { getDeterministicKeys } from "./keygenerator.js";
 import { getCardConfig } from "./replayProtection.js";
@@ -36,7 +36,7 @@ export function getBoltCardK1(env: Env | null | undefined): Uint8Array[] {
   ];
 }
 
-async function withDeterministicK2IfMissing(uidHex: string, config: Record<string, any> | null, env: Env, source: string, version: number = 1): Promise<Record<string, any> | null> {
+async function withDeterministicK2IfMissing(uidHex: string, config: CardConfig | null, env: Env, source: string, version: number = 1): Promise<CardConfig | null> {
   if (!config || config.K2) {
     return config;
   }
@@ -58,12 +58,12 @@ async function withDeterministicK2IfMissing(uidHex: string, config: Record<strin
   return config;
 }
 
-export async function getUidConfig(uidHex: string, env: Env, version: number = 1): Promise<Record<string, any> | null> {
+export async function getUidConfig(uidHex: string, env: Env, version: number = 1): Promise<CardConfig | null> {
   const normalizedUid = uidHex.toLowerCase();
   logger.trace("Looking up UID config", { uidHex: normalizedUid });
 
   try {
-    const doConfig = await getCardConfig(env as any, normalizedUid);
+    const doConfig = await getCardConfig(env, normalizedUid);
     if (doConfig) {
       logger.trace("Found UID config in DO", {
         uidHex: normalizedUid,
@@ -84,7 +84,7 @@ export async function getUidConfig(uidHex: string, env: Env, version: number = 1
     logger.debug("Generating deterministic fallback config", { uidHex: normalizedUid });
     const keys = getDeterministicKeys(normalizedUid, env, version);
     if (keys && keys.k2) {
-      const defaultConfig: Record<string, any> = {
+      const defaultConfig: CardConfig = {
         payment_method: PAYMENT_METHOD.FAKEWALLET,
         K2: keys.k2
       };

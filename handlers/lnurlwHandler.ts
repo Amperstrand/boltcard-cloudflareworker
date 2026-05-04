@@ -1,10 +1,11 @@
 import { extractUIDAndCounter, validateCmac as verifyCardCmac } from "../boltCardHelper.js";
-import type { CardStateRow } from "../types/core.js";
+import type { ExtractResult } from "../boltCardHelper.js";
+import type { CardStateRow, CardConfig, Env, CounterCheckResult, KeyCandidate } from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
-import type { Env } from "../types/core.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { handleProxy } from "./proxyHandler.js";
 import { constructWithdrawResponse } from "./withdrawHandler.js";
+import type { WithdrawResponse } from "./withdrawHandler.js";
 import { constructPayRequest } from "./lnurlPayHandler.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
@@ -14,6 +15,7 @@ import { recordTapRead, getCardState, activateCard, checkAndAdvanceCounter, disc
 import { getRequestOrigin } from "../utils/validation.js";
 import { cmacScanVersions } from "../utils/cmacScan.js";
 import { classifyIssuerKey, getAllIssuerKeyCandidates } from "../utils/keyLookup.js";
+import type { ClassifyResult } from "../utils/keyLookup.js";
 import { CARD_STATE, PAYMENT_METHOD, VERSION_SCAN_RANGE, MISSING_PARAMS_MSG } from "../utils/constants.js";
 
 async function detectCardVersion(uidHex: string, ctr: string, cHex: string, env: Env, latestVersion: number): Promise<number | null> {
@@ -27,15 +29,15 @@ async function detectCardVersion(uidHex: string, ctr: string, cHex: string, env:
   return matchedVersion;
 }
 
-async function discoverUnknownCard(uidHex: string, ctr: string, cHex: string, env: Env): Promise<{ version: number; provenance: any } | null> {
+async function discoverUnknownCard(uidHex: string, ctr: string, cHex: string, env: Env): Promise<{ version: number; provenance: ClassifyResult } | null> {
   const uidBytes = hexToBytes(uidHex);
   const ctrBytes = hexToBytes(ctr);
-  const candidates: any[] = getAllIssuerKeyCandidates(env);
+  const candidates: KeyCandidate[] = getAllIssuerKeyCandidates(env);
 
   for (const candidate of candidates) {
     for (let version = 1; version <= VERSION_SCAN_RANGE; version++) {
       try {
-        const tempEnv: any = { ...env, ISSUER_KEY: candidate.hex };
+        const tempEnv = { ...env, ISSUER_KEY: candidate.hex };
         const k2 = getDeterministicKeys(uidHex, tempEnv, version).k2;
         const { matchedVersion } = await cmacScanVersions(uidBytes, ctrBytes, cHex, {
           k2ForVersion: async () => hexToBytes(k2),
@@ -43,7 +45,7 @@ async function discoverUnknownCard(uidHex: string, ctr: string, cHex: string, en
           lowVersion: version,
         });
         if (matchedVersion !== null) {
-          const classified: any = classifyIssuerKey(env, candidate.hex);
+          const classified: ClassifyResult = classifyIssuerKey(env, candidate.hex);
           logger.info("Discovered unknown card", {
             uidHex,
             version: matchedVersion,
@@ -53,8 +55,8 @@ async function discoverUnknownCard(uidHex: string, ctr: string, cHex: string, en
           try {
             await discoverCard(env, uidHex, {
               key_provenance: classified.provenance,
-              key_fingerprint: classified.fingerprint,
-              key_label: classified.label,
+              key_fingerprint: classified.fingerprint ?? undefined,
+              key_label: classified.label ?? undefined,
               active_version: matchedVersion,
             });
           } catch (err: unknown) {
@@ -77,7 +79,7 @@ async function discoverUnknownCard(uidHex: string, ctr: string, cHex: string, en
 
 async function checkReplayAndRecordTap(env: Env, uidHex: string, counterValue: number, request: Request, fireAndForget: boolean = true): Promise<{ ok: boolean; response?: Response }> {
   try {
-    const replayResult: any = await checkAndAdvanceCounter(env, uidHex, counterValue);
+    const replayResult: CounterCheckResult = await checkAndAdvanceCounter(env, uidHex, counterValue);
     if (!replayResult.accepted) {
       logger.warn("Counter replay detected", { uidHex, counterValue });
       return { ok: false, response: jsonResponse({ status: "ERROR", reason: replayResult.reason || "Counter replay detected — tap rejected" }, 409) };
@@ -93,7 +95,7 @@ async function checkReplayAndRecordTap(env: Env, uidHex: string, counterValue: n
     requestUrl: request.url,
   });
   if (fireAndForget) {
-    tapPromise.catch((e: any) => logger.warn("recordTapRead failed", { uidHex, counterValue, error: getErrorMessage(e) }));
+    tapPromise.catch((e: unknown) => logger.warn("recordTapRead failed", { uidHex, counterValue, error: getErrorMessage(e) }));
   } else {
     await tapPromise;
   }
@@ -136,7 +138,7 @@ async function resolveCardVersion(uidHex: string, ctr: string, cHex: string, env
   return { activeVersion: 1 };
 }
 
-function validateCmac(uidHex: string, ctr: string, cHex: string, config: any): { error?: Response; cmac_validated?: boolean; proxyRelayMode?: boolean } {
+function validateCmac(uidHex: string, ctr: string, cHex: string, config: CardConfig): { error?: Response; cmac_validated?: boolean; proxyRelayMode?: boolean } {
   const proxyRelayMode = config.payment_method === PAYMENT_METHOD.PROXY && !!config.proxy?.baseurl;
   const hasK2 = typeof config.K2 === "string" && config.K2.length > 0;
 
@@ -148,7 +150,7 @@ function validateCmac(uidHex: string, ctr: string, cHex: string, config: any): {
       hexToBytes(uidHex),
       hexToBytes(ctr),
       cHex,
-      hexToBytes(config.K2)
+      hexToBytes(config.K2!)
     ));
   } else if (proxyRelayMode) {
     cmac_error = "CMAC validation deferred to downstream backend";
@@ -169,11 +171,11 @@ function validateCmac(uidHex: string, ctr: string, cHex: string, config: any): {
   return { cmac_validated, proxyRelayMode };
 }
 
-async function routeByPaymentMethod(request: Request, env: Env, uidHex: string, pHex: string, cHex: string, ctr: string, counterValue: number, config: any, cmac_validated: boolean, proxyRelayMode: boolean): Promise<Response> {
+async function routeByPaymentMethod(request: Request, env: Env, uidHex: string, pHex: string, cHex: string, ctr: string, counterValue: number, config: CardConfig, cmac_validated: boolean, proxyRelayMode: boolean): Promise<Response> {
   if (proxyRelayMode) {
     const replay = await checkReplayAndRecordTap(env, uidHex, counterValue, request);
     if (!replay.ok) return replay.response!;
-    return handleProxy(request, uidHex, pHex, cHex, config.proxy.baseurl, {
+    return handleProxy(request, uidHex, pHex, cHex, config.proxy!.baseurl, {
       cmacValidated: cmac_validated,
       validationDeferred: !config.K2,
     });
@@ -184,7 +186,7 @@ async function routeByPaymentMethod(request: Request, env: Env, uidHex: string, 
     recordTapRead(env, uidHex, counterValue, {
       userAgent: request.headers.get("user-agent") || null,
       requestUrl: request.url,
-    }).catch((e: any) => logger.warn("recordTapRead failed", { uidHex, counterValue, error: getErrorMessage(e) }));
+    }).catch((e: unknown) => logger.warn("recordTapRead failed", { uidHex, counterValue, error: getErrorMessage(e) }));
     return jsonResponse(constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, config, env));
   }
 
@@ -192,7 +194,7 @@ async function routeByPaymentMethod(request: Request, env: Env, uidHex: string, 
     const replay = await checkReplayAndRecordTap(env, uidHex, counterValue, request);
     if (!replay.ok) return replay.response!;
     const baseUrl = getRequestOrigin(request);
-    const responsePayload: any = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated, baseUrl, config.payment_method);
+    const responsePayload: WithdrawResponse = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated, baseUrl, config.payment_method);
     if (responsePayload.status === "ERROR") return errorResponse(responsePayload.reason, 403);
     return jsonResponse(responsePayload);
   }
@@ -213,7 +215,7 @@ export async function handleLnurlw(request: Request, env: Env): Promise<Response
     return errorResponse(MISSING_PARAMS_MSG);
   }
 
-  const decryption: any = extractUIDAndCounter(pHex, env);
+  const decryption: ExtractResult = extractUIDAndCounter(pHex, env);
   if (!decryption.success) {
     logger.error("Failed to extract UID and counter", { error: decryption.error });
     return errorResponse(decryption.error);
@@ -248,7 +250,7 @@ export async function handleLnurlw(request: Request, env: Env): Promise<Response
   if (versionResult.error) return versionResult.error;
   const { activeVersion } = versionResult;
 
-  const config: any = await getUidConfig(uidHex, env, activeVersion!);
+  const config = (await getUidConfig(uidHex, env, activeVersion!)) as CardConfig | null;
   logger.info("Card config loaded", {
     uidHex,
     paymentMethod: config?.payment_method,

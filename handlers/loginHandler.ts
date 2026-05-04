@@ -1,7 +1,6 @@
 import { getUidConfig } from "../getUidConfig.js";
-import type { CardStateRow } from "../types/core.js";
+import type { CardStateRow, CardConfig, BoltCardKeys, Env } from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
-import type { Env } from "../types/core.js";
 import { renderLoginPage } from "../templates/loginPage.js";
 import { logger } from "../utils/logger.js";
 import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
@@ -12,6 +11,7 @@ import { DEFAULT_PULL_PAYMENT_ID, CARD_STATE, PAYMENT_METHOD, UID_VALIDATION_MSG
 import { getUnifiedHistory } from "../utils/history.js";
 import { handleTerminateAction, handleRequestWipeAction, handleTopUpAction, getCardProgrammingEndpoint, normalizeSubmittedUid } from "./loginActions.js";
 import { matchCardIssuer } from "../utils/cardMatching.js";
+import type { MatchResult } from "../utils/cardMatching.js";
 import { requireOperator } from "../middleware/operatorAuth.js";
 
 export function handleLoginPage(request: Request): Response {
@@ -22,28 +22,29 @@ export function handleLoginPage(request: Request): Response {
 
 export async function handleLoginVerify(request: Request, env: Env): Promise<Response> {
   try {
-    const body: any = await parseJsonBody(request);
+    const body: Record<string, unknown> | null = await parseJsonBody(request);
     if (!body) return errorResponse("Invalid JSON body", 400);
 
-    const { p: pHex, c: cHex, uid: rawUid }: { p?: string; c?: string; uid?: string } = body;
+    const { p: pHex, c: cHex, uid: rawUid } = body as { p?: string; c?: string; uid?: string; action?: string; amount?: string };
     const requestOrigin = getRequestOrigin(request);
 
     if (rawUid && !pHex && !cHex) {
+      const action = (body as Record<string, unknown>).action;
       const privilegedActions = ["request-wipe", "terminate", "top-up"];
-      if (privilegedActions.includes(body.action)) {
+      if (privilegedActions.includes(action as string)) {
         const auth = requireOperator(request, env);
         if (!auth.authorized) {
           return errorResponse("Operator authentication required", 401);
         }
       }
-      if (body.action === "request-wipe") {
+      if (action === "request-wipe") {
         return await handleRequestWipeAction(rawUid, env, request);
       }
-      if (body.action === "terminate") {
+      if (action === "terminate") {
         return await handleTerminateAction(rawUid, env, request);
       }
-      if (body.action === "top-up") {
-        return handleTopUpAction(body.uid, body.amount, env);
+      if (action === "top-up") {
+        return handleTopUpAction(body.uid as string, body.amount as string, env);
       }
       return await handleUidOnlyLogin(rawUid, env, request);
     }
@@ -52,45 +53,49 @@ export async function handleLoginVerify(request: Request, env: Env): Promise<Res
       return errorResponse("Missing p or c", 400);
     }
 
-    const result: any = await matchCardIssuer(pHex, cHex, env);
+    const result: MatchResult = await matchCardIssuer(pHex, cHex, env);
 
     if (!result.matched && !result.issuerKey) {
       return errorResponse("Could not decrypt card with any known key", 400);
     }
 
-    let matchedKeys: any;
+    if (!result.uidHex || !result.ctr) {
+      return errorResponse("Card decryption incomplete", 400);
+    }
+
+    let matchedKeys: BoltCardKeys;
     let matchedVersion: number;
     let perCardSource: string | null = null;
 
-    if (result.matched && result.perCardOverride) {
+    if (result.matched && result.perCardOverride && result.perCard) {
       const perCard = result.perCard;
-      const baseKeys = deriveKeysFromHex(result.uidHex, result.issuerKey, result.latestVersion);
+      const baseKeys = deriveKeysFromHex(result.uidHex!, result.issuerKey!, result.latestVersion ?? 1);
       matchedKeys = {
-        k0: perCard.k0,
+        k0: perCard.k0 || baseKeys.k0,
         k1: perCard.k1,
         k2: perCard.k2,
         k3: perCard.k3 || baseKeys.k3,
         k4: perCard.k4 || baseKeys.k4,
       };
-      matchedVersion = result.matchedVersion;
-      perCardSource = result.perCardSource;
+      matchedVersion = result.matchedVersion ?? 1;
+      perCardSource = result.perCardSource ?? null;
     } else if (result.matched) {
-      matchedKeys = deriveKeysFromHex(result.uidHex, result.issuerKey, result.matchedVersion);
-      matchedVersion = result.matchedVersion;
+      matchedKeys = deriveKeysFromHex(result.uidHex, result.issuerKey!, result.matchedVersion ?? 1);
+      matchedVersion = result.matchedVersion ?? 1;
     } else {
-      matchedKeys = deriveKeysFromHex(result.uidHex, result.issuerKey, result.latestVersion);
-      matchedVersion = result.latestVersion;
+      matchedKeys = deriveKeysFromHex(result.uidHex, result.issuerKey!, result.latestVersion ?? 1);
+      matchedVersion = result.latestVersion ?? 1;
     }
 
-    const matchedIssuer: { hex: string; label: string } | null = result.issuerKey ? { hex: result.issuerKey, label: result.issuerLabel } : null;
-    const matchedCmacValid: boolean = result.cmacValid;
-    const debugInfo: { versionScan: any[] } = { versionScan: result.versionAttempts || [] };
+    const matchedIssuer: { hex: string; label: string | undefined } | null = result.issuerKey ? { hex: result.issuerKey, label: result.issuerLabel } : null;
+    const matchedCmacValid: boolean = result.cmacValid ?? false;
+    const debugInfo: { versionScan: Array<{ version: number; cmac_validated: boolean }> } = { versionScan: result.versionAttempts || [] };
     const keyVersion: number = result.matchedVersion || result.latestVersion || 1;
 
     const uidHex: string = result.uidHex;
     const counterValue: number = parseInt(result.ctr, 16);
 
-    const config: any = await getUidConfig(uidHex, env);
+    const config = await getUidConfig(uidHex, env) as CardConfig | null;
     const pm: string = config?.payment_method || "unknown";
 
     let cardState: CardStateRow;
@@ -100,7 +105,7 @@ export async function handleLoginVerify(request: Request, env: Env): Promise<Res
       logger.error("Card state unavailable during NFC login", { uidHex, error: getErrorMessage(err) });
       return errorResponse("Card state unavailable", 503);
     }
-    const { cardConfig, programmingEndpoint }: { cardConfig: any; programmingEndpoint: string } = await getCardProgrammingEndpoint(env, uidHex, requestOrigin);
+    const { cardConfig, programmingEndpoint }: { cardConfig: CardConfig | null; programmingEndpoint: string } = await getCardProgrammingEndpoint(env, uidHex, requestOrigin);
     const hasDoConfig: boolean = cardConfig !== null;
     const deployed: boolean = hasDoConfig || !!perCardSource;
 
@@ -118,14 +123,14 @@ export async function handleLoginVerify(request: Request, env: Env): Promise<Res
       keyVersion,
     });
 
-    const tapHistory: any = await getUnifiedHistory(env, uidHex);
+    const tapHistory: Awaited<ReturnType<typeof getUnifiedHistory>> = await getUnifiedHistory(env, uidHex);
 
     const balanceData: { balance: number } = await safeGetBalance(env, uidHex);
 
     recordTapRead(env, uidHex, counterValue, {
       userAgent: request.headers.get("user-agent"),
       requestUrl: request.url,
-    }).catch((e: any) => logger.warn("Failed to record login tap", { uidHex, counterValue, error: getErrorMessage(e) }));
+    }).catch((e: unknown) => logger.warn("Failed to record login tap", { uidHex, counterValue, error: getErrorMessage(e) }));
 
     return jsonResponse({
       success: true,
@@ -176,13 +181,13 @@ async function handleUidOnlyLogin(rawUid: string, env: Env, request: Request): P
     logger.error("Card state unavailable during UID-only login", { uidHex, error: getErrorMessage(err) });
     return errorResponse("Card state unavailable", 503);
   }
-  const { cardConfig, programmingEndpoint }: { cardConfig: any; programmingEndpoint: string } = await getCardProgrammingEndpoint(env, uidHex, requestOrigin);
+  const { cardConfig, programmingEndpoint }: { cardConfig: CardConfig | null; programmingEndpoint: string } = await getCardProgrammingEndpoint(env, uidHex, requestOrigin);
   const hasDoConfig: boolean = cardConfig !== null;
-  const config: any = await getUidConfig(uidHex, env);
+  const config = await getUidConfig(uidHex, env) as CardConfig | null;
   const pm: string = config?.payment_method || PAYMENT_METHOD.FAKEWALLET;
 
   let keyVersion: number = 1;
-  let keys: any;
+  let keys: ReturnType<typeof deriveKeysFromHex>;
   if (hasDoConfig && cardState?.active_version) {
     keyVersion = cardState.active_version;
     keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY!, keyVersion);
@@ -194,14 +199,14 @@ async function handleUidOnlyLogin(rawUid: string, env: Env, request: Request): P
 
   logger.info("NFC login (UID-only, undeployed)", { uidHex, deployed: hasDoConfig, keyVersion });
 
-  const tapHistory: any = await getUnifiedHistory(env, uidHex);
+  const tapHistory: Awaited<ReturnType<typeof getUnifiedHistory>> = await getUnifiedHistory(env, uidHex);
 
   const balanceData: { balance: number } = await safeGetBalance(env, uidHex);
 
   recordTapRead(env, uidHex, null, {
     userAgent: request.headers.get("user-agent"),
     requestUrl: request.url,
-  }).catch((e: any) => logger.warn("Failed to record UID-only login tap", { uidHex, error: getErrorMessage(e) }));
+  }).catch((e: unknown) => logger.warn("Failed to record UID-only login tap", { uidHex, error: getErrorMessage(e) }));
 
   return jsonResponse({
     success: true,

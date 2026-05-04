@@ -11,7 +11,7 @@ export async function handleMenuEditorPage(request: Request, env: Env): Promise<
   const terminalId: string = url.searchParams.get("t") || "default";
   const host = getRequestOrigin(request);
   try {
-    const menu: any = await getMenu(env, terminalId);
+    const menu: { items: unknown[] } = await getMenu(env, terminalId);
     return htmlResponse(renderMenuEditorPage({ host, terminalId, menu }));
   } catch (error: unknown) {
     logger.error("Failed to load menu for editor", { terminalId, error: getErrorMessage(error) });
@@ -23,7 +23,7 @@ export async function handleMenuGet(request: Request, env: Env): Promise<Respons
   const url = new URL(request.url);
   const terminalId: string = url.searchParams.get("t") || "default";
   try {
-    const menu: any = await getMenu(env, terminalId);
+    const menu: { items: unknown[] } = await getMenu(env, terminalId);
     return jsonResponse(menu);
   } catch (error: unknown) {
     logger.error("Failed to get menu", { terminalId, error: getErrorMessage(error) });
@@ -33,7 +33,7 @@ export async function handleMenuGet(request: Request, env: Env): Promise<Respons
 
 export async function handleMenuPut(request: Request, env: Env): Promise<Response> {
   if (request.method !== "PUT") return errorResponse("Method not allowed", 405);
-  const body: any = await parseJsonBody(request);
+  const body: Record<string, unknown> | null = await parseJsonBody(request);
   if (!body) return errorResponse("Invalid JSON", 400);
   const url = new URL(request.url);
   const terminalId: string = url.searchParams.get("t") || "default";

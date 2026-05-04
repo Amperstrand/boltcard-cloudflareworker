@@ -24,7 +24,7 @@ export async function fetchBtcRates(): Promise<Record<string, string> | null> {
     });
 
     if (response.ok) {
-      const data = await response.json() as any;
+      const data = await response.json() as { data?: { rates?: Record<string, string> } };
       const rates = data?.data?.rates;
       if (rates && typeof rates === "object") {
         cachedRates = rates;
@@ -32,8 +32,8 @@ export async function fetchBtcRates(): Promise<Record<string, string> | null> {
         return rates;
       }
     }
-  } catch (error: any) {
-    logger.warn("Failed to fetch BTC exchange rates from Coinbase", { error: error.message });
+  } catch (error: unknown) {
+    logger.warn("Failed to fetch BTC exchange rates from Coinbase", { error: error instanceof Error ? error.message : String(error) });
   }
 
   return null;

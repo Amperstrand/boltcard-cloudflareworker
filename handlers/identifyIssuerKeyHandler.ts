@@ -2,22 +2,22 @@ import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.j
 import { getErrorMessage } from "../utils/logger.js";
 import type { Env } from "../types/core.js";
 import { logger } from "../utils/logger.js";
-import { matchCardIssuer } from "../utils/cardMatching.js";
+import { matchCardIssuer, type MatchResult } from "../utils/cardMatching.js";
 import { MISSING_PARAMS_MSG } from "../utils/constants.js";
 
 export async function handleIdentifyIssuerKey(request: Request, env: Env): Promise<Response> {
   try {
-    const body: any = await parseJsonBody(request);
+    const body: Record<string, unknown> | null = await parseJsonBody(request);
     if (!body) return errorResponse("Invalid JSON body", 400);
 
-    const pHex: string | undefined = body?.p;
-    const cHex: string | undefined = body?.c;
+    const pHex: string | undefined = body?.p as string | undefined;
+    const cHex: string | undefined = body?.c as string | undefined;
 
     if (!pHex || !cHex) {
       return errorResponse(MISSING_PARAMS_MSG);
     }
 
-    const result: any = await matchCardIssuer(pHex, cHex, env);
+    const result: MatchResult = await matchCardIssuer(pHex, cHex, env);
 
     if (!result.matched) {
       return jsonResponse({ matched: false, uid: null });
