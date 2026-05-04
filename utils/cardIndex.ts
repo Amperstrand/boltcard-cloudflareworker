@@ -3,15 +3,40 @@ import { KV_LIST_LIMIT, CARD_INDEX_TTL } from "./constants.js";
 
 const KEY_PREFIX = "card_idx:";
 
-function indexKey(uidHex) {
+interface CardIndexMetadata {
+  state?: string;
+  keyProvenance?: string | null;
+  keyLabel?: string | null;
+  keyFingerprint?: string | null;
+  paymentMethod?: string | null;
+  balance?: number;
+}
+
+interface IndexedCard {
+  uid: string;
+  state: string;
+  keyProvenance?: string | null;
+  keyLabel?: string | null;
+  keyFingerprint?: string | null;
+  paymentMethod?: string | null;
+  balance?: number;
+  updatedAt: number;
+}
+
+interface EnvLike {
+  UID_CONFIG?: KVNamespace;
+  CARD_REPLAY?: DurableObjectNamespace;
+}
+
+function indexKey(uidHex: string): string {
   return KEY_PREFIX + uidHex.toLowerCase();
 }
 
-export async function indexCard(env, uidHex, metadata) {
+export async function indexCard(env: EnvLike | undefined, uidHex: string | undefined, metadata: CardIndexMetadata) {
   if (!env?.UID_CONFIG || !uidHex) return;
   try {
     const key = indexKey(uidHex);
-    const record = {
+    const record: IndexedCard = {
       uid: uidHex.toLowerCase(),
       state: metadata.state || "unknown",
       keyProvenance: metadata.keyProvenance || null,
@@ -24,43 +49,43 @@ export async function indexCard(env, uidHex, metadata) {
     await env.UID_CONFIG.put(key, JSON.stringify(record), {
       expirationTtl: CARD_INDEX_TTL,
     });
-  } catch (e) {
+  } catch (e: any) {
     logger.warn("Failed to index card", { uidHex, error: e.message });
   }
 }
 
-export async function _deindexCard(env, uidHex) {
+export async function _deindexCard(env: EnvLike | undefined, uidHex: string | undefined) {
   if (!env?.UID_CONFIG || !uidHex) return;
   try {
     await env.UID_CONFIG.delete(indexKey(uidHex));
-  } catch (e) {
+  } catch (e: any) {
     logger.warn("Failed to deindex card", { uidHex, error: e.message });
   }
 }
 
-export async function _getIndexedCard(env, uidHex) {
+export async function _getIndexedCard(env: EnvLike | undefined, uidHex: string): Promise<IndexedCard | null> {
   if (!env?.UID_CONFIG) return null;
   try {
     const raw = await env.UID_CONFIG.get(indexKey(uidHex));
     if (!raw) return null;
     return JSON.parse(raw);
-  } catch (e) {
+  } catch (e: any) {
     logger.warn("Failed to get indexed card", { uidHex, error: e.message });
     return null;
   }
 }
 
-export async function repairCardIndex(env, getCardStateFn) {
+export async function repairCardIndex(env: EnvLike, getCardStateFn: (env: any, uid: string) => Promise<any>) {
   if (!env?.UID_CONFIG || !env?.CARD_REPLAY) {
-    return { scanned: 0, repaired: 0, errors: [] };
+    return { scanned: 0, repaired: 0, errors: [] as Array<{ uid: string; error: string }> };
   }
 
-  const scanned = [];
-  let cursor = undefined;
+  const scanned: any[] = [];
+  let cursor: string | undefined = undefined;
   let listComplete = false;
 
   while (!listComplete) {
-    const listResult = await env.UID_CONFIG.list({
+    const listResult = await env.UID_CONFIG!.list({
       prefix: KEY_PREFIX,
       limit: KV_LIST_LIMIT,
       cursor,
@@ -68,7 +93,7 @@ export async function repairCardIndex(env, getCardStateFn) {
 
     const values = await Promise.all(
       listResult.keys.map((key) =>
-        env.UID_CONFIG.get(key.name)
+        env.UID_CONFIG!.get(key.name)
           .then((raw) => {
             if (!raw) return null;
             try { return { key: key.name, ...JSON.parse(raw) }; }
@@ -83,10 +108,10 @@ export async function repairCardIndex(env, getCardStateFn) {
     }
 
     listComplete = listResult.list_complete;
-    cursor = listResult.cursor;
+    cursor = (listResult as any).cursor;
   }
 
-  const errors = [];
+  const errors: Array<{ uid: string; error: string }> = [];
   let repaired = 0;
 
   for (const card of scanned) {
@@ -104,7 +129,7 @@ export async function repairCardIndex(env, getCardStateFn) {
         });
         repaired++;
       }
-    } catch (e) {
+    } catch (e: any) {
       errors.push({ uid: card.uid, error: e.message });
     }
   }
@@ -112,8 +137,8 @@ export async function repairCardIndex(env, getCardStateFn) {
   return { scanned: scanned.length, repaired, errors };
 }
 
-export async function listIndexedCards(env, { state, prefix, limit = KV_LIST_LIMIT, cursor } = {}) {
-  if (!env?.UID_CONFIG) return { cards: [], cursor: null, total: 0 };
+export async function listIndexedCards(env: EnvLike | undefined, { state, prefix, limit = KV_LIST_LIMIT, cursor }: { state?: string; prefix?: string; limit?: number; cursor?: string } = {}) {
+  if (!env?.UID_CONFIG) return { cards: [] as IndexedCard[], cursor: null as string | null, total: 0 };
   try {
     const listResult = await env.UID_CONFIG.list({
       prefix: KEY_PREFIX + (prefix || ""),
@@ -121,18 +146,18 @@ export async function listIndexedCards(env, { state, prefix, limit = KV_LIST_LIM
       cursor: cursor || undefined,
     });
 
-    const cards = [];
+    const cards: IndexedCard[] = [];
     const values = await Promise.all(
       listResult.keys.map((key) =>
-        env.UID_CONFIG.get(key.name).then((raw) => {
+        env.UID_CONFIG!.get(key.name).then((raw) => {
           if (!raw) return null;
           try {
             return JSON.parse(raw);
-          } catch (e) {
+          } catch (e: any) {
             logger.warn("Failed to parse indexed card", { key: key.name, error: e.message });
             return null;
           }
-        }).catch((e) => {
+        }).catch((e: any) => {
           logger.warn("Failed to read indexed card", { key: key.name, error: e.message });
           return null;
         })
@@ -146,11 +171,11 @@ export async function listIndexedCards(env, { state, prefix, limit = KV_LIST_LIM
 
     return {
       cards,
-      cursor: listResult.list_complete ? null : listResult.cursor,
+      cursor: listResult.list_complete ? null : (listResult as any).cursor,
       total: listResult.keys.length,
     };
-  } catch (e) {
+  } catch (e: any) {
     logger.warn("Failed to list indexed cards", { error: e.message });
-    return { cards: [], cursor: null, total: 0 };
+    return { cards: [] as IndexedCard[], cursor: null as string | null, total: 0 };
   }
 }

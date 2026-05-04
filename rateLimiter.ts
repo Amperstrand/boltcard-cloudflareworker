@@ -1,11 +1,22 @@
-// IP-based rate limiting for Cloudflare Workers using KV.
-// Fixed-window counter per IP with configurable limits.
+interface RateLimitOptions {
+  maxRequests?: number;
+  windowSeconds?: number;
+}
 
-export async function checkRateLimit(request, env, options = {}) {
+interface RateLimitResult {
+  allowed: boolean;
+  remaining: number;
+  resetAt: number;
+}
+
+interface EnvLike {
+  RATE_LIMITS?: KVNamespace;
+}
+
+export async function checkRateLimit(request: Request, env: EnvLike, options: RateLimitOptions = {}): Promise<RateLimitResult> {
   const maxRequests = options.maxRequests ?? 100;
   const windowSeconds = options.windowSeconds ?? 60;
 
-  // If no KV binding, skip rate limiting (dev/local mode)
   if (!env.RATE_LIMITS) {
     return { allowed: true, remaining: maxRequests, resetAt: 0 };
   }
@@ -25,7 +36,6 @@ export async function checkRateLimit(request, env, options = {}) {
     };
   }
 
-  // TTL = 2 windows so stale entries auto-expire
   await env.RATE_LIMITS.put(key, String(current + 1), {
     expirationTtl: windowSeconds * 2,
   });

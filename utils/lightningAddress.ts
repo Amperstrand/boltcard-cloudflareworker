@@ -1,7 +1,7 @@
 import { logger } from "./logger.js";
 import { FETCH_TIMEOUT_MS } from "./constants.js";
 
-function parseLightningAddress(lightningAddress) {
+function parseLightningAddress(lightningAddress: string): { user: string; domain: string } {
   if (typeof lightningAddress !== "string") {
     throw new Error("Lightning Address must be a string");
   }
@@ -19,18 +19,18 @@ function parseLightningAddress(lightningAddress) {
   };
 }
 
-function validateAmountMsat(amountMsat) {
+function validateAmountMsat(amountMsat: number) {
   if (!Number.isInteger(amountMsat) || amountMsat <= 0) {
     throw new Error(`Invalid amountMsat: ${amountMsat}`);
   }
 }
 
-async function parseJsonResponse(response, url, errorPrefix) {
-  let data;
+async function parseJsonResponse(response: Response, url: string, errorPrefix: string): Promise<any> {
+  let data: any;
 
   try {
     data = await response.json();
-  } catch (error) {
+  } catch (error: any) {
     throw new Error(`${errorPrefix}: invalid JSON response from ${url}: ${error.message}`);
   }
 
@@ -46,15 +46,15 @@ async function parseJsonResponse(response, url, errorPrefix) {
   return data;
 }
 
-async function fetchJson(url, errorPrefix) {
+async function fetchJson(url: string, errorPrefix: string): Promise<any> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-  let response;
+  let response: Response;
 
   try {
     response = await fetch(url, { signal: controller.signal });
-  } catch (error) {
+  } catch (error: any) {
     throw new Error(`${errorPrefix}: failed to fetch ${url}: ${error.message}`);
   } finally {
     clearTimeout(timeoutId);
@@ -63,7 +63,7 @@ async function fetchJson(url, errorPrefix) {
   return parseJsonResponse(response, url, errorPrefix);
 }
 
-export async function resolveLightningAddress(lightningAddress, amountMsat) {
+export async function resolveLightningAddress(lightningAddress: string, amountMsat: number): Promise<{ pr: string; routes: never[] }> {
   validateAmountMsat(amountMsat);
 
   const { user, domain } = parseLightningAddress(lightningAddress);
@@ -98,11 +98,11 @@ export async function resolveLightningAddress(lightningAddress, amountMsat) {
     );
   }
 
-  let callbackUrl;
+  let callbackUrl: URL;
 
   try {
     callbackUrl = new URL(payRequest.callback);
-  } catch (error) {
+  } catch (error: any) {
     throw new Error(`Lightning Address resolution failed: invalid callback URL ${payRequest.callback}: ${error.message}`);
   }
 

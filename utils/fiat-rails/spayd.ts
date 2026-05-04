@@ -1,7 +1,15 @@
 import { logger } from "../logger.js";
 
 export class SpaydPaymentDetails {
-  constructor(acc, am, cc, rn, msg, dt, rf) {
+  acc: string;
+  am: number | undefined;
+  cc: string | undefined;
+  rn: string | undefined;
+  msg: string | undefined;
+  dt: string | undefined;
+  rf: string | undefined;
+
+  constructor(acc: string, am: number | undefined, cc: string | undefined, rn: string | undefined, msg: string | undefined, dt: string | undefined, rf: string | undefined) {
     this.acc = acc;
     this.am = am;
     this.cc = cc;
@@ -12,12 +20,12 @@ export class SpaydPaymentDetails {
   }
 }
 
-export function isSpaydUri(text) {
-  const trimmed = (text || "").trim();
+export function isSpaydUri(text: unknown): boolean {
+  const trimmed = (text || "").toString().trim();
   return trimmed.startsWith("SPD*") || trimmed.startsWith("spayd://");
 }
 
-export function parseSpayd(input) {
+export function parseSpayd(input: unknown): SpaydPaymentDetails | null {
   const raw = String(input ?? "").trim();
   if (!raw) return null;
 
@@ -32,8 +40,7 @@ export function parseSpayd(input) {
   if (segments.length < 2) return null;
   if (segments[0] !== "SPD") return null;
 
-  const version = segments[1] || "";
-  const attributes = Object.create(null);
+  const attributes: Record<string, string[]> = Object.create(null);
 
   for (let i = 2; i < segments.length; i++) {
     const seg = segments[i];
@@ -42,7 +49,7 @@ export function parseSpayd(input) {
     const colonIdx = seg.indexOf(":");
     if (colonIdx <= 0) continue;
 
-    let key = seg.slice(0, colonIdx).trim().toUpperCase();
+    const key = seg.slice(0, colonIdx).trim().toUpperCase();
     let value = seg.slice(colonIdx + 1).replace(/^\s+/, "");
 
     try {
@@ -72,14 +79,20 @@ export function parseSpayd(input) {
   );
 }
 
-export function encodeSpayd(attrs, options = {}) {
+interface EncodeSpaydOptions {
+  version?: string;
+  includeCrc32?: boolean;
+  sortAttributes?: boolean;
+}
+
+export function encodeSpayd(attrs: Record<string, string | string[] | undefined>, options: EncodeSpaydOptions = {}): string {
   const { version = "1.0", includeCrc32 = false, sortAttributes = false } = options;
 
   if (!attrs || typeof attrs !== "object") {
     throw new Error("encodeSpayd: attrs must be an object");
   }
 
-  const pairs = [];
+  const pairs: Array<[string, string]> = [];
   for (const [kRaw, vRaw] of Object.entries(attrs)) {
     if (vRaw == null) continue;
     const key = String(kRaw).toUpperCase();
@@ -106,12 +119,12 @@ export function encodeSpayd(attrs, options = {}) {
   return `${encodedBase}*CRC32:${crc}`;
 }
 
-function firstValue(attributes, key) {
+function firstValue(attributes: Record<string, string[]>, key: string): string | null {
   const arr = attributes[key];
   return arr && arr.length ? arr[0] : null;
 }
 
-function buildSpaydString(version, pairs) {
+function buildSpaydString(version: string, pairs: Array<[string, string]>): string {
   const parts = ["SPD", version || "1.0"];
   for (const [k, v] of pairs) {
     const wireVal = encodeURIComponent(v).replace(/\*/g, "%2A");
@@ -120,7 +133,7 @@ function buildSpaydString(version, pairs) {
   return parts.join("*");
 }
 
-function sortPairsLex(pairs) {
+function sortPairsLex(pairs: Array<[string, string]>): Array<[string, string]> {
   return [...pairs].sort((a, b) => {
     const k = a[0].localeCompare(b[0]);
     if (k !== 0) return k;
@@ -128,8 +141,8 @@ function sortPairsLex(pairs) {
   });
 }
 
-let _crc32Table = null;
-function crc32Table() {
+let _crc32Table: Uint32Array | null = null;
+function crc32Table(): Uint32Array {
   if (_crc32Table) return _crc32Table;
   const table = new Uint32Array(256);
   for (let i = 0; i < 256; i++) {
@@ -143,7 +156,7 @@ function crc32Table() {
   return table;
 }
 
-function crc32(input) {
+function crc32(input: string): number {
   const table = crc32Table();
   let crc = 0xffffffff;
   for (let i = 0; i < input.length; i++) {
@@ -153,7 +166,7 @@ function crc32(input) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-function crc32HexUpper(input) {
+function crc32HexUpper(input: string): string {
   const n = crc32(input);
   return n.toString(16).toUpperCase().padStart(8, "0");
 }

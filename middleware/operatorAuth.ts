@@ -5,7 +5,32 @@ import { getCookieValue, constantTimeEqual } from "../utils/cookies.js";
 import { OPERATOR_SESSION_MAX_AGE, OPERATOR_CSRF_MAX_AGE } from "../utils/constants.js";
 import { redirect } from "../utils/responses.js";
 
-function authRedirect(request) {
+interface EnvLike {
+  OPERATOR_SESSION_SECRET?: string;
+  OPERATOR_PIN?: string;
+  WORKER_ENV?: string;
+  __TEST_OPERATOR_SESSION?: Record<string, unknown>;
+}
+
+interface SessionPayload {
+  iat: number;
+  exp: number;
+  shiftId: string;
+}
+
+interface RequireOperatorResult {
+  authorized: true;
+  session: SessionPayload;
+}
+
+interface RequireOperatorDenied {
+  authorized: false;
+  response: Response;
+}
+
+type OperatorAuthResult = RequireOperatorResult | RequireOperatorDenied;
+
+function authRedirect(request: Request): Response {
   const url = new URL(request.url);
   const returnUrl = encodeURIComponent(url.pathname + url.search);
   return redirect(`/operator/login?return=${returnUrl}`);
@@ -19,25 +44,25 @@ const MIN_PIN_LENGTH = 4;
 const DEV_PIN = "1234";
 const DEV_SESSION_SECRET = "dev-only-session-secret-do-not-use-in-production";
 
-function hmacSign(key, data) {
+function hmacSign(key: string | Uint8Array, data: string | Uint8Array): string {
   const keyBuf = typeof key === "string" ? new TextEncoder().encode(key) : key;
   const dataBuf = typeof data === "string" ? new TextEncoder().encode(data) : data;
   const sig = hmac(sha256, keyBuf, dataBuf);
   return base64url.encode(sig);
 }
 
-function hmacVerify(key, data, sig) {
+function hmacVerify(key: string | Uint8Array, data: string | Uint8Array, sig: string): boolean {
   const expected = hmacSign(key, data);
   return constantTimeEqual(expected, sig);
 }
 
-function constantTimeComparePin(provided, expected) {
+function constantTimeComparePin(provided: string | undefined, expected: string | undefined): boolean {
   const a = String(provided || "");
   const b = String(expected || "");
   return constantTimeEqual(a, b);
 }
 
-function createSessionPayload(shiftId) {
+function createSessionPayload(shiftId: string): string {
   return JSON.stringify({
     iat: Math.floor(Date.now() / 1000),
     exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE,
@@ -45,13 +70,13 @@ function createSessionPayload(shiftId) {
   });
 }
 
-function signSession(payload, secret) {
+function signSession(payload: string, secret: string): string {
   const b64 = btoa(payload).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const sig = hmacSign(secret, b64);
   return `${b64}.${sig}`;
 }
 
-function verifyAndParseSession(cookieValue, secret) {
+function verifyAndParseSession(cookieValue: string, secret: string): SessionPayload | null {
   const parts = cookieValue.split(".");
   if (parts.length !== 2) return null;
   const [b64, sig] = parts;
@@ -68,23 +93,23 @@ function verifyAndParseSession(cookieValue, secret) {
   }
 }
 
-function getSessionCookie(request) {
+function getSessionCookie(request: Request): string | null {
   return getCookieValue(request.headers.get("Cookie"), COOKIE_NAME);
 }
 
-function buildSessionCookie(value) {
+function buildSessionCookie(value: string): string {
   return `${COOKIE_NAME}=${value}; HttpOnly; Secure; SameSite=Strict; Max-Age=${SESSION_MAX_AGE}; Path=/`;
 }
 
-function buildExpiredCookie() {
+function buildExpiredCookie(): string {
   return `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/`;
 }
 
-export function requireOperator(request, env) {
+export function requireOperator(request: Request, env: EnvLike): OperatorAuthResult {
   const secret = env.OPERATOR_SESSION_SECRET || DEV_SESSION_SECRET;
 
   if (env.__TEST_OPERATOR_SESSION && env.WORKER_ENV !== "production") {
-    return { authorized: true, session: env.__TEST_OPERATOR_SESSION };
+    return { authorized: true, session: env.__TEST_OPERATOR_SESSION as unknown as SessionPayload };
   }
 
   const sessionCookie = getSessionCookie(request);
@@ -100,7 +125,7 @@ export function requireOperator(request, env) {
   return { authorized: true, session };
 }
 
-export function validatePinConfig(env) {
+export function validatePinConfig(env: EnvLike): boolean {
   if (env.WORKER_ENV === "production") {
     if (!env.OPERATOR_PIN || typeof env.OPERATOR_PIN !== "string" || env.OPERATOR_PIN.length < MIN_PIN_LENGTH) {
       return false;
@@ -116,7 +141,7 @@ export function validatePinConfig(env) {
   return true;
 }
 
-export function checkPin(provided, env) {
+export function checkPin(provided: string | undefined, env: EnvLike): boolean {
   if (env.WORKER_ENV === "production" && !env.OPERATOR_PIN) {
     throw new Error("OPERATOR_PIN must be set in production");
   }
@@ -124,7 +149,7 @@ export function checkPin(provided, env) {
   return constantTimeComparePin(provided, expected);
 }
 
-export function createSession(env) {
+export function createSession(env: EnvLike): { cookie: string; shiftId: string } {
   if (env.WORKER_ENV === "production" && !env.OPERATOR_SESSION_SECRET) {
     throw new Error("OPERATOR_SESSION_SECRET must be set in production");
   }
@@ -137,7 +162,6 @@ export function createSession(env) {
 
 export { buildExpiredCookie, COOKIE_NAME, MIN_PIN_LENGTH, CSRF_COOKIE_NAME };
 
-export function buildCsrfCookie(token) {
+export function buildCsrfCookie(token: string): string {
   return `${CSRF_COOKIE_NAME}=${token}; Secure; SameSite=Strict; Max-Age=${CSRF_MAX_AGE}; Path=/`;
 }
-

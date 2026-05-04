@@ -7,12 +7,16 @@ export { parseUpiUri, encodeUpiUri, isUpiUri, UpiPaymentDetails } from "./upi.js
 export { parseSpayd, encodeSpayd, isSpaydUri, SpaydPaymentDetails } from "./spayd.js";
 export { convertCurrencyToSats, convertSatsToCurrency, getBtcPrice, fetchBtcRates } from "./currency.js";
 
-export function detectFiatRail(description) {
+interface FiatRailResult {
+  type: string;
+  uri: string | null;
+}
+
+export function detectFiatRail(description: string | null | undefined): FiatRailResult {
   if (!description || typeof description !== "string") {
     return { type: "bolt11", uri: null };
   }
 
-  // Check for PAYTO: prefix (cashu-cf convention)
   if (description.toUpperCase().startsWith("PAYTO:")) {
     const paytoUri = description.substring(6).trim();
     if (isPaytoUri(paytoUri)) {
@@ -20,7 +24,6 @@ export function detectFiatRail(description) {
     }
   }
 
-  // Check for payto:// directly
   if (description.includes("payto://")) {
     const match = description.match(/payto:\/\/[^\s]+/);
     if (match && match[0]) {
@@ -28,7 +31,6 @@ export function detectFiatRail(description) {
     }
   }
 
-  // Check for UPI
   if (description.includes("upi://")) {
     const match = description.match(/upi:\/\/[^\s]+/);
     if (match && match[0]) {
@@ -36,7 +38,6 @@ export function detectFiatRail(description) {
     }
   }
 
-  // Check for SPAYD
   if (isSpaydUri(description)) {
     let spaydString = description.trim();
     if (spaydString.startsWith("spayd://")) {
@@ -54,7 +55,7 @@ export function detectFiatRail(description) {
   return { type: "bolt11", uri: null };
 }
 
-export function parseFiatRailDetails(type, uri) {
+export function parseFiatRailDetails(type: string, uri: string): any {
   switch (type) {
     case "payto":
       return parsePaytoUri(uri);

@@ -1,7 +1,15 @@
 import { logger } from "../logger.js";
 
 export class UpiPaymentDetails {
-  constructor(pa, am, cu, pn, mc, tr, tn) {
+  pa: string;
+  am: number;
+  cu: string;
+  pn: string | undefined;
+  mc: string | undefined;
+  tr: string | undefined;
+  tn: string | undefined;
+
+  constructor(pa: string, am: number, cu: string, pn: string | undefined, mc: string | undefined, tr: string | undefined, tn: string | undefined) {
     this.pa = pa;
     this.am = am;
     this.cu = cu;
@@ -12,11 +20,11 @@ export class UpiPaymentDetails {
   }
 }
 
-export function isUpiUri(uri) {
-  return typeof uri === "string" && uri.startsWith("upi://");
+export function isUpiUri(uri: unknown): boolean {
+  return typeof uri === "string" && (uri as string).startsWith("upi://");
 }
 
-export function parseUpiUri(upiUri) {
+export function parseUpiUri(upiUri: string | null | undefined): UpiPaymentDetails | null {
   if (!upiUri || typeof upiUri !== "string") return null;
   if (!upiUri.startsWith("upi://")) return null;
 
@@ -42,13 +50,13 @@ export function parseUpiUri(upiUri) {
       params.get("tr") || undefined,
       params.get("tn") || undefined
     );
-  } catch (error) {
+  } catch (error: any) {
     logger.error("Failed to parse UPI URI", { error: error.message });
     return null;
   }
 }
 
-export function encodeUpiUri(details) {
+export function encodeUpiUri(details: Partial<UpiPaymentDetails>): string {
   const pa = details.pa || "merchant@acqbank";
   const am = (details.am || 0).toFixed(2);
   const cu = details.cu || "INR";

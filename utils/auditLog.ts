@@ -3,7 +3,18 @@ import { AUDIT_LOG_TTL, AUDIT_LIST_DEFAULT_LIMIT } from "./constants.js";
 
 const AUDIT_PREFIX = "audit_log:";
 
-export async function recordAuditEvent(env, { action, uidHex, operatorShiftId, details = {} }) {
+interface AuditEventParams {
+  action: string;
+  uidHex?: string | null;
+  operatorShiftId?: string | null;
+  details?: Record<string, unknown>;
+}
+
+interface EnvLike {
+  UID_CONFIG?: KVNamespace;
+}
+
+export async function recordAuditEvent(env: EnvLike | undefined, { action, uidHex, operatorShiftId, details = {} }: AuditEventParams) {
   if (!env?.UID_CONFIG) return;
 
   try {
@@ -23,13 +34,13 @@ export async function recordAuditEvent(env, { action, uidHex, operatorShiftId, d
       JSON.stringify(entry),
       { expirationTtl: AUDIT_LOG_TTL }
     );
-  } catch (e) {
+  } catch (e: any) {
     logger.warn("Failed to record audit event", { action, uidHex, error: e.message });
   }
 }
 
-export async function _listAuditEvents(env, { limit = AUDIT_LIST_DEFAULT_LIMIT, cursor } = {}) {
-  if (!env?.UID_CONFIG) return { events: [], cursor: null };
+export async function _listAuditEvents(env: EnvLike | undefined, { limit = AUDIT_LIST_DEFAULT_LIMIT, cursor }: { limit?: number; cursor?: string } = {}) {
+  if (!env?.UID_CONFIG) return { events: [], cursor: null as string | null };
 
   try {
     const listResult = await env.UID_CONFIG.list({
@@ -38,10 +49,10 @@ export async function _listAuditEvents(env, { limit = AUDIT_LIST_DEFAULT_LIMIT, 
       cursor: cursor || undefined,
     });
 
-    const events = [];
+    const events: any[] = [];
     const values = await Promise.all(
       listResult.keys.map((key) =>
-        env.UID_CONFIG.get(key.name).then((raw) => {
+        env.UID_CONFIG!.get(key.name).then((raw) => {
           if (!raw) return null;
           try { return JSON.parse(raw); } catch { return null; }
         }).catch(() => null)
@@ -56,10 +67,10 @@ export async function _listAuditEvents(env, { limit = AUDIT_LIST_DEFAULT_LIMIT, 
 
     return {
       events,
-      cursor: listResult.list_complete ? null : listResult.cursor,
+      cursor: listResult.list_complete ? null : (listResult as any).cursor,
     };
-  } catch (e) {
+  } catch (e: any) {
     logger.warn("Failed to list audit events", { error: e.message });
-    return { events: [], cursor: null };
+    return { events: [], cursor: null as string | null };
   }
 }

@@ -7,7 +7,24 @@ import { cmacScanVersions } from "./cmacScan.js";
 import { logger } from "./logger.js";
 import { MAX_ISSUER_CANDIDATES, VERSION_SCAN_RANGE } from "./constants.js";
 
-export async function matchCardIssuer(pHex, cHex, env) {
+interface MatchResult {
+  matched: boolean;
+  uidHex?: string;
+  ctr?: string;
+  matchedVersion?: number | null;
+  latestVersion?: number;
+  issuerKey?: string;
+  issuerLabel?: string;
+  issuerFingerprint?: string;
+  isPercard?: boolean;
+  perCard?: any;
+  cmacValid?: boolean;
+  perCardOverride?: boolean;
+  perCardSource?: string;
+  versionAttempts?: any[];
+}
+
+export async function matchCardIssuer(pHex: string, cHex: string, env: any): Promise<MatchResult> {
   const candidates = getAllIssuerKeyCandidates(env);
   if (candidates.length > MAX_ISSUER_CANDIDATES) {
     candidates.length = MAX_ISSUER_CANDIDATES;
@@ -27,7 +44,7 @@ export async function matchCardIssuer(pHex, cHex, env) {
 
     const { matchedVersion, attempts } = await cmacScanVersions(
       uidBytes, ctrBytes, cHex, {
-        k2ForVersion: (v) => hexToBytes(deriveKeysFromHex(uidHex, candidate.hex, v).k2),
+        k2ForVersion: async (v) => hexToBytes(deriveKeysFromHex(uidHex, candidate.hex, v).k2),
         highVersion: latestVersion,
         lowVersion: Math.max(1, latestVersion - VERSION_SCAN_RANGE),
       }

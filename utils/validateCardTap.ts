@@ -6,24 +6,47 @@ import { getCardState, activateCard, checkAndAdvanceCounter, recordTapRead } fro
 import { logger } from "../utils/logger.js";
 import { CARD_STATE } from "./constants.js";
 
-export async function validateCardTap(request, env, { pHex, cHex, context = "tap" }) {
+interface ValidateCardTapOptions {
+  pHex: string;
+  cHex: string;
+  context?: string;
+}
+
+interface ValidateCardTapSuccess {
+  ok: true;
+  uidHex: string;
+  counterValue: number;
+  activeVersion: number;
+  config: Record<string, any>;
+  cardState: Record<string, any>;
+}
+
+interface ValidateCardTapFailure {
+  ok: false;
+  status: number;
+  error: string;
+}
+
+type ValidateCardTapResult = ValidateCardTapSuccess | ValidateCardTapFailure;
+
+export async function validateCardTap(request: Request, env: any, { pHex, cHex, context = "tap" }: ValidateCardTapOptions): Promise<ValidateCardTapResult> {
   if (!pHex || !cHex) {
     return { ok: false, status: 400, error: "Missing card parameters (p and c required)" };
   }
 
   const decryption = extractUIDAndCounter(pHex, env);
   if (!decryption.success) {
-    logger.warn(`${context}: failed to decrypt card`, { error: decryption.error });
+    logger.warn(`${context}: failed to decrypt card`, { error: (decryption as any).error });
     return { ok: false, status: 400, error: "Could not read card — decryption failed" };
   }
 
   const { uidHex, ctr } = decryption;
   const counterValue = parseInt(ctr, 16);
 
-  let cardState;
+  let cardState: any;
   try {
     cardState = await getCardState(env, uidHex);
-  } catch (error) {
+  } catch (error: any) {
     logger.error(`${context}: card state check failed`, { uidHex, error: error.message });
     return { ok: false, status: 503, error: "Card state unavailable" };
   }
@@ -36,7 +59,7 @@ export async function validateCardTap(request, env, { pHex, cHex, context = "tap
     return { ok: false, status: 403, error: "Card is pending wipe — re-program before use" };
   }
 
-  let activeVersion;
+  let activeVersion: number;
   if (cardState.state === CARD_STATE.KEYS_DELIVERED) {
     const keys = getDeterministicKeys(uidHex, env, cardState.latest_issued_version);
     const { cmac_validated } = validateCmac(
@@ -76,10 +99,10 @@ export async function validateCardTap(request, env, { pHex, cHex, context = "tap
     }
   }
 
-  let replayResult;
+  let replayResult: any;
   try {
     replayResult = await checkAndAdvanceCounter(env, uidHex, counterValue);
-  } catch (error) {
+  } catch (error: any) {
     logger.error(`${context}: replay protection check failed`, { uidHex, counterValue, error: error.message });
     return { ok: false, status: 503, error: "Replay protection unavailable" };
   }
@@ -91,7 +114,7 @@ export async function validateCardTap(request, env, { pHex, cHex, context = "tap
   recordTapRead(env, uidHex, counterValue, {
     userAgent: request.headers.get("user-agent"),
     requestUrl: request.url,
-  }).catch(e => logger.warn(`Failed to record ${context} tap`, { uidHex, counterValue, error: e.message }));
+  }).catch((e: any) => logger.warn(`Failed to record ${context} tap`, { uidHex, counterValue, error: e.message }));
 
   return {
     ok: true,

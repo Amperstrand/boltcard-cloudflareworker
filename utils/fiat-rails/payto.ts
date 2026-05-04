@@ -1,7 +1,14 @@
 import { logger } from "../logger.js";
 
 export class PaytoPaymentDetails {
-  constructor(iban, amount, currency, receiverName, message, execDate) {
+  iban: string;
+  amount: number;
+  currency: string;
+  receiverName: string | undefined;
+  message: string | undefined;
+  execDate: string | undefined;
+
+  constructor(iban: string, amount: number, currency: string, receiverName: string | undefined, message: string | undefined, execDate: string | undefined) {
     this.iban = iban;
     this.amount = amount;
     this.currency = currency;
@@ -11,18 +18,18 @@ export class PaytoPaymentDetails {
   }
 }
 
-export function isPaytoUri(uri) {
+export function isPaytoUri(uri: unknown): boolean {
   return typeof uri === "string" && (uri.startsWith("payto://") || uri.startsWith("PAYTO:payto://"));
 }
 
-function isValidIbanFormat(iban) {
+function isValidIbanFormat(iban: string): boolean {
   if (!iban || typeof iban !== "string") return false;
   const cleaned = iban.replace(/\s+/g, "");
   if (cleaned.length < 15 || cleaned.length > 34) return false;
   return /^[A-Z]{2}\d{2}[A-Z0-9]+$/.test(cleaned);
 }
 
-export function parsePaytoUri(paytoUri) {
+export function parsePaytoUri(paytoUri: string | null | undefined): PaytoPaymentDetails | null {
   if (!paytoUri || typeof paytoUri !== "string") return null;
 
   let uri = paytoUri.trim();
@@ -62,7 +69,7 @@ export function parsePaytoUri(paytoUri) {
 
     if (isNaN(amount) || amount <= 0 || !isFinite(amount)) return null;
 
-    const safeDecode = (value) => {
+    const safeDecode = (value: string | null): string | undefined => {
       if (!value) return undefined;
       try {
         return decodeURIComponent(value);
@@ -79,13 +86,13 @@ export function parsePaytoUri(paytoUri) {
       safeDecode(params.get("message")),
       params.get("x-execdate") || params.get("execdate") || undefined
     );
-  } catch (error) {
+  } catch (error: any) {
     logger.error("Failed to parse PayTo URI", { error: error.message });
     return null;
   }
 }
 
-export function encodePaytoUri(details) {
+export function encodePaytoUri(details: Partial<PaytoPaymentDetails>): string {
   const iban = details.iban || "GB33BUKB20201555555555";
   const currency = (details.currency || "EUR").toUpperCase();
   const amount = (details.amount || 0).toFixed(2);

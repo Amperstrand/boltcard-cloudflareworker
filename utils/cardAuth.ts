@@ -5,7 +5,38 @@ import { getCardState, resolveActiveVersion } from "../replayProtection.js";
 import { logger } from "./logger.js";
 import { CARD_STATE } from "./constants.js";
 
-export async function resolveCardIdentity(pHex, cHex, env, { activeVersion: forcedVersion, requireState = false, skipCmac = false, context = "card-auth" } = {}) {
+interface ResolveCardIdentityOptions {
+  activeVersion?: number;
+  requireState?: boolean;
+  skipCmac?: boolean;
+  context?: string;
+}
+
+interface ResolveSuccess {
+  ok: true;
+  uidHex: string;
+  ctr: string;
+  counterValue: number;
+  config: Record<string, any>;
+  cmac_validated: boolean;
+  cardState?: any;
+  activeVersion?: number;
+}
+
+interface ResolveFailure {
+  ok: false;
+  status: number;
+  error: string;
+}
+
+type ResolveResult = ResolveSuccess | ResolveFailure;
+
+export async function resolveCardIdentity(
+  pHex: string | undefined,
+  cHex: string | undefined,
+  env: any,
+  { activeVersion: forcedVersion, requireState = false, skipCmac = false, context = "card-auth" }: ResolveCardIdentityOptions = {}
+): Promise<ResolveResult> {
   if (!pHex || !cHex) {
     return { ok: false, status: 400, error: "Missing card parameters (p and c required)" };
   }
@@ -18,11 +49,11 @@ export async function resolveCardIdentity(pHex, cHex, env, { activeVersion: forc
   const { uidHex, ctr } = decryption;
   const counterValue = parseInt(ctr, 16);
 
-  let cardState = null;
+  let cardState: any = null;
   if (requireState) {
     try {
       cardState = await getCardState(env, uidHex);
-    } catch (error) {
+    } catch (error: any) {
       logger.error(`${context}: card state check failed`, { uidHex, error: error.message });
       return { ok: false, status: 503, error: "Card state unavailable" };
     }
@@ -30,10 +61,10 @@ export async function resolveCardIdentity(pHex, cHex, env, { activeVersion: forc
 
   const activeVersion = forcedVersion || (cardState ? resolveActiveVersion(cardState) : undefined);
 
-  let config;
+  let config: Record<string, any> | null;
   try {
     config = await getUidConfig(uidHex, env, activeVersion);
-  } catch (e) {
+  } catch (e: any) {
     logger.error(`${context}: getUidConfig failed`, { uidHex, error: e.message });
     return { ok: false, status: 500, error: "Card configuration unavailable" };
   }
@@ -54,7 +85,7 @@ export async function resolveCardIdentity(pHex, cHex, env, { activeVersion: forc
     return { ok: false, status: 403, error: cmac_error || "CMAC validation failed" };
   }
 
-  const result = { ok: true, uidHex, ctr, counterValue, config, cmac_validated };
+  const result: ResolveSuccess = { ok: true, uidHex, ctr, counterValue, config, cmac_validated };
   if (cardState) result.cardState = cardState;
   if (activeVersion !== undefined) result.activeVersion = activeVersion;
   return result;
