@@ -60,7 +60,7 @@ function buildIdentityProfile(uidHex: string, record: Record<string, any> = {}):
 }
 
 async function resolveIdentityContext({ p, c }: { p: string | null; c: string | null }, env: any): Promise<Partial<IdentityContext> & { response?: Response }> {
-  const auth: any = await resolveCardIdentity(p, c, env, { context: "identity" });
+  const auth: any = await resolveCardIdentity(p ?? undefined, c ?? undefined, env, { context: "identity" });
   if (!auth.ok) {
     const resp = (auth.status === 404 || auth.status === 403)
       ? jsonResponse({ verified: false, reason: auth.status === 404 ? "Card not recognized" : "Card authentication failed" })

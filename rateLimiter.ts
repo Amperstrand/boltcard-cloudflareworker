@@ -26,7 +26,7 @@ export async function checkRateLimit(request: Request, env: EnvLike, options: Ra
   const windowStart = now - (now % windowSeconds);
   const key = `${ip}:${windowStart}`;
 
-  const current = parseInt(await env.RATE_LIMITS.get(key), 10) || 0;
+  const current = parseInt(await env.RATE_LIMITS.get(key) ?? "0", 10) || 0;
 
   if (current >= maxRequests) {
     return {

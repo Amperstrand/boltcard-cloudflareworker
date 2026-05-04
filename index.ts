@@ -83,7 +83,7 @@ function withOperatorAuth(handler: (request: any, env: any, session?: any) => an
 
 router.get("/api/fake-invoice", async (request: any, env: any) => {
   const url = new URL(request.url);
-  const amountMsat = parseInt(url.searchParams.get("amount"), 10);
+  const amountMsat = parseInt(url.searchParams.get("amount") ?? "", 10);
   if (!Number.isInteger(amountMsat) || amountMsat <= 0) {
     return errorResponse("amount must be a positive integer (millisatoshis)", 400);
   }

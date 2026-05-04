@@ -65,15 +65,15 @@ export async function handleLnurlpPayment(request: Request, env: any): Promise<R
 
       try {
         const tapResult: any = await recordTap(env, normalizedUidHex, counterValue, {
-          bolt11: invoice || null,
-          amountMsat,
-          userAgent: request.headers.get("user-agent") || null,
+          bolt11: invoice ?? undefined,
+          amountMsat: amountMsat ?? undefined,
+          userAgent: request.headers.get("user-agent") || undefined,
           requestUrl: request.url,
         });
         if (!tapResult.accepted) {
           const claim: any = await claimTap(env, normalizedUidHex, counterValue, {
-            bolt11: invoice || null,
-            amountMsat,
+            bolt11: invoice ?? undefined,
+            amountMsat: amountMsat ?? undefined,
           });
           if (!claim.claimed) {
             logger.warn("Callback replay detected — tap already claimed", {
@@ -126,7 +126,7 @@ async function processWithdrawalPayment(rawUid: string, pr: string | null, env: 
   }
 
   if (config.payment_method === PAYMENT_METHOD.FAKEWALLET) {
-    const amount: number = explicitAmount != null ? explicitAmount : (decodeBolt11Amount(pr) || 0);
+    const amount: number = explicitAmount != null ? explicitAmount : (decodeBolt11Amount(pr ?? "") || 0);
     let result: any;
     try {
       result = await debitCard(env, normalizedUid, counterValue, amount, `Payment: ${amount} units`);

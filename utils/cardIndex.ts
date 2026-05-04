@@ -85,14 +85,14 @@ export async function repairCardIndex(env: EnvLike, getCardStateFn: (env: any, u
   let listComplete = false;
 
   while (!listComplete) {
-    const listResult = await env.UID_CONFIG!.list({
+    const listResult: KVNamespaceListResult<unknown> = await env.UID_CONFIG!.list({
       prefix: KEY_PREFIX,
       limit: KV_LIST_LIMIT,
       cursor,
     });
 
     const values = await Promise.all(
-      listResult.keys.map((key) =>
+      listResult.keys.map((key: KVNamespaceListKey<unknown>) =>
         env.UID_CONFIG!.get(key.name)
           .then((raw) => {
             if (!raw) return null;

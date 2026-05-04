@@ -13,6 +13,8 @@ interface KeyCandidate {
   label: string;
 }
 
+type DomainKeyMap = Record<string, KeyCandidate[]>;
+
 interface PerCardEntry {
   uid: string;
   k0?: string;
@@ -33,14 +35,15 @@ const PERCARD_MAP = new Map<string, PerCardEntry>(PERCARD_KEYS.map((entry) => [e
 
 const PUBLIC_KEY_SET = new Set<string>();
 for (const domain of Object.keys(ISSUER_KEYS_BY_DOMAIN)) {
-  for (const key of ISSUER_KEYS_BY_DOMAIN[domain]) {
+  for (const key of (ISSUER_KEYS_BY_DOMAIN as unknown as DomainKeyMap)[domain]) {
     PUBLIC_KEY_SET.add(key.hex.toLowerCase());
   }
 }
 
 export function _getIssuerKeysForDomain(domain: string): KeyCandidate[] {
-  const domainKeys = ISSUER_KEYS_BY_DOMAIN[domain] || [];
-  const defaultKeys = ISSUER_KEYS_BY_DOMAIN["_default"] || [];
+  const map = ISSUER_KEYS_BY_DOMAIN as unknown as DomainKeyMap;
+  const domainKeys = map[domain] || [];
+  const defaultKeys = map["_default"] || [];
   return [...domainKeys, ...defaultKeys];
 }
 
@@ -66,7 +69,7 @@ export function getAllIssuerKeyCandidates(env: EnvLike | undefined): KeyCandidat
   }
 
   for (const domain of Object.keys(ISSUER_KEYS_BY_DOMAIN)) {
-    for (const key of ISSUER_KEYS_BY_DOMAIN[domain]) {
+    for (const key of (ISSUER_KEYS_BY_DOMAIN as unknown as DomainKeyMap)[domain]) {
       add(key.hex, key.label);
     }
   }
@@ -135,7 +138,7 @@ export function classifyIssuerKey(env: EnvLike | undefined, issuerKeyHex: string
 
 function findPublicKeyLabel(hex: string): string | null {
   for (const domain of Object.keys(ISSUER_KEYS_BY_DOMAIN)) {
-    for (const key of ISSUER_KEYS_BY_DOMAIN[domain]) {
+    for (const key of (ISSUER_KEYS_BY_DOMAIN as unknown as DomainKeyMap)[domain]) {
       if (key.hex.toLowerCase() === hex) {
         return key.label;
       }
