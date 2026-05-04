@@ -1,17 +1,65 @@
-export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => {
-  const counters = new Map(
+interface CardState {
+  state: string;
+  latest_issued_version: number;
+  active_version: number | null;
+  activated_at: number | null;
+  terminated_at: number | null;
+  keys_delivered_at: number | null;
+  wipe_keys_fetched_at: number | null;
+  balance: number;
+  key_provenance?: string | null;
+  key_fingerprint?: string | null;
+  key_label?: string | null;
+  first_seen_at?: number | null;
+}
+
+interface TapRecord {
+  counter: number;
+  bolt11: string | null;
+  status: string;
+  payment_hash: string | null;
+  amount_msat: number | null;
+  user_agent: string | null;
+  request_url: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+interface Transaction {
+  id: number;
+  counter: number | null;
+  amount: number;
+  balance_after: number;
+  created_at: number;
+  note: string | null;
+}
+
+interface ReplayNamespace {
+  idFromName: (name: string) => string;
+  get: (id: string) => { fetch: (request: Request) => Promise<Response> };
+  __counters: Map<string, number>;
+  __taps: Map<string, TapRecord>;
+  __cardStates: Map<string, CardState>;
+  __cardConfigs: Map<string, any>;
+  __transactions: Map<string, Transaction[]>;
+  __activate: (uid: string, version?: number) => void;
+}
+
+export const makeReplayNamespace = (
+  initialCounters: Record<string, number> = {},
+  initialCards: Record<string, number> = {}
+): ReplayNamespace => {
+  const counters = new Map<string, number>(
     Object.entries(initialCounters).map(([uid, value]) => [uid.toLowerCase(), value])
   );
-  const taps = new Map();
-  const cardStates = new Map();
-  const cardConfigs = new Map();
-  const transactions = new Map();
+  const taps = new Map<string, TapRecord>();
+  const cardStates = new Map<string, CardState>();
+  const cardConfigs = new Map<string, any>();
+  const transactions = new Map<string, Transaction[]>();
 
-  // Pre-activate cards from initialCards: { uid: version }
-  // If a UID has counters but no explicit card entry, default to active version 1
-  const allUids = new Set([
+  const allUids = new Set<string>([
     ...counters.keys(),
-    ...Object.keys(initialCards).map(u => u.toLowerCase()),
+    ...Object.keys(initialCards).map((u) => u.toLowerCase()),
   ]);
   for (const uid of allUids) {
     const version = initialCards[uid] ?? 1;
@@ -27,7 +75,7 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
     });
   }
 
-  const getDefaultState = () => ({
+  const getDefaultState = (): CardState => ({
     state: "new",
     latest_issued_version: 0,
     active_version: null,
@@ -43,9 +91,9 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
   });
 
   return {
-    idFromName: (name) => name.toLowerCase(),
-    get: (id) => ({
-      fetch: async (request) => {
+    idFromName: (name: string) => name.toLowerCase(),
+    get: (id: string) => ({
+      fetch: async (request: Request): Promise<Response> => {
         const url = new URL(request.url);
         const idStr = String(id).toLowerCase();
 
@@ -70,7 +118,7 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
         }
 
         if (request.method === "POST" && url.pathname === "/set-k2") {
-          const { K2 } = await request.json();
+          const { K2 } = (await request.json()) as { K2: string };
           const existing = cardConfigs.get(idStr);
           if (existing) {
             cardConfigs.set(idStr, { ...existing, K2: K2 || null });
@@ -90,27 +138,40 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
           const limit = Number.isFinite(requestedLimit)
             ? Math.max(1, Math.min(requestedLimit, 200))
             : 50;
-          const txs = (transactions.get(idStr) || []).slice().sort((a, b) => b.id - a.id).slice(0, limit);
+          const txs = (transactions.get(idStr) || [])
+            .slice()
+            .sort((a, b) => b.id - a.id)
+            .slice(0, limit);
           return Response.json({ transactions: txs });
         }
 
         if (request.method === "POST" && url.pathname === "/debit") {
-          const { counter, amount, note } = await request.json();
+          const { counter, amount, note } = (await request.json()) as {
+            counter: number;
+            amount: number;
+            note: string;
+          };
           if (!Number.isInteger(amount) || amount <= 0) {
-            return Response.json({ ok: false, reason: "Amount must be a positive integer" }, { status: 400 });
+            return Response.json(
+              { ok: false, reason: "Amount must be a positive integer" },
+              { status: 400 }
+            );
           }
 
           const current = cardStates.get(idStr) || getDefaultState();
           const currentBalance = current.balance ?? 0;
           if (currentBalance < amount) {
-            return Response.json({ ok: false, reason: "Insufficient balance", balance: currentBalance }, { status: 400 });
+            return Response.json(
+              { ok: false, reason: "Insufficient balance", balance: currentBalance },
+              { status: 400 }
+            );
           }
           const newBalance = currentBalance - amount;
           const now = Math.floor(Date.now() / 1000);
           cardStates.set(idStr, { ...current, balance: newBalance });
 
           const existing = transactions.get(idStr) || [];
-          const transaction = {
+          const transaction: Transaction = {
             id: existing.length + 1,
             counter: Number.isInteger(counter) ? counter : null,
             amount: -amount,
@@ -124,9 +185,15 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
         }
 
         if (request.method === "POST" && url.pathname === "/credit") {
-          const { amount, note } = await request.json();
+          const { amount, note } = (await request.json()) as {
+            amount: number;
+            note: string;
+          };
           if (!Number.isInteger(amount) || amount <= 0) {
-            return Response.json({ ok: false, reason: "Amount must be a positive integer" }, { status: 400 });
+            return Response.json(
+              { ok: false, reason: "Amount must be a positive integer" },
+              { status: 400 }
+            );
           }
 
           const current = cardStates.get(idStr) || getDefaultState();
@@ -135,7 +202,7 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
           cardStates.set(idStr, { ...current, balance: newBalance });
 
           const existing = transactions.get(idStr) || [];
-          const transaction = {
+          const transaction: Transaction = {
             id: existing.length + 1,
             counter: null,
             amount,
@@ -151,7 +218,7 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
         if (request.method === "POST" && url.pathname === "/deliver-keys") {
           const current = cardStates.get(idStr) || getDefaultState();
           const now = Math.floor(Date.now() / 1000);
-          const newState = {
+          const newState: CardState = {
             ...current,
             state: "keys_delivered",
             latest_issued_version: current.latest_issued_version + 1,
@@ -167,10 +234,10 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
         }
 
         if (request.method === "POST" && url.pathname === "/activate") {
-          const { active_version } = await request.json();
+          const { active_version } = (await request.json()) as { active_version: number };
           const current = cardStates.get(idStr) || getDefaultState();
           const now = Math.floor(Date.now() / 1000);
-          const newState = {
+          const newState: CardState = {
             ...current,
             state: "active",
             active_version,
@@ -185,7 +252,7 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
         if (request.method === "POST" && url.pathname === "/terminate") {
           const current = cardStates.get(idStr) || getDefaultState();
           const now = Math.floor(Date.now() / 1000);
-          const newState = {
+          const newState: CardState = {
             ...current,
             state: "terminated",
             terminated_at: now,
@@ -193,7 +260,7 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
           };
           cardStates.set(idStr, newState);
           counters.delete(idStr);
-          for (const [key] of taps) {
+          for (const key of [...taps.keys()]) {
             if (key.startsWith(`${idStr}:`)) {
               taps.delete(key);
             }
@@ -215,7 +282,7 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
 
         if (request.method === "POST" && url.pathname === "/reset") {
           counters.delete(idStr);
-          for (const [key] of taps) {
+          for (const key of [...taps.keys()]) {
             if (key.startsWith(`${idStr}:`)) {
               taps.delete(key);
             }
@@ -224,8 +291,8 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
         }
 
         if (request.method === "POST" && url.pathname === "/check") {
-          const { counterValue } = await request.json();
-          const lastCounter = counters.has(idStr) ? counters.get(idStr) : null;
+          const { counterValue } = (await request.json()) as { counterValue: number };
+          const lastCounter = counters.has(idStr) ? counters.get(idStr)! : null;
 
           if (lastCounter !== null && counterValue <= lastCounter) {
             return Response.json(
@@ -243,8 +310,8 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
         }
 
         if (request.method === "POST" && url.pathname === "/check-readonly") {
-          const { counterValue } = await request.json();
-          const lastCounter = counters.has(idStr) ? counters.get(idStr) : null;
+          const { counterValue } = (await request.json()) as { counterValue: number };
+          const lastCounter = counters.has(idStr) ? counters.get(idStr)! : null;
 
           if (lastCounter !== null && counterValue <= lastCounter) {
             return Response.json(
@@ -257,13 +324,15 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
             );
           }
 
-          // read-only check does NOT advance the counter
-          // (the real DO distinguishes readOnly vs non-readonly)
           return Response.json({ accepted: true, lastCounter });
         }
 
         if (request.method === "POST" && url.pathname === "/record-read") {
-          const { counterValue, userAgent, requestUrl } = await request.json();
+          const { counterValue, userAgent, requestUrl } = (await request.json()) as {
+            counterValue: number;
+            userAgent?: string;
+            requestUrl?: string;
+          };
           const tapKey = `${idStr}:${counterValue}`;
           if (!taps.has(tapKey)) {
             const now = Math.floor(Date.now() / 1000);
@@ -283,13 +352,17 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
         }
 
         if (request.method === "POST" && url.pathname === "/record-tap") {
-          const { counterValue, bolt11, amountMsat, userAgent, requestUrl } = await request.json();
-          const lastCounter = counters.has(idStr) ? counters.get(idStr) : null;
+          const { counterValue, bolt11, amountMsat, userAgent, requestUrl } = (await request.json()) as {
+            counterValue: number;
+            bolt11?: string;
+            amountMsat?: number;
+            userAgent?: string;
+            requestUrl?: string;
+          };
+          const lastCounter = counters.has(idStr) ? counters.get(idStr)! : null;
           const tapKey = `${idStr}:${counterValue}`;
           const existingTap = taps.get(tapKey);
 
-          // Allow recording if this is upgrading a "read" entry from Step 1
-          // (Step 1 uses record-read which creates a tap with status="read", no bolt11)
           if (existingTap && existingTap.status === "read" && !existingTap.bolt11) {
             const now = Math.floor(Date.now() / 1000);
             counters.set(idStr, counterValue);
@@ -332,7 +405,11 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
         }
 
         if (request.method === "POST" && url.pathname === "/claim-tap") {
-          const { counter, bolt11, amountMsat } = await request.json();
+          const { counter, bolt11, amountMsat } = (await request.json()) as {
+            counter: number;
+            bolt11?: string;
+            amountMsat?: number;
+          };
           const tapKey = `${idStr}:${counter}`;
           const tap = taps.get(tapKey);
 
@@ -353,7 +430,10 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
           }
 
           if (tap.bolt11) {
-            return Response.json({ claimed: false, reason: "Tap already claimed", bolt11: tap.bolt11 }, { status: 409 });
+            return Response.json(
+              { claimed: false, reason: "Tap already claimed", bolt11: tap.bolt11 },
+              { status: 409 }
+            );
           }
 
           const now = Math.floor(Date.now() / 1000);
@@ -367,7 +447,12 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
         }
 
         if (request.method === "POST" && url.pathname === "/update-tap-status") {
-          const { counter, status, bolt11, amountMsat } = await request.json();
+          const { counter, status, bolt11, amountMsat } = (await request.json()) as {
+            counter: number;
+            status: string;
+            bolt11?: string;
+            amountMsat?: number;
+          };
 
           if (!counter || !status) {
             return Response.json({ error: "Missing counter or status" }, { status: 400 });
@@ -396,24 +481,46 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
         }
 
         if (request.method === "GET" && url.pathname === "/analytics") {
-          let totalMsat = 0, completedMsat = 0, failedMsat = 0, pendingMsat = 0;
-          let totalTaps = 0, completedTaps = 0, failedTaps = 0, pendingTaps = 0;
+          let totalMsat = 0,
+            completedMsat = 0,
+            failedMsat = 0,
+            pendingMsat = 0;
+          let totalTaps = 0,
+            completedTaps = 0,
+            failedTaps = 0,
+            pendingTaps = 0;
           for (const [key, tap] of taps) {
             if (key.startsWith(`${idStr}:`)) {
               totalTaps++;
               const amt = tap.amount_msat || 0;
               totalMsat += amt;
-              if (tap.status === 'completed') { completedTaps++; completedMsat += amt; }
-              else if (tap.status === 'failed') { failedTaps++; failedMsat += amt; }
-              else { pendingTaps++; pendingMsat += amt; }
+              if (tap.status === "completed") {
+                completedTaps++;
+                completedMsat += amt;
+              } else if (tap.status === "failed") {
+                failedTaps++;
+                failedMsat += amt;
+              } else {
+                pendingTaps++;
+                pendingMsat += amt;
+              }
             }
           }
-          return Response.json({ totalMsat, completedMsat, failedMsat, pendingMsat, totalTaps, completedTaps, failedTaps, pendingTaps });
+          return Response.json({
+            totalMsat,
+            completedMsat,
+            failedMsat,
+            pendingMsat,
+            totalTaps,
+            completedTaps,
+            failedTaps,
+            pendingTaps,
+          });
         }
 
         if (request.method === "GET" && url.pathname === "/list-taps") {
           const limit = parseInt(url.searchParams.get("limit") || "50", 10);
-          const tapList = [];
+          const tapList: TapRecord[] = [];
           let count = 0;
 
           for (const [key, tap] of taps) {
@@ -430,10 +537,14 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
         }
 
         if (request.method === "POST" && url.pathname === "/mark-pending") {
-          const { key_provenance, key_fingerprint, key_label } = await request.json();
+          const { key_provenance, key_fingerprint, key_label } = (await request.json()) as {
+            key_provenance?: string;
+            key_fingerprint?: string;
+            key_label?: string;
+          };
           if (cardStates.has(idStr)) {
             return Response.json({
-              state: cardStates.get(idStr).state,
+              state: cardStates.get(idStr)!.state,
               already_exists: true,
             });
           }
@@ -456,12 +567,17 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
         }
 
         if (request.method === "POST" && url.pathname === "/discover") {
-          const { key_provenance, key_fingerprint, key_label, active_version } = await request.json();
+          const { key_provenance, key_fingerprint, key_label, active_version } = (await request.json()) as {
+            key_provenance?: string;
+            key_fingerprint?: string;
+            key_label?: string;
+            active_version?: number;
+          };
           const version = active_version || 1;
           const now = Math.floor(Date.now() / 1000);
 
           if (cardStates.has(idStr)) {
-            const current = cardStates.get(idStr);
+            const current = cardStates.get(idStr)!;
             if (current.state === "pending" || current.state === "legacy" || current.state === "new") {
               cardStates.set(idStr, {
                 ...current,
@@ -472,7 +588,7 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
                 key_label: key_label || current.key_label,
               });
             }
-            return Response.json({ ...cardStates.get(idStr), already_exists: true });
+            return Response.json({ ...cardStates.get(idStr)!, already_exists: true });
           }
 
           cardStates.set(idStr, {
@@ -504,7 +620,7 @@ export const makeReplayNamespace = (initialCounters = {}, initialCards = {}) => 
     __cardStates: cardStates,
     __cardConfigs: cardConfigs,
     __transactions: transactions,
-    __activate(uid, version = 1) {
+    __activate(uid: string, version: number = 1) {
       cardStates.set(uid.toLowerCase(), {
         state: "active",
         latest_issued_version: version,

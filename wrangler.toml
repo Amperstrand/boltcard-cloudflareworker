@@ -1,5 +1,5 @@
 name = "boltcard-poc"
-main = "index.js"
+main = "index.ts"
 compatibility_date = "2025-02-28"
 workers_dev = false
 

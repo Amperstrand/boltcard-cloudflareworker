@@ -1,5 +1,7 @@
 export class DurableObject {
-  constructor(ctx, env) {
+  ctx: any;
+  env: any;
+  constructor(ctx: any, env: any) {
     this.ctx = ctx;
     this.env = env;
   }

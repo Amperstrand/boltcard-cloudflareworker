@@ -17,7 +17,12 @@ export const TEST_OPERATOR_AUTH = {
   },
 };
 
-export function virtualTap(uidHex, counter, k1Hex, k2Hex) {
+interface VirtualTapResult {
+  pHex: string;
+  cHex: string;
+}
+
+export function virtualTap(uidHex: string, counter: number, k1Hex: string, k2Hex: string): VirtualTapResult {
   const k1 = hexToBytes(k1Hex);
   const uid = hexToBytes(uidHex);
   const plaintext = new Uint8Array(16);
@@ -29,13 +34,31 @@ export function virtualTap(uidHex, counter, k1Hex, k2Hex) {
   const aes = new aesjs.ModeOfOperation.ecb(k1);
   const encrypted = aes.encrypt(plaintext);
   const pHex = bytesToHex(new Uint8Array(encrypted));
-  const ctrHex = bytesToHex(new Uint8Array([(counter >> 16) & 0xff, (counter >> 8) & 0xff, counter & 0xff]));
+  const ctrHex = bytesToHex(
+    new Uint8Array([(counter >> 16) & 0xff, (counter >> 8) & 0xff, counter & 0xff])
+  );
   const vd = buildVerificationData(uid, hexToBytes(ctrHex), hexToBytes(k2Hex));
   const cHex = bytesToHex(vd.ct);
   return { pHex, cHex };
 }
 
-export function buildCardTestEnv(options = {}) {
+interface BuildCardTestEnvOptions {
+  uid?: string;
+  issuerKey?: string;
+  paymentMethod?: string;
+  balance?: number;
+  cardState?: string;
+  cardConfig?: Record<string, any> | null;
+  kvData?: string | null;
+  replayInitial?: Record<string, number>;
+  initialCards?: Record<string, number>;
+  operatorAuth?: boolean;
+  exposeKvStore?: boolean;
+  noIssuerKey?: boolean;
+  extraEnv?: Record<string, any>;
+}
+
+export function buildCardTestEnv(options: BuildCardTestEnvOptions = {}): Record<string, any> {
   const {
     uid = DEFAULT_UID,
     issuerKey = DEFAULT_ISSUER_KEY,
@@ -78,13 +101,13 @@ export function buildCardTestEnv(options = {}) {
   }
 
   if (balance > 0 && replay.__cardStates.has(uid.toLowerCase())) {
-    replay.__cardStates.get(uid.toLowerCase()).balance = balance;
+    replay.__cardStates.get(uid.toLowerCase())!.balance = balance;
   }
 
-  const kvStore = {};
+  const kvStore: Record<string, string> = {};
   if (kvData) kvStore[uid] = kvData;
 
-  const env = {};
+  const env: Record<string, any> = {};
 
   if (!noIssuerKey && issuerKey) {
     env.ISSUER_KEY = issuerKey;
@@ -96,8 +119,10 @@ export function buildCardTestEnv(options = {}) {
   }
   env.CARD_REPLAY = replay;
   env.UID_CONFIG = {
-    get: async (key) => kvStore[key] ?? null,
-    put: async (key, val) => { kvStore[key] = val; },
+    get: async (key: string) => kvStore[key] ?? null,
+    put: async (key: string, val: string) => {
+      kvStore[key] = val;
+    },
   };
   if (operatorAuth) {
     Object.assign(env, TEST_OPERATOR_AUTH);
