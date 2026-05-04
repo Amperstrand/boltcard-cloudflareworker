@@ -214,75 +214,77 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 - Run DO tests: `npm run test:do` (Vitest, `@cloudflare/vitest-pool-workers` with real SQLite)
 - Run all: `npm run test:all`
 - Deploy: `npm run deploy` (unit tests → DO tests → build_keys → wrangler deploy)
-- **1285 unit tests** across 69 test suites + **52 DO integration tests** = 1337 total (as of 2026-05-03)
+- **1343 unit tests** across 73 test suites + **52 DO integration tests** = 1395 total (as of 2026-05-04)
+- TypeScript: `tsc --noEmit` passes with `strict: true`, 0 errors (source + tests)
+- Source `: any` count: 151 (down from 318); `// @ts-nocheck` only in `tests/do/cardReplayDO.real.test.ts` and `tests/testHelpers.ts`
 
 ## Test Inventory
 
 | File | Tests | Coverage |
 |------|-------|----------|
-| `tests/cryptoutils.test.js` | AES-CMAC, hex utils, XOR, subkey generation | |
-| `tests/keygenerator.test.js` | Deterministic key derivation | |
-| `tests/bolt11.test.js` | Fake bolt11 invoice generation | |
-| `tests/bolt11Decode.test.js` | BOLT11 full decoder: round-trip, signature recovery, tag parsing, page/API routes | |
-| `tests/otp.test.js` | HOTP/TOTP generation (RFC 4226 vectors) | |
-| `tests/responses.test.js` | All `utils/responses.js` exports | |
-| `tests/validation.test.js` | `validateUid`, `getRequestOrigin` | |
-| `tests/rateLimiter.test.js` | IP-based rate limiting with KV mock | |
-| `tests/boltCardHelper.test.js` | `decodeAndValidate` with virtual tap helper | |
-| `tests/currency.test.js` | `formatAmount`, `parseAmount`, `getCurrencyDecimals` | |
-| `tests/lightningAddress.test.js` | `resolveLightningAddress` with mocked fetch | |
-| `tests/cmacScan.test.js` | `cmacScanVersions` multi-version scan | |
-| `tests/keyLookup.test.js` | `fingerprintHex`, `getPerCardDomains`, `getIssuerKeysForDomain`, `classifyIssuerKey` | |
-| `tests/operatorAuth.test.js` | Session create/verify, PIN check, CSRF | |
-| `tests/logging.test.js` | Structured JSON logger | |
-| `tests/loginHandler.test.js` | NFC login, wipe, terminate, top-up via `/login` | |
-| `tests/getUidConfig.test.js` | Config lookup with DO mock | |
-| `tests/getKeysHandler.test.js` | Key listing handler | |
-| `tests/history.test.js` | Tap/payment history merge and unified history | |
-| `tests/identifyIssuerKey.test.js` | Tap-to-detect issuer key | |
-| `tests/twoFactorHandler.test.js` | TOTP/HOTP code generation | |
-| `tests/validateCardTap.test.js` | Card tap validation (replay, CMAC, state, auto-activate) | |
-| `tests/balanceCheckHandler.test.js` | Balance query with valid/invalid taps | |
-| `tests/analyticsHandler.test.js` | Analytics page + data endpoint | |
-| `tests/menuEditorHandler.test.js` | Menu GET/PUT/Editor with auth | |
-| `tests/receiptHandler.test.js` | Plain-text transaction receipts | |
-| `tests/identifyCardHandler.test.js` | Card identification (config + deterministic match) | |
-| `tests/operatorLoginHandler.test.js` | PIN login, rate limiting, session, logout | |
-| `tests/securityHeaders.test.js` | X-Content-Type-Options, X-Frame-Options, etc. | |
-| `tests/bulkWipe.test.js` | Bulk wipe key candidates | |
-| `tests/operatorFlows.test.js` | Top-up, refund, POS charge (full lifecycle) | |
-| `tests/pos.test.js` | POS page rendering | |
-| `tests/smoke.test.js` | Basic route smoke tests | |
-| `tests/integration.test.js` | LNURLW flow, status, 404 handling | |
-| `tests/templateHelpers.test.js` | Template rendering, error payloads | |
-| `tests/templateIntegrity.test.js` | Page shell consistency | |
-| `tests/responsePatterns.test.js` | Response format consistency | |
-| `tests/debugIdentity.test.js` | Identity verification via debug console | |
-| `tests/lnurlPay.test.js` | LNURL-pay flow with Lightning address | |
-| `tests/lnurlwHandler.test.js` | LNURLW tap processing: fakewallet, clnrest, proxy, lnurlpay, replay, CMAC, card lifecycle, auto-discovery | |
-| `tests/lnurlHandler.test.js` | LNURL callback: fakewallet debit, clnrest (success/error/network), replay, tap status | |
-| `tests/replayProtection.test.js` | All replayProtection.js exports: counter checks, tap recording, card state, config, balance, analytics, markPending, discoverCard | |
-| `tests/proxyHandler.test.js` | Proxy relay: headers, CMAC validation/deferred, POST body, error handling | |
-| `tests/refundTopupPos.test.js` | Refund (full/partial/zero), top-up (amount/MAX), POS charge (balance/items) | |
-| `tests/wipeResetHandler.test.js` | Wipe page, card reset (active/terminated/new/keys_delivered) | |
-| `tests/fetchBoltCardKeys.test.js` | Card provisioning, POS/2FA programming, reset flow | |
-| `tests/activateCardHandler.test.js` | Quick-activate UID, validation, key consistency | |
-| `tests/tapTracking.test.js` | Two-step tap flow: read → callback → completed, tap history | |
-| `tests/e2e/virtual-card.test.js` | Full E2E lifecycle: provision → tap → pay → replay | |
-| `tests/identityHandler.test.js` | Identity verification, profile update, CMAC, enrollment, provenance | |
-| `tests/bulkWipePageHandler.test.js` | Bulk wipe page rendering with key fingerprints | |
-| `tests/withdrawHandler.test.js` | Withdraw response: CMAC-failed, fakewallet/clnrest amounts | |
-| `tests/cardReplayDO.test.js` | DO SQL logic via better-sqlite3 (counter, taps, state, config, balance, analytics, provenance, discovery, set-k2, list-taps merge, record-read, transactions, discover branching) | |
-| `tests/do/cardReplayDO.real.test.js` | DO integration via `@cloudflare/vitest-pool-workers` with real SQLite — full lifecycle, counter, claim-tap, balance, config, provenance, analytics, reset (52 tests) | |
-| `tests/cardDashboardHandler.test.js` | Cardholder dashboard: page rendering, info API (unified history, analytics, payment method), provenance, state handling, self-service lock, NFC/manual input | |
-| `tests/cardIndex.test.js` | KV card registry: indexCard, deindexCard, getIndexedCard, listIndexedCards, edge cases | |
-| `tests/cardAuditHandler.test.js` | Operator audit page: auth redirect, data endpoint, state filtering | |
-| `tests/auditLog.test.js` | Audit log: record events, list sorted, corrupted entries, KV errors | |
-| `tests/cardBatchHandler.test.js` | Batch terminate/wipe/activate: validation, state checks, mixed results | |
-| `tests/e2e/pages.test.js` | Page rendering, security headers, auth flows, redirects, /card/info API | |
-| `tests/statusAndDebugHandler.test.js` | Status handler (KV health, redirect, error), debug page rendering | |
-| `tests/adversarial.test.js` | 42 adversarial tests: open redirect, XSS, query injection, balance overflow, counter replay, state violation | |
-| `tests/worker.test.js` | Worker-level integration: LNURLW flow, proxy, counter, CLN REST | |
+| `tests/cryptoutils.test.ts` | AES-CMAC, hex utils, XOR, subkey generation | |
+| `tests/keygenerator.test.ts` | Deterministic key derivation | |
+| `tests/bolt11.test.ts` | Fake bolt11 invoice generation | |
+| `tests/bolt11Decode.test.ts` | BOLT11 full decoder: round-trip, signature recovery, tag parsing, page/API routes | |
+| `tests/otp.test.ts` | HOTP/TOTP generation (RFC 4226 vectors) | |
+| `tests/responses.test.ts` | All `utils/responses.js` exports | |
+| `tests/validation.test.ts` | `validateUid`, `getRequestOrigin` | |
+| `tests/rateLimiter.test.ts` | IP-based rate limiting with KV mock | |
+| `tests/boltCardHelper.test.ts` | `decodeAndValidate` with virtual tap helper | |
+| `tests/currency.test.ts` | `formatAmount`, `parseAmount`, `getCurrencyDecimals` | |
+| `tests/lightningAddress.test.ts` | `resolveLightningAddress` with mocked fetch | |
+| `tests/cmacScan.test.ts` | `cmacScanVersions` multi-version scan | |
+| `tests/keyLookup.test.ts` | `fingerprintHex`, `getPerCardDomains`, `getIssuerKeysForDomain`, `classifyIssuerKey` | |
+| `tests/operatorAuth.test.ts` | Session create/verify, PIN check, CSRF | |
+| `tests/logging.test.ts` | Structured JSON logger | |
+| `tests/loginHandler.test.ts` | NFC login, wipe, terminate, top-up via `/login` | |
+| `tests/getUidConfig.test.ts` | Config lookup with DO mock | |
+| `tests/getKeysHandler.test.ts` | Key listing handler | |
+| `tests/history.test.ts` | Tap/payment history merge and unified history | |
+| `tests/identifyIssuerKey.test.ts` | Tap-to-detect issuer key | |
+| `tests/twoFactorHandler.test.ts` | TOTP/HOTP code generation | |
+| `tests/validateCardTap.test.ts` | Card tap validation (replay, CMAC, state, auto-activate) | |
+| `tests/balanceCheckHandler.test.ts` | Balance query with valid/invalid taps | |
+| `tests/analyticsHandler.test.ts` | Analytics page + data endpoint | |
+| `tests/menuEditorHandler.test.ts` | Menu GET/PUT/Editor with auth | |
+| `tests/receiptHandler.test.ts` | Plain-text transaction receipts | |
+| `tests/identifyCardHandler.test.ts` | Card identification (config + deterministic match) | |
+| `tests/operatorLoginHandler.test.ts` | PIN login, rate limiting, session, logout | |
+| `tests/securityHeaders.test.ts` | X-Content-Type-Options, X-Frame-Options, etc. | |
+| `tests/bulkWipe.test.ts` | Bulk wipe key candidates | |
+| `tests/operatorFlows.test.ts` | Top-up, refund, POS charge (full lifecycle) | |
+| `tests/pos.test.ts` | POS page rendering | |
+| `tests/smoke.test.ts` | Basic route smoke tests | |
+| `tests/integration.test.ts` | LNURLW flow, status, 404 handling | |
+| `tests/templateHelpers.test.ts` | Template rendering, error payloads | |
+| `tests/templateIntegrity.test.ts` | Page shell consistency | |
+| `tests/responsePatterns.test.ts` | Response format consistency | |
+| `tests/debugIdentity.test.ts` | Identity verification via debug console | |
+| `tests/lnurlPay.test.ts` | LNURL-pay flow with Lightning address | |
+| `tests/lnurlwHandler.test.ts` | LNURLW tap processing: fakewallet, clnrest, proxy, lnurlpay, replay, CMAC, card lifecycle, auto-discovery | |
+| `tests/lnurlHandler.test.ts` | LNURL callback: fakewallet debit, clnrest (success/error/network), replay, tap status | |
+| `tests/replayProtection.test.ts` | All replayProtection.js exports: counter checks, tap recording, card state, config, balance, analytics, markPending, discoverCard | |
+| `tests/proxyHandler.test.ts` | Proxy relay: headers, CMAC validation/deferred, POST body, error handling | |
+| `tests/refundTopupPos.test.ts` | Refund (full/partial/zero), top-up (amount/MAX), POS charge (balance/items) | |
+| `tests/wipeResetHandler.test.ts` | Wipe page, card reset (active/terminated/new/keys_delivered) | |
+| `tests/fetchBoltCardKeys.test.ts` | Card provisioning, POS/2FA programming, reset flow | |
+| `tests/activateCardHandler.test.ts` | Quick-activate UID, validation, key consistency | |
+| `tests/tapTracking.test.ts` | Two-step tap flow: read → callback → completed, tap history | |
+| `tests/e2e/virtual-card.test.ts` | Full E2E lifecycle: provision → tap → pay → replay | |
+| `tests/identityHandler.test.ts` | Identity verification, profile update, CMAC, enrollment, provenance | |
+| `tests/bulkWipePageHandler.test.ts` | Bulk wipe page rendering with key fingerprints | |
+| `tests/withdrawHandler.test.ts` | Withdraw response: CMAC-failed, fakewallet/clnrest amounts | |
+| `tests/cardReplayDO.test.ts` | DO SQL logic via better-sqlite3 (counter, taps, state, config, balance, analytics, provenance, discovery, set-k2, list-taps merge, record-read, transactions, discover branching) | |
+| `tests/do/cardReplayDO.real.test.ts` | DO integration via `@cloudflare/vitest-pool-workers` with real SQLite — full lifecycle, counter, claim-tap, balance, config, provenance, analytics, reset (52 tests) | |
+| `tests/cardDashboardHandler.test.ts` | Cardholder dashboard: page rendering, info API (unified history, analytics, payment method), provenance, state handling, self-service lock, NFC/manual input | |
+| `tests/cardIndex.test.ts` | KV card registry: indexCard, deindexCard, getIndexedCard, listIndexedCards, edge cases | |
+| `tests/cardAuditHandler.test.ts` | Operator audit page: auth redirect, data endpoint, state filtering | |
+| `tests/auditLog.test.ts` | Audit log: record events, list sorted, corrupted entries, KV errors | |
+| `tests/cardBatchHandler.test.ts` | Batch terminate/wipe/activate: validation, state checks, mixed results | |
+| `tests/e2e/pages.test.ts` | Page rendering, security headers, auth flows, redirects, /card/info API | |
+| `tests/statusAndDebugHandler.test.ts` | Status handler (KV health, redirect, error), debug page rendering | |
+| `tests/adversarial.test.ts` | 42 adversarial tests: open redirect, XSS, query injection, balance overflow, counter replay, state violation | |
+| `tests/worker.test.ts` | Worker-level integration: LNURLW flow, proxy, counter, CLN REST | |
 
 ## Next Steps
 
@@ -291,7 +293,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | Task | Priority | Notes |
 |------|----------|-------|
 | Dead exports cleanup | Done | Prefixed with `_`: `_deindexCard`, `_getIndexedCard`, `_listAuditEvents`, `_mergeHistory` |
-| Missing handler tests | Medium | `debugHandler.js`, `statusHandler.js`, `posHandler.js` lack dedicated test files (partially covered by `smoke.test.js`, `pos.test.js`, `e2e/pages.test.js`) |
+| Missing handler tests | Medium | `debugHandler.js`, `statusHandler.js`, `posHandler.js` lack dedicated test files (partially covered by `smoke.test.ts`, `pos.test.ts`, `e2e/pages.test.ts`) |
 | Deduplicate `VERSION_SCAN_RANGE` | Done | Already imported from `utils/constants.js` in all consumers |
 | Extract `MAX_CANDIDATES` to constants | Done | Already `MAX_ISSUER_CANDIDATES` in `utils/constants.js` |
 | Extract KV list limits to constants | Done | `KV_LIST_LIMIT`, `CARD_AUDIT_DEFAULT_LIMIT`, `CARD_AUDIT_MAX_LIMIT`, `AUDIT_LIST_DEFAULT_LIMIT` in `utils/constants.js` |
