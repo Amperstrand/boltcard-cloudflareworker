@@ -1,6 +1,6 @@
 import { SafeHtml, escapeHtml } from "./escapeHtml.js";
 
-export function rawHtml(strings, ...values) {
+export function rawHtml(strings: TemplateStringsArray, ...values: unknown[]): string {
   let result = "";
   for (let i = 0; i < strings.raw.length; i++) {
     result += strings.raw[i]

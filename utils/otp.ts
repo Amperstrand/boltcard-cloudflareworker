@@ -2,7 +2,12 @@ import { computeAesCmac, hexToBytes } from "../cryptoutils.js";
 import { hmac } from "@noble/hashes/hmac.js";
 import { sha1 } from "@noble/hashes/legacy.js";
 
-export function deriveOtpSecret(env, uidHex, domainTag) {
+interface EnvLike {
+  ISSUER_KEY?: string;
+  WORKER_ENV?: string;
+}
+
+export function deriveOtpSecret(env: EnvLike | undefined, uidHex: string, domainTag: string): Uint8Array {
   if (!env?.ISSUER_KEY) {
     if (env?.WORKER_ENV === "production") {
       throw new Error("ISSUER_KEY must be set in production");
@@ -15,11 +20,11 @@ export function deriveOtpSecret(env, uidHex, domainTag) {
   return computeAesCmac(message, issuerKey);
 }
 
-function hmacSha1(keyBytes, messageBytes) {
+function hmacSha1(keyBytes: Uint8Array, messageBytes: Uint8Array): Uint8Array {
   return hmac(sha1, keyBytes, messageBytes);
 }
 
-function dynamicTruncation(hmacResult) {
+function dynamicTruncation(hmacResult: Uint8Array): number {
   const offset = hmacResult[hmacResult.length - 1] & 0x0f;
   return (
     ((hmacResult[offset] & 0x7f) << 24) |
@@ -29,7 +34,7 @@ function dynamicTruncation(hmacResult) {
   );
 }
 
-export function generateHOTP(secretBytes, counter, digits = 6) {
+export function generateHOTP(secretBytes: Uint8Array, counter: number, digits: number = 6): string {
   const counterBytes = new Uint8Array(8);
   new DataView(counterBytes.buffer).setBigUint64(0, BigInt(counter), false);
   const hmacResult = hmacSha1(secretBytes, counterBytes);
@@ -37,7 +42,7 @@ export function generateHOTP(secretBytes, counter, digits = 6) {
   return code.toString().padStart(digits, "0");
 }
 
-export function generateTOTP(secretBytes, timeStep = 30, digits = 6) {
+export function generateTOTP(secretBytes: Uint8Array, timeStep: number = 30, digits: number = 6): { code: string; secondsRemaining: number; counter: number } {
   const nowSec = Math.floor(Date.now() / 1000);
   const counter = Math.floor(nowSec / timeStep);
   const code = generateHOTP(secretBytes, counter, digits);

@@ -1,10 +1,10 @@
-/**
- * Centralized logging utility for boltcard Cloudflare Worker
- * Provides consistent logging and error handling across the application
- */
+type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'trace';
 
 class Logger {
-  constructor(level = 'info') {
+  levels: Record<LogLevel, number>;
+  currentLevel: number;
+
+  constructor(level: LogLevel = 'info') {
     this.levels = {
       error: 0,
       warn: 1,
@@ -15,47 +15,47 @@ class Logger {
     this.currentLevel = this.levels[level] || this.levels.info;
   }
 
-  setLevel(level) {
-    if (this.levels.hasOwnProperty(level)) {
+  setLevel(level: LogLevel) {
+    if (level in this.levels) {
       this.currentLevel = this.levels[level];
     }
   }
 
-  shouldLog(level) {
+  shouldLog(level: LogLevel) {
     return this.levels[level] <= this.currentLevel;
   }
 
-  formatMessage(level, message, context = {}) {
+  formatMessage(level: LogLevel, message: string, context: Record<string, unknown> = {}) {
     const timestamp = new Date().toISOString();
     const contextStr = Object.keys(context).length > 0 ? ` | ${JSON.stringify(context)}` : '';
     return `[${timestamp}] [${level.toUpperCase()}] ${message}${contextStr}`;
   }
 
-  error(message, context = {}) {
+  error(message: string, context: Record<string, unknown> = {}) {
     if (this.shouldLog('error')) {
       console.error(this.formatMessage('error', message, context));
     }
   }
 
-  warn(message, context = {}) {
+  warn(message: string, context: Record<string, unknown> = {}) {
     if (this.shouldLog('warn')) {
       console.warn(this.formatMessage('warn', message, context));
     }
   }
 
-  info(message, context = {}) {
+  info(message: string, context: Record<string, unknown> = {}) {
     if (this.shouldLog('info')) {
       console.log(this.formatMessage('info', message, context));
     }
   }
 
-  debug(message, context = {}) {
+  debug(message: string, context: Record<string, unknown> = {}) {
     if (this.shouldLog('debug')) {
       console.log(this.formatMessage('debug', message, context));
     }
   }
 
-  trace(message, context = {}) {
+  trace(message: string, context: Record<string, unknown> = {}) {
     if (this.shouldLog('trace')) {
       console.log(this.formatMessage('trace', message, context));
     }

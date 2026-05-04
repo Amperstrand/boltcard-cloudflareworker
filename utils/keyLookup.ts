@@ -3,26 +3,52 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "../cryptoutils.js";
 import { KEY_PROVENANCE } from "./constants.js";
 
-const PERCARD_MAP = new Map(PERCARD_KEYS.map((entry) => [entry.uid, entry]));
+interface EnvLike {
+  ISSUER_KEY?: string;
+  RECOVERY_ISSUER_KEYS?: string;
+}
 
-const PUBLIC_KEY_SET = new Set();
+interface KeyCandidate {
+  hex: string;
+  label: string;
+}
+
+interface PerCardEntry {
+  uid: string;
+  k0?: string;
+  k1: string;
+  k2: string;
+  k3?: string;
+  k4?: string;
+  card_name?: string;
+}
+
+interface ClassifyResult {
+  provenance: string;
+  label: string | null;
+  fingerprint: string | null;
+}
+
+const PERCARD_MAP = new Map<string, PerCardEntry>(PERCARD_KEYS.map((entry) => [entry.uid, entry]));
+
+const PUBLIC_KEY_SET = new Set<string>();
 for (const domain of Object.keys(ISSUER_KEYS_BY_DOMAIN)) {
   for (const key of ISSUER_KEYS_BY_DOMAIN[domain]) {
     PUBLIC_KEY_SET.add(key.hex.toLowerCase());
   }
 }
 
-export function _getIssuerKeysForDomain(domain) {
+export function _getIssuerKeysForDomain(domain: string): KeyCandidate[] {
   const domainKeys = ISSUER_KEYS_BY_DOMAIN[domain] || [];
   const defaultKeys = ISSUER_KEYS_BY_DOMAIN["_default"] || [];
   return [...domainKeys, ...defaultKeys];
 }
 
-export function getAllIssuerKeyCandidates(env) {
-  const seen = new Set();
-  const result = [];
+export function getAllIssuerKeyCandidates(env: EnvLike | undefined): KeyCandidate[] {
+  const seen = new Set<string>();
+  const result: KeyCandidate[] = [];
 
-  const add = (hex, label) => {
+  const add = (hex: string, label: string) => {
     const lower = hex.toLowerCase();
     if (!seen.has(lower)) {
       seen.add(lower);
@@ -48,17 +74,17 @@ export function getAllIssuerKeyCandidates(env) {
   return result;
 }
 
-export function getPerCardKeys(uidHex) {
+export function getPerCardKeys(uidHex: string): PerCardEntry | null {
   return PERCARD_MAP.get(uidHex.toLowerCase()) || null;
 }
 
-export function _getPerCardDomains() {
-  return [...new Set(PERCARD_KEYS.map((e) => e.card_name).filter(Boolean))];
+export function _getPerCardDomains(): string[] {
+  return [...new Set(PERCARD_KEYS.map((e) => e.card_name).filter(Boolean))] as string[];
 }
 
-export function getUniquePerCardK1s() {
-  const seen = new Set();
-  const result = [];
+export function getUniquePerCardK1s(): PerCardEntry[] {
+  const seen = new Set<string>();
+  const result: PerCardEntry[] = [];
   for (const entry of PERCARD_KEYS) {
     if (entry.k1 && !seen.has(entry.k1.toLowerCase())) {
       seen.add(entry.k1.toLowerCase());
@@ -68,12 +94,12 @@ export function getUniquePerCardK1s() {
   return result;
 }
 
-export function fingerprintHex(hex) {
+export function fingerprintHex(hex: string): string {
   const data = new TextEncoder().encode(hex.toLowerCase());
   return bytesToHex(sha256(data)).slice(0, 16);
 }
 
-export function classifyIssuerKey(env, issuerKeyHex) {
+export function classifyIssuerKey(env: EnvLike | undefined, issuerKeyHex: string | undefined): ClassifyResult {
   if (!issuerKeyHex) {
     return { provenance: KEY_PROVENANCE.UNKNOWN, label: null, fingerprint: null };
   }
@@ -107,7 +133,7 @@ export function classifyIssuerKey(env, issuerKeyHex) {
   };
 }
 
-function findPublicKeyLabel(hex) {
+function findPublicKeyLabel(hex: string): string | null {
   for (const domain of Object.keys(ISSUER_KEYS_BY_DOMAIN)) {
     for (const key of ISSUER_KEYS_BY_DOMAIN[domain]) {
       if (key.hex.toLowerCase() === hex) {

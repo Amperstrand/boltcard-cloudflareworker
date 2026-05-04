@@ -1,19 +1,24 @@
 const DEFAULT_LABEL = "credits";
 const DEFAULT_DECIMALS = 0;
 
-export function getCurrencyLabel(env) {
+interface EnvLike {
+  CURRENCY_LABEL?: string;
+  CURRENCY_DECIMALS?: string | number;
+}
+
+export function getCurrencyLabel(env: EnvLike): string {
   return env.CURRENCY_LABEL || DEFAULT_LABEL;
 }
 
-export function getCurrencyDecimals(env) {
+export function getCurrencyDecimals(env: EnvLike): number {
   const raw = env.CURRENCY_DECIMALS;
   if (raw === undefined || raw === null || raw === "") return DEFAULT_DECIMALS;
-  const n = parseInt(raw, 10);
+  const n = parseInt(String(raw), 10);
   if (!Number.isFinite(n) || n < 0) return DEFAULT_DECIMALS;
   return Math.min(n, 6);
 }
 
-export function formatAmount(raw, env) {
+export function formatAmount(raw: number | string, env: EnvLike): string {
   const decimals = getCurrencyDecimals(env);
   const label = getCurrencyLabel(env);
   const value = typeof raw === "number" ? raw : parseInt(raw, 10);
@@ -27,7 +32,7 @@ export function formatAmount(raw, env) {
   return `${formatted} ${label}`;
 }
 
-export function _parseAmount(input, env) {
+export function _parseAmount(input: unknown, env: EnvLike): number | null {
   if (input === undefined || input === null) return null;
   const decimals = getCurrencyDecimals(env);
   const str = String(input).trim();

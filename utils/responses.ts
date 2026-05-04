@@ -1,11 +1,19 @@
-export function jsonResponse(data, status = 200) {
+interface BoltCardKeys {
+  k0: string;
+  k1: string;
+  k2: string;
+  k3: string;
+  k4: string;
+}
+
+export function jsonResponse(data: unknown, status: number = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: { "Content-Type": "application/json" },
   });
 }
 
-export function _buildErrorPayload(reason, extra = {}) {
+export function _buildErrorPayload(reason: unknown, extra: Record<string, unknown> = {}): Record<string, unknown> {
   const message = reason instanceof Error ? reason.message : String(reason);
   return {
     status: "ERROR",
@@ -16,18 +24,18 @@ export function _buildErrorPayload(reason, extra = {}) {
   };
 }
 
-export function errorResponse(reason, status = 400, extra = {}) {
+export function errorResponse(reason: unknown, status: number = 400, extra: Record<string, unknown> = {}): Response {
   return jsonResponse(_buildErrorPayload(reason, extra), status);
 }
 
-export function htmlResponse(html, status = 200) {
+export function htmlResponse(html: string, status: number = 200): Response {
   return new Response(html, {
     status,
     headers: { "Content-Type": "text/html" },
   });
 }
 
-export function buildBoltCardResponse(keys, uid, host, version = 1) {
+export function buildBoltCardResponse(keys: BoltCardKeys, uid: string, host: string, version: number = 1): Record<string, unknown> {
   const hostPart = host.replace(/^https?:\/\//, "") + "/";
   return {
     CARD_NAME: `UID ${uid.toUpperCase()}`,
@@ -51,7 +59,7 @@ export function buildBoltCardResponse(keys, uid, host, version = 1) {
   };
 }
 
-export async function parseJsonBody(request) {
+export async function parseJsonBody(request: Request): Promise<any> {
   try {
     return await request.json();
   } catch {
@@ -59,10 +67,10 @@ export async function parseJsonBody(request) {
   }
 }
 
-export function buildResetDeeplink(endpointUrl) {
+export function buildResetDeeplink(endpointUrl: string): string {
   return `boltcard://reset?url=${encodeURIComponent(endpointUrl)}`;
 }
 
-export function redirect(url, status = 302) {
+export function redirect(url: string, status: number = 302): Response {
   return new Response(null, { status, headers: { Location: url } });
 }
