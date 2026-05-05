@@ -83,6 +83,6 @@ export async function handleProxy(request: Request, uidHex: string, pHex: string
 
   } catch (error: unknown) {
     logger.error("Error fetching from proxy", { uidHex, error: getErrorMessage(error) });
-    return errorResponse("Proxy error", 500);
+    return errorResponse("Internal error", 500);
   }
 }

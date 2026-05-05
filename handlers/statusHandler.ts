@@ -1,7 +1,7 @@
 import { logger } from "../utils/logger.js";
 import { getErrorMessage } from "../utils/logger.js";
 import type { Env } from "../types/core.js";
-import { jsonResponse, redirect } from "../utils/responses.js";
+import { errorResponse, jsonResponse, redirect } from "../utils/responses.js";
 
 export async function handleStatus(request: Request, env: Env): Promise<Response> {
   if (env?.UID_CONFIG) {
@@ -17,11 +17,7 @@ export async function handleStatus(request: Request, env: Env): Promise<Response
       });
     } catch (error: unknown) {
       logger.error('KV health check error', { error: getErrorMessage(error) });
-      return jsonResponse({
-        status: 'ERROR',
-        kv_status: 'error',
-        error: 'KV health check failed'
-      });
+      return errorResponse('KV health check failed', 200, { kv_status: 'error' });
     }
   }
 

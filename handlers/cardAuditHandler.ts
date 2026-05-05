@@ -1,4 +1,4 @@
-import { htmlResponse, jsonResponse } from "../utils/responses.js";
+import { errorResponse, htmlResponse, jsonResponse } from "../utils/responses.js";
 import { getErrorMessage } from "../utils/logger.js";
 import type { Env } from "../types/core.js";
 import { listIndexedCards, repairCardIndex } from "../utils/cardIndex.js";
@@ -29,7 +29,7 @@ export async function handleCardAuditData(request: Request, env: Env): Promise<R
     return jsonResponse(result);
   } catch (err: unknown) {
     logger.error("Card audit data fetch failed", { error: getErrorMessage(err) });
-    return jsonResponse({ error: "Failed to fetch card data", cards: [], total: 0 }, 500);
+    return errorResponse("Failed to fetch card data", 500, { cards: [], total: 0 });
   }
 }
 
@@ -43,6 +43,6 @@ export async function handleIndexRepair(request: Request, env: Env): Promise<Res
     return jsonResponse(result);
   } catch (err: unknown) {
     logger.error("Card index repair failed", { error: getErrorMessage(err) });
-    return jsonResponse({ error: "Index repair failed", scanned: 0, repaired: 0, errors: [] }, 500);
+    return errorResponse("Index repair failed", 500, { scanned: 0, repaired: 0, errors: [] });
   }
 }

@@ -6,7 +6,7 @@ export function escapeHtml(str: unknown): string {
 }
 
 export class SafeHtml {
-  html: string;
+  readonly html: string;
   constructor(html: string) {
     this.html = html;
   }

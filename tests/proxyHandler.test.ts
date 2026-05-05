@@ -76,7 +76,7 @@ describe("handleProxy", () => {
     const res = await handleProxy(req, UID, "p", "c", "https://backend.example.com/tap", {});
     expect(res.status).toBe(500);
     const body = await res.json() as Record<string, unknown>;
-    expect(body.reason).toContain("Proxy error");
+    expect(body.reason).toContain("Internal error");
   });
 
   it("passes through non-200 status from backend", async () => {

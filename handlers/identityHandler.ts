@@ -45,6 +45,7 @@ function parseIdentityRecord(kvRaw: string | null): IdentityEnrollment {
       return { enrolled: true, record: parsed };
     }
   } catch {
+    logger.warn("Failed to parse identity enrollment record", { error: "invalid JSON" });
   }
 
   return { enrolled: true, record: {} };

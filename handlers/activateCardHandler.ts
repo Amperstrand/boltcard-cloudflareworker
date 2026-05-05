@@ -33,7 +33,7 @@ export async function handleActivateCardSubmit(request: Request, env: Env): Prom
     await resetReplayProtection(env, uid);
   } catch (error: unknown) {
     logger.error("Error resetting replay protection during activation", { uid, error: getErrorMessage(error) });
-    return errorResponse("Server error", 500);
+    return errorResponse("Internal error", 500);
   }
 
   const config: { K2: string; payment_method: string } = {
