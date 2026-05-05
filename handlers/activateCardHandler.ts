@@ -33,8 +33,8 @@ export async function handleActivateCardSubmit(request: Request, env: Env): Prom
     logger.error("Error resetting replay protection during activation", { uid, error: getErrorMessage(error) });
     return errorResponse("Server error", 500);
   }
-  
-  const config: Record<string, any> = {
+
+  const config: { K2: string; payment_method: string } = {
     K2: keys.k2,
     payment_method: PAYMENT_METHOD.FAKEWALLET
   };

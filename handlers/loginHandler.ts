@@ -94,6 +94,7 @@ export async function handleLoginVerify(request: Request, env: Env): Promise<Res
 
     const uidHex: string = result.uidHex;
     const counterValue: number = parseInt(result.ctr, 16);
+    if (!Number.isFinite(counterValue)) return errorResponse("Invalid counter value", 400);
 
     const config = await getUidConfig(uidHex, env) as CardConfig | null;
     const pm: string = config?.payment_method || "unknown";

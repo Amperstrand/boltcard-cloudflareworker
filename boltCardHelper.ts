@@ -5,7 +5,7 @@ import {
   verifyCmac
 } from "./cryptoutils.js";
 import { getBoltCardK1 } from "./getUidConfig.js";
-import { logger } from "./utils/logger.js";
+import { logger, getErrorMessage } from "./utils/logger.js";
 import type { Env } from "./types/core.js";
 
 interface ExtractSuccess {
@@ -28,11 +28,11 @@ export function extractUIDAndCounter(pHex: string, env: Env): ExtractResult {
     return { error: "Failed to parse BOLT_CARD_K1." } as ExtractFailure;
   }
 
-  let result: any;
+  let result: ReturnType<typeof decryptP>;
   try {
     result = decryptP(pHex, k1Keys);
-  } catch (error: any) {
-    return { error: error.message } as ExtractFailure;
+  } catch (error: unknown) {
+    return { error: getErrorMessage(error) } as ExtractFailure;
   }
 
   if (!result.success) {

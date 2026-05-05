@@ -50,6 +50,7 @@ export async function resolveCardIdentity(
 
   const { uidHex, ctr } = decryption;
   const counterValue = parseInt(ctr, 16);
+  if (!Number.isFinite(counterValue)) return { ok: false, status: 400, error: "Invalid counter value" };
 
   let cardState: CardStateRow | null = null;
   if (requireState) {

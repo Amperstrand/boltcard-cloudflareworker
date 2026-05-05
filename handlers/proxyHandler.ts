@@ -27,7 +27,7 @@ function filterHeaders(headers: Headers, allowList: string[]): Headers {
   return filtered;
 }
 
-export async function handleProxy(request: Request, uidHex: string, pHex: string, cHex: string, baseurl: string, verification: Record<string, any> = {}): Promise<Response> {
+export async function handleProxy(request: Request, uidHex: string, pHex: string, cHex: string, baseurl: string, verification: { cmacValidated?: boolean; validationDeferred?: boolean } = {}): Promise<Response> {
   const targetUrl = new URL(baseurl);
   targetUrl.searchParams.append('p', pHex);
   targetUrl.searchParams.append('c', cHex);

@@ -29,6 +29,7 @@ export async function handleIdentifyCard(request: Request, env: Env): Promise<Re
   const uidBytes = hexToBytes(uidHex);
   const ctrBytes = hexToBytes(ctr);
   const counterValue = parseInt(ctr, 16);
+  if (!Number.isFinite(counterValue)) return errorResponse("Invalid counter value", 400);
 
   let cardState: CardStateRow | null = null;
   try {

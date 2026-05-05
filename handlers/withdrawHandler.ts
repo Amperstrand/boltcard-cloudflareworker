@@ -29,7 +29,9 @@ export const constructWithdrawResponse = (
     };
   }
 
-  const counterValue = parseInt(ctr, 16);
+  const rawCounter = parseInt(ctr, 16);
+  if (!Number.isFinite(rawCounter)) return { status: "ERROR", reason: "Invalid counter value" };
+  const counterValue = rawCounter;
   const host = baseUrl || DEFAULT_FALLBACK_HOST;
   const minWithdrawable = paymentMethod === PAYMENT_METHOD.FAKEWALLET ? 1 : WITHDRAW_MIN_MSAT;
   const maxWithdrawable = paymentMethod === PAYMENT_METHOD.FAKEWALLET ? WITHDRAW_MAX_MSAT_FAKWALLET : WITHDRAW_MIN_MSAT;

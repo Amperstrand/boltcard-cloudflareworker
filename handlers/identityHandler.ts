@@ -14,16 +14,22 @@ const IDENTITY_EMOJI_OPTIONS: string[] = ["👤", "😀", "😎", "🤖", "🧠"
 const IDENTITY_DEPARTMENTS: string[] = ["Engineering", "Security", "Operations", "Command"];
 const IDENTITY_ROLES: string[] = ["Administrator", "Specialist", "Technician", "Director"];
 
+interface IdentityRecord {
+  identity_profile?: {
+    emoji?: string;
+  };
+}
+
 interface IdentityEnrollment {
   enrolled: boolean;
-  record: Record<string, any> | null;
+  record: IdentityRecord | null;
 }
 
 interface IdentityContext {
   uidHex: string;
   ctr: string;
   counterValue: number;
-  record: Record<string, any>;
+  record: IdentityRecord;
   response?: Response;
 }
 
@@ -43,7 +49,7 @@ function parseIdentityRecord(kvRaw: string | null): IdentityEnrollment {
   return { enrolled: true, record: {} };
 }
 
-function buildIdentityProfile(uidHex: string, record: Record<string, any> = {}): Record<string, any> {
+function buildIdentityProfile(uidHex: string, record: IdentityRecord = {}): Record<string, unknown> {
   const hex = (uidHex || "00000000").padEnd(8, "0");
   const p0 = parseInt(hex.substring(0, 2), 16) || 0;
   const p1 = parseInt(hex.substring(2, 4), 16) || 0;
