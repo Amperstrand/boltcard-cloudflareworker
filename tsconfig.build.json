@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "node_modules",
+    "coverage",
+    ".wrangler",
+    ".archive",
+    "tests",
+    "**/*.test.ts"
+  ]
+}

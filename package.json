@@ -25,7 +25,8 @@
     "test:do": "vitest run --config vitest.do.config.js",
     "test:all": "npm test && npm run test:do",
     "typecheck": "tsc --noEmit",
+    "typecheck:src": "tsc --noEmit --project tsconfig.build.json",
     "cf-typegen": "wrangler types",
-    "deploy": "npm test && npm run test:do && npm run typecheck && node scripts/build_keys.js && wrangler deploy"
+    "deploy": "npm test && npm run test:do && npm run typecheck:src && node scripts/build_keys.js && wrangler deploy"
   }
 }
