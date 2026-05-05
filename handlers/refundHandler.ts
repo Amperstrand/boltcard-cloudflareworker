@@ -72,7 +72,7 @@ export async function handleRefundApply(request: Request, env: Env, session: Ses
       return errorResponse(result.reason || "Refund failed", 500);
     }
 
-    const newBalance: number = result.balance!;
+    const newBalance: number = result.balance ?? 0;
     logger.info("Refund successful", { uidHex: tap.uidHex, amount: refundAmount, newBalance, shiftId, fullRefund });
     await recordAuditEvent(env, { action: "refund", uidHex: tap.uidHex, operatorShiftId: shiftId, details: { amount: refundAmount, balance: newBalance, fullRefund } });
 

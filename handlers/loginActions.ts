@@ -73,7 +73,10 @@ export async function handleRequestWipeAction(rawUid: string, env: Env, request:
     }
 
     const version: number = resolveActiveVersion(cardState);
-    const keys: { k0: string; k1: string; k2: string; k3: string; k4: string; cardKey: string } = deriveKeysFromHex(uidHex, env.ISSUER_KEY!, version);
+    if (!env.ISSUER_KEY) {
+      return errorResponse("Not configured: missing issuer key", 500);
+    }
+    const keys: { k0: string; k1: string; k2: string; k3: string; k4: string; cardKey: string } = deriveKeysFromHex(uidHex, env.ISSUER_KEY, version);
 
     await requestWipe(env, uidHex);
 

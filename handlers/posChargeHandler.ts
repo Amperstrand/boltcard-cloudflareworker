@@ -15,7 +15,7 @@ export async function handlePosCharge(request: Request, env: Env, session: Sessi
   const pHex = body.p as string | undefined;
   const cHex = body.c as string | undefined;
   const amount = body.amount;
-  const items: Array<Record<string, unknown>> | null = (body.items as Array<Record<string, unknown>> | undefined) || null;
+  const items: Array<Record<string, unknown>> | null = Array.isArray(body.items) ? body.items : null;
   const terminalId: string = (body.terminalId as string) || "unknown";
 
   const parsedAmount: number = parseInt(String(amount), 10);
@@ -42,7 +42,7 @@ export async function handlePosCharge(request: Request, env: Env, session: Sessi
       return errorResponse(result.reason || "Debit failed", status, extra);
     }
 
-    const newBalance: number = result.balance!;
+    const newBalance: number = result.balance ?? 0;
     logger.info("POS charge successful", { uidHex: tap.uidHex, amount: parsedAmount, newBalance, shiftId, terminalId });
     await recordAuditEvent(env, { action: "pos_charge", uidHex: tap.uidHex, operatorShiftId: shiftId, details: { amount: parsedAmount, balance: newBalance, terminalId } });
 

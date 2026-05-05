@@ -21,7 +21,7 @@ export async function handleCardAuditData(request: Request, env: Env): Promise<R
   const url = new URL(request.url);
   const state: string | undefined = url.searchParams.get("state") || undefined;
   const rawLimit: number = parseInt(url.searchParams.get("limit") || String(CARD_AUDIT_DEFAULT_LIMIT), 10);
-  const limit: number = Math.max(1, Math.min(rawLimit, CARD_AUDIT_MAX_LIMIT));
+  const limit: number = Number.isFinite(rawLimit) ? Math.max(1, Math.min(rawLimit, CARD_AUDIT_MAX_LIMIT)) : CARD_AUDIT_DEFAULT_LIMIT;
   const cursor: string | undefined = url.searchParams.get("cursor") || undefined;
 
   try {

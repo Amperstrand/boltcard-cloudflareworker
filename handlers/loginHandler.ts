@@ -188,11 +188,14 @@ async function handleUidOnlyLogin(rawUid: string, env: Env, request: Request): P
 
   let keyVersion: number = 1;
   let keys: ReturnType<typeof deriveKeysFromHex>;
+  if (!env.ISSUER_KEY) {
+    return errorResponse("Not configured: missing issuer key", 500);
+  }
   if (hasDoConfig && cardState?.active_version) {
     keyVersion = cardState.active_version;
-    keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY!, keyVersion);
+    keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY, keyVersion);
   } else {
-    keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY!, 1);
+    keys = deriveKeysFromHex(uidHex, env.ISSUER_KEY, 1);
   }
 
   const ndefUrl: null = null;

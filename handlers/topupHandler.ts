@@ -48,7 +48,7 @@ export async function handleTopupApply(request: Request, env: Env, session: Sess
       return errorResponse(result.reason || "Credit failed", 500);
     }
 
-    const newBalance: number = result.balance!;
+    const newBalance: number = result.balance ?? 0;
 
     logger.info("Top-up successful", { uidHex: tap.uidHex, amount: parsedAmount, newBalance, shiftId });
     await recordAuditEvent(env, { action: "topup", uidHex: tap.uidHex, operatorShiftId: shiftId, details: { amount: parsedAmount, balance: newBalance } });
