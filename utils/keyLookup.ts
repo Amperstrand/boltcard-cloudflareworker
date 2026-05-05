@@ -1,16 +1,8 @@
 import { ISSUER_KEYS_BY_DOMAIN, PERCARD_KEYS } from "./generatedKeyData.js";
-import type { Env } from "../types/core.js";
+import type { Env, KeyCandidate } from "../types/core.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "../cryptoutils.js";
 import { KEY_PROVENANCE } from "./constants.js";
-
-
-interface KeyCandidate {
-  hex: string;
-  label: string;
-}
-
-type DomainKeyMap = Record<string, KeyCandidate[]>;
 
 interface PerCardEntry {
   uid: string;
@@ -32,15 +24,14 @@ const PERCARD_MAP = new Map<string, PerCardEntry>(PERCARD_KEYS.map((entry) => [e
 
 const PUBLIC_KEY_SET = new Set<string>();
 for (const domain of Object.keys(ISSUER_KEYS_BY_DOMAIN)) {
-  for (const key of (ISSUER_KEYS_BY_DOMAIN as unknown as DomainKeyMap)[domain]) {
+  for (const key of ISSUER_KEYS_BY_DOMAIN[domain]) {
     PUBLIC_KEY_SET.add(key.hex.toLowerCase());
   }
 }
 
 export function _getIssuerKeysForDomain(domain: string): KeyCandidate[] {
-  const map = ISSUER_KEYS_BY_DOMAIN as unknown as DomainKeyMap;
-  const domainKeys = map[domain] || [];
-  const defaultKeys = map["_default"] || [];
+  const domainKeys = ISSUER_KEYS_BY_DOMAIN[domain] || [];
+  const defaultKeys = ISSUER_KEYS_BY_DOMAIN["_default"] || [];
   return [...domainKeys, ...defaultKeys];
 }
 
@@ -66,7 +57,7 @@ export function getAllIssuerKeyCandidates(env: Env | undefined): KeyCandidate[] 
   }
 
   for (const domain of Object.keys(ISSUER_KEYS_BY_DOMAIN)) {
-    for (const key of (ISSUER_KEYS_BY_DOMAIN as unknown as DomainKeyMap)[domain]) {
+    for (const key of ISSUER_KEYS_BY_DOMAIN[domain]) {
       add(key.hex, key.label);
     }
   }
@@ -135,7 +126,7 @@ export function classifyIssuerKey(env: Env | undefined, issuerKeyHex: string | u
 
 function findPublicKeyLabel(hex: string): string | null {
   for (const domain of Object.keys(ISSUER_KEYS_BY_DOMAIN)) {
-    for (const key of (ISSUER_KEYS_BY_DOMAIN as unknown as DomainKeyMap)[domain]) {
+    for (const key of ISSUER_KEYS_BY_DOMAIN[domain]) {
       if (key.hex.toLowerCase() === hex) {
         return key.label;
       }

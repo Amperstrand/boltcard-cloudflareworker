@@ -12,7 +12,7 @@ export function renderDebugConsolePage({ host, baseUrl }: { host: string; baseUr
     { id: "pos", label: "POS", icon: "\u{1f3b4}" },
   ];
 
-  const tabButtons: string = tabs.map((t: any) =>
+  const tabButtons: string = tabs.map((t: { id: string; label: string; icon: string }) =>
     `<button class="debug-tab ${t.id === 'console' ? 'active' : ''}" data-tab="${t.id}">${t.icon} ${t.label}</button>`
   ).join("");
 

@@ -1,4 +1,4 @@
-import { getMenu, saveMenu } from "./menuHandler.js";
+import { getMenu, saveMenu, type MenuData } from "./menuHandler.js";
 import { getErrorMessage } from "../utils/logger.js";
 import type { Env } from "../types/core.js";
 import { renderMenuEditorPage } from "../templates/menuEditorPage.js";
@@ -11,7 +11,7 @@ export async function handleMenuEditorPage(request: Request, env: Env): Promise<
   const terminalId: string = url.searchParams.get("t") || "default";
   const host = getRequestOrigin(request);
   try {
-    const menu: { items: unknown[] } = await getMenu(env, terminalId);
+    const menu: MenuData = await getMenu(env, terminalId);
     return htmlResponse(renderMenuEditorPage({ host, terminalId, menu }));
   } catch (error: unknown) {
     logger.error("Failed to load menu for editor", { terminalId, error: getErrorMessage(error) });
@@ -23,7 +23,7 @@ export async function handleMenuGet(request: Request, env: Env): Promise<Respons
   const url = new URL(request.url);
   const terminalId: string = url.searchParams.get("t") || "default";
   try {
-    const menu: { items: unknown[] } = await getMenu(env, terminalId);
+    const menu: MenuData = await getMenu(env, terminalId);
     return jsonResponse(menu);
   } catch (error: unknown) {
     logger.error("Failed to get menu", { terminalId, error: getErrorMessage(error) });

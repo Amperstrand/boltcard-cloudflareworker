@@ -1,9 +1,10 @@
 import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { ESC_HELPER } from "./browserNfc.js";
+import type { MenuData } from "../handlers/menuHandler.js";
 
-export function renderMenuEditorPage({ host, terminalId, menu }: { host: string; terminalId: string; menu: any }): string {
-  const items: any[] = menu.items || [];
+export function renderMenuEditorPage({ host, terminalId, menu }: { host: string; terminalId: string; menu: MenuData }): string {
+  const items: MenuData["items"] = menu.items || [];
   const itemsJson: string = items.length > 0 ? JSON.stringify(items) : "[]";
 
   return renderTailwindPage({

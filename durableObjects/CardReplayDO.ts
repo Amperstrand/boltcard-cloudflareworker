@@ -1,5 +1,84 @@
 import { DurableObject } from "cloudflare:workers";
-import { logger } from "../utils/logger.js";
+import { logger, getErrorMessage } from "../utils/logger.js";
+import type { CardConfig } from "../types/core.js";
+
+interface CheckCounterPayload {
+  counterValue: number;
+}
+
+interface RecordTapPayload {
+  counterValue: number;
+  bolt11: string;
+  amountMsat: number;
+  userAgent: string;
+  requestUrl: string;
+}
+
+interface RecordReadPayload {
+  counterValue: number;
+  userAgent: string;
+  requestUrl: string;
+}
+
+interface ClaimTapPayload {
+  counter: number;
+  status: string;
+  bolt11: string;
+  amountMsat: number;
+}
+
+interface ClaimTapNoBolt11Payload {
+  counter: number;
+  bolt11: string;
+  amountMsat: number;
+}
+
+interface DeliverKeysPayload {
+  active_version: number;
+}
+
+interface SetK2Payload {
+  K2: string;
+}
+
+interface CreditPayload {
+  amount: number;
+  note: string;
+}
+
+interface DebitPayload {
+  counter: number;
+  amount: number;
+  note: string;
+}
+
+interface SetProvenancePayload {
+  key_provenance: string;
+  key_fingerprint: string;
+  key_label: string;
+}
+
+interface DiscoverPayload {
+  key_provenance: string;
+  key_fingerprint: string;
+  key_label: string;
+  active_version: number;
+}
+
+interface DoCardStateRow {
+  state?: string;
+  latest_issued_version?: number;
+  active_version?: number | null;
+  activated_at?: number | null;
+  terminated_at?: number | null;
+  keys_delivered_at?: number | null;
+  wipe_keys_fetched_at?: number | null;
+  key_provenance?: string | null;
+  key_fingerprint?: string | null;
+  key_label?: string | null;
+  first_seen_at?: number | null;
+  balance?: number;
+}
 
 function nowSec(): number {
   return Math.floor(Date.now() / 1000);
@@ -8,10 +87,10 @@ function nowSec(): number {
 const CARD_STATE_COLS = "state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, balance, key_provenance, key_fingerprint, key_label, first_seen_at";
 export class CardReplayDO extends DurableObject<Env> {
   declare state: DurableObjectState;
-  declare env: any;
-  sql: any;
+  declare env: Env;
+  sql: SqlStorage;
 
-  constructor(state: DurableObjectState, env: any) {
+  constructor(state: DurableObjectState, env: Env) {
     super(state, env);
     this.state = state;
     this.env = env;
@@ -64,10 +143,10 @@ export class CardReplayDO extends DurableObject<Env> {
           updated_at INTEGER
         )
       `);
-      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN key_provenance TEXT`); } catch (e: any) {}
-      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN key_fingerprint TEXT`); } catch (e: any) {}
-      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN key_label TEXT`); } catch (e: any) {}
-      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN first_seen_at INTEGER`); } catch (e: any) {}
+      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN key_provenance TEXT`); } catch (_e: unknown) {}
+      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN key_fingerprint TEXT`); } catch (_e: unknown) {}
+      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN key_label TEXT`); } catch (_e: unknown) {}
+      try { this.sql.exec(`ALTER TABLE card_state ADD COLUMN first_seen_at INTEGER`); } catch (_e: unknown) {}
       this.sql.exec(`
         CREATE TABLE IF NOT EXISTS transactions (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -178,11 +257,11 @@ export class CardReplayDO extends DurableObject<Env> {
       return this.handleSetK2(request);
     }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof SyntaxError) {
         return Response.json({ error: "Invalid JSON body" }, { status: 400 });
       }
-      logger.error("Unhandled DO error", { path: url.pathname, error: err.message });
+      logger.error("Unhandled DO error", { path: url.pathname, error: getErrorMessage(err) });
       return Response.json({ error: "Internal error" }, { status: 500 });
     }
 
@@ -190,7 +269,7 @@ export class CardReplayDO extends DurableObject<Env> {
   }
 
   async handleCheck(request: Request, readOnly: boolean): Promise<Response> {
-    const { counterValue } = await request.json() as any;
+    const { counterValue } = await request.json() as CheckCounterPayload;
     if (!Number.isInteger(counterValue) || counterValue < 0) {
       return Response.json({ accepted: false, reason: "Invalid counter value" }, { status: 400 });
     }
@@ -199,7 +278,7 @@ export class CardReplayDO extends DurableObject<Env> {
       const existing = this.sql.exec(
         "SELECT last_counter FROM replay_state WHERE singleton = 1"
       ).toArray();
-      const lastCounter: number | null = existing[0]?.last_counter ?? null;
+      const lastCounter: number | null = (existing[0]?.last_counter as number) ?? null;
 
       if (lastCounter !== null && counterValue <= lastCounter) {
         return Response.json(
@@ -223,13 +302,13 @@ export class CardReplayDO extends DurableObject<Env> {
     ).toArray();
 
     if (updated.length === 1) {
-      return Response.json({ accepted: true, lastCounter: updated[0].last_counter });
+      return Response.json({ accepted: true, lastCounter: updated[0].last_counter as number });
     }
 
     const existing = this.sql.exec(
       "SELECT last_counter FROM replay_state WHERE singleton = 1"
     ).toArray();
-    const lastCounter: number | null = existing[0]?.last_counter ?? null;
+    const lastCounter: number | null = (existing[0]?.last_counter as number) ?? null;
 
     return Response.json(
       { accepted: false, reason: "Counter replay detected — tap rejected", lastCounter },
@@ -238,7 +317,7 @@ export class CardReplayDO extends DurableObject<Env> {
   }
 
   async handleRecordTap(request: Request): Promise<Response> {
-    const { counterValue, bolt11, amountMsat, userAgent, requestUrl } = await request.json() as any;
+    const { counterValue, bolt11, amountMsat, userAgent, requestUrl } = await request.json() as RecordTapPayload;
     if (!Number.isInteger(counterValue) || counterValue < 0) {
       return Response.json({ accepted: false, reason: "Invalid counter value" }, { status: 400 });
     }
@@ -269,13 +348,13 @@ export class CardReplayDO extends DurableObject<Env> {
         now
       );
 
-      return Response.json({ accepted: true, lastCounter: updated[0].last_counter, tapRecorded: true });
+      return Response.json({ accepted: true, lastCounter: updated[0].last_counter as number, tapRecorded: true });
     }
 
     const existing = this.sql.exec(
       "SELECT last_counter FROM replay_state WHERE singleton = 1"
     ).toArray();
-    const lastCounter: number | null = existing[0]?.last_counter ?? null;
+    const lastCounter: number | null = (existing[0]?.last_counter as number) ?? null;
 
     return Response.json(
       { accepted: false, reason: "Counter replay detected — tap rejected", lastCounter },
@@ -284,7 +363,7 @@ export class CardReplayDO extends DurableObject<Env> {
   }
 
   async handleRecordRead(request: Request): Promise<Response> {
-    const { counterValue, userAgent, requestUrl } = await request.json() as any;
+    const { counterValue, userAgent, requestUrl } = await request.json() as RecordReadPayload;
     const counter: number = (Number.isInteger(counterValue) && counterValue >= 0)
       ? counterValue
       : Date.now();
@@ -304,7 +383,7 @@ export class CardReplayDO extends DurableObject<Env> {
   }
 
   async handleUpdateTapStatus(request: Request): Promise<Response> {
-    const { counter, status, bolt11, amountMsat } = await request.json() as any;
+    const { counter, status, bolt11, amountMsat } = await request.json() as ClaimTapPayload;
     if (counter == null || !status) {
       return Response.json({ error: "Missing counter or status" }, { status: 400 });
     }
@@ -328,7 +407,7 @@ export class CardReplayDO extends DurableObject<Env> {
   }
 
   async handleClaimTap(request: Request): Promise<Response> {
-    const { counter, bolt11, amountMsat } = await request.json() as any;
+    const { counter, bolt11, amountMsat } = await request.json() as ClaimTapNoBolt11Payload;
     if (!Number.isInteger(counter) || counter < 0) {
       return Response.json({ claimed: false, reason: "Invalid counter" }, { status: 400 });
     }
@@ -370,7 +449,8 @@ export class CardReplayDO extends DurableObject<Env> {
   }
 
   handleListTaps(url: URL): Response {
-    const rawLimit = parseInt(url.searchParams.get("limit") || "50", 10);
+    let rawLimit = parseInt(url.searchParams.get("limit") || "50", 10);
+    if (!Number.isFinite(rawLimit)) rawLimit = 50;
     const limit = Math.max(1, Math.min(rawLimit, 200));
     const taps = this.sql.exec(
       `SELECT counter, bolt11, status, payment_hash, amount_msat, user_agent, request_url, created_at, updated_at
@@ -382,9 +462,9 @@ export class CardReplayDO extends DurableObject<Env> {
       `SELECT state, latest_issued_version, active_version, activated_at, terminated_at, keys_delivered_at, wipe_keys_fetched_at, key_provenance, key_fingerprint, key_label, first_seen_at
        FROM card_state WHERE singleton = 1`
     ).toArray();
-    const cardState: any = stateRows[0] || null;
+    const cardState: DoCardStateRow | null = (stateRows[0] as DoCardStateRow) || null;
 
-    const events: any[] = [];
+    const events: Record<string, unknown>[] = [];
 
     if (cardState) {
       if (cardState.keys_delivered_at) {
@@ -445,10 +525,10 @@ export class CardReplayDO extends DurableObject<Env> {
       }
     }
 
-    const merged = [...taps, ...events].sort((a: any, b: any) => {
-      const timeDiff = (b.created_at || 0) - (a.created_at || 0);
+    const merged = [...taps, ...events].sort((a, b) => {
+      const timeDiff = ((b.created_at as number) || 0) - ((a.created_at as number) || 0);
       if (timeDiff !== 0) return timeDiff;
-      return (b.counter || 0) - (a.counter || 0);
+      return ((b.counter as number) || 0) - ((a.counter as number) || 0);
     });
 
     return Response.json({ taps: merged.slice(0, limit) });
@@ -525,12 +605,12 @@ export class CardReplayDO extends DurableObject<Env> {
         RETURNING ${CARD_STATE_COLS}`,
       now, now
     );
-    const cardState: any = rows.toArray()[0];
+    const cardState: DoCardStateRow = rows.toArray()[0] as DoCardStateRow;
     return Response.json({ ...cardState, version: cardState.latest_issued_version });
   }
 
   async handleActivate(request: Request): Promise<Response> {
-    const { active_version } = await request.json() as any;
+    const { active_version } = await request.json() as DeliverKeysPayload;
     if (!Number.isInteger(active_version) || active_version < 1) {
       return Response.json({ error: "Invalid active_version" }, { status: 400 });
     }
@@ -601,23 +681,23 @@ export class CardReplayDO extends DurableObject<Env> {
     if (rows.length === 0) {
       return Response.json(null);
     }
-    const row: any = rows[0];
-    let config: any = { payment_method: row.payment_method };
+    const row = rows[0] as Record<string, unknown>;
+    let config: Record<string, unknown> = { payment_method: row.payment_method };
     if (row.K2) config.K2 = row.K2;
     if (row.pull_payment_id) config.pull_payment_id = row.pull_payment_id;
     if (row.config_json) {
       try {
-        const extra = JSON.parse(row.config_json);
+        const extra = JSON.parse(row.config_json as string) as Record<string, unknown>;
         config = { ...config, ...extra };
-      } catch (e: any) {
-        logger.warn("Failed to parse card_config.config_json", { error: e.message });
+      } catch (e: unknown) {
+        logger.warn("Failed to parse card_config.config_json", { error: getErrorMessage(e) });
       }
     }
     return Response.json(config);
   }
 
   async handleSetConfig(request: Request): Promise<Response> {
-    const config = await request.json() as any;
+    const config = await request.json() as CardConfig;
     const { K2, payment_method, pull_payment_id, ...rest } = config;
     const method: string = payment_method || "fakewallet";
     const k2: string | null = K2 || null;
@@ -641,7 +721,7 @@ export class CardReplayDO extends DurableObject<Env> {
   }
 
   async handleSetK2(request: Request): Promise<Response> {
-    const { K2 } = await request.json() as any;
+    const { K2 } = await request.json() as SetK2Payload;
     const k2: string | null = K2 || null;
     const now = nowSec();
     const existing = this.sql.exec(
@@ -663,7 +743,7 @@ export class CardReplayDO extends DurableObject<Env> {
   }
 
   async handleDebit(request: Request): Promise<Response> {
-    const { counter, amount, note } = await request.json() as any;
+    const { counter, amount, note } = await request.json() as DebitPayload;
     if (!Number.isInteger(amount) || amount <= 0) {
       return Response.json({ ok: false, reason: "Amount must be a positive integer" }, { status: 400 });
     }
@@ -697,7 +777,7 @@ export class CardReplayDO extends DurableObject<Env> {
   }
 
   async handleCredit(request: Request): Promise<Response> {
-    const { amount, note } = await request.json() as any;
+    const { amount, note } = await request.json() as CreditPayload;
     if (!Number.isInteger(amount) || amount <= 0) {
       return Response.json({ ok: false, reason: "Amount must be a positive integer" }, { status: 400 });
     }
@@ -753,7 +833,7 @@ export class CardReplayDO extends DurableObject<Env> {
     const rows = this.sql.exec(
       `SELECT balance FROM card_state WHERE singleton = 1`
     ).toArray();
-    return rows[0]?.balance ?? 0;
+    return (rows[0]?.balance as number) ?? 0;
   }
 
   ensureCardStateRow(balance: number = 0): void {
@@ -766,7 +846,7 @@ export class CardReplayDO extends DurableObject<Env> {
   }
 
   async handleMarkPending(request: Request): Promise<Response> {
-    const { key_provenance, key_fingerprint, key_label } = await request.json() as any;
+    const { key_provenance, key_fingerprint, key_label } = await request.json() as SetProvenancePayload;
     const now = nowSec();
     const existing = this.sql.exec(
       `SELECT state FROM card_state WHERE singleton = 1`
@@ -798,7 +878,7 @@ export class CardReplayDO extends DurableObject<Env> {
   }
 
   async handleDiscover(request: Request): Promise<Response> {
-    const { key_provenance, key_fingerprint, key_label, active_version } = await request.json() as any;
+    const { key_provenance, key_fingerprint, key_label, active_version } = await request.json() as DiscoverPayload;
     const now = nowSec();
     const version: number = active_version || 1;
 
@@ -807,7 +887,7 @@ export class CardReplayDO extends DurableObject<Env> {
     ).toArray();
 
     if (existing.length > 0) {
-      const current: any = existing[0];
+      const current = existing[0] as Record<string, unknown>;
       if (current.state === "pending" || current.state === "new" || current.state === "legacy") {
         this.sql.exec(
           `UPDATE card_state SET

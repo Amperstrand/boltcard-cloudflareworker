@@ -9,13 +9,13 @@ function menuKey(terminalId: string): string {
   return `${MENU_PREFIX}${terminalId}`;
 }
 
-interface MenuItem {
+export interface MenuItem {
   name: string;
   price: number | string;
   [key: string]: unknown;
 }
 
-interface MenuData {
+export interface MenuData {
   items: MenuItem[];
 }
 

@@ -3,7 +3,7 @@ import { renderTailwindPage } from "./pageShell.js";
 import { BROWSER_NFC_BASE } from "./browserNfc.js";
 import { buildMaskedUid } from "../utils/validation.js";
 
-export function renderTwoFactorPage({ uidHex, totp, hotp, counterValue, pHex, cHex, baseUrl }: { uidHex: string; totp: any; hotp: string; counterValue: number; pHex: string; cHex: string; baseUrl: string }): string {
+export function renderTwoFactorPage({ uidHex, totp, hotp, counterValue, pHex, cHex, baseUrl }: { uidHex: string; totp: { code: string; secondsRemaining: number; counter: number }; hotp: string; counterValue: number; pHex: string; cHex: string; baseUrl: string }): string {
   const maskedUid: string = buildMaskedUid(uidHex);
 
   const host: string = baseUrl.replace(/^https?:\/\//, "");

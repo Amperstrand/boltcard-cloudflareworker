@@ -1,4 +1,6 @@
 import { Router } from "itty-router";
+import type { IRequest } from "itty-router";
+import type { Env, SessionPayload } from "./types/core.js";
 import { handleStatus } from "./handlers/statusHandler.js";
 import { fetchBoltCardKeys } from "./handlers/fetchBoltCardKeys.js";
 import { handleLnurlpPayment } from "./handlers/lnurlHandler.js";
@@ -23,7 +25,7 @@ import { encodePaytoUri } from "./utils/fiat-rails/payto.js";
 import { encodeUpiUri } from "./utils/fiat-rails/upi.js";
 import { encodeSpayd } from "./utils/fiat-rails/spayd.js";
 import { convertSatsToCurrency } from "./utils/fiat-rails/currency.js";
-import { logger } from "./utils/logger.js";
+import { logger, getErrorMessage } from "./utils/logger.js";
 import { jsonResponse, errorResponse, redirect } from "./utils/responses.js";
 import { REQUEST_ID_LENGTH } from "./utils/constants.js";
 import { checkRateLimit } from "./rateLimiter.js";
@@ -43,12 +45,12 @@ import { handleCardAuditPage, handleCardAuditData, handleIndexRepair } from "./h
 import { handleCardBatchAction } from "./handlers/cardBatchHandler.js";
 import { handleDecodePage, handleDecodeApi } from "./handlers/bolt11DecodeHandler.js";
 
-const router = Router();
+const router = Router<IRequest, [env: Env]>();
 
-function withOperatorAuth(handler: (request: any, env: any, session?: any) => any) {
-  return async (request: any, env: any) => {
+function withOperatorAuth(handler: (request: IRequest, env: Env, session: SessionPayload) => Promise<Response> | Response) {
+  return async (request: IRequest, env: Env) => {
     const auth = requireOperator(request, env);
-    if (!auth.authorized) return (auth as any).response;
+    if (!auth.authorized) return auth.response;
 
     const method = request.method.toUpperCase();
     const isMutating = method === "POST" || method === "PUT" || method === "DELETE" || method === "PATCH";
@@ -81,7 +83,7 @@ function withOperatorAuth(handler: (request: any, env: any, session?: any) => an
   };
 }
 
-router.get("/api/fake-invoice", async (request: any, env: any) => {
+router.get("/api/fake-invoice", async (request, env) => {
   const url = new URL(request.url);
   const amountMsat = parseInt(url.searchParams.get("amount") ?? "", 10);
   if (!Number.isInteger(amountMsat) || amountMsat <= 0) {
@@ -160,105 +162,105 @@ router.get("/api/fake-invoice", async (request: any, env: any) => {
 
     const invoice = generateFakeBolt11(amountMsat, { description });
     return jsonResponse({ pr: invoice, ...(description ? { description } : {}) });
-  } catch (err: any) {
-    logger.error("Fake invoice generation failed", { error: err.message });
+  } catch (err: unknown) {
+    logger.error("Fake invoice generation failed", { error: getErrorMessage(err) });
     return errorResponse("Internal error", 500);
   }
 });
-router.get("/status", (request: any, env: any) => handleStatus(request, env));
-router.all("/boltcards/api/v1/lnurl/cb*", (request: any, env: any) => handleLnurlpPayment(request, env));
-router.get("/2fa", (request: any, env: any) => handleTwoFactor(request, env));
-router.get("/login", (request: any) => handleLoginPage(request));
-router.post("/login", (request: any, env: any) => handleLoginVerify(request, env));
+router.get("/status", (request, env) => handleStatus(request, env));
+router.all("/boltcards/api/v1/lnurl/cb*", (request, env) => handleLnurlpPayment(request, env));
+router.get("/2fa", (request, env) => handleTwoFactor(request, env));
+router.get("/login", (request) => handleLoginPage(request));
+router.post("/login", (request, env) => handleLoginVerify(request, env));
 router.get("/pos", () => redirect("/operator/pos"));
-router.get("/operator/pos", withOperatorAuth((request: any, env: any) => handlePosPage(request, env)));
-router.post("/operator/pos/charge", withOperatorAuth((request: any, env: any, session: any) => handlePosCharge(request, env, session)));
-router.get("/operator/pos/menu", withOperatorAuth((request: any, env: any) => handleMenuEditorPage(request, env)));
-router.put("/operator/pos/menu", withOperatorAuth((request: any, env: any) => handleMenuPut(request, env)));
-router.get("/api/pos/menu", withOperatorAuth((request: any, env: any) => handleMenuGet(request, env)));
-router.get("/api/receipt/:txnId", withOperatorAuth((request: any, env: any) => handleReceipt(request, env)));
-router.post("/activate/form", withOperatorAuth((request: any, env: any) => handleActivateCardSubmit(request, env)));
-router.get("/lnurlp/cb", (request: any, env: any) => handleLnurlPayCallback(request, env));
-router.get("/api/verify-identity", (request: any, env: any) => handleIdentityVerify(request, env));
-router.post("/api/identity/profile", (request: any, env: any) => handleIdentityProfileUpdate(request, env));
-router.get("/operator/login", (request: any) => handleOperatorLoginPage(request));
-router.post("/operator/login", (request: any, env: any) => handleOperatorLogin(request, env));
-router.post("/api/identify-card", withOperatorAuth((request: any, env: any) => handleIdentifyCard(request, env)));
-router.post("/api/identify-issuer-key", withOperatorAuth((request: any, env: any) => handleIdentifyIssuerKey(request, env)));
-router.post("/operator/logout", (request: any, env: any) => handleOperatorLogout(request, env));
+router.get("/operator/pos", withOperatorAuth((request, env) => handlePosPage(request, env)));
+router.post("/operator/pos/charge", withOperatorAuth((request, env, session) => handlePosCharge(request, env, session)));
+router.get("/operator/pos/menu", withOperatorAuth((request, env) => handleMenuEditorPage(request, env)));
+router.put("/operator/pos/menu", withOperatorAuth((request, env) => handleMenuPut(request, env)));
+router.get("/api/pos/menu", withOperatorAuth((request, env) => handleMenuGet(request, env)));
+router.get("/api/receipt/:txnId", withOperatorAuth((request, env) => handleReceipt(request, env)));
+router.post("/activate/form", withOperatorAuth((request, env) => handleActivateCardSubmit(request, env)));
+router.get("/lnurlp/cb", (request, env) => handleLnurlPayCallback(request, env));
+router.get("/api/verify-identity", (request, env) => handleIdentityVerify(request, env));
+router.post("/api/identity/profile", (request, env) => handleIdentityProfileUpdate(request, env));
+router.get("/operator/login", (request) => handleOperatorLoginPage(request));
+router.post("/operator/login", (request, env) => handleOperatorLogin(request, env));
+router.post("/api/identify-card", withOperatorAuth((request, env) => handleIdentifyCard(request, env)));
+router.post("/api/identify-issuer-key", withOperatorAuth((request, env) => handleIdentifyIssuerKey(request, env)));
+router.post("/operator/logout", (request, env) => handleOperatorLogout(request, env));
 router.get("/operator", withOperatorAuth(() => redirect("/operator/pos")));
-router.get("/operator/cards", withOperatorAuth((request: any, env: any) => handleCardAuditPage(request, env)));
-router.get("/operator/cards/data", withOperatorAuth((request: any, env: any) => handleCardAuditData(request, env)));
-router.post("/operator/cards/batch", withOperatorAuth((request: any, env: any, session: any) => handleCardBatchAction(request, env, session)));
-router.post("/operator/cards/repair", withOperatorAuth((request: any, env: any) => handleIndexRepair(request, env)));
-router.get("/operator/topup", withOperatorAuth((request: any, env: any) => handleTopupPage(request, env)));
-router.post("/operator/topup/apply", withOperatorAuth((request: any, env: any, session: any) => handleTopupApply(request, env, session)));
-router.get("/operator/refund", withOperatorAuth((request: any, env: any) => handleRefundPage(request, env)));
-router.post("/operator/refund/apply", withOperatorAuth((request: any, env: any, session: any) => handleRefundApply(request, env, session)));
-router.post("/api/balance-check", (request: any, env: any) => handleBalanceCheck(request, env));
+router.get("/operator/cards", withOperatorAuth((request, env) => handleCardAuditPage(request, env)));
+router.get("/operator/cards/data", withOperatorAuth((request, env) => handleCardAuditData(request, env)));
+router.post("/operator/cards/batch", withOperatorAuth((request, env, session) => handleCardBatchAction(request, env, session)));
+router.post("/operator/cards/repair", withOperatorAuth((request, env) => handleIndexRepair(request, env)));
+router.get("/operator/topup", withOperatorAuth((request, env) => handleTopupPage(request, env)));
+router.post("/operator/topup/apply", withOperatorAuth((request, env, session) => handleTopupApply(request, env, session)));
+router.get("/operator/refund", withOperatorAuth((request, env) => handleRefundPage(request, env)));
+router.post("/operator/refund/apply", withOperatorAuth((request, env, session) => handleRefundApply(request, env, session)));
+router.post("/api/balance-check", (request, env) => handleBalanceCheck(request, env));
 
-router.get("/decode", (request: any) => handleDecodePage(request));
-router.get("/api/decode", (request: any) => handleDecodeApi(request));
+router.get("/decode", (request) => handleDecodePage(request));
+router.get("/api/decode", (request) => handleDecodeApi(request));
 
-router.get("/debug", withOperatorAuth((request: any) => handleDebugPage(request)));
-router.get("/experimental/nfc", (request: any) => {
+router.get("/debug", withOperatorAuth((request) => handleDebugPage(request)));
+router.get("/experimental/nfc", (request) => {
   return redirect(new URL(request.url).origin + "/debug#console", 302);
 });
-router.get("/experimental/activate", withOperatorAuth((request: any, env: any) => handleActivatePage(request, env)));
+router.get("/experimental/activate", withOperatorAuth((request, env) => handleActivatePage(request, env)));
 router.get("/experimental/activate/form", withOperatorAuth(() => handleActivateForm()));
-router.post("/experimental/activate/form", withOperatorAuth((request: any, env: any) => handleActivateCardSubmit(request, env)));
-router.get("/experimental/wipe", withOperatorAuth((request: any, env: any) => {
+router.post("/experimental/activate/form", withOperatorAuth((request, env) => handleActivateCardSubmit(request, env)));
+router.get("/experimental/wipe", withOperatorAuth((request, env) => {
   const url = new URL(request.url);
   const uid = url.searchParams.get("uid");
   if (uid) return handleReset(uid, env, getRequestOrigin(request));
   return handleWipePage(request, env);
 }));
-  router.get("/experimental/bulkwipe", withOperatorAuth((request: any) => handleBulkWipePage(request)));
+  router.get("/experimental/bulkwipe", withOperatorAuth((request) => handleBulkWipePage(request)));
   router.get("/experimental/analytics", withOperatorAuth(() => handleAnalyticsPage()));
-router.get("/experimental/analytics/data", withOperatorAuth((request: any, env: any) => handleAnalyticsData(request, env)));
-router.get("/api/keys", withOperatorAuth((request: any, env: any) => handleGetKeys(request, env)));
-router.post("/api/keys", withOperatorAuth((request: any, env: any) => handleGetKeys(request, env)));
-router.all("/api/v1/pull-payments/:pullPaymentId/boltcards", withOperatorAuth((request: any, env: any) => fetchBoltCardKeys(request, env)));
-  router.get("/api/bulk-wipe-keys", withOperatorAuth((request: any) => handleBulkWipeKeys(request)));
-  router.post("/api/bulk-wipe-keys", withOperatorAuth((request: any) => handleBulkWipeKeys(request)));
-router.get("/identity", (request: any) => handleIdentityPage(request));
+router.get("/experimental/analytics/data", withOperatorAuth((request, env) => handleAnalyticsData(request, env)));
+router.get("/api/keys", withOperatorAuth((request, env) => handleGetKeys(request, env)));
+router.post("/api/keys", withOperatorAuth((request, env) => handleGetKeys(request, env)));
+router.all("/api/v1/pull-payments/:pullPaymentId/boltcards", withOperatorAuth((request, env) => fetchBoltCardKeys(request, env)));
+  router.get("/api/bulk-wipe-keys", withOperatorAuth((request) => handleBulkWipeKeys(request)));
+  router.post("/api/bulk-wipe-keys", withOperatorAuth((request) => handleBulkWipeKeys(request)));
+router.get("/identity", (request) => handleIdentityPage(request));
 
-router.get("/card", (request: any, env: any) => handleCardPage(request, env));
-router.get("/card/info", (request: any, env: any) => handleCardInfo(request, env));
-router.post("/api/card/lock", (request: any, env: any) => handleCardLock(request, env));
-router.post("/api/card/reactivate", (request: any, env: any) => handleCardReactivate(request, env));
+router.get("/card", (request, env) => handleCardPage(request, env));
+router.get("/card/info", (request, env) => handleCardInfo(request, env));
+router.post("/api/card/lock", (request, env) => handleCardLock(request, env));
+router.post("/api/card/reactivate", (request, env) => handleCardReactivate(request, env));
 
-router.get("/nfc", (request: any) => {
+router.get("/nfc", (request) => {
   return redirect(new URL(request.url).origin + "/debug#console", 302);
 });
-router.get("/activate", (request: any) => {
+router.get("/activate", (request) => {
   return redirect(new URL(request.url).origin + "/experimental/activate", 302);
 });
-router.get("/activate/form", (request: any) => {
+router.get("/activate/form", (request) => {
   return redirect(new URL(request.url).origin + "/experimental/activate/form", 302);
 });
-router.get("/wipe", withOperatorAuth((request: any, env: any) => {
+router.get("/wipe", withOperatorAuth((request, env) => {
   const url = new URL(request.url);
   const uid = url.searchParams.get("uid");
   if (uid) return handleReset(uid, env, getRequestOrigin(request));
   return redirect(url.origin + "/experimental/wipe", 302);
 }));
-router.get("/bulkwipe", (request: any) => {
+router.get("/bulkwipe", (request) => {
   return redirect(new URL(request.url).origin + "/experimental/bulkwipe", 302);
 });
-router.get("/analytics", (request: any) => {
+router.get("/analytics", (request) => {
   return redirect(new URL(request.url).origin + "/experimental/analytics", 302);
 });
-router.get("/analytics/data", withOperatorAuth((request: any, env: any) => handleAnalyticsData(request, env)));
+router.get("/analytics/data", withOperatorAuth((request, env) => handleAnalyticsData(request, env)));
 router.get("/favicon.ico", () => new Response(null, { status: 204 }));
-router.get("/", (request: any, env: any) => {
+router.get("/", (request, env) => {
   const { searchParams } = new URL(request.url);
   if (searchParams.has("p") && searchParams.has("c")) {
     return handleLnurlw(request, env);
   }
   return handleLoginPage(request);
 });
-router.all("*", (request: any) => {
+router.all("*", (request) => {
   const pathname = new URL(request.url).pathname;
   const noisePaths = ["/favicon.ico", "/robots.txt", "/.well-known/", "/apple-touch-icon"];
   const isNoise = noisePaths.some(p => pathname.startsWith(p));
@@ -285,14 +287,14 @@ function withSecurityHeaders(response: Response): Response {
   return response;
 }
 
-export async function handleRequest(request: any, env: any): Promise<any> {
+export async function handleRequest(request: Request, env: Env): Promise<Response> {
   return router.fetch(request, env);
 }
 
 export { CardReplayDO } from "./durableObjects/CardReplayDO.js";
 
 export default {
-  async fetch(request: Request, env: any, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const requestId = crypto.randomUUID().slice(0, REQUEST_ID_LENGTH);
     const startTime = Date.now();
     const url = new URL(request.url);
@@ -322,8 +324,8 @@ export default {
       response.headers.set("X-Request-Id", requestId);
       logger.info("Request completed", { requestId, status: response.status, duration: Date.now() - startTime, pathname: url.pathname });
       return withSecurityHeaders(response);
-    } catch (error: any) {
-      logger.error("Unhandled request error", { requestId, error: error.message, url: request.url, duration: Date.now() - startTime });
+    } catch (error: unknown) {
+      logger.error("Unhandled request error", { requestId, error: getErrorMessage(error), url: request.url, duration: Date.now() - startTime });
       return withSecurityHeaders(jsonResponse({ status: "ERROR", reason: "Internal server error" }, 500));
     }
   },
