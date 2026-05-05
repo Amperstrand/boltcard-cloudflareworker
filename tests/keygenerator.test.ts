@@ -40,7 +40,7 @@ test("getBoltCardK1 derives deterministic K1 from ISSUER_KEY when explicit K1 is
 test("extractUIDAndCounter works with ISSUER_KEY-only env", () => {
   const result = extractUIDAndCounter("3736A84681238418D4B9B7210C13DC39", {
     ISSUER_KEY: "00000000000000000000000000000001",
-  });
+  } as any);
 
   expect(result).toMatchObject({
     success: true,

@@ -410,8 +410,8 @@ describe("POST /login (handleLoginVerify)", () => {
       error: expect.any(String),
       reason: expect.any(String),
     });
-    expect(json.error).toMatch(/internal error/i);
-    expect(json.reason).toMatch(/internal error/i);
+    expect(json.error).toMatch(/not configured.*missing issuer key/i);
+    expect(json.reason).toMatch(/not configured.*missing issuer key/i);
   });
 
   test("request-wipe without ISSUER_KEY returns error", async () => {
@@ -433,8 +433,8 @@ describe("POST /login (handleLoginVerify)", () => {
       error: expect.any(String),
       reason: expect.any(String),
     });
-    expect(json.error).toMatch(/internal error/i);
-    expect(json.reason).toMatch(/internal error/i);
+    expect(json.error).toMatch(/not configured.*missing issuer key/i);
+    expect(json.reason).toMatch(/not configured.*missing issuer key/i);
   });
 
   test("UID-only login with DO config returns deployed=true", async () => {
