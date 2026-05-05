@@ -58,7 +58,7 @@ function buildIdentityProfile(uidHex: string, record: IdentityRecord = {}): Reco
   const selectedEmoji = record?.identity_profile?.emoji;
 
   return {
-    emoji: IDENTITY_EMOJI_OPTIONS.includes(selectedEmoji)
+    emoji: selectedEmoji && IDENTITY_EMOJI_OPTIONS.includes(selectedEmoji)
       ? selectedEmoji
       : IDENTITY_EMOJI_OPTIONS[p0 % IDENTITY_EMOJI_OPTIONS.length],
     name: "Operator-" + hex.substring(0, 4).toUpperCase(),

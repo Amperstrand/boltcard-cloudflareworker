@@ -96,19 +96,20 @@ export type MenuUpdateBody = v.InferOutput<typeof menuUpdateSchema>;
 export type ActivateCardBody = v.InferOutput<typeof activateCardBodySchema>;
 export type IdentityProfileBody = v.InferOutput<typeof identityProfileBodySchema>;
 
-export function parseValidatedBody<T>(
+export async function parseValidatedBody<T>(
   request: Request,
   schema: v.BaseSchema<any, T, any>
 ): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
-  return request
-    .json()
-    .then((raw: unknown) => {
-      const result = v.safeParse(schema, raw);
-      if (result.success) {
-        return { ok: true, data: result.output };
-      }
-      const issues = result.issues.map((i) => i.message || String(i.path?.[0]?.key || "unknown")).join(", ");
-      return { ok: false, error: `Validation failed: ${issues}` };
-    })
-    .catch(() => ({ ok: false, error: "Invalid JSON body" }));
+  let raw: unknown;
+  try {
+    raw = await request.json();
+  } catch {
+    return { ok: false, error: "Invalid JSON body" };
+  }
+  const result = v.safeParse(schema, raw);
+  if (result.success) {
+    return { ok: true, data: result.output };
+  }
+  const issues = result.issues.map((i) => i.message || String(i.path?.[0]?.key || "unknown")).join(", ");
+  return { ok: false, error: `Validation failed: ${issues}` };
 }

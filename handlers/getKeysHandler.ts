@@ -55,7 +55,7 @@ async function findFirstKeyset(normalizedUid: string, env: Env): Promise<KeysetR
           return {
             k0: keys.k0, k1: keys.k1, k2: keys.k2,
             k3: keys.k3, k4: keys.k4,
-            source: "deterministic", label: candidate.label, version,
+            source: "deterministic", label: candidate.label ?? "unknown", version,
           };
         }
       } catch (e: unknown) {
