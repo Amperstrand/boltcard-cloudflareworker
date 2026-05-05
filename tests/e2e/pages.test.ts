@@ -95,9 +95,9 @@ describe("E2E: Page rendering", () => {
       expect(html).toContain("cards-list");
       expect(html).toContain("filter-btn");
       expect(html).toContain("batch-bar");
-      expect(html).toContain("btn-batch-terminate");
-      expect(html).toContain("btn-batch-wipe");
-      expect(html).toContain("btn-batch-activate");
+      expect(html).toContain("batch-terminate");
+      expect(html).toContain("batch-wipe");
+      expect(html).toContain("batch-activate");
       expect(html).toContain("select-all-checkbox");
     });
   });

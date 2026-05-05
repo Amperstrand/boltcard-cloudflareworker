@@ -68,12 +68,13 @@ describe("POS Page", () => {
     expect(response.headers.get("content-type")).toBe("text/html");
   });
 
-  test("GET /operator/pos response contains POS title and NFC code", async () => {
+  test("GET /operator/pos response contains POS title and NFC script", async () => {
     const env = makeEnv();
     const response = await handleRequest(new Request("https://test.local/operator/pos"), env);
     const html = await response.text();
     expect(html).toContain("POS");
-    expect(html).toContain("NDEFReader");
+    expect(html).toContain('/static/js/nfc.js');
+    expect(html).toContain('/static/js/pos.js');
     expect(html).toContain("CHARGE");
     expect(html).toContain("NEW SALE");
     expect(html).toContain("keypad-btn");

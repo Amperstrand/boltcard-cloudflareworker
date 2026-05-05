@@ -85,8 +85,9 @@ describe("Identity Page", () => {
     expect(html).toContain("IDENTITY");
     expect(html).toContain("ACCESS GRANTED");
     expect(html).toContain("ACCESS DENIED");
-    expect(html).toContain("NDEFReader");
-    expect(html).toContain("/api/verify-identity");
+    expect(html).toContain('/static/js/nfc.js');
+    expect(html).toContain('/static/js/identity.js');
+    expect(html).toContain("btn-scan");
     expect(html).toContain("Save avatar");
     expect(html).toContain("Open 2FA demo");
   });

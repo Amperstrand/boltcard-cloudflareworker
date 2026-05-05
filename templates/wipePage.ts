@@ -1,6 +1,5 @@
-import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
+import { rawHtml, safe } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
-import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
 
 export function renderWipePage({ baseUrl, resetApiUrl }: { baseUrl: string; resetApiUrl: string }): string {
   return renderTailwindPage({
@@ -14,6 +13,7 @@ export function renderWipePage({ baseUrl, resetApiUrl }: { baseUrl: string; rese
       '.hidden { display: none !important; }',
     ].join('\n'),
     content: rawHtml`
+        <div id="wipe-root" data-base-url="${safe(baseUrl)}" data-reset-api-url="${safe(resetApiUrl)}">
         <div class="max-w-4xl w-full space-y-8">
           
           <div class="flex items-center justify-between border-b border-gray-700 pb-4">
@@ -102,7 +102,7 @@ export function renderWipePage({ baseUrl, resetApiUrl }: { baseUrl: string; rese
                 </a>
                 <div class="w-full flex justify-between items-center bg-black/50 p-2 rounded">
                   <span id="link-wipe-text" class="font-mono text-xs text-gray-500 truncate mr-2"></span>
-                  <button onclick="copyWipeLink()" class="text-amber-500 hover:text-amber-400 text-xs font-bold">COPY</button>
+                  <button data-action="copy-wipe-link" class="text-amber-500 hover:text-amber-400 text-xs font-bold">COPY</button>
                 </div>
               </div>
             </div>
@@ -114,130 +114,9 @@ export function renderWipePage({ baseUrl, resetApiUrl }: { baseUrl: string; rese
           Copied to clipboard
         </div>
 
-        <script>
-          ${safe(BROWSER_NFC_HELPERS)}
-          const baseUrl = ${jsString(baseUrl)};
-          const resetApiUrl = ${jsString(resetApiUrl)};
-          let wipeQrCode = null;
-          let currentResetLink = "";
-
-          // Workflow 1: NFC Scanner (auto-starts on load)
-          var wipeScanner = createNfcScanner({
-            continuous: false,
-            debounceMs: 0,
-            onStatus: function(status) {
-              var autoHint = document.getElementById('scan-auto-hint');
-              var btn = document.getElementById('btn-scan');
-              if (status === 'scanning') {
-                if (autoHint) autoHint.classList.remove('hidden');
-                btn.classList.add('hidden');
-              } else {
-                if (autoHint) autoHint.classList.add('hidden');
-              }
-            },
-            onError: function(err, phase) {
-              var autoHint = document.getElementById('scan-auto-hint');
-              if (autoHint) autoHint.classList.add('hidden');
-              if (phase !== 'permission') {
-                alert("Error reading NFC: " + err.message);
-              }
-            },
-            onTap: function(data) {
-              var autoHint = document.getElementById('scan-auto-hint');
-              if (autoHint) autoHint.classList.add('hidden');
-              var btn = document.getElementById('btn-scan');
-              document.getElementById('scan-uid').innerText = data.serial || "Unknown";
-              var pParam = "Not found";
-              var cParam = "Not found";
-              if (data.url) {
-                try {
-                  var url = new URL(data.url);
-                  pParam = url.searchParams.get("p") || pParam;
-                  cParam = url.searchParams.get("c") || cParam;
-                } catch(e) {}
-              }
-              document.getElementById('scan-p').innerText = pParam;
-              document.getElementById('scan-c').innerText = cParam;
-              document.getElementById('scan-results').classList.remove('hidden');
-              btn.classList.remove('hidden');
-              btn.innerText = "SCAN AGAIN";
-            }
-          });
-
-          if (browserSupportsNfc()) {
-            window.addEventListener('load', function() { wipeScanner.scan(); });
-          }
-
-          document.getElementById('btn-scan').addEventListener('click', function() {
-            wipeScanner.restart();
-          });
-
-          // Handlers for Wipe requests
-          document.getElementById('btn-wipe-scanned').addEventListener('click', () => {
-            const uid = document.getElementById('scan-uid').innerText;
-            if (!uid || uid === "Unknown") {
-              alert("Valid UID required.");
-              return;
-            }
-            fetchWipeKeys(uid);
-          });
-
-          document.getElementById('btn-wipe-manual').addEventListener('click', () => {
-            const uid = document.getElementById('manual-uid').value.trim().toLowerCase();
-            if (!uid || uid.length !== 14) {
-              alert("Please enter a valid 14-character hex UID.");
-              return;
-            }
-            fetchWipeKeys(uid);
-          });
-
-          async function fetchWipeKeys(uid) {
-            try {
-              const wipeApiUrl = \`${baseUrl}/wipe?uid=\${encodeURIComponent(uid)}\`;
-              const response = await fetch(wipeApiUrl);
-              const data = await response.json();
-              
-              displayOutput(uid, data, resetApiUrl);
-            } catch (error) {
-              alert("Error fetching wipe keys: " + error.message);
-            }
-          }
-
-          function displayOutput(uid, data, resetApiUrl) {
-            document.getElementById('output-section').classList.remove('hidden');
-            document.getElementById('output-uid-badge').innerText = \`UID: \${uid.toUpperCase()}\`;
-            document.getElementById('api-response').innerText = JSON.stringify(data, null, 2);
-            
-            currentResetLink = \`boltcard://reset?url=\${encodeURIComponent(resetApiUrl)}\`;
-            document.getElementById('link-wipe-btn').href = currentResetLink;
-            document.getElementById('link-wipe-text').innerText = currentResetLink;
-
-            const qrContainer = document.getElementById('qr-wipe');
-            qrContainer.innerHTML = ''; // clear previous
-            
-            wipeQrCode = new QRCode(qrContainer, {
-              text: currentResetLink,
-              width: 180,
-              height: 180,
-              colorDark : "#000000",
-              colorLight : "#ffffff",
-              correctLevel : QRCode.CorrectLevel.L
-            });
-
-            // Scroll to output
-            document.getElementById('output-section').scrollIntoView({ behavior: 'smooth' });
-          }
-
-          function copyWipeLink() {
-            navigator.clipboard.writeText(currentResetLink).then(() => {
-              const toast = document.getElementById('toast');
-              toast.classList.remove('translate-y-20', 'opacity-0');
-              setTimeout(() => {
-                toast.classList.add('translate-y-20', 'opacity-0');
-              }, 2000);
-            });
-          }
-        </script>
+        </div>
+        <script src="/static/js/nfc.js"></script>
+        <script src="/static/js/wipe.js"></script>
 `,
   });
 }

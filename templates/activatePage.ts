@@ -1,6 +1,5 @@
 import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
-import { BROWSER_NFC_HELPERS, BROWSER_VALIDATE_UID_HELPER } from "./browserNfc.js";
 
 export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, programUrl, resetUrl }: { apiUrl: string; programDeepLink: string; resetDeepLink: string; programUrl: string; resetUrl: string }): string {
   return renderTailwindPage({
@@ -13,6 +12,10 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
       '.qr-container { display: inline-block; padding: 10px; background: white; border-radius: 8px; margin-top: 10px; }',
     ].join('\n'),
     content: rawHtml`
+        <div id="activate-config" class="hidden"
+          data-api-url="${safe(jsString(apiUrl))}"
+          data-program-url="${safe(jsString(programUrl))}"
+          data-reset-url="${safe(jsString(resetUrl))}"></div>
         <div class="max-w-4xl w-full bg-gray-800 border border-gray-700 shadow-xl rounded-lg p-6 md:p-8">
           
           <div class="flex items-center justify-between border-b border-gray-700 pb-4 mb-6">
@@ -39,7 +42,7 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
             <h2 class="text-lg font-semibold text-gray-300">API CONFIGURATION</h2>
             <div class="bg-gray-900 rounded p-4 border border-gray-700 font-mono text-sm break-all flex justify-between items-center group">
               <span id="api-url" class="text-gray-400">${apiUrl}</span>
-              <button onclick="copyText('api-url')" class="ml-4 text-gray-500 hover:text-amber-500 focus:outline-none transition-colors">
+              <button data-copy-id="api-url" class="ml-4 text-gray-500 hover:text-amber-500 focus:outline-none transition-colors">
                 COPY
               </button>
             </div>
@@ -60,7 +63,7 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
               
               <div class="w-full bg-black/50 rounded p-3 border border-gray-800 flex justify-between items-center group mt-auto">
                 <span id="link-program" class="font-mono text-xs text-gray-500 truncate mr-2">${programDeepLink}</span>
-                <button onclick="copyText('link-program')" class="text-gray-600 hover:text-amber-500 text-xs font-bold shrink-0 transition-colors">
+                <button data-copy-id="link-program" class="text-gray-600 hover:text-amber-500 text-xs font-bold shrink-0 transition-colors">
                   COPY
                 </button>
               </div>
@@ -80,7 +83,7 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
               
               <div class="w-full bg-black/50 rounded p-3 border border-gray-800 flex justify-between items-center group mt-auto">
                 <span id="link-reset" class="font-mono text-xs text-gray-500 truncate mr-2">${resetDeepLink}</span>
-                <button onclick="copyText('link-reset')" class="text-gray-600 hover:text-amber-500 text-xs font-bold shrink-0 transition-colors">
+                <button data-copy-id="link-reset" class="text-gray-600 hover:text-amber-500 text-xs font-bold shrink-0 transition-colors">
                   COPY
                 </button>
               </div>
@@ -114,7 +117,7 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
                 </a>
                 <div class="w-full bg-black/50 rounded p-3 border border-gray-800 flex justify-between items-center group">
                   <span id="link-pos" class="font-mono text-xs text-gray-500 truncate mr-2"></span>
-                  <button onclick="copyText('link-pos')" class="text-gray-600 hover:text-amber-500 text-xs font-bold shrink-0 transition-colors">COPY</button>
+                  <button data-copy-id="link-pos" class="text-gray-600 hover:text-amber-500 text-xs font-bold shrink-0 transition-colors">COPY</button>
                 </div>
               </div>
             </div>
@@ -135,7 +138,7 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
               </a>
               <div class="w-full bg-black/50 rounded p-3 border border-gray-800 flex justify-between items-center group">
                 <span id="link-2fa" class="font-mono text-xs text-gray-500 truncate mr-2"></span>
-                <button onclick="copyText('link-2fa')" class="text-gray-600 hover:text-amber-500 text-xs font-bold shrink-0 transition-colors">COPY</button>
+                <button data-copy-id="link-2fa" class="text-gray-600 hover:text-amber-500 text-xs font-bold shrink-0 transition-colors">COPY</button>
               </div>
             </div>
           </div>
@@ -146,7 +149,7 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
               <div class="bg-gray-900 border border-gray-800 rounded p-4">
                 <div class="flex justify-between items-center mb-2">
                   <span class="text-xs font-bold text-green-500 uppercase">Program Withdraw Card</span>
-                  <button onclick="copyText('curl-program')" class="text-xs text-amber-500 hover:text-amber-400 font-bold">COPY</button>
+                  <button data-copy-id="curl-program" class="text-xs text-amber-500 hover:text-amber-400 font-bold">COPY</button>
                 </div>
                 <pre id="curl-program" class="font-mono text-xs text-green-400 overflow-x-auto">curl -X POST '${programUrl}' \
   -H "Content-Type: application/json" \
@@ -156,7 +159,7 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
               <div class="bg-gray-900 border border-gray-800 rounded p-4">
                 <div class="flex justify-between items-center mb-2">
                   <span class="text-xs font-bold text-purple-500 uppercase">Program POS Card</span>
-                  <button onclick="copyText('curl-pos')" class="text-xs text-amber-500 hover:text-amber-400 font-bold">COPY</button>
+                  <button data-copy-id="curl-pos" class="text-xs text-amber-500 hover:text-amber-400 font-bold">COPY</button>
                 </div>
                 <pre id="curl-pos" class="font-mono text-xs text-purple-400 overflow-x-auto">curl -X POST '${programUrl}&card_type=pos&lightning_address=user@domain.com' \
   -H "Content-Type: application/json" \
@@ -166,7 +169,7 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
               <div class="bg-gray-900 border border-gray-800 rounded p-4">
                 <div class="flex justify-between items-center mb-2">
                   <span class="text-xs font-bold text-emerald-500 uppercase">Program 2FA Card</span>
-                  <button onclick="copyText('curl-2fa')" class="text-xs text-amber-500 hover:text-amber-400 font-bold">COPY</button>
+                  <button data-copy-id="curl-2fa" class="text-xs text-amber-500 hover:text-amber-400 font-bold">COPY</button>
                 </div>
                 <pre id="curl-2fa" class="font-mono text-xs text-emerald-400 overflow-x-auto">curl -X POST '${programUrl}&card_type=2fa' \
   -H "Content-Type: application/json" \
@@ -176,7 +179,7 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
               <div class="bg-gray-900 border border-gray-800 rounded p-4">
                 <div class="flex justify-between items-center mb-2">
                   <span class="text-xs font-bold text-blue-500 uppercase">Reset via LNURLW</span>
-                  <button onclick="copyText('curl-reset')" class="text-xs text-amber-500 hover:text-amber-400 font-bold">COPY</button>
+                  <button data-copy-id="curl-reset" class="text-xs text-amber-500 hover:text-amber-400 font-bold">COPY</button>
                 </div>
                 <pre id="curl-reset" class="font-mono text-xs text-blue-400 overflow-x-auto">curl -X POST '${resetUrl}' \
   -H "Content-Type: application/json" \
@@ -191,87 +194,8 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
           Copied to clipboard
         </div>
 
-        <script>
-          const posBaseUrl = ${jsString(apiUrl)};
-          let posQr = null;
-
-          function updatePosConfig() {
-            const address = document.getElementById('pos-lightning-address').value.trim();
-            const amount = parseInt(document.getElementById('pos-amount').value) || 1;
-            const amountMsat = amount * 1000;
-            const posUrl = posBaseUrl + '&card_type=pos&lightning_address=' + encodeURIComponent(address) + '&min_sendable=' + amountMsat + '&max_sendable=' + amountMsat;
-            const deepLink = 'boltcard://program?url=' + encodeURIComponent(posUrl);
-
-            const linkEl = document.getElementById('link-pos');
-            linkEl.textContent = deepLink;
-
-            const deeplinkEl = document.getElementById('pos-deeplink');
-            deeplinkEl.href = deepLink;
-
-            if (posQr) posQr.clear();
-            posQr.makeCode(posUrl);
-          }
-
-          function setup2faConfig() {
-            const twoFaUrl = posBaseUrl + '&card_type=2fa';
-            const deepLink = 'boltcard://program?url=' + encodeURIComponent(twoFaUrl);
-
-            document.getElementById('link-2fa').textContent = deepLink;
-            document.getElementById('2fa-deeplink').href = deepLink;
-
-            const qr2fa = new QRCode(document.getElementById("qr-2fa"), {
-              text: twoFaUrl,
-              width: 200, height: 200,
-              colorDark: "#000000", colorLight: "#ffffff",
-              correctLevel: QRCode.CorrectLevel.L
-            });
-          }
-
-          document.addEventListener('DOMContentLoaded', () => {
-            new QRCode(document.getElementById("qr-program"), {
-              text: ${jsString(programUrl)},
-              width: 200, height: 200,
-              colorDark: "#000000", colorLight: "#ffffff",
-              correctLevel: QRCode.CorrectLevel.L
-            });
-
-            new QRCode(document.getElementById("qr-reset"), {
-              text: ${jsString(resetUrl)},
-              width: 200, height: 200,
-              colorDark: "#000000", colorLight: "#ffffff",
-              correctLevel: QRCode.CorrectLevel.L
-            });
-
-            posQr = new QRCode(document.getElementById("qr-pos"), {
-              text: "",
-              width: 200, height: 200,
-              colorDark: "#000000", colorLight: "#ffffff",
-              correctLevel: QRCode.CorrectLevel.L
-            });
-
-            updatePosConfig();
-            setup2faConfig();
-
-            document.getElementById('pos-lightning-address').addEventListener('input', updatePosConfig);
-            document.getElementById('pos-amount').addEventListener('input', updatePosConfig);
-          });
-
-          function copyText(elementId) {
-            const el = document.getElementById(elementId);
-            const text = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' ? el.value : el.innerText;
-            navigator.clipboard.writeText(text).then(() => {
-              showToast();
-            }).catch(() => {});
-          }
-
-          function showToast() {
-            const toast = document.getElementById('toast');
-            toast.classList.remove('translate-y-20', 'opacity-0');
-            setTimeout(() => {
-              toast.classList.add('translate-y-20', 'opacity-0');
-            }, 2000);
-          }
-        </script>
+        ${safe('<script src="/static/js/nfc.js"></script>')}
+        ${safe('<script src="/static/js/activate.js"></script>')}
 `,
   });
 }
@@ -309,75 +233,8 @@ export function renderActivateCardPage(): string {
         </div>
       </div>
 
-    <script>
-      ${safe(BROWSER_VALIDATE_UID_HELPER)}
-      ${safe(BROWSER_NFC_HELPERS)}
-
-      var activateFormScanner = createNfcScanner({
-        continuous: false,
-        debounceMs: 0,
-        onTap: function(data) {
-          var nfcStatus = document.getElementById('nfc-status');
-          var uidInput = document.getElementById('uid');
-          nfcStatus.classList.remove('hidden');
-          if (data.serial) {
-            var formattedUid = data.serial;
-            var validatedUid = validateUid(formattedUid);
-            if (validatedUid) {
-              uidInput.value = validatedUid;
-              nfcStatus.className = 'rounded-lg px-4 py-3 text-sm mb-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300';
-              nfcStatus.textContent = 'Successfully scanned card UID: ' + validatedUid;
-            } else {
-              nfcStatus.className = 'rounded-lg px-4 py-3 text-sm mb-3 bg-red-500/10 border border-red-500/30 text-red-300';
-              nfcStatus.textContent = 'Invalid UID format after processing. Expected 14 hex characters.';
-            }
-          } else {
-            nfcStatus.className = 'rounded-lg px-4 py-3 text-sm mb-3 bg-red-500/10 border border-red-500/30 text-red-300';
-            nfcStatus.textContent = 'Could not read UID from card. Please try again.';
-          }
-          var scanHint = document.getElementById('nfc-scanning-hint');
-          if (scanHint) scanHint.textContent = 'Tap again to re-scan card';
-        },
-        onError: function(err, phase) {
-          var nfcStatus = document.getElementById('nfc-status');
-          if (phase !== 'permission') {
-            nfcStatus.classList.remove('hidden');
-            nfcStatus.className = 'rounded-lg px-4 py-3 text-sm mb-3 bg-red-500/10 border border-red-500/30 text-red-300';
-            nfcStatus.textContent = 'Error: ' + err.message;
-          }
-        }
-      });
-
-      document.getElementById('activateForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        var result = document.getElementById('result');
-        var uidInput = document.getElementById('uid');
-        var validatedUid = validateUid(uidInput.value.replace(/:/g, '').toLowerCase());
-
-        if (!validatedUid) {
-          result.className = 'mt-4 text-sm text-red-300';
-          result.textContent = 'Error: UID must be exactly 7 bytes (14 hex characters)';
-          return;
-        }
-
-        fetch('/experimental/activate/form', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uid: validatedUid })
-        }).then(function(r) { return r.json(); }).then(function(json) {
-          if (json.status === 'OK') {
-            result.className = 'mt-4 text-sm text-emerald-300';
-            result.textContent = 'Card activated successfully! ' + (json.message || '');
-          } else {
-            result.className = 'mt-4 text-sm text-red-300';
-            result.textContent = 'Error: ' + (json.reason || 'Unknown error');
-          }
-        }).catch(function(error) {
-          result.className = 'mt-4 text-sm text-red-300';
-          result.textContent = 'Error submitting form: ' + error.message;
-        });
-      });
-    </script>
+    ${safe('<script src="/static/js/nfc.js"></script>')}
+    ${safe('<script src="/static/js/activate.js"></script>')}
   `;
 
   return renderTailwindPage({ title: "BoltCard Activation", content, csrf: true });

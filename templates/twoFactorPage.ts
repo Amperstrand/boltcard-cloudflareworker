@@ -1,6 +1,5 @@
-import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
+import { rawHtml, safe } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
-import { BROWSER_NFC_BASE } from "./browserNfc.js";
 import { buildMaskedUid } from "../utils/validation.js";
 
 export function renderTwoFactorPage({ uidHex, totp, hotp, counterValue, pHex, cHex, baseUrl }: { uidHex: string; totp: { code: string; secondsRemaining: number; counter: number }; hotp: string; counterValue: number; pHex: string; cHex: string; baseUrl: string }): string {
@@ -11,6 +10,7 @@ export function renderTwoFactorPage({ uidHex, totp, hotp, counterValue, pHex, cH
   const payLink: string = `lnurlp://${host}/?p=${pHex}&c=${cHex}`;
 
   const content: string = rawHtml`
+    <div id="otp-root" data-seconds-remaining="${totp.secondsRemaining}">
     <div class="min-h-screen p-4 md:p-8 font-sans antialiased flex flex-col items-center">
       <div class="max-w-lg w-full bg-gray-800 border border-gray-700 shadow-xl rounded-lg p-6 md:p-8">
 
@@ -66,21 +66,9 @@ export function renderTwoFactorPage({ uidHex, totp, hotp, counterValue, pHex, cH
 
       </div>
     </div>
+    </div>
 
-    <script>
-      (function() {
-        const bar = document.getElementById('totp-bar');
-        const timer = document.getElementById('totp-timer');
-        let seconds = ${totp.secondsRemaining};
-        setInterval(function() {
-          seconds--;
-          if (seconds < 0) seconds = 29;
-          if (bar) bar.style.width = ((seconds / 30) * 100) + '%';
-          if (timer) timer.textContent = seconds + 's';
-        }, 1000);
-        setTimeout(function() { window.location.reload(); }, 30000);
-      })();
-    </script>
+    <script src="/static/js/two-factor.js"></script>
   `;
 
   return renderTailwindPage({
@@ -156,95 +144,9 @@ export function renderTwoFactorLandingPage(baseUrl: string): string {
       </section>
     </div>
 
-    <script>
-      ${safe(BROWSER_NFC_BASE)}
-      const BASE_URL = ${jsString(baseUrl)};
-      const scanStatus = document.getElementById('scan-status');
-      const scanDetail = document.getElementById('scan-detail');
-      const scanError = document.getElementById('scan-error');
-      const scanButton = document.getElementById('scan-button');
-      const scanIndicator = document.getElementById('scan-indicator');
-      let scanAbortController = null;
-
-      function updateIndicator(active) {
-        if (active) {
-          scanIndicator.className = 'rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20';
-          scanIndicator.textContent = 'NFC active \\u00b7 click to restart';
-        } else {
-          scanIndicator.className = 'rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-500/20';
-          scanIndicator.textContent = 'NFC inactive \\u00b7 click to start';
-        }
-      }
-
-      function showError(message) {
-        scanError.textContent = message;
-        scanError.classList.remove('hidden');
-      }
-
-      function clearError() {
-        scanError.textContent = '';
-        scanError.classList.add('hidden');
-      }
-
-      async function startScan() {
-        clearError();
-        if (!browserSupportsNfc()) {
-          scanStatus.textContent = 'Web NFC unavailable';
-          scanDetail.textContent = 'Use Chrome on Android to demo boltcard-powered 2FA.';
-          showError('Web NFC is not supported on this device/browser.');
-          return;
-        }
-
-        if (scanAbortController) {
-          scanAbortController.abort();
-        }
-
-        try {
-          const ndef = new NDEFReader();
-          scanAbortController = new AbortController();
-          await ndef.scan({ signal: scanAbortController.signal });
-          updateIndicator(true);
-          scanStatus.textContent = 'Scanning for boltcard payload\\u2026';
-          scanDetail.textContent = 'Tap the card now. We will redirect into the live TOTP/HOTP view.';
-
-          ndef.onreadingerror = function() {
-            showError('NFC read failed. Try holding the card still against the back of the device.');
-          };
-
-          ndef.onreading = async function(event) {
-            const url = normalizeBrowserNfcUrl(await extractNdefUrl(event.message.records, ['lnurlw://', 'https://']));
-            if (!url) {
-              showError('No compatible boltcard URL was found on the card.');
-              return;
-            }
-
-            const parsed = new URL(url);
-            const p = parsed.searchParams.get('p');
-            const c = parsed.searchParams.get('c');
-            if (!p || !c) {
-              showError('The scanned card did not include the signed 2FA parameters.');
-              return;
-            }
-
-            scanStatus.textContent = 'Card read. Opening OTP screen\\u2026';
-            window.location.href = BASE_URL + '/2fa?p=' + encodeURIComponent(p) + '&c=' + encodeURIComponent(c);
-          };
-        } catch (error) {
-          updateIndicator(false);
-          if (error.name !== 'AbortError') {
-            showError(error.message || 'Unable to start NFC scan.');
-            scanStatus.textContent = 'Unable to start NFC scan';
-          }
-        }
-      }
-
-      scanButton.addEventListener('click', startScan);
-      scanIndicator.addEventListener('click', startScan);
-      updateIndicator(false);
-      if (browserSupportsNfc()) {
-        window.addEventListener('load', startScan);
-      }
-    </script>
+    <div id="twofa-landing-root" data-base-url="${safe(baseUrl)}"></div>
+    <script src="/static/js/nfc.js"></script>
+    <script src="/static/js/two-factor.js"></script>
   `;
 
   return renderTailwindPage({

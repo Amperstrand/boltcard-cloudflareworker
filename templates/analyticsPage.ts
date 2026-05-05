@@ -1,6 +1,5 @@
 import { rawHtml, safe } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
-import { BROWSER_VALIDATE_UID_HELPER } from "./browserNfc.js";
 
 export function renderAnalyticsPage(): string {
   return renderTailwindPage({
@@ -18,7 +17,7 @@ export function renderAnalyticsPage(): string {
       <p class="text-xs text-gray-500 uppercase tracking-wider mb-3">Card Lookup</p>
       <div class="flex gap-2">
         <input id="uid-input" type="text" placeholder="UID hex (e.g. 04996c6a926980)" class="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm font-mono text-gray-300 focus:border-emerald-500 focus:outline-none" />
-        <button onclick="loadAnalytics()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded text-sm transition-colors">Load</button>
+        <button data-action="load-analytics" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded text-sm transition-colors">Load</button>
       </div>
       <p id="lookup-error" class="text-red-400 text-xs mt-2 hidden"></p>
     </div>
@@ -97,74 +96,7 @@ export function renderAnalyticsPage(): string {
     </p>
   </div>
 
-  <script>
- ${safe(BROWSER_VALIDATE_UID_HELPER)}
-
-    function formatMsat(msat) {
-      if (!msat || msat === 0) return '0 sats';
-      var sats = msat / 1000;
-      if (sats < 1) return msat + ' msat';
-      if (sats < 1000) return (sats % 1 === 0 ? sats : sats.toFixed(3)) + ' sats';
-      return (sats / 1e8).toFixed(8) + ' BTC';
-    }
-
-    async function loadAnalytics() {
-      var uid = document.getElementById('uid-input').value.trim().toLowerCase();
-      var normalizedUid = validateUid(uid);
-      var errEl = document.getElementById('lookup-error');
-      errEl.classList.add('hidden');
-
-      if (!normalizedUid) {
-        errEl.textContent = 'Invalid UID — must be 14 hex characters';
-        errEl.classList.remove('hidden');
-        return;
-      }
-
-      try {
-        var resp = await fetch('/analytics/data?uid=' + normalizedUid);
-        if (!resp.ok) {
-          errEl.textContent = 'Failed to load analytics (HTTP ' + resp.status + ')';
-          errEl.classList.remove('hidden');
-          return;
-        }
-        var data = await resp.json();
-        renderAnalytics(normalizedUid, data);
-      } catch (e) {
-        errEl.textContent = 'Error: ' + e.message;
-        errEl.classList.remove('hidden');
-      }
-    }
-
-    function renderAnalytics(uid, d) {
-      document.getElementById('display-uid').textContent = uid.toUpperCase();
-      document.getElementById('stat-completed').textContent = formatMsat(d.completedMsat || 0);
-      document.getElementById('stat-failed').textContent = formatMsat(d.failedMsat || 0);
-      document.getElementById('stat-pending').textContent = formatMsat(d.pendingMsat || 0);
-      document.getElementById('stat-taps').textContent = d.totalTaps || 0;
-
-      document.getElementById('breakdown-completed-count').textContent = (d.completedTaps || 0) + ' taps';
-      document.getElementById('breakdown-completed-amount').textContent = formatMsat(d.completedMsat || 0);
-      document.getElementById('breakdown-failed-count').textContent = (d.failedTaps || 0) + ' taps';
-      document.getElementById('breakdown-failed-amount').textContent = formatMsat(d.failedMsat || 0);
-      document.getElementById('breakdown-pending-count').textContent = (d.pendingTaps || 0) + ' taps';
-      document.getElementById('breakdown-pending-amount').textContent = formatMsat(d.pendingMsat || 0);
-
-      var total = d.totalTaps || 0;
-      var completed = d.completedTaps || 0;
-      var rate = total > 0 ? Math.round((completed / total) * 100) : 0;
-      document.getElementById('success-bar').style.width = rate + '%';
-      document.getElementById('success-rate').textContent = completed + ' / ' + total + ' (' + rate + '%)';
-
-      document.getElementById('analytics-content').classList.remove('hidden');
-    }
-
-    var params = new URLSearchParams(window.location.search);
-    var prefill = params.get('uid');
-    if (prefill) {
-      document.getElementById('uid-input').value = prefill;
-      loadAnalytics();
-    }
-  </script>
+  ${safe('<script src="/static/js/analytics.js"></script>')}
 </div>`,
   });
 }

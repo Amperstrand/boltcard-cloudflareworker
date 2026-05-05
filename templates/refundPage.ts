@@ -1,7 +1,5 @@
-import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
+import { rawHtml, safe } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
-import { BROWSER_NFC_HELPERS } from "./browserNfc.js";
-import { resultBoxHelpers, OPERATOR_LOGOUT_HANDLER } from "./operatorShared.js";
 
 export function renderRefundPage({ host, currencyLabel }: { host: string; currencyLabel?: string }): string {
   return renderTailwindPage({
@@ -65,113 +63,7 @@ export function renderRefundPage({ host, currencyLabel }: { host: string; curren
       <button id="logout-btn" type="button" class="text-xs text-gray-600 hover:text-gray-400 transition-colors">LOGOUT</button>
     </div>
 
-    <script>
-      ${safe(BROWSER_NFC_HELPERS)}
-      ${safe(resultBoxHelpers('w-full max-w-xs rounded-xl border p-4 mb-4'))}
-      ${safe(OPERATOR_LOGOUT_HANDLER)}
-      const API_HOST = ${jsString(host)};
-      let appState = 'idle';
-      let nfcScanner = null;
-      let lastP = null;
-      let lastC = null;
-
-      const cardInfo = document.getElementById('card-info');
-      const cardBalance = document.getElementById('card-balance');
-      const refundOptions = document.getElementById('refund-options');
-      const fullRefundBtn = document.getElementById('full-refund-btn');
-      const partialRefundBtn = document.getElementById('partial-refund-btn');
-      const partialAmount = document.getElementById('partial-amount');
-      const nfcTapBtn = document.getElementById('nfc-tap-btn');
-      const logoutBtn = document.getElementById('logout-btn');
-
-      nfcScanner = createNfcScanner({
-        continuous: false,
-        debounceMs: 0,
-        onStatus: function(status) {
-          if (status === 'scanning') appState = 'scanning';
-        },
-        onError: function(err, phase) {
-          appState = 'idle';
-          if (phase === 'scan') showResult('error', 'NFC error', 'Try again');
-          else if (phase !== 'permission') showResult('error', 'NFC error', err.message);
-        },
-        onTap: async function(data) {
-          if (!data.url) { appState = 'idle'; showResult('error', 'No card data', 'Could not read card'); return; }
-          try {
-            var parsed = new URL(data.url);
-            var p = parsed.searchParams.get('p');
-            var c = parsed.searchParams.get('c');
-            if (p && c) { lastP = p; lastC = c; await fetchBalance(p, c); }
-            else { appState = 'idle'; showResult('error', 'Invalid card', 'Missing p/c parameters'); }
-          } catch(e) { appState = 'idle'; showResult('error', 'Error', e.message); }
-        }
-      });
-
-      fullRefundBtn.addEventListener('click', function() { submitRefund(true, 0); });
-      partialRefundBtn.addEventListener('click', function() {
-        const amt = parseInt(partialAmount.value, 10);
-        if (!amt || amt <= 0) { showResult('error', 'Invalid amount', 'Enter a positive amount'); return; }
-        submitRefund(false, amt);
-      });
-      nfcTapBtn.addEventListener('click', function() { clearResult(); nfcScanner.scan(); });
-      logoutBtn.addEventListener('click', operatorLogout);
-
-      if (!browserSupportsNfc()) {
-        nfcTapBtn.textContent = 'NFC NOT AVAILABLE — use Chrome on Android or USB reader';
-        nfcTapBtn.disabled = true;
-        nfcTapBtn.classList.add('opacity-50');
-      } else {
-        window.addEventListener('load', function() { nfcScanner.scan(); });
-      }
-
-      async function submitRefund(fullRefund, amount) {
-        if (!lastP || !lastC) { showResult('error', 'No card', 'Tap a card first'); return; }
-        appState = 'processing';
-        try {
-          const body = { p: lastP, c: lastC, fullRefund: fullRefund };
-          if (!fullRefund) body.amount = amount;
-          const resp = await fetch('/operator/refund/apply', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-          });
-          const data = await resp.json();
-          if (resp.ok && data.success) {
-            cardBalance.textContent = data.balance || 0;
-            partialAmount.value = '';
-            showResult('success', 'Refund issued', 'Refunded ' + data.amount + '. Remaining: ' + data.balance);
-          } else {
-            showResult('error', 'Refund failed', data.error || data.reason || 'Unknown error');
-          }
-        } catch(e) {
-          showResult('error', 'Network error', e.message);
-        }
-        appState = 'idle';
-      }
-
-      async function fetchBalance(p, c) {
-        try {
-          const resp = await fetch('/api/balance-check', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ p, c }),
-          });
-          const data = await resp.json();
-          if (resp.ok) {
-            cardBalance.textContent = data.balance || 0;
-            cardInfo.classList.remove('hidden');
-            refundOptions.classList.remove('hidden');
-            appState = 'idle';
-          } else {
-            appState = 'idle';
-            showResult('error', 'Read failed', data.error || data.reason || 'Could not read card');
-          }
-        } catch(e) {
-          appState = 'idle';
-          showResult('error', 'Network error', e.message);
-        }
-      }
-    </script>
+    ${safe('<script src="/static/js/nfc.js"></script>')}${safe('<script src="/static/js/refund.js"></script>')}
   `,
   });
 }

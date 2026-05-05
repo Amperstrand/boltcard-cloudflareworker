@@ -60,11 +60,11 @@ describe("template helpers", () => {
 });
 
 describe("refactored page renderers", () => {
-  test("analytics page uses shared shell and validation helper", () => {
+  test("analytics page uses shared shell and loads static JS", () => {
     const html = renderAnalyticsPage();
     expect(html).toContain("Bolt Card Analytics");
     expect(html).toContain("cdn.tailwindcss.com");
-    expect(html).toContain("function validateUid");
+    expect(html).toContain("analytics.js");
   });
 
   test("wipe page uses shared shell and NFC helpers", () => {
@@ -74,8 +74,10 @@ describe("refactored page renderers", () => {
     });
     expect(html).toContain("BoltCard Wipe Utility");
     expect(html).toContain("cdn.tailwindcss.com");
-    expect(html).toContain("function browserSupportsNfc()");
-    expect(html).toContain("normalizeNfcSerial(event.serialNumber)");
+    expect(html).toContain('/static/js/nfc.js');
+    expect(html).toContain('/static/js/wipe.js');
+    expect(html).toContain('data-base-url="https://test.local"');
+    expect(html).toContain('data-reset-api-url="https://test.local/api/v1/pull-payments/example/boltcards?onExisting=KeepVersion"');
   });
 
   test("bulk wipe page uses shared shell", () => {
@@ -101,10 +103,10 @@ describe("refactored page renderers", () => {
     expect(html).toContain("CARD ACTIVATION");
   });
 
-  test("activate card page uses shared NFC helpers", () => {
+  test("activate card page loads NFC helpers via static JS", () => {
     const html = renderActivateCardPage();
-    expect(html).toContain("function browserSupportsNfc()");
-    expect(html).toContain("normalizeNfcSerial(event.serialNumber)");
+    expect(html).toContain("activate.js");
+    expect(html).toContain("nfc.js");
   });
 });
 

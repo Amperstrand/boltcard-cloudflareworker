@@ -16,7 +16,7 @@ describe("handleCardAuditPage", () => {
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain("CARD REGISTRY");
-    expect(html).toContain("operator/cards/data");
+    expect(html).toContain("card-audit.js");
   });
 
   it("rejects unauthenticated request", async () => {
