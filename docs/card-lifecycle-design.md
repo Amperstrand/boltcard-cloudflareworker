@@ -2,7 +2,7 @@
 
 > Status: **DRAFT — pending user decision**
 > Date: 2026-04-19
-> Affects: `keygenerator.js`, `durableObjects/CardReplayDO.js`, `replayProtection.js`, `handlers/fetchBoltCardKeys.js`, `handlers/resetHandler.js`, `getUidConfig.js`, UI pages
+> Affects: `keygenerator.ts`, `durableObjects/CardReplayDO.ts`, `replayProtection.ts`, `handlers/fetchBoltCardKeys.ts`, `handlers/resetHandler.ts`, `getUidConfig.ts`, UI pages
 
 ---
 

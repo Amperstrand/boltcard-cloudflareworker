@@ -104,7 +104,7 @@ Every card DO row tracks **key provenance** — where its encryption keys came f
 
 | Provenance | Meaning |
 |---|---|
-| `public_issuer` | Key is in `generatedKeyData.js` (git-tracked dev keys) |
+| `public_issuer` | Key is in `generatedKeyData.js` (git-tracked dev keys, auto-generated) |
 | `env_issuer` | Matches `env.ISSUER_KEY` and not public |
 | `percard` | Per-card import from CSV |
 | `user_provisioned` | Explicitly programmed by user |
@@ -292,7 +292,7 @@ To submit keys for a service, add a CSV file to `keys/` and run `node scripts/bu
 ```bash
 git clone <repository-url> && cd boltcard-cloudflareworker
 npm install
-npm test          # Run 1167 unit tests
+npm test          # Run 1343 unit tests
 npm run test:all  # Run all tests (unit + DO integration)
 npm run deploy    # tests → build_keys → wrangler deploy
 ```
@@ -311,7 +311,7 @@ See [docs/VENUE-DEPLOYMENT.md](docs/VENUE-DEPLOYMENT.md) for the full guide.
 ## Testing
 
 ```bash
-npm test                              # 1167 unit tests (Vitest, node env)
+npm test                              # 1343 unit tests (Vitest, node env)
 npm run test:do                       # 52 DO integration tests (real SQLite)
 npm run test:all                      # Both
 npm test -- --testNamePattern="pos"   # Run specific tests
@@ -319,113 +319,117 @@ npm test -- --watch                   # Watch mode
 npm run deploy                        # tests → build_keys → wrangler deploy
 ```
 
-**1219 tests** across 62 suites (1167 unit + 52 DO integration).
+**1395 tests** across 73 suites (1343 unit + 52 DO integration).
 
 ### Test Infrastructure
 
-- **`tests/testHelpers.js`**: `virtualTap(uid, counter, k1, k2)`, `buildCardTestEnv(options)`, `TEST_OPERATOR_AUTH`
-- **`tests/replayNamespace.js`**: In-memory Durable Object mock with balance enforcement
-- **`tests/e2e/virtual-card.test.js`**: Full E2E lifecycle: provision → tap → pay → replay
-- **`tests/e2e/pages.test.js`**: Page rendering, security headers, auth flows
-- **`tests/do/cardReplayDO.real.test.js`**: 52 DO integration tests with real SQLite via `@cloudflare/vitest-pool-workers`
-- **`tests/adversarial.test.js`**: 42 adversarial tests: open redirect, XSS, balance overflow, counter replay
+- **`tests/testHelpers.ts`**: `virtualTap(uid, counter, k1, k2)`, `buildCardTestEnv(options)`, `TEST_OPERATOR_AUTH`
+- **`tests/replayNamespace.ts`**: In-memory Durable Object mock with balance enforcement
+- **`tests/e2e/virtual-card.test.ts`**: Full E2E lifecycle: provision → tap → pay → replay
+- **`tests/e2e/pages.test.ts`**: Page rendering, security headers, auth flows
+- **`tests/do/cardReplayDO.real.test.ts`**: 52 DO integration tests with real SQLite via `@cloudflare/vitest-pool-workers`
+- **`tests/adversarial.test.ts`**: 42 adversarial tests: open redirect, XSS, balance overflow, counter replay
 
 ## Project Structure
 
 ```
-├── index.js                     # Router + security headers + error handling
-├── boltCardHelper.js            # Card decrypt + CMAC validation
-├── cryptoutils.js               # AES-ECB + AES-CMAC primitives
-├── getUidConfig.js              # Card config lookup (DO → deterministic fallback)
-├── keygenerator.js              # Deterministic key derivation from UID + ISSUER_KEY
-├── rateLimiter.js               # IP-based fixed-window rate limiting
-├── replayProtection.js          # Replay check + balance/txn helpers → DO
+├── index.ts                     # Router + security headers + error handling
+├── boltCardHelper.ts            # Card decrypt + CMAC validation
+├── cryptoutils.ts               # AES-ECB + AES-CMAC primitives
+├── getUidConfig.ts              # Card config lookup (DO → deterministic fallback)
+├── keygenerator.ts              # Deterministic key derivation from UID + ISSUER_KEY
+├── rateLimiter.ts               # IP-based fixed-window rate limiting
+├── replayProtection.ts          # Replay check + balance/txn helpers → DO
 ├── middleware/
-│   └── operatorAuth.js          # PIN auth, session cookies, requireOperator()
-├── handlers/                    # 34 route handlers
-│   ├── operatorLoginHandler.js  # PIN login/logout
-│   ├── loginHandler.js          # Customer NFC key recovery + privileged actions
-│   ├── loginActions.js          # Terminate, wipe, top-up action handlers
-│   ├── topupHandler.js          # Top-up desk (credit card)
-│   ├── posChargeHandler.js      # POS direct debit
-│   ├── posHandler.js            # POS page render
-│   ├── refundHandler.js         # Full/partial refund
-│   ├── lnurlwHandler.js         # LNURL-withdraw tap processing
-│   ├── lnurlHandler.js          # LNURL-withdraw callback (payment processing)
-│   ├── lnurlPayHandler.js       # LNURL-pay flow
-│   ├── proxyHandler.js          # Downstream LNBits relay (with header filtering)
-│   ├── fetchBoltCardKeys.js     # Card provisioning + key delivery
-│   ├── withdrawHandler.js       # Withdraw response construction
-│   ├── activateCardHandler.js   # Quick-activate UID
-│   ├── activatePageHandler.js   # Card activation page
-│   ├── resetHandler.js          # Card wipe/reset
-│   ├── wipePageHandler.js       # Wipe page
-│   ├── bulkWipeHandler.js       # Bulk wipe key candidates
-│   ├── bulkWipePageHandler.js   # Bulk wipe page
-│   ├── balanceCheckHandler.js   # Read-only balance check
-│   ├── menuEditorHandler.js     # Menu editor page + API
-│   ├── menuHandler.js           # Menu storage
-│   ├── receiptHandler.js        # Plain-text receipt
-│   ├── cardAuditHandler.js      # Card registry audit page + data API
-│   ├── cardDashboardHandler.js  # Cardholder dashboard (NFC scan)
-│   ├── cardBatchHandler.js      # Batch card operations
-│   ├── debugHandler.js          # Debug dashboard
-│   ├── identityHandler.js       # Identity/access control demo
-│   ├── twoFactorHandler.js      # 2FA TOTP/HOTP
-│   ├── analyticsHandler.js      # Per-card analytics
-│   ├── getKeysHandler.js        # Key listing + bulk wipe
-│   ├── identifyCardHandler.js   # Card identification
-│   ├── identifyIssuerKeyHandler.js # Tap-to-detect issuer key
-│   └── statusHandler.js         # Health check
-├── templates/                   # 17 HTML pages (Tailwind CSS, rawHtml tagged template)
-│   ├── browserNfc.js            # Shared NFC scanner + CSRF + esc() helpers
-│   ├── pageShell.js             # Shared Tailwind page wrapper
-│   ├── loginPage.js             # NFC key recovery page
-│   ├── operatorLoginPage.js     # PIN login form
-│   ├── posPage.js               # POS with free-amount + menu modes
-│   ├── topupPage.js             # Top-up keypad + NFC
-│   ├── refundPage.js            # Refund desk
-│   ├── menuEditorPage.js        # Menu editor
-│   ├── cardDashboardPage.js     # Cardholder dashboard
-│   ├── cardAuditPage.js         # Card registry audit
-│   ├── debugConsolePage.js      # Debug console
-│   ├── identityPage.js          # Identity demo
-│   ├── activatePage.js          # Card activation
-│   ├── analyticsPage.js         # Analytics dashboard
-│   ├── bulkWipePage.js          # Bulk wipe
-│   ├── wipePage.js              # Card wipe
-│   └── twoFactorPage.js         # 2FA codes display
-├── utils/                       # 19 utility modules
-│   ├── bolt11.js                # BOLT11 invoice generation (@noble/secp256k1)
-│   ├── cardIndex.js             # KV-backed card registry (indexCard, listIndexedCards)
-│   ├── cardMatching.js          # Shared card issuer detection
-│   ├── cmacScan.js              # Multi-version CMAC scan engine
-│   ├── constants.js             # CARD_STATE, PAYMENT_METHOD, numeric constants
-│   ├── cookies.js               # Cookie parsing + constantTimeEqual
-│   ├── currency.js              # Currency label formatting/parsing
-│   ├── escapeHtml.js            # HTML escaping utility
-│   ├── generatedKeyData.js      # Git-tracked dev key sets
-│   ├── history.js               # Unified tap + transaction history
-│   ├── keyLookup.js             # Issuer key candidates + per-card key lookup
-│   ├── lightningAddress.js      # Lightning address resolution
-│   ├── logger.js                # Structured JSON logger
-│   ├── otp.js                   # HOTP/TOTP generation
-│   ├── rawTemplate.js           # Raw HTML template helper
-│   ├── responses.js             # Shared response builders (errorResponse, redirect, etc.)
-│   ├── auditLog.js              # KV-backed persistent audit log
-│   ├── validateCardTap.js       # Card tap validation for operator handlers
-│   └── validation.js            # Input validation (validateUid, getRequestOrigin)
+│   └── operatorAuth.ts          # PIN auth, session cookies, requireOperator()
+├── handlers/                    # 35 route handlers
+│   ├── operatorLoginHandler.ts  # PIN login/logout
+│   ├── loginHandler.ts          # Customer NFC key recovery + privileged actions
+│   ├── loginActions.ts          # Terminate, wipe, top-up action handlers
+│   ├── topupHandler.ts          # Top-up desk (credit card)
+│   ├── posChargeHandler.ts      # POS direct debit
+│   ├── posHandler.ts            # POS page render
+│   ├── refundHandler.ts         # Full/partial refund
+│   ├── lnurlwHandler.ts         # LNURL-withdraw tap processing
+│   ├── lnurlHandler.ts          # LNURL-withdraw callback (payment processing)
+│   ├── lnurlPayHandler.ts       # LNURL-pay flow
+│   ├── proxyHandler.ts          # Downstream LNBits relay (with header filtering)
+│   ├── fetchBoltCardKeys.ts     # Card provisioning + key delivery
+│   ├── withdrawHandler.ts       # Withdraw response construction
+│   ├── activateCardHandler.ts   # Quick-activate UID
+│   ├── activatePageHandler.ts   # Card activation page
+│   ├── bolt11DecodeHandler.ts   # BOLT11 invoice decode page + API
+│   ├── resetHandler.ts          # Card wipe/reset
+│   ├── wipePageHandler.ts       # Wipe page
+│   ├── bulkWipeHandler.ts       # Bulk wipe key candidates
+│   ├── bulkWipePageHandler.ts   # Bulk wipe page
+│   ├── balanceCheckHandler.ts   # Read-only balance check
+│   ├── menuEditorHandler.ts     # Menu editor page + API
+│   ├── menuHandler.ts           # Menu storage
+│   ├── receiptHandler.ts        # Plain-text receipt
+│   ├── cardAuditHandler.ts      # Card registry audit page + data API
+│   ├── cardDashboardHandler.ts  # Cardholder dashboard (NFC scan)
+│   ├── cardBatchHandler.ts      # Batch card operations
+│   ├── debugHandler.ts          # Debug dashboard
+│   ├── identityHandler.ts       # Identity/access control demo
+│   ├── twoFactorHandler.ts      # 2FA TOTP/HOTP
+│   ├── analyticsHandler.ts      # Per-card analytics
+│   ├── getKeysHandler.ts        # Key listing + bulk wipe
+│   ├── identifyCardHandler.ts   # Card identification
+│   ├── identifyIssuerKeyHandler.ts # Tap-to-detect issuer key
+│   └── statusHandler.ts         # Health check
+├── templates/                   # 19 HTML pages (Tailwind CSS, rawHtml tagged template)
+│   ├── browserNfc.ts            # Shared NFC scanner + CSRF + esc() helpers
+│   ├── pageShell.ts             # Shared Tailwind page wrapper
+│   ├── loginPage.ts             # NFC key recovery page
+│   ├── operatorLoginPage.ts     # PIN login form
+│   ├── posPage.ts               # POS with free-amount + menu modes
+│   ├── topupPage.ts             # Top-up keypad + NFC
+│   ├── refundPage.ts            # Refund desk
+│   ├── menuEditorPage.ts        # Menu editor
+│   ├── cardDashboardPage.ts     # Cardholder dashboard
+│   ├── cardAuditPage.ts         # Card registry audit
+│   ├── debugConsolePage.ts      # Debug console
+│   ├── identityPage.ts          # Identity demo
+│   ├── activatePage.ts          # Card activation
+│   ├── analyticsPage.ts         # Analytics dashboard
+│   ├── bulkWipePage.ts          # Bulk wipe
+│   ├── wipePage.ts              # Card wipe
+│   ├── twoFactorPage.ts         # 2FA codes display
+│   ├── bolt11DecodePage.ts      # BOLT11 invoice decoder
+│   └── operatorShared.ts        # Shared operator page helpers
+├── utils/                       # 20 utility modules
+│   ├── bolt11.ts                # BOLT11 invoice generation (@noble/secp256k1)
+│   ├── cardAuth.ts              # Shared decrypt→state→config→CMAC pipeline
+│   ├── cardIndex.ts             # KV-backed card registry (indexCard, listIndexedCards)
+│   ├── cardMatching.ts          # Shared card issuer detection
+│   ├── cmacScan.ts              # Multi-version CMAC scan engine
+│   ├── constants.ts             # CARD_STATE, PAYMENT_METHOD, numeric constants
+│   ├── cookies.ts               # Cookie parsing + constantTimeEqual
+│   ├── currency.ts              # Currency label formatting/parsing
+│   ├── escapeHtml.ts            # HTML escaping utility
+│   ├── generatedKeyData.js      # Git-tracked dev key sets (auto-generated)
+│   ├── history.ts               # Unified tap + transaction history
+│   ├── keyLookup.ts             # Issuer key candidates + per-card key lookup
+│   ├── lightningAddress.ts      # Lightning address resolution
+│   ├── logger.ts                # Structured JSON logger
+│   ├── otp.ts                   # HOTP/TOTP generation
+│   ├── rawTemplate.ts           # Raw HTML template helper
+│   ├── responses.ts             # Shared response builders (errorResponse, redirect, etc.)
+│   ├── auditLog.ts              # KV-backed persistent audit log
+│   ├── validateCardTap.ts       # Card tap validation for operator handlers
+│   └── validation.ts            # Input validation (validateUid, getRequestOrigin)
 ├── durableObjects/
-│   └── CardReplayDO.js          # Per-card SQLite DO (balance, txns, counter, state)
-├── tests/                       # 1219 tests across 62 suites
-│   ├── testHelpers.js           # virtualTap, buildCardTestEnv, TEST_OPERATOR_AUTH
-│   ├── replayNamespace.js       # In-memory DO mock with balance enforcement
-│   ├── adversarial.test.js      # 42 adversarial tests
+│   └── CardReplayDO.ts          # Per-card SQLite DO (balance, txns, counter, state)
+├── tests/                       # 1395 tests across 73 suites
+│   ├── testHelpers.ts           # virtualTap, buildCardTestEnv, TEST_OPERATOR_AUTH
+│   ├── replayNamespace.ts       # In-memory DO mock with balance enforcement
+│   ├── adversarial.test.ts      # 42 adversarial tests
 │   ├── e2e/                     # End-to-end tests
-│   │   ├── virtual-card.test.js # Full NFC lifecycle
-│   │   └── pages.test.js        # Page rendering + security headers
+│   │   ├── virtual-card.test.ts # Full NFC lifecycle
+│   │   └── pages.test.ts        # Page rendering + security headers
 │   └── do/                      # DO integration tests (real SQLite)
-│       └── cardReplayDO.real.test.js # 52 tests via @cloudflare/vitest-pool-workers
+│       └── cardReplayDO.real.test.ts # 52 tests via @cloudflare/vitest-pool-workers
 ├── keys/                        # Key recovery CSV files
 ├── docs/
 │   ├── VENUE-DEPLOYMENT.md      # Venue setup guide
@@ -464,7 +468,7 @@ npm run deploy                        # tests → build_keys → wrangler deploy
 
 ## Dependencies — Known Quirks
 
-- `@noble/secp256k1` v3: requires explicit hash injection at module load (done in `utils/bolt11.js`)
+- `@noble/secp256k1` v3: requires explicit hash injection at module load (done in `utils/bolt11.ts`)
 - `@noble/hashes`: import paths MUST include `.js` extension (e.g., `"@noble/hashes/sha2.js"`)
 - `@scure/base`: bech32 lives here (not `@scure/bech32`), and `bech32.encode()` has a 90-char default limit — pass `1024` as 3rd arg for bolt11
 - `aes-js`: kept intentionally — do not switch to `node:crypto`-dependent libraries

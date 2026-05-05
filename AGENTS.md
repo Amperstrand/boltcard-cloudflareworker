@@ -6,7 +6,7 @@
 - **Routing**: itty-router v5
 - **Storage**: KV for UID config; Durable Objects (SQLite-backed) for replay protection + balance + card state
 - **Crypto**: `aes-js` for AES-ECB/CMAC, `@noble/secp256k1` + `@scure/base` + `@noble/hashes` for bolt11
-- **Key derivation**: deterministic from UID + ISSUER_KEY via `keygenerator.js`
+- **Key derivation**: deterministic from UID + ISSUER_KEY via `keygenerator.ts`
 
 ## Payment Methods
 
@@ -50,13 +50,13 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 
 | Provenance | Meaning | `programmingRecommended` |
 |---|---|---|
-| `public_issuer` | Key is in `generatedKeyData.js` (git-tracked) | `true` |
+| `public_issuer` | Key is in `generatedKeyData.js` (git-tracked, auto-generated) | `true` |
 | `env_issuer` | Matches `env.ISSUER_KEY` and not public | `false` |
 | `percard` | Per-card import from CSV | `false` |
 | `user_provisioned` | Explicitly programmed by user | `false` |
 | `unknown` | Neither public nor env key | `false` |
 
-- `classifyIssuerKey(env, hex)` from `utils/keyLookup.js` — classifies any issuer key hex
+- `classifyIssuerKey(env, hex)` from `utils/keyLookup.ts` — classifies any issuer key hex
 - `fingerprintHex(hex)` — first 16 chars of sha256(key_hex), used as stable identifier
 - Provenance stored in DO `card_state` table: `key_provenance`, `key_fingerprint`, `key_label`
 
@@ -173,37 +173,37 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 
 ## Conventions
 
-- `errorResponse()` from `utils/responses.js` for all error paths
-- `redirect()` from `utils/responses.js` for all HTTP redirects
+- `errorResponse()` from `utils/responses.ts` for all error paths
+- `redirect()` from `utils/responses.ts` for all HTTP redirects
 - `renderTailwindPage()` + `rawHtml` tagged template for all HTML pages (auto-escapes interpolations; use `safe()` for known-safe HTML, `jsString()` for JS contexts)
-- `validateCardTap()` from `utils/validateCardTap.js` for card-tap validation in operator handlers
-- `BROWSER_NFC_HELPERS` + `BROWSER_VALIDATE_UID_HELPER` from `templates/browserNfc.js` for NFC pages (includes `CSRF_FETCH_HELPER` for automatic CSRF token injection, `createNfcScanner()` for shared scan-loop wrapper, `esc()` for HTML escaping)
+- `validateCardTap()` from `utils/validateCardTap.ts` for card-tap validation in operator handlers
+- `BROWSER_NFC_HELPERS` + `BROWSER_VALIDATE_UID_HELPER` from `templates/browserNfc.ts` for NFC pages (includes `CSRF_FETCH_HELPER` for automatic CSRF token injection, `createNfcScanner()` for shared scan-loop wrapper, `esc()` for HTML escaping)
 - All NFC pages auto-start scanning on page load; `/operator/pos` auto-starts after amount is entered (debounced 1s)
 - CSRF: double-submit cookie (`op_csrf`) on operator pages; `withOperatorAuth` validates on mutating methods; test bypass via `__TEST_OPERATOR_SESSION`
 - `POST /login` privileged actions (top-up, terminate, request-wipe) require operator auth via `requireOperator()`
 - LNURLW replay: Step 1 (`GET /`) atomically advances counter via `checkAndAdvanceCounter`; callback detects replay via `listTaps` bolt11 check
-- `matchCardIssuer()` from `utils/cardMatching.js` for shared card issuer detection across loginHandler and identifyIssuerKeyHandler
-- `CARD_STATE` and `PAYMENT_METHOD` enums from `utils/constants.js` — use instead of raw strings
-- Card state predicates from `utils/constants.js`: `isCardUsable()`, `isCardTerminated()`, `canAutoActivate()`, `isCardNew()`, `canTransact()` — use instead of raw `=== CARD_STATE.X` comparisons
-- `UID_VALIDATION_MSG` from `utils/constants.js` — shared error message for all UID validation failures
-- `parseJsonBody()` from `utils/responses.js` for JSON request body parsing (returns null on failure, no need for `.catch()`)
-- `parsePositiveInt(raw, max)` from `utils/validation.js` for positive integer validation with optional max
-- `resolveCardIdentity()` from `utils/cardAuth.js` — shared decrypt→state→config→CMAC pipeline with `skipCmac`/`requireState`/`forcedVersion`/`context` options
-- `constantTimeEqual()` from `utils/cookies.js` for timing-safe string comparison (CSRF tokens, PINs)
-- `checkReplayAndRecordTap()` from `handlers/lnurlwHandler.js` for replay check + tap recording (shared by proxy and fakewallet/clnrest paths)
-- `discoverUnknownCard()` from `handlers/lnurlwHandler.js` for auto-discovery of unknown cards via CMAC scan across all issuer key candidates
-- `setCardK2()` from `replayProtection.js` for targeted K2-only update in DO card_config (used during discovery to persist correct K2 without overwriting payment_method)
-- `markPending()` and `discoverCard()` from `replayProtection.js` for DO row creation during key fetch and first tap
+- `matchCardIssuer()` from `utils/cardMatching.ts` for shared card issuer detection across loginHandler and identifyIssuerKeyHandler
+- `CARD_STATE` and `PAYMENT_METHOD` enums from `utils/constants.ts` — use instead of raw strings
+- Card state predicates from `utils/constants.ts`: `isCardUsable()`, `isCardTerminated()`, `canAutoActivate()`, `isCardNew()`, `canTransact()` — use instead of raw `=== CARD_STATE.X` comparisons
+- `UID_VALIDATION_MSG` from `utils/constants.ts` — shared error message for all UID validation failures
+- `parseJsonBody()` from `utils/responses.ts` for JSON request body parsing (returns null on failure, no need for `.catch()`)
+- `parsePositiveInt(raw, max)` from `utils/validation.ts` for positive integer validation with optional max
+- `resolveCardIdentity()` from `utils/cardAuth.ts` — shared decrypt→state→config→CMAC pipeline with `skipCmac`/`requireState`/`forcedVersion`/`context` options
+- `constantTimeEqual()` from `utils/cookies.ts` for timing-safe string comparison (CSRF tokens, PINs)
+- `checkReplayAndRecordTap()` from `handlers/lnurlwHandler.ts` for replay check + tap recording (shared by proxy and fakewallet/clnrest paths)
+- `discoverUnknownCard()` from `handlers/lnurlwHandler.ts` for auto-discovery of unknown cards via CMAC scan across all issuer key candidates
+- `setCardK2()` from `replayProtection.ts` for targeted K2-only update in DO card_config (used during discovery to persist correct K2 without overwriting payment_method)
+- `markPending()` and `discoverCard()` from `replayProtection.ts` for DO row creation during key fetch and first tap
 - DO `handleDiscover` upgrades `pending`, `new`, and `legacy` states to `discovered`; `new`/`legacy` with no DO row take the INSERT path instead
 - DO `/set-k2` endpoint for targeted K2-only update (preserves existing `payment_method` and `config_json`); called via `setCardK2()` during card discovery
-- `indexCard()`, `deindexCard()`, `getIndexedCard()`, `listIndexedCards()`, `repairCardIndex()` from `utils/cardIndex.js` for KV-backed card registry (prefix `card_idx:`, TTL 7 days)
-- `replayProtection.js` calls `await indexCard()` on all 6 state transitions: `markPending`, `discoverCard`, `deliverKeys`, `activateCard`, `terminateCard`, `requestWipe`
-- `recordAuditEvent()` from `utils/auditLog.js` for persistent operator action log (prefix `audit_log:`, TTL 90 days). Called from topup, refund, POS charge, batch operations.
-- `getCardProgrammingEndpoint()` from `handlers/loginActions.js` for card config → pull payment → programming endpoint lookup (shared by 4 call sites)
-- `safeGetBalance()` exported from `replayProtection.js` — graceful balance fetch fallback (used by `loginHandler.js` and `cardDashboardHandler.js`)
+- `indexCard()`, `deindexCard()`, `getIndexedCard()`, `listIndexedCards()`, `repairCardIndex()` from `utils/cardIndex.ts` for KV-backed card registry (prefix `card_idx:`, TTL 7 days)
+- `replayProtection.ts` calls `await indexCard()` on all 6 state transitions: `markPending`, `discoverCard`, `deliverKeys`, `activateCard`, `terminateCard`, `requestWipe`
+- `recordAuditEvent()` from `utils/auditLog.ts` for persistent operator action log (prefix `audit_log:`, TTL 90 days). Called from topup, refund, POS charge, batch operations.
+- `getCardProgrammingEndpoint()` from `handlers/loginActions.ts` for card config → pull payment → programming endpoint lookup (shared by 4 call sites)
+- `safeGetBalance()` exported from `replayProtection.ts` — graceful balance fetch fallback (used by `loginHandler.ts` and `cardDashboardHandler.ts`)
 - All DO callers must wrap in try/catch with specific error messages (see #10 audit)
 - `processWithdrawalPayment` uses `normalizedUid` local variable — never mutate parameters
-- Tests use `makeReplayNamespace()` (in-memory DO mock) from `tests/replayNamespace.js`
+- Tests use `makeReplayNamespace()` (in-memory DO mock) from `tests/replayNamespace.ts`
 - Commit style: semantic (`feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`)
 - Never commit without explicit user request
 - Keep `aes-js` — do not switch to `node:crypto`-dependent libraries
@@ -214,9 +214,9 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 - Run DO tests: `npm run test:do` (Vitest, `@cloudflare/vitest-pool-workers` with real SQLite)
 - Run all: `npm run test:all`
 - Deploy: `npm run deploy` (unit tests → DO tests → build_keys → wrangler deploy)
-- **1343 unit tests** across 73 test suites + **52 DO integration tests** = 1395 total (as of 2026-05-04)
+- **1343 unit tests** across 73 test suites + **52 DO integration tests** = 1395 total (as of 2026-05-05)
 - TypeScript: `tsc --noEmit` passes with `strict: true`, 0 errors (source + tests)
-- Source `: any` count: 151 (down from 318); `// @ts-nocheck` only in `tests/do/cardReplayDO.real.test.ts` and `tests/testHelpers.ts`
+- Source `: any` count: 105 (down from 318); source `as any` count: 0; `// @ts-nocheck` only in `tests/do/cardReplayDO.real.test.ts` and `tests/testHelpers.ts`
 
 ## Test Inventory
 
@@ -227,7 +227,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | `tests/bolt11.test.ts` | Fake bolt11 invoice generation | |
 | `tests/bolt11Decode.test.ts` | BOLT11 full decoder: round-trip, signature recovery, tag parsing, page/API routes | |
 | `tests/otp.test.ts` | HOTP/TOTP generation (RFC 4226 vectors) | |
-| `tests/responses.test.ts` | All `utils/responses.js` exports | |
+| `tests/responses.test.ts` | All `utils/responses.ts` exports | |
 | `tests/validation.test.ts` | `validateUid`, `getRequestOrigin` | |
 | `tests/rateLimiter.test.ts` | IP-based rate limiting with KV mock | |
 | `tests/boltCardHelper.test.ts` | `decodeAndValidate` with virtual tap helper | |
@@ -263,7 +263,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | `tests/lnurlPay.test.ts` | LNURL-pay flow with Lightning address | |
 | `tests/lnurlwHandler.test.ts` | LNURLW tap processing: fakewallet, clnrest, proxy, lnurlpay, replay, CMAC, card lifecycle, auto-discovery | |
 | `tests/lnurlHandler.test.ts` | LNURL callback: fakewallet debit, clnrest (success/error/network), replay, tap status | |
-| `tests/replayProtection.test.ts` | All replayProtection.js exports: counter checks, tap recording, card state, config, balance, analytics, markPending, discoverCard | |
+| `tests/replayProtection.test.ts` | All replayProtection.ts exports: counter checks, tap recording, card state, config, balance, analytics, markPending, discoverCard | |
 | `tests/proxyHandler.test.ts` | Proxy relay: headers, CMAC validation/deferred, POST body, error handling | |
 | `tests/refundTopupPos.test.ts` | Refund (full/partial/zero), top-up (amount/MAX), POS charge (balance/items) | |
 | `tests/wipeResetHandler.test.ts` | Wipe page, card reset (active/terminated/new/keys_delivered) | |
@@ -293,17 +293,17 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | Task | Priority | Notes |
 |------|----------|-------|
 | Dead exports cleanup | Done | Prefixed with `_`: `_deindexCard`, `_getIndexedCard`, `_listAuditEvents`, `_mergeHistory` |
-| Missing handler tests | Medium | `debugHandler.js`, `statusHandler.js`, `posHandler.js` lack dedicated test files (partially covered by `smoke.test.ts`, `pos.test.ts`, `e2e/pages.test.ts`) |
-| Deduplicate `VERSION_SCAN_RANGE` | Done | Already imported from `utils/constants.js` in all consumers |
-| Extract `MAX_CANDIDATES` to constants | Done | Already `MAX_ISSUER_CANDIDATES` in `utils/constants.js` |
-| Extract KV list limits to constants | Done | `KV_LIST_LIMIT`, `CARD_AUDIT_DEFAULT_LIMIT`, `CARD_AUDIT_MAX_LIMIT`, `AUDIT_LIST_DEFAULT_LIMIT` in `utils/constants.js` |
-| UID validation messages normalized | Done | All handlers use `UID_VALIDATION_MSG` from `utils/constants.js` |
+| Missing handler tests | Medium | `debugHandler.ts`, `statusHandler.ts`, `posHandler.ts` lack dedicated test files (partially covered by `smoke.test.ts`, `pos.test.ts`, `e2e/pages.test.ts`) |
+| Deduplicate `VERSION_SCAN_RANGE` | Done | Already imported from `utils/constants.ts` in all consumers |
+| Extract `MAX_CANDIDATES` to constants | Done | Already `MAX_ISSUER_CANDIDATES` in `utils/constants.ts` |
+| Extract KV list limits to constants | Done | `KV_LIST_LIMIT`, `CARD_AUDIT_DEFAULT_LIMIT`, `CARD_AUDIT_MAX_LIMIT`, `AUDIT_LIST_DEFAULT_LIMIT` in `utils/constants.ts` |
+| UID validation messages normalized | Done | All handlers use `UID_VALIDATION_MSG` from `utils/constants.ts` |
 | Redundant `.catch(() => null)` removed | Done | `parseJsonBody()` already returns null on failure |
 | Redundant ALTER TABLE removed | Done | `pull_payment_id` already in CREATE TABLE |
-| Card state predicates extracted | Done | `isCardUsable`, `isCardTerminated`, etc. in `utils/constants.js` |
-| `parsePositiveInt()` extracted | Done | Shared positive int validator in `utils/validation.js` |
-| `resolveCardIdentity()` shared pipeline | Done | `utils/cardAuth.js` — decrypt→state→config→CMAC across 5 handlers |
-| TypeScript type tightening | Done | Source `: any` 318→151; `// @ts-nocheck` removed from all test files except `testHelpers.ts` and `do/cardReplayDO.real.test.ts`; `types/core.ts` centralizes shared types; `catch(e: unknown)` + `getErrorMessage()` throughout |
+| Card state predicates extracted | Done | `isCardUsable`, `isCardTerminated`, etc. in `utils/constants.ts` |
+| `parsePositiveInt()` extracted | Done | Shared positive int validator in `utils/validation.ts` |
+| `resolveCardIdentity()` shared pipeline | Done | `utils/cardAuth.ts` — decrypt→state→config→CMAC across 5 handlers |
+| TypeScript type tightening | Done | Source `: any` 318→105; `// @ts-nocheck` removed from all test files except `testHelpers.ts` and `do/cardReplayDO.real.test.ts`; `types/core.ts` centralizes shared types; `catch(e: unknown)` + `getErrorMessage()` throughout |
 | Shared `Env` type | Done | `types/core.ts` → `worker-configuration.d.ts` — eliminated 9 duplicate `EnvLike` interfaces |
 
 ### Feature Development
@@ -319,19 +319,19 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 ## Test-Only Exports
 
 The following exports are prefixed with `_` and only used in tests:
-- `cryptoutils.js`: `_bytesToDecimalString`, `_xorArrays`, `_shiftGo`, `_generateSubkeyGo`, `_computeKs`, `_computeCm`, `_computeAesCmacForVerification`
-- `utils/keyLookup.js`: `_getIssuerKeysForDomain`, `_getPerCardDomains`
-- `utils/currency.js`: `_parseAmount`
-- `utils/responses.js`: `_buildErrorPayload`
+- `cryptoutils.ts`: `_bytesToDecimalString`, `_xorArrays`, `_shiftGo`, `_generateSubkeyGo`, `_computeKs`, `_computeCm`, `_computeAesCmacForVerification`
+- `utils/keyLookup.ts`: `_getIssuerKeysForDomain`, `_getPerCardDomains`
+- `utils/currency.ts`: `_parseAmount`
+- `utils/responses.ts`: `_buildErrorPayload`
 
 ## Security
 
-- Security headers applied to all responses via `withSecurityHeaders()` in `index.js`: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Content-Security-Policy`
+- Security headers applied to all responses via `withSecurityHeaders()` in `index.ts`: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Content-Security-Policy`
 - All error responses sanitized — internal error details logged server-side, generic `"Internal error"` returned to client
 - `POST /login` privileged actions (top-up, terminate, request-wipe) require operator session auth
 - All innerHTML assignments use `esc()` for dynamic data (41 assignments audited)
 - `/2fa` endpoint supports JSON response mode via `Accept: application/json` header (prevents raw HTML injection in debug console)
-- Proxy handler filters request/response headers via allow-list (`proxyHandler.js`)
+- Proxy handler filters request/response headers via allow-list (`proxyHandler.ts`)
 - CSRF: double-submit cookie pattern with timing-safe comparison
 - All replayProtection callers wrap DO calls in try/catch with appropriate error responses
 
@@ -339,5 +339,5 @@ The following exports are prefixed with `_` and only used in tests:
 
 - **Handlers**: All async handler functions wrap DO calls in try/catch, log via `logger.error()`, and return `errorResponse("Internal error", 500)` or a specific error
 - **Fire-and-forget**: `recordTapRead()` uses `.catch()` with `logger.warn()` — tap recording never blocks the response
-- **Graceful degradation**: `safeGetBalance()` returns `{balance: 0}` on failure; `getUidConfig()` falls back to deterministic keys; `history.js` returns empty arrays
+- **Graceful degradation**: `safeGetBalance()` returns `{balance: 0}` on failure; `getUidConfig()` falls back to deterministic keys; `history.ts` returns empty arrays
 - **Never expose**: Raw `err.message`, DO internals, CLN REST response bodies, or KV error details to clients

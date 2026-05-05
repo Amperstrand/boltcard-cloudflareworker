@@ -271,7 +271,7 @@ Expected output:
   CardKey:  ebff5a4e6da5ee14cbfe720ae06fbed9
 ```
 
-Our implementation is verified against these vectors in `tests/keygenerator.test.js`.
+Our implementation is verified against these vectors in `tests/keygenerator.test.ts`.
 
 ### Security Properties
 

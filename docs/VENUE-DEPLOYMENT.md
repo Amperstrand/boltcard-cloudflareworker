@@ -23,7 +23,7 @@ Edit `wrangler.toml`:
 
 ```toml
 name = "event-pay-<venue-name>"
-main = "index.js"
+main = "index.ts"
 compatibility_date = "2025-02-28"
 
 kv_namespaces = [
