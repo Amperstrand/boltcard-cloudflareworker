@@ -117,7 +117,7 @@ describe("PUT /operator/pos/menu", () => {
     );
     expect(res.status).toBe(400);
     const json = await res.json() as Record<string, unknown>;
-    expect(json.reason).toMatch(/must be an array/i);
+    expect(json.reason).toMatch(/array|validation/i);
   });
 
   it("returns 400 when item has no name", async () => {
@@ -131,7 +131,7 @@ describe("PUT /operator/pos/menu", () => {
     );
     expect(res.status).toBe(400);
     const json = await res.json() as Record<string, unknown>;
-    expect(json.reason).toMatch(/must have a name/i);
+    expect(json.reason).toMatch(/name|validation/i);
   });
 
   it("returns 400 when item has invalid price", async () => {

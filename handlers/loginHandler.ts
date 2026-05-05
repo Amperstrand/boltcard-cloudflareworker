@@ -3,7 +3,8 @@ import type { CardStateRow, CardConfig, BoltCardKeys, Env } from "../types/core.
 import { getErrorMessage } from "../utils/logger.js";
 import { renderLoginPage } from "../templates/loginPage.js";
 import { logger } from "../utils/logger.js";
-import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
+import { htmlResponse, jsonResponse, errorResponse } from "../utils/responses.js";
+import { parseValidatedBody, loginBodySchema, type LoginBody } from "../utils/schemas.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
 import { getCardState, recordTapRead, safeGetBalance } from "../replayProtection.js";
 import { getRequestOrigin } from "../utils/validation.js";
@@ -22,14 +23,12 @@ export function handleLoginPage(request: Request): Response {
 
 export async function handleLoginVerify(request: Request, env: Env): Promise<Response> {
   try {
-    const body: Record<string, unknown> | null = await parseJsonBody(request);
-    if (!body) return errorResponse("Invalid JSON body", 400);
-
-    const { p: pHex, c: cHex, uid: rawUid } = body as { p?: string; c?: string; uid?: string; action?: string; amount?: string };
+    const bodyResult = await parseValidatedBody<LoginBody>(request, loginBodySchema);
+    if (!bodyResult.ok) return errorResponse(bodyResult.error, 400);
+    const { p: pHex, c: cHex, uid: rawUid, action, amount } = bodyResult.data;
     const requestOrigin = getRequestOrigin(request);
 
     if (rawUid && !pHex && !cHex) {
-      const action = (body as Record<string, unknown>).action;
       const privilegedActions = ["request-wipe", "terminate", "top-up"];
       if (privilegedActions.includes(action as string)) {
         const auth = requireOperator(request, env);
@@ -44,7 +43,7 @@ export async function handleLoginVerify(request: Request, env: Env): Promise<Res
         return await handleTerminateAction(rawUid, env, request);
       }
       if (action === "top-up") {
-        return handleTopUpAction(body.uid as string, body.amount as string, env);
+        return handleTopUpAction(rawUid, amount!, env);
       }
       return await handleUidOnlyLogin(rawUid, env, request);
     }

@@ -16,7 +16,7 @@ export const posChargeBodySchema = v.object({
   c: v.string(),
   amount: v.union([v.string(), v.number()]),
   items: v.optional(
-    v.array(v.object({ name: v.string(), price: v.number(), qty: v.optional(v.number()) }))
+    v.array(v.object({ name: v.string(), price: v.optional(v.number()), qty: v.optional(v.number()) }))
   ),
   terminalId: v.optional(v.string()),
 });
@@ -24,7 +24,7 @@ export const posChargeBodySchema = v.object({
 export const topupBodySchema = v.object({
   p: v.string(),
   c: v.string(),
-  amount: v.string(),
+  amount: v.union([v.string(), v.number()]),
 });
 
 export const refundBodySchema = v.object({
@@ -45,17 +45,12 @@ export const cardReactivateBodySchema = v.object({
 });
 
 export const activateCardBodySchema = v.object({
-  uid: v.string(),
+  uid: v.optional(v.string()),
 });
 
 export const batchActionSchema = v.object({
   uids: v.array(v.string()),
-  action: v.union([
-    v.literal("terminate"),
-    v.literal("wipe"),
-    v.literal("activate"),
-    v.literal("reprovision"),
-  ]),
+  action: v.string(),
 });
 
 export const identityProfileBodySchema = v.object({
@@ -87,6 +82,14 @@ export const bulkWipeBodySchema = v.object({
   key: v.optional(v.string()),
 });
 
+export const loginBodySchema = v.object({
+  p: v.optional(v.string()),
+  c: v.optional(v.string()),
+  uid: v.optional(v.string()),
+  action: v.optional(v.string()),
+  amount: v.optional(v.union([v.string(), v.number()])),
+});
+
 export type CardTapBody = v.InferOutput<typeof cardTapBodySchema>;
 export type PosChargeBody = v.InferOutput<typeof posChargeBodySchema>;
 export type TopupBody = v.InferOutput<typeof topupBodySchema>;
@@ -95,6 +98,8 @@ export type BatchActionBody = v.InferOutput<typeof batchActionSchema>;
 export type MenuUpdateBody = v.InferOutput<typeof menuUpdateSchema>;
 export type ActivateCardBody = v.InferOutput<typeof activateCardBodySchema>;
 export type IdentityProfileBody = v.InferOutput<typeof identityProfileBodySchema>;
+export type BulkWipeBody = v.InferOutput<typeof bulkWipeBodySchema>;
+export type LoginBody = v.InferOutput<typeof loginBodySchema>;
 
 export async function parseValidatedBody<T>(
   request: Request,

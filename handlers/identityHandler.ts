@@ -2,7 +2,8 @@ import { logger } from "../utils/logger.js";
 import type { CardStateRow } from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
 import type { Env } from "../types/core.js";
-import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
+import { htmlResponse, jsonResponse, errorResponse } from "../utils/responses.js";
+import { parseValidatedBody, identityProfileBodySchema, type IdentityProfileBody } from "../utils/schemas.js";
 import { renderIdentityPage } from "../templates/identityPage.js";
 import { buildMaskedUid } from "../utils/validation.js";
 import { getCardState } from "../replayProtection.js";
@@ -143,10 +144,10 @@ export async function handleIdentityVerify(request: Request, env: Env): Promise<
 
 export async function handleIdentityProfileUpdate(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") return errorResponse("Method not allowed", 405);
-  const body: Record<string, unknown> | null = await parseJsonBody(request);
-  if (!body) return errorResponse("Invalid JSON body", 400);
+  const result = await parseValidatedBody<IdentityProfileBody>(request, identityProfileBodySchema);
+  if (!result.ok) return errorResponse(result.error, 400);
 
-  const { p, c, emoji }: { p?: string; c?: string; emoji?: string } = body || {};
+  const { p, c, emoji } = result.data;
   if (!IDENTITY_EMOJI_OPTIONS.includes(emoji!)) {
     return errorResponse("Unsupported emoji selection", 400, {
       allowedEmoji: IDENTITY_EMOJI_OPTIONS,

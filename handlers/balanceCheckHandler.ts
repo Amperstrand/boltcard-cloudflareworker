@@ -1,4 +1,5 @@
-import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
+import { jsonResponse, errorResponse } from "../utils/responses.js";
+import { parseValidatedBody, cardTapBodySchema, type CardTapBody } from "../utils/schemas.js";
 import { getErrorMessage } from "../utils/logger.js";
 import type { Env, BalanceResult } from "../types/core.js";
 import { getBalance } from "../replayProtection.js";
@@ -7,10 +8,9 @@ import { logger } from "../utils/logger.js";
 
 export async function handleBalanceCheck(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") return errorResponse("Method not allowed", 405);
-  const body: Record<string, unknown> | null = await parseJsonBody(request);
-  if (!body) return errorResponse("Invalid JSON body", 400);
-
-  const { p: pHex, c: cHex } = body as { p?: string; c?: string };
+  const result = await parseValidatedBody<CardTapBody>(request, cardTapBodySchema);
+  if (!result.ok) return errorResponse(result.error, 400);
+  const { p: pHex, c: cHex } = result.data;
 
   const tap: ValidateCardTapResult = await validateCardTap(request, env, { pHex: pHex || "", cHex: cHex || "", context: "Balance check" });
   if (!tap.ok) return errorResponse(tap.error, tap.status);

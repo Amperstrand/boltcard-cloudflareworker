@@ -4,7 +4,8 @@ import { getErrorMessage } from "../utils/logger.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { logger } from "../utils/logger.js";
-import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
+import { htmlResponse, jsonResponse, errorResponse } from "../utils/responses.js";
+import { parseValidatedBody, cardLockBodySchema, cardReactivateBodySchema, type CardTapBody } from "../utils/schemas.js";
 import { getCardState, getCardConfig, safeGetBalance, getAnalytics, terminateCard, deliverKeys, resolveActiveVersion, resolveLatestVersion } from "../replayProtection.js";
 import { buildMaskedUid } from "../utils/validation.js";
 import { renderCardDashboardPage } from "../templates/cardDashboardPage.js";
@@ -20,8 +21,8 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   [PAYMENT_METHOD.TWOFACTOR]: "2FA Token",
 };
 
-async function resolveCardAuth(body: Record<string, unknown> | null, env: Env, endpoint: string): Promise<{ error?: Response; uidHex?: string; ctr?: string; cardState?: CardStateRow; config?: CardConfig; activeVersion?: number }> {
-  const { p: pHex, c: cHex }: { p?: string; c?: string } = body || {};
+async function resolveCardAuth(data: CardTapBody, env: Env, endpoint: string): Promise<{ error?: Response; uidHex?: string; ctr?: string; cardState?: CardStateRow; config?: CardConfig; activeVersion?: number }> {
+  const { p: pHex, c: cHex } = data;
   const auth: ResolveResult = await resolveCardIdentity(pHex, cHex, env, { requireState: true, context: endpoint });
   if (!auth.ok) {
     return { error: errorResponse(auth.error, auth.status) };
@@ -134,12 +135,12 @@ export async function handleCardLock(request: Request, env: Env): Promise<Respon
     return errorResponse("Method not allowed", 405);
   }
 
-  const body: Record<string, unknown> | null = await parseJsonBody(request);
-  if (!body) {
-    return errorResponse("Invalid JSON body", 400);
+  const result = await parseValidatedBody<CardTapBody>(request, cardLockBodySchema);
+  if (!result.ok) {
+    return errorResponse(result.error, 400);
   }
 
-  const auth = await resolveCardAuth(body, env, "/api/card/lock");
+  const auth = await resolveCardAuth(result.data, env, "/api/card/lock");
   if (auth.error) return auth.error;
 
   const uidHex = auth.uidHex!;
@@ -168,12 +169,12 @@ export async function handleCardReactivate(request: Request, env: Env): Promise<
     return errorResponse("Method not allowed", 405);
   }
 
-  const body: Record<string, unknown> | null = await parseJsonBody(request);
-  if (!body) {
-    return errorResponse("Invalid JSON body", 400);
+  const result = await parseValidatedBody<CardTapBody>(request, cardReactivateBodySchema);
+  if (!result.ok) {
+    return errorResponse(result.error, 400);
   }
 
-  const auth = await resolveCardAuth(body, env, "/api/card/reactivate");
+  const auth = await resolveCardAuth(result.data, env, "/api/card/reactivate");
   if (auth.error) return auth.error;
 
   const uidHex = auth.uidHex!;

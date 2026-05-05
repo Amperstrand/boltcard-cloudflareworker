@@ -6,18 +6,26 @@ import { getUidConfig } from "../getUidConfig.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getCardState, resolveActiveVersion } from "../replayProtection.js";
-import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
+import { jsonResponse, errorResponse } from "../utils/responses.js";
+import { parseValidatedBody, cardTapBodySchema, type CardTapBody } from "../utils/schemas.js";
 import { cmacScanVersions } from "../utils/cmacScan.js";
 import { logger } from "../utils/logger.js";
 import { CARD_STATE, MISSING_PARAMS_MSG, VERSION_SCAN_RANGE } from "../utils/constants.js";
 
 export async function handleIdentifyCard(request: Request, env: Env): Promise<Response> {
-  const body: Record<string, unknown> | null = await parseJsonBody(request);
-  const pHex = (body?.p as string) || new URL(request.url).searchParams.get("p");
-  const cHex = (body?.c as string) || new URL(request.url).searchParams.get("c");
-
-  if (!pHex || !cHex) {
-    return errorResponse(MISSING_PARAMS_MSG);
+  const bodyResult = await parseValidatedBody<CardTapBody>(request, cardTapBodySchema);
+  let pHex: string;
+  let cHex: string;
+  if (bodyResult.ok) {
+    pHex = bodyResult.data.p;
+    cHex = bodyResult.data.c;
+  } else {
+    const url = new URL(request.url);
+    pHex = url.searchParams.get("p") || "";
+    cHex = url.searchParams.get("c") || "";
+    if (!pHex || !cHex) {
+      return errorResponse(MISSING_PARAMS_MSG);
+    }
   }
 
   const decryption: ExtractResult = extractUIDAndCounter(pHex, env);

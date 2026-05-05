@@ -2,7 +2,8 @@ import { getDeterministicKeys } from "../keygenerator.js";
 import type { CardStateRow, Env } from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
 import { getPerCardKeys, getAllIssuerKeyCandidates } from "../utils/keyLookup.js";
-import { jsonResponse, buildBoltCardResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
+import { jsonResponse, buildBoltCardResponse, errorResponse } from "../utils/responses.js";
+import { parseValidatedBody, getKeysBodySchema } from "../utils/schemas.js";
 import { getCardState } from "../replayProtection.js";
 import { validateUid, getRequestOrigin } from "../utils/validation.js";
 import { UID_VALIDATION_MSG } from "../utils/constants.js";
@@ -73,12 +74,12 @@ export async function handleGetKeys(request: Request, env: Env): Promise<Respons
   const baseUrl = getRequestOrigin(request);
 
   if (request.method === "POST") {
-    const body: Record<string, unknown> | null = await parseJsonBody(request);
-    if (!body) return errorResponse("Invalid JSON body", 400);
+    const result = await parseValidatedBody<{ UID?: string; uid?: string }>(request, getKeysBodySchema);
+    if (!result.ok) return errorResponse(result.error, 400);
 
     let uid: string | null = uidParam;
-    if (!uid && body.UID) uid = String(body.UID);
-    if (!uid && body.uid) uid = String(body.uid);
+    if (!uid && result.data.UID) uid = String(result.data.UID);
+    if (!uid && result.data.uid) uid = String(result.data.uid);
     const validatedUid = validateUid(uid);
 
     if (!validatedUid) {

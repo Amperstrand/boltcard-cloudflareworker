@@ -4,19 +4,21 @@ import type { Env } from "../types/core.js";
 import { resetReplayProtection, setCardConfig } from "../replayProtection.js";
 import { renderActivateCardPage } from "../templates/activatePage.js";
 import { logger } from "../utils/logger.js";
-import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
+import { htmlResponse, jsonResponse, errorResponse } from "../utils/responses.js";
 import { validateUid } from "../utils/validation.js";
 import { PAYMENT_METHOD, UID_VALIDATION_MSG } from "../utils/constants.js";
+import { parseValidatedBody, activateCardBodySchema, type ActivateCardBody } from "../utils/schemas.js";
 
 export function handleActivateCardPage(): Response {
   return htmlResponse(renderActivateCardPage());
 }
 
 export async function handleActivateCardSubmit(request: Request, env: Env): Promise<Response> {
-  const data: Record<string, unknown> | null = await parseJsonBody(request);
-  if (!data) return errorResponse("Invalid JSON body", 400);
+  const result = await parseValidatedBody<ActivateCardBody>(request, activateCardBodySchema);
+  if (!result.ok) return errorResponse(result.error, 400);
+  const rawUid = result.data.uid;
 
-  const uid: string | null = validateUid(data.uid as string);
+  const uid: string | null = validateUid(rawUid);
   if (!uid) {
     return errorResponse(UID_VALIDATION_MSG, 400);
   }

@@ -2,13 +2,14 @@ import { getCurrencyLabel } from "../utils/currency.js";
 import type { SessionPayload , OpResult} from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
 import type { Env } from "../types/core.js";
-import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
+import { htmlResponse, jsonResponse, errorResponse } from "../utils/responses.js";
 import { creditCard } from "../replayProtection.js";
 import { validateCardTap, type ValidateCardTapResult } from "../utils/validateCardTap.js";
 import { logger } from "../utils/logger.js";
 import { renderTopupPage } from "../templates/topupPage.js";
 import { getRequestOrigin } from "../utils/validation.js";
 import { recordAuditEvent } from "../utils/auditLog.js";
+import { parseValidatedBody, topupBodySchema, type TopupBody } from "../utils/schemas.js";
 
 export function handleTopupPage(request: Request, env: Env): Response {
   const host = getRequestOrigin(request);
@@ -18,12 +19,11 @@ export function handleTopupPage(request: Request, env: Env): Response {
 
 export async function handleTopupApply(request: Request, env: Env, session: SessionPayload): Promise<Response> {
   if (request.method !== "POST") return errorResponse("Method not allowed", 405);
-  const body: Record<string, unknown> | null = await parseJsonBody(request);
-  if (!body) return errorResponse("Invalid JSON body", 400);
+  const result = await parseValidatedBody<TopupBody>(request, topupBodySchema);
+  if (!result.ok) return errorResponse(result.error, 400);
+  const { p: pHex, c: cHex, amount } = result.data;
 
-  const { p: pHex, c: cHex, amount } = body as { p?: string; c?: string; amount?: string };
-
-  const parsedAmount: number = parseInt(amount!, 10);
+  const parsedAmount: number = parseInt(String(amount), 10);
   if (!Number.isInteger(parsedAmount) || parsedAmount <= 0) {
     return errorResponse("Amount must be a positive integer", 400);
   }

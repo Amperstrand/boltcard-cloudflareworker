@@ -1,4 +1,4 @@
-import { jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
+import { jsonResponse, errorResponse } from "../utils/responses.js";
 import type { CardStateRow } from "../types/core.js";
 import type { SessionPayload } from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
@@ -8,6 +8,7 @@ import { validateUid } from "../utils/validation.js";
 import { CARD_STATE, BATCH_MAX_CARDS, UID_VALIDATION_MSG } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
 import { recordAuditEvent } from "../utils/auditLog.js";
+import { parseValidatedBody, batchActionSchema, type BatchActionBody } from "../utils/schemas.js";
 
 const VALID_ACTIONS: string[] = ["terminate", "wipe", "activate", "reprovision"];
 
@@ -23,14 +24,14 @@ export async function handleCardBatchAction(request: Request, env: Env, session:
     return errorResponse("Method not allowed", 405);
   }
 
-  const body: Record<string, unknown> | null = await parseJsonBody(request);
-  if (!body) {
-    return errorResponse("Invalid JSON body", 400);
+  const result = await parseValidatedBody<BatchActionBody>(request, batchActionSchema);
+  if (!result.ok) {
+    return errorResponse(result.error, 400);
   }
 
-  const { uids, action } = body as { uids: string[]; action: string };
+  const { uids, action } = result.data;
 
-  if (!Array.isArray(uids) || uids.length === 0) {
+  if (uids.length === 0) {
     return errorResponse("uids must be a non-empty array", 400);
   }
 

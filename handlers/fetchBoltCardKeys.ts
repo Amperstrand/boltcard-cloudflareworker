@@ -6,7 +6,8 @@ import type { ExtractResult } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { resetReplayProtection, getCardState, deliverKeys, setCardConfig, requestWipe, markPending, resolveLatestVersion, resolveActiveVersion } from "../replayProtection.js";
-import { jsonResponse, buildBoltCardResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
+import { jsonResponse, buildBoltCardResponse, errorResponse } from "../utils/responses.js";
+import { parseValidatedBody, fetchBoltCardKeysBodySchema } from "../utils/schemas.js";
 import { getRequestOrigin, validateUid } from "../utils/validation.js";
 import { DEFAULT_PULL_PAYMENT_ID, DEFAULT_FALLBACK_HOST, CARD_STATE, PAYMENT_METHOD, UID_VALIDATION_MSG } from "../utils/constants.js";
 import { classifyIssuerKey } from "../utils/keyLookup.js";
@@ -29,9 +30,9 @@ export async function fetchBoltCardKeys(request: Request, env: Env): Promise<Res
     const lightningAddress: string = url.searchParams.get("lightning_address") || "";
     const minSendable: number = parseInt(url.searchParams.get("min_sendable") || "") || 1000;
     const maxSendable: number = parseInt(url.searchParams.get("max_sendable") || "") || 1000;
-    const body: Record<string, unknown> | null = await parseJsonBody(request);
-    if (!body) return errorResponse("Invalid JSON body", 400);
-    const { UID: uid, LNURLW: lnurlw }: { UID?: string; LNURLW?: string } = body;
+    const result = await parseValidatedBody<{ UID?: string; LNURLW?: string }>(request, fetchBoltCardKeysBodySchema);
+    if (!result.ok) return errorResponse(result.error, 400);
+    const { UID: uid, LNURLW: lnurlw } = result.data;
     const baseUrl: string = getRequestOrigin(request);
 
     if (!uid && !lnurlw) {

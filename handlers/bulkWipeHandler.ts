@@ -1,6 +1,7 @@
 import { deriveKeysFromHex } from "../keygenerator.js";
 import { getErrorMessage } from "../utils/logger.js";
-import { jsonResponse, buildBoltCardResponse, buildResetDeeplink, errorResponse, parseJsonBody } from "../utils/responses.js";
+import { jsonResponse, buildBoltCardResponse, buildResetDeeplink, errorResponse } from "../utils/responses.js";
+import { parseValidatedBody, bulkWipeBodySchema, type BulkWipeBody } from "../utils/schemas.js";
 import { getRequestOrigin, validateUid } from "../utils/validation.js";
 import { UID_VALIDATION_MSG } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
@@ -15,8 +16,9 @@ export async function handleBulkWipeKeys(request: Request): Promise<Response> {
 
   let key: string | null = url.searchParams.get("key");
   if (request.method === "POST") {
-    const body: Record<string, unknown> | null = await parseJsonBody(request);
-    if (body?.key) key = String(body.key);
+    const result = await parseValidatedBody<BulkWipeBody>(request, bulkWipeBodySchema);
+    if (!result.ok) return errorResponse(result.error, 400);
+    if (result.data.key) key = result.data.key;
   }
 
   if (!uid || !validateUid(uid)) {

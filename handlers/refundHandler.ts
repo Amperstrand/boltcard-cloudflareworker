@@ -3,12 +3,13 @@ import type { SessionPayload, OpResult, BalanceResult } from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
 import type { Env } from "../types/core.js";
 import { getCurrencyLabel } from "../utils/currency.js";
-import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
+import { htmlResponse, jsonResponse, errorResponse } from "../utils/responses.js";
 import { debitCard, getBalance } from "../replayProtection.js";
 import { validateCardTap, type ValidateCardTapResult } from "../utils/validateCardTap.js";
 import { logger } from "../utils/logger.js";
 import { getRequestOrigin } from "../utils/validation.js";
 import { recordAuditEvent } from "../utils/auditLog.js";
+import { parseValidatedBody, refundBodySchema, type RefundBody } from "../utils/schemas.js";
 
 export function handleRefundPage(request: Request, env: Env): Response {
   const host = getRequestOrigin(request);
@@ -18,15 +19,13 @@ export function handleRefundPage(request: Request, env: Env): Response {
 
 export async function handleRefundApply(request: Request, env: Env, session: SessionPayload): Promise<Response> {
   if (request.method !== "POST") return errorResponse("Method not allowed", 405);
-  const body: Record<string, unknown> | null = await parseJsonBody(request);
-  if (!body) return errorResponse("Invalid JSON body", 400);
+  const result = await parseValidatedBody<RefundBody>(request, refundBodySchema);
+  if (!result.ok) return errorResponse(result.error, 400);
+  const { p: pHex, c: cHex, amount, fullRefund } = result.data;
 
-  const pHex = body.p as string | undefined;
-  const cHex = body.c as string | undefined;
-  const amount = body.amount;
-  const fullRefund: boolean = body.fullRefund === true;
+  const isFullRefund: boolean = fullRefund === true;
 
-  if (!fullRefund && (!amount || parseInt(String(amount), 10) <= 0)) {
+  if (!isFullRefund && (!amount || parseInt(String(amount), 10) <= 0)) {
     return errorResponse("Amount must be a positive integer for partial refund", 400);
   }
 
@@ -34,7 +33,7 @@ export async function handleRefundApply(request: Request, env: Env, session: Ses
   if (!tap.ok) return errorResponse(tap.error, tap.status);
 
   let refundAmount: number;
-  if (fullRefund) {
+  if (isFullRefund) {
     let balanceData: BalanceResult;
     try {
       balanceData = await getBalance(env, tap.uidHex);
@@ -73,8 +72,8 @@ export async function handleRefundApply(request: Request, env: Env, session: Ses
     }
 
     const newBalance: number = result.balance ?? 0;
-    logger.info("Refund successful", { uidHex: tap.uidHex, amount: refundAmount, newBalance, shiftId, fullRefund });
-    await recordAuditEvent(env, { action: "refund", uidHex: tap.uidHex, operatorShiftId: shiftId, details: { amount: refundAmount, balance: newBalance, fullRefund } });
+    logger.info("Refund successful", { uidHex: tap.uidHex, amount: refundAmount, newBalance, shiftId, fullRefund: isFullRefund });
+    await recordAuditEvent(env, { action: "refund", uidHex: tap.uidHex, operatorShiftId: shiftId, details: { amount: refundAmount, balance: newBalance, fullRefund: isFullRefund } });
 
     return jsonResponse({
       success: true,

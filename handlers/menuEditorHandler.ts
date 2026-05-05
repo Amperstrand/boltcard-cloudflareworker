@@ -2,7 +2,8 @@ import { getMenu, saveMenu, type MenuData } from "./menuHandler.js";
 import { getErrorMessage } from "../utils/logger.js";
 import type { Env } from "../types/core.js";
 import { renderMenuEditorPage } from "../templates/menuEditorPage.js";
-import { htmlResponse, jsonResponse, errorResponse, parseJsonBody } from "../utils/responses.js";
+import { htmlResponse, jsonResponse, errorResponse } from "../utils/responses.js";
+import { parseValidatedBody, menuUpdateSchema, type MenuUpdateBody } from "../utils/schemas.js";
 import { getRequestOrigin } from "../utils/validation.js";
 import { logger } from "../utils/logger.js";
 
@@ -33,9 +34,9 @@ export async function handleMenuGet(request: Request, env: Env): Promise<Respons
 
 export async function handleMenuPut(request: Request, env: Env): Promise<Response> {
   if (request.method !== "PUT") return errorResponse("Method not allowed", 405);
-  const body: Record<string, unknown> | null = await parseJsonBody(request);
-  if (!body) return errorResponse("Invalid JSON", 400);
+  const result = await parseValidatedBody<MenuUpdateBody>(request, menuUpdateSchema);
+  if (!result.ok) return errorResponse(result.error, 400);
   const url = new URL(request.url);
   const terminalId: string = url.searchParams.get("t") || "default";
-  return saveMenu(env, terminalId, body);
+  return saveMenu(env, terminalId, result.data);
 }

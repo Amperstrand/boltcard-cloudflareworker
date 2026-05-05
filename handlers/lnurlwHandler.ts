@@ -230,8 +230,9 @@ export async function handleLnurlw(request: Request, env: Env): Promise<Response
 
   const uidHex: string = rawUid.toLowerCase();
 
-  const counterValue: number = parseInt(ctr, 16);
-  if (!Number.isFinite(counterValue)) return errorResponse("Invalid counter value", 400);
+  const rawCounter = parseInt(ctr, 16);
+  if (!Number.isFinite(rawCounter)) return errorResponse("Invalid counter value", 400);
+  const counterValue = rawCounter;
 
   logger.info("LNURLW decrypted", { uidHex, counterValue });
 
