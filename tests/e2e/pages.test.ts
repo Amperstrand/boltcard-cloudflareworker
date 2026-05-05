@@ -56,11 +56,11 @@ describe("E2E: Page rendering", () => {
       expect(html).toContain("nfc-scan-btn");
     });
 
-    it("includes BROWSER_NFC_HELPERS script", async () => {
+    it("includes external debug.js script", async () => {
       const env = makePageEnv();
       const resp = await req("/debug", "GET", null, env);
       const html = await resp.text();
-      expect(html).toContain("createNfcScanner");
+      expect(html).toContain('<script src="/static/js/debug.js"></script>');
     });
   });
 

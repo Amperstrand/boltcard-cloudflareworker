@@ -1,38 +1,9 @@
-import { rawHtml } from "../utils/rawTemplate.js";
-import { validateUid } from "../utils/validation.js";
+// nfc.js — classic script (no import/export)
 
-export const ESC_HELPER: string = rawHtml`
 function esc(s) {
   if (s == null) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
-`;
-
-export const CSRF_FETCH_HELPER: string = rawHtml`
-function getCsrfToken() {
-  const match = document.cookie.match(/(?:^|;\\s*)op_csrf=([^;]*)/);
-  return match ? match[1] : '';
-}
-var _origFetch = window.fetch;
-window.fetch = function(input, init) {
-  init = init || {};
-  init.headers = init.headers || {};
-  if (typeof init.headers.set === 'function') {
-    if (!init.headers.has('X-CSRF-Token')) init.headers.set('X-CSRF-Token', getCsrfToken());
-  } else {
-    if (!init.headers['X-CSRF-Token']) init.headers['X-CSRF-Token'] = getCsrfToken();
-  }
-  return _origFetch.call(this, input, init);
-};
-`;
-
-export const BROWSER_VALIDATE_UID_HELPER: string = rawHtml`
-  const UID_REGEX = /^[0-9a-f]{14}$/;
-  ${validateUid.toString()}
-`;
-
-export const BROWSER_NFC_BASE: string = rawHtml`
-${ESC_HELPER}
 
 function browserSupportsNfc() {
   return 'NDEFReader' in window;
@@ -43,18 +14,21 @@ function normalizeNfcSerial(serialNumber) {
 }
 
 async function extractNdefUrl(records, prefixes) {
-  const acceptedPrefixes = prefixes || ['lnurlw://', 'lnurlp://', 'https://'];
-  const decoder = new TextDecoder();
-  for (const record of records) {
+  var acceptedPrefixes = prefixes || ['lnurlw://', 'lnurlp://', 'https://'];
+  var decoder = new TextDecoder();
+  for (var i = 0; i < records.length; i++) {
+    var record = records[i];
     if (record.recordType !== 'url' && record.recordType !== 'text') {
       continue;
     }
-    const text = record.recordType === 'url'
+    var text = record.recordType === 'url'
       ? await new Response(record.data).text()
       : decoder.decode(record.data);
-    const lower = text.toLowerCase();
-    if (acceptedPrefixes.some(prefix => lower.startsWith(prefix))) {
-      return text;
+    var lower = text.toLowerCase();
+    for (var j = 0; j < acceptedPrefixes.length; j++) {
+      if (lower.startsWith(acceptedPrefixes[j])) {
+        return text;
+      }
     }
   }
   return '';
@@ -67,10 +41,6 @@ function normalizeBrowserNfcUrl(rawUrl) {
   }
   return rawUrl.replace(/^http:\/\//i, 'https://');
 }
-`;
-
-export const BROWSER_NFC_HELPERS: string = rawHtml`
-${BROWSER_NFC_BASE}
 
 function createNfcScanner(opts) {
   var abortCtrl = null;
@@ -141,9 +111,7 @@ function createNfcScanner(opts) {
 
   return { scan: scan, stop: stop, restart: restart, isActive: isActive };
 }
-`;
 
-export const CARD_STATE_HELPERS: string = rawHtml`
 function stateLabel(state) {
   var labels = {
     'new': 'New',
@@ -195,8 +163,3 @@ function provenanceColor(p) {
   if (p === 'env_issuer') return 'text-emerald-400';
   return 'text-gray-300';
 }
-`;
-
-export const NFC_SCRIPT_TAG = '<script src="/static/js/nfc.js"></script>';
-export const HELPERS_SCRIPT_TAG = '<script src="/static/js/helpers.js"></script>';
-export const CSRF_SCRIPT_TAG = '<script src="/static/js/csrf.js"></script>';

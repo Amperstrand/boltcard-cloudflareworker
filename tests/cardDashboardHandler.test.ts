@@ -24,7 +24,7 @@ describe("handleCardPage", () => {
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain("MY CARD");
-    expect(html).toContain("/card/info");
+    expect(html).toContain("/static/js/card-dashboard.js");
   });
 
   it("includes NFC scanner, manual URL input, and refresh button", async () => {
@@ -32,7 +32,7 @@ describe("handleCardPage", () => {
     const req = new Request("https://test.local/card");
     const res = await handleCardPage(req, env);
     const html = await res.text();
-    expect(html).toContain("createNfcScanner");
+    expect(html).toContain("/static/js/nfc.js");
     expect(html).toContain("btn-load-url");
     expect(html).toContain("btn-refresh");
     expect(html).toContain("btn-scan-again");

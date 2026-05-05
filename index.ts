@@ -44,6 +44,7 @@ import { handleIdentifyIssuerKey } from "./handlers/identifyIssuerKeyHandler.js"
 import { handleCardAuditPage, handleCardAuditData, handleIndexRepair } from "./handlers/cardAuditHandler.js";
 import { handleCardBatchAction } from "./handlers/cardBatchHandler.js";
 import { handleDecodePage, handleDecodeApi } from "./handlers/bolt11DecodeHandler.js";
+import { NFC_JS, NFC_JS_HASH, HELPERS_JS, HELPERS_JS_HASH, CSRF_JS, CSRF_JS_HASH, CARD_DASHBOARD_JS, CARD_DASHBOARD_JS_HASH, DEBUG_JS, DEBUG_JS_HASH, LOGIN_JS, LOGIN_JS_HASH } from "./static/js/exports.js";
 
 const router = Router<IRequest, [env: Env]>();
 
@@ -259,6 +260,33 @@ router.get("/", (request, env) => {
     return handleLnurlw(request, env);
   }
   return handleLoginPage(request);
+});
+router.get("/static/js/:file", (request) => {
+  const file = request.params.file;
+  if (!file) return errorResponse("Not found", 404);
+  const files: Record<string, { content: string; hash: string }> = {
+    "nfc.js": { content: NFC_JS, hash: NFC_JS_HASH },
+    "helpers.js": { content: HELPERS_JS, hash: HELPERS_JS_HASH },
+    "csrf.js": { content: CSRF_JS, hash: CSRF_JS_HASH },
+    "debug.js": { content: DEBUG_JS, hash: DEBUG_JS_HASH },
+    "card-dashboard.js": { content: CARD_DASHBOARD_JS, hash: CARD_DASHBOARD_JS_HASH },
+    "login.js": { content: LOGIN_JS, hash: LOGIN_JS_HASH },
+  };
+  const entry = files[file];
+  if (!entry) return errorResponse("Not found", 404);
+
+  const ifNoneMatch = request.headers.get("If-None-Match");
+  if (ifNoneMatch === `"${entry.hash}"`) {
+    return new Response(null, { status: 304 });
+  }
+
+  return new Response(entry.content, {
+    headers: {
+      "Content-Type": "application/javascript; charset=utf-8",
+      "Cache-Control": "public, max-age=3600",
+      "ETag": `"${entry.hash}"`,
+    },
+  });
 });
 router.all("*", (request) => {
   const pathname = new URL(request.url).pathname;

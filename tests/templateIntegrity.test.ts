@@ -32,14 +32,9 @@ const CSRF_NOT_REQUIRED = [
 describe("template integrity", () => {
   describe("CSRF script injection", () => {
     for (const { name, render } of CSRF_REQUIRED) {
-      test(`${name}: renders <script> tag with CSRF helper (not HTML-escaped)`, () => {
+      test(`${name}: renders external CSRF script tag`, () => {
         const html = render();
-        expect(html).toContain("<script>");
-        expect(html).toContain("getCsrfToken");
-        expect(html).toContain("_origFetch");
-        expect(html).toContain("op_csrf");
-        expect(html).not.toContain("&lt;script&gt;");
-        expect(html).not.toContain("&lt;/script&gt;");
+        expect(html).toContain('<script src="/static/js/csrf.js"></script>');
       });
     }
   });
@@ -48,7 +43,7 @@ describe("template integrity", () => {
     for (const { name, render } of CSRF_NOT_REQUIRED) {
       test(`${name}: does not inject CSRF helper`, () => {
         const html = render();
-        expect(html).not.toContain("getCsrfToken");
+        expect(html).not.toContain("/static/js/csrf.js");
       });
     }
   });

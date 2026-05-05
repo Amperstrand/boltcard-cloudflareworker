@@ -52,7 +52,7 @@ describe("GET /login", () => {
     expect(html).toContain("NFC LOGIN");
     expect(html).toContain("NTAG424");
     expect(html).toContain("cdn.tailwindcss.com");
-    expect(html).toContain("function browserSupportsNfc()");
+    expect(html).toContain("/static/js/login.js");
   });
 });
 

@@ -1,5 +1,4 @@
 import { rawHtml, safe } from "../utils/rawTemplate.js";
-import { CSRF_FETCH_HELPER } from "./browserNfc.js";
 
 interface RenderTailwindPageOptions {
   title: string;
@@ -32,7 +31,7 @@ export function renderTailwindPage({
     <script src="https://cdn.tailwindcss.com"></script>
     ${safe(headScripts)}
     ${styles ? safe(rawHtml`<style>${styles}</style>`) : ""}
-    ${csrf ? safe(rawHtml`<script>${safe(CSRF_FETCH_HELPER)}</script>`) : ""}
+    ${csrf ? safe('<script src="/static/js/csrf.js"></script>') : ""}
   </head>
   <body class="${bodyClass}">
 ${safe(content)}
