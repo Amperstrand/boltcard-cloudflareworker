@@ -287,7 +287,8 @@ export async function getBalance(env: Env, uidHex: string): Promise<BalanceResul
 
 export async function safeGetBalance(env: Env, uidHex: string): Promise<BalanceResult> {
   try {
-    return await getBalance(env, uidHex);
+    const result = await getBalance(env, uidHex);
+    return { balance: result.balance ?? 0 };
   } catch (e: unknown) {
     logger.warn("Could not fetch balance", { uidHex, error: getErrorMessage(e) });
     return { balance: 0 };

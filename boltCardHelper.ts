@@ -6,6 +6,7 @@ import {
 } from "./cryptoutils.js";
 import { getBoltCardK1 } from "./getUidConfig.js";
 import { logger } from "./utils/logger.js";
+import type { Env } from "./types/core.js";
 
 interface ExtractSuccess {
   success: true;
@@ -20,7 +21,7 @@ interface ExtractFailure {
 
 export type ExtractResult = ExtractSuccess | ExtractFailure;
 
-export function extractUIDAndCounter(pHex: string, env: any): ExtractResult {
+export function extractUIDAndCounter(pHex: string, env: Env): ExtractResult {
   const k1Keys = getBoltCardK1(env);
 
   if (!k1Keys || k1Keys.length === 0) {
@@ -83,7 +84,7 @@ interface DecodeAndValidateFailure {
 
 type DecodeAndValidateResult = DecodeAndValidateSuccess | DecodeAndValidateFailure;
 
-export function decodeAndValidate(pHex: string, cHex: string | null | undefined, env: any, k2Bytes?: Uint8Array): DecodeAndValidateResult {
+export function decodeAndValidate(pHex: string, cHex: string | null | undefined, env: Env, k2Bytes?: Uint8Array): DecodeAndValidateResult {
   const decryption = extractUIDAndCounter(pHex, env);
   if (!decryption.success) {
     return { success: false, error: (decryption as ExtractFailure).error };

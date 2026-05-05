@@ -23,7 +23,7 @@ export interface CardStateRow {
   active_version: number | null;
   latest_issued_version: number;
   balance: number;
-  counter: number;
+  counter?: number;
   activated_at: number | null;
   terminated_at: number | null;
   keys_delivered_at: number | null;
@@ -32,8 +32,8 @@ export interface CardStateRow {
   key_fingerprint: string | null;
   key_label: string | null;
   first_seen_at: number | null;
-  created_at: number;
-  updated_at: number;
+  created_at?: number;
+  updated_at?: number;
 }
 
 export interface SessionPayload {

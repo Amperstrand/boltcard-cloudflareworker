@@ -15,7 +15,7 @@ export class CardReplayDO extends DurableObject<Env> {
     super(state, env);
     this.state = state;
     this.env = env;
-    this.sql = (state as any).storage.sql;
+    this.sql = state.storage.sql;
 
     state.blockConcurrencyWhile(async () => {
       this.sql.exec(`

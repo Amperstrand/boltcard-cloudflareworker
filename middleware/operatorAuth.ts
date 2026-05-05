@@ -102,7 +102,7 @@ export function requireOperator(request: Request, env: Env): OperatorAuthResult 
   const secret = env.OPERATOR_SESSION_SECRET || DEV_SESSION_SECRET;
 
   if (env.__TEST_OPERATOR_SESSION && env.WORKER_ENV !== "production") {
-    return { authorized: true, session: env.__TEST_OPERATOR_SESSION as unknown as SessionPayload };
+    return { authorized: true, session: env.__TEST_OPERATOR_SESSION };
   }
 
   const sessionCookie = getSessionCookie(request);
