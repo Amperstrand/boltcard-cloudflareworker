@@ -2,7 +2,7 @@ export function getCookieValue(cookieHeader: string | null | undefined, name: st
   if (!cookieHeader) return null;
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${escaped}=([^;]*)`));
-  return match ? match[1] : null;
+  return match ? (match[1] ?? null) : null;
 }
 
 export function constantTimeEqual(a: string, b: string): boolean {

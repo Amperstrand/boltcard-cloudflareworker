@@ -25,8 +25,8 @@ export function formatAmount(raw: number | string, env: Env): string {
   const divisor = Math.pow(10, decimals);
   const display = (value / divisor).toFixed(decimals);
   const parts = display.split(".");
-  const whole = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  const formatted = decimals > 0 ? `${whole}.${parts[1]}` : whole;
+  const whole = parts[0]!.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const formatted = decimals > 0 ? `${whole}.${parts[1]!}` : whole;
   return `${formatted} ${label}`;
 }
 

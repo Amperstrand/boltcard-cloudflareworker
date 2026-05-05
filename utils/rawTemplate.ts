@@ -3,7 +3,7 @@ import { SafeHtml, escapeHtml } from "./escapeHtml.js";
 export function rawHtml(strings: TemplateStringsArray, ...values: unknown[]): string {
   let result = "";
   for (let i = 0; i < strings.raw.length; i++) {
-    result += strings.raw[i]
+    result += strings.raw[i]!
       .replace(/\\`/g, "`")
       .replace(/\\\$\{/g, "${");
     if (i < values.length) {

@@ -72,12 +72,12 @@ function signSession(payload: string, secret: string): string {
 function verifyAndParseSession(cookieValue: string, secret: string): SessionPayload | null {
   const parts = cookieValue.split(".");
   if (parts.length !== 2) return null;
-  const [b64, sig] = parts;
-  const valid = hmacVerify(secret, b64, sig);
+  const [b64, sig] = parts as [string, string];
+  const valid = hmacVerify(secret, b64!, sig!);
   if (!valid) return null;
 
   try {
-    const payload = JSON.parse(atob(b64.replace(/-/g, "+").replace(/_/g, "/")));
+    const payload = JSON.parse(atob(b64!.replace(/-/g, "+").replace(/_/g, "/")));
     const now = Math.floor(Date.now() / 1000);
     if (typeof payload.exp !== "number" || now > payload.exp) return null;
     return payload;

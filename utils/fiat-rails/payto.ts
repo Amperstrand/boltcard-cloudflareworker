@@ -44,8 +44,8 @@ export function parsePaytoUri(paytoUri: string | null | undefined): PaytoPayment
     const match = uri.match(/^payto:\/\/([^/]+)\/([^?]+)(\?.*)?$/i);
     if (!match) return null;
 
-    const targetType = match[1].toLowerCase();
-    let iban = match[2].trim();
+    const targetType = match[1]!.toLowerCase();
+    let iban = match[2]!.trim();
     const queryString = match[3] || "";
 
     if (targetType !== "iban") return null;
@@ -64,8 +64,8 @@ export function parsePaytoUri(paytoUri: string | null | undefined): PaytoPayment
     const amountMatch = amountParam.match(/^([A-Z]{3}):([\d.]+(?:[eE][+-]?\d+)?)$/i);
     if (!amountMatch) return null;
 
-    const currency = amountMatch[1].toUpperCase();
-    const amount = parseFloat(amountMatch[2]);
+    const currency = amountMatch[1]!.toUpperCase();
+    const amount = parseFloat(amountMatch[2]!);
 
     if (isNaN(amount) || amount <= 0 || !isFinite(amount)) return null;
 

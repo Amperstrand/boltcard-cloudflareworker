@@ -2,7 +2,7 @@ const HTML_ENTITIES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": 
 
 export function escapeHtml(str: unknown): string {
   if (typeof str !== "string") return escapeHtml(String(str));
-  return str.replace(/[&<>"']/g, (ch) => HTML_ENTITIES[ch]);
+  return str.replace(/[&<>"']/g, (ch) => HTML_ENTITIES[ch]!);
 }
 
 export class SafeHtml {

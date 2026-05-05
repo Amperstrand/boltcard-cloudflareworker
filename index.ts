@@ -154,7 +154,7 @@ router.get("/api/fake-invoice", async (request, env) => {
           AM: fiatAmount.toFixed(2),
           CC: currency,
           MSG: `${Math.round(amountMsat / 1000)}sat`,
-          DT: new Date(Date.now() + 3600000).toISOString().split("T")[0].replace(/-/g, ""),
+          DT: new Date(Date.now() + 3600000).toISOString().split("T")[0]!.replace(/-/g, ""),
         },
         { includeCrc32: true, sortAttributes: true }
       );

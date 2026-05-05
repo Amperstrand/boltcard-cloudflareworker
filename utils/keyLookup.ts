@@ -23,11 +23,11 @@ export interface ClassifyResult {
 const PERCARD_MAP = new Map<string, PerCardEntry>(PERCARD_KEYS.map((entry) => [entry.uid, entry]));
 
 const PUBLIC_KEY_SET = new Set<string>();
-for (const domain of Object.keys(ISSUER_KEYS_BY_DOMAIN)) {
-  for (const key of ISSUER_KEYS_BY_DOMAIN[domain]) {
-    PUBLIC_KEY_SET.add(key.hex.toLowerCase());
+  for (const domain of Object.keys(ISSUER_KEYS_BY_DOMAIN)) {
+    for (const key of ISSUER_KEYS_BY_DOMAIN[domain]!) {
+      PUBLIC_KEY_SET.add(key.hex.toLowerCase());
+    }
   }
-}
 
 export function _getIssuerKeysForDomain(domain: string): KeyCandidate[] {
   const domainKeys = ISSUER_KEYS_BY_DOMAIN[domain] || [];
@@ -57,7 +57,7 @@ export function getAllIssuerKeyCandidates(env: Env | undefined): KeyCandidate[] 
   }
 
   for (const domain of Object.keys(ISSUER_KEYS_BY_DOMAIN)) {
-    for (const key of ISSUER_KEYS_BY_DOMAIN[domain]) {
+    for (const key of ISSUER_KEYS_BY_DOMAIN[domain]!) {
       add(key.hex, key.label);
     }
   }
@@ -126,7 +126,7 @@ export function classifyIssuerKey(env: Env | undefined, issuerKeyHex: string | u
 
 function findPublicKeyLabel(hex: string): string | null {
   for (const domain of Object.keys(ISSUER_KEYS_BY_DOMAIN)) {
-    for (const key of ISSUER_KEYS_BY_DOMAIN[domain]) {
+    for (const key of ISSUER_KEYS_BY_DOMAIN[domain]!) {
       if (key.hex.toLowerCase() === hex) {
         return key.label;
       }

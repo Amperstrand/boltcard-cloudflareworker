@@ -121,7 +121,7 @@ export function encodeSpayd(attrs: Record<string, string | string[] | undefined>
 
 function firstValue(attributes: Record<string, string[]>, key: string): string | null {
   const arr = attributes[key];
-  return arr && arr.length ? arr[0] : null;
+  return arr && arr.length ? (arr[0] ?? null) : null;
 }
 
 function buildSpaydString(version: string, pairs: Array<[string, string]>): string {
@@ -161,7 +161,7 @@ function crc32(input: string): number {
   let crc = 0xffffffff;
   for (let i = 0; i < input.length; i++) {
     const byte = input.charCodeAt(i) & 0xff;
-    crc = (crc >>> 8) ^ table[(crc ^ byte) & 0xff];
+    crc = (crc >>> 8) ^ table[(crc ^ byte) & 0xff]!;
   }
   return (crc ^ 0xffffffff) >>> 0;
 }

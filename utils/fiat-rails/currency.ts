@@ -46,7 +46,7 @@ export async function getBtcPrice(currency: string): Promise<number> {
     if (price > 0) return price;
   }
 
-  const fallback = FALLBACK_RATES[currency] || FALLBACK_RATES.EUR;
+  const fallback = FALLBACK_RATES[currency] ?? FALLBACK_RATES["EUR"]!;
   logger.warn("Using fallback exchange rate", { currency, rate: fallback });
   return fallback;
 }

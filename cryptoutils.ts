@@ -27,15 +27,15 @@ export function _xorArrays(a: Uint8Array, b: Uint8Array): Uint8Array {
   if (a.length !== b.length) {
     throw new Error("_xorArrays: Input arrays must have the same length");
   }
-  return new Uint8Array(a.map((val, i) => val ^ b[i]));
+  return new Uint8Array(a.map((val, i) => val ^ b[i]!));
 }
 
 export function _shiftGo(src: Uint8Array): { shifted: Uint8Array; carry: number } {
   const shifted = new Uint8Array(src.length);
   let carry = 0;
   for (let i = src.length - 1; i >= 0; i--) {
-    const msb = src[i] >> 7;
-    shifted[i] = ((src[i] << 1) & 0xff) | carry;
+    const msb = src[i]! >> 7;
+    shifted[i] = ((src[i]! << 1) & 0xff) | carry;
     carry = msb;
   }
   return { shifted, carry };
@@ -45,7 +45,7 @@ export function _generateSubkeyGo(input: Uint8Array): Uint8Array {
   const { shifted, carry } = _shiftGo(input);
   const subkey = new Uint8Array(shifted);
   if (carry) {
-    subkey[subkey.length - 1] ^= 0x87;
+    subkey[subkey.length - 1]! ^= 0x87;
   }
   return subkey;
 }
@@ -101,7 +101,7 @@ export function _computeCm(ks: Uint8Array): Uint8Array {
   const hk1 = _generateSubkeyGo(K1prime);
 
   const hashVal = new Uint8Array(hk1);
-  hashVal[0] ^= 0x80;
+  hashVal[0]! ^= 0x80;
 
   const cm = aesEcbKs.encrypt(hashVal);
 
@@ -110,14 +110,14 @@ export function _computeCm(ks: Uint8Array): Uint8Array {
 
 function _extractOddBytes(cm: Uint8Array): Uint8Array {
   return new Uint8Array([
-    cm[1],
-    cm[3],
-    cm[5],
-    cm[7],
-    cm[9],
-    cm[11],
-    cm[13],
-    cm[15],
+    cm[1]!,
+    cm[3]!,
+    cm[5]!,
+    cm[7]!,
+    cm[9]!,
+    cm[11]!,
+    cm[13]!,
+    cm[15]!,
   ]);
 }
 
@@ -138,9 +138,9 @@ export function buildVerificationData(uidBytes: Uint8Array, ctr: Uint8Array, k2B
   const sv2 = new Uint8Array(BLOCK_SIZE);
   sv2.set([0x3c, 0xc3, 0x00, 0x01, 0x00, 0x80]);
   sv2.set(uidBytes, 6);
-  sv2[13] = ctr[2];
-  sv2[14] = ctr[1];
-  sv2[15] = ctr[0];
+  sv2[13] = ctr[2]!;
+  sv2[14] = ctr[1]!;
+  sv2[15] = ctr[0]!;
 
   const ks = _computeKs(sv2, k2Bytes);
   const cm = _computeCm(ks);
@@ -173,17 +173,17 @@ export function decryptP(pHex: string, k1Keys: Uint8Array[]): DecryptResult {
   let matchIndices: number[] = [];
 
   for (let i = 0; i < k1Keys.length; i++) {
-    const k1Bytes = k1Keys[i];
+    const k1Bytes = k1Keys[i]!;
     const aesEcbK1 = new AES.ModeOfOperation.ecb(k1Bytes);
     const decrypted = aesEcbK1.decrypt(pBytes);
 
     if (decrypted[0] === EXPECTED_PICC_DATA_TAG) {
       const uidBytes = decrypted.slice(1, 8);
-      const ctrLo = decrypted[8] | decrypted[9] | decrypted[10];
+      const ctrLo = decrypted[8]! | decrypted[9]! | decrypted[10]!;
       if (uidBytes.every(b => b === 0) && ctrLo === 0) continue;
 
       if (bestMatch === null) {
-        const ctr = new Uint8Array([decrypted[10], decrypted[9], decrypted[8]]);
+        const ctr = new Uint8Array([decrypted[10]!, decrypted[9]!, decrypted[8]!]);
         bestMatch = { success: true, uidBytes, ctr, usedK1: k1Bytes };
       }
       matchIndices.push(i);
@@ -216,7 +216,7 @@ export function verifyCmac(uidBytes: Uint8Array, ctr: Uint8Array, cHex: string, 
   const providedBytes = hexToBytes(cHex);
   let diff = 0;
   for (let i = 0; i < ct.length; i++) {
-    diff |= ct[i] ^ providedBytes[i];
+    diff |= ct[i]! ^ providedBytes[i]!;
   }
   const cmac_validated = diff === 0;
 

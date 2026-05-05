@@ -55,7 +55,7 @@ export function decodeBolt11Amount(invoice: string): number | null {
   const amountPart = lower.substring(4, hrpEnd);
   if (amountPart.length === 0) return null;
 
-  const lastChar = amountPart[amountPart.length - 1];
+  const lastChar = amountPart[amountPart.length - 1]!;
   let divisor: string | null = null;
   let numStr = amountPart;
 
@@ -70,7 +70,7 @@ export function decodeBolt11Amount(invoice: string): number | null {
   if (!Number.isSafeInteger(value)) return null;
 
   if (divisor) {
-    return Math.round((value * MILLISATS_PER_BTC) / DIVISORS[divisor]);
+    return Math.round((value * MILLISATS_PER_BTC) / DIVISORS[divisor]!);
   }
 
   return value * MILLISATS_PER_BTC;
@@ -196,7 +196,7 @@ export function generateFakeBolt11(amountMsat: number, { description, paymentSec
 
   const privKey = hexToBytes(randomHex(32));
   const sigRecovered = secp.sign(msgHash, privKey, { format: "recovered" });
-  const recovery = sigRecovered[0];
+  const recovery = sigRecovered[0]!;
   const r = sigRecovered.slice(1, 33);
   const s = sigRecovered.slice(33, 65);
 
@@ -215,7 +215,7 @@ function decodeFeaturesBytes(bytes: Uint8Array): FeatureDef[] {
   const bits: FeatureDef[] = [];
   for (let byteIdx = 0; byteIdx < bytes.length; byteIdx++) {
     for (let bitIdx = 0; bitIdx < 8; bitIdx++) {
-      if (bytes[byteIdx] & (1 << bitIdx)) {
+      if (bytes[byteIdx]! & (1 << bitIdx)) {
         const globalBit = byteIdx * 8 + bitIdx;
         const feature = FEATURES.find(f => f.bit === globalBit);
         bits.push({
@@ -230,7 +230,7 @@ function decodeFeaturesBytes(bytes: Uint8Array): FeatureDef[] {
 
 function decodeHrpAmount(amountPart: string): { amountMsat: number | null; amountDisplay: string } {
   if (amountPart.length === 0) return { amountMsat: null, amountDisplay: "any amount" };
-  const lastChar = amountPart[amountPart.length - 1];
+  const lastChar = amountPart[amountPart.length - 1]!;
   let divisor: string | null = null;
   let numStr = amountPart;
   if (DIVISORS[lastChar] !== undefined) {
@@ -241,8 +241,8 @@ function decodeHrpAmount(amountPart: string): { amountMsat: number | null; amoun
   const value = parseInt(numStr, 10);
   if (!Number.isSafeInteger(value)) return { amountMsat: null, amountDisplay: `overflow: ${amountPart}` };
   if (divisor) {
-    const msat = Math.round((value * MILLISATS_PER_BTC) / DIVISORS[divisor]);
-    return { amountMsat: msat, amountDisplay: `${value} ${DIVISOR_LABELS[divisor]}BTC (${msat} msat)` };
+    const msat = Math.round((value * MILLISATS_PER_BTC) / DIVISORS[divisor]!);
+    return { amountMsat: msat, amountDisplay: `${value} ${DIVISOR_LABELS[divisor]!}BTC (${msat} msat)` };
   }
   const msat = value * MILLISATS_PER_BTC;
   return { amountMsat: msat, amountDisplay: `${value} BTC (${msat} msat)` };
@@ -341,7 +341,7 @@ export function decodeBolt11(invoice: string): DecodedBolt11 {
 
   const r = sigBytes.slice(0, 32);
   const s = sigBytes.slice(32, 64);
-  const recoveryFlag = sigBytes[64] & 0x03;
+  const recoveryFlag = sigBytes[64]! & 0x03;
 
   let timestamp: number;
   if (dataWords.length < 7) {
@@ -353,8 +353,8 @@ export function decodeBolt11(invoice: string): DecodedBolt11 {
   let pos = 7;
   while (pos < dataWords.length) {
     if (pos + 2 >= dataWords.length) break;
-    const tagCode = dataWords[pos];
-    const tagLen = (dataWords[pos + 1] << 5) | dataWords[pos + 2];
+    const tagCode = dataWords[pos]!;
+    const tagLen = (dataWords[pos + 1]! << 5) | dataWords[pos + 2]!;
     pos += 3;
     if (pos + tagLen > dataWords.length) break;
     const tagData = dataWords.slice(pos, pos + tagLen);

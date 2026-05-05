@@ -22,12 +22,12 @@ function hmacSha1(keyBytes: Uint8Array, messageBytes: Uint8Array): Uint8Array {
 }
 
 function dynamicTruncation(hmacResult: Uint8Array): number {
-  const offset = hmacResult[hmacResult.length - 1] & 0x0f;
+  const offset = hmacResult[hmacResult.length - 1]! & 0x0f;
   return (
-    ((hmacResult[offset] & 0x7f) << 24) |
-    ((hmacResult[offset + 1] & 0xff) << 16) |
-    ((hmacResult[offset + 2] & 0xff) << 8) |
-    (hmacResult[offset + 3] & 0xff)
+    ((hmacResult[offset]! & 0x7f) << 24) |
+    ((hmacResult[offset + 1]! & 0xff) << 16) |
+    ((hmacResult[offset + 2]! & 0xff) << 8) |
+    (hmacResult[offset + 3]! & 0xff)
   );
 }
 

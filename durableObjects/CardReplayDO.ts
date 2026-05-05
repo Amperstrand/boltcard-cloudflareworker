@@ -302,7 +302,7 @@ export class CardReplayDO extends DurableObject<Env> {
     ).toArray();
 
     if (updated.length === 1) {
-      return Response.json({ accepted: true, lastCounter: updated[0].last_counter as number });
+      return Response.json({ accepted: true, lastCounter: updated[0]!.last_counter as number });
     }
 
     const existing = this.sql.exec(
@@ -348,7 +348,7 @@ export class CardReplayDO extends DurableObject<Env> {
         now
       );
 
-      return Response.json({ accepted: true, lastCounter: updated[0].last_counter as number, tapRecorded: true });
+      return Response.json({ accepted: true, lastCounter: updated[0]!.last_counter as number, tapRecorded: true });
     }
 
     const existing = this.sql.exec(
@@ -431,7 +431,7 @@ export class CardReplayDO extends DurableObject<Env> {
       return Response.json({ claimed: true });
     }
 
-    const tap = rows[0];
+    const tap = rows[0]!;
     if (tap.bolt11) {
       return Response.json({ claimed: false, reason: "Tap already claimed", bolt11: tap.bolt11 }, { status: 409 });
     }
@@ -854,7 +854,7 @@ export class CardReplayDO extends DurableObject<Env> {
 
     if (existing.length > 0) {
       return Response.json({
-        state: existing[0].state,
+        state: existing[0]!.state,
         already_exists: true,
       });
     }
