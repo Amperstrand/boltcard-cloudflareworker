@@ -20,11 +20,7 @@ import { handleGetKeys } from "./handlers/getKeysHandler.js";
 import { handleBulkWipeKeys } from "./handlers/bulkWipeHandler.js";
 import { handleBulkWipePage } from "./handlers/bulkWipePageHandler.js";
 import { handleAnalyticsPage, handleAnalyticsData } from "./handlers/analyticsHandler.js";
-import { generateFakeBolt11 } from "./utils/bolt11.js";
-import { encodePaytoUri } from "./utils/fiat-rails/payto.js";
-import { encodeUpiUri } from "./utils/fiat-rails/upi.js";
-import { encodeSpayd } from "./utils/fiat-rails/spayd.js";
-import { convertSatsToCurrency } from "./utils/fiat-rails/currency.js";
+import { handleFakeInvoice } from "./handlers/fakeInvoiceHandler.js";
 import { logger, getErrorMessage } from "./utils/logger.js";
 import { jsonResponse, errorResponse, redirect } from "./utils/responses.js";
 import { REQUEST_ID_LENGTH } from "./utils/constants.js";
@@ -44,7 +40,7 @@ import { handleIdentifyIssuerKey } from "./handlers/identifyIssuerKeyHandler.js"
 import { handleCardAuditPage, handleCardAuditData, handleIndexRepair } from "./handlers/cardAuditHandler.js";
 import { handleCardBatchAction } from "./handlers/cardBatchHandler.js";
 import { handleDecodePage, handleDecodeApi } from "./handlers/bolt11DecodeHandler.js";
-import { NFC_JS, NFC_JS_HASH, HELPERS_JS, HELPERS_JS_HASH, CSRF_JS, CSRF_JS_HASH, CARD_DASHBOARD_JS, CARD_DASHBOARD_JS_HASH, DEBUG_JS, DEBUG_JS_HASH, LOGIN_JS, LOGIN_JS_HASH, ACTIVATE_JS, ACTIVATE_JS_HASH, ANALYTICS_JS, ANALYTICS_JS_HASH, CARD_AUDIT_JS, CARD_AUDIT_JS_HASH, MENU_EDITOR_JS, MENU_EDITOR_JS_HASH, WIPE_JS, WIPE_JS_HASH, BULK_WIPE_JS, BULK_WIPE_JS_HASH, TWO_FACTOR_JS, TWO_FACTOR_JS_HASH, BOLT11_DECODE_JS, BOLT11_DECODE_JS_HASH, POS_JS, POS_JS_HASH, TOPUP_JS, TOPUP_JS_HASH, REFUND_JS, REFUND_JS_HASH, IDENTITY_JS, IDENTITY_JS_HASH } from "./static/js/exports.js";
+import { serveStaticJs } from "./static/js/registry.js";
 
 const router = Router<IRequest, [env: Env]>();
 
@@ -84,90 +80,7 @@ function withOperatorAuth(handler: (request: IRequest, env: Env, session: Sessio
   };
 }
 
-router.get("/api/fake-invoice", async (request, env) => {
-  const url = new URL(request.url);
-  const amountMsat = parseInt(url.searchParams.get("amount") ?? "", 10);
-  if (!Number.isInteger(amountMsat) || amountMsat <= 0) {
-    return errorResponse("amount must be a positive integer (millisatoshis)", 400);
-  }
-  try {
-    const rail = url.searchParams.get("rail") || env.FAKEWALLET_DEFAULT_RAIL || "bolt11";
-    let description: string | undefined;
-
-    if (rail === "payto") {
-      const currency = (url.searchParams.get("currency") || env.FAKEWALLET_CURRENCY || "EUR").toUpperCase();
-      const iban = url.searchParams.get("iban") || env.FAKEWALLET_IBAN || "GB33BUKB20201555555555";
-      const accountName = url.searchParams.get("accountName") || env.FAKEWALLET_ACCOUNT_NAME || "FakeWallet";
-
-      let fiatAmount: number;
-      try {
-        fiatAmount = await convertSatsToCurrency(amountMsat / 1000, currency);
-      } catch {
-        fiatAmount = 0;
-      }
-
-      const message = `${Math.round(amountMsat / 1000)}sat@${new Date().toISOString().split("T")[0]}`;
-      const execDate = new Date(Date.now() + 3600000).toISOString().split("T")[0];
-
-      const paytoUri = encodePaytoUri({
-        iban,
-        amount: fiatAmount,
-        currency,
-        receiverName: accountName,
-        message,
-        execDate,
-      });
-
-      description = `PAYTO:${paytoUri}`;
-    } else if (rail === "upi") {
-      const pa = url.searchParams.get("pa") || env.FAKEWALLET_UPI_PA || "merchant@upi";
-      const pn = url.searchParams.get("pn") || env.FAKEWALLET_UPI_PN || "FakeWallet";
-      const currency = (url.searchParams.get("currency") || "INR").toUpperCase();
-
-      let fiatAmount: number;
-      try {
-        fiatAmount = await convertSatsToCurrency(amountMsat / 1000, currency);
-      } catch {
-        fiatAmount = 0;
-      }
-
-      description = encodeUpiUri({
-        pa,
-        am: fiatAmount,
-        cu: currency,
-        pn,
-        tn: `${Math.round(amountMsat / 1000)}sat@${new Date().toISOString().split("T")[0]}`,
-      });
-    } else if (rail === "spayd") {
-      const acc = url.searchParams.get("acc") || env.FAKEWALLET_SPAYD_ACC || "CZ000000-0000000000";
-      const currency = (url.searchParams.get("currency") || env.FAKEWALLET_CURRENCY || "CZK").toUpperCase();
-
-      let fiatAmount: number;
-      try {
-        fiatAmount = await convertSatsToCurrency(amountMsat / 1000, currency);
-      } catch {
-        fiatAmount = 0;
-      }
-
-      description = encodeSpayd(
-        {
-          ACC: acc,
-          AM: fiatAmount.toFixed(2),
-          CC: currency,
-          MSG: `${Math.round(amountMsat / 1000)}sat`,
-          DT: new Date(Date.now() + 3600000).toISOString().split("T")[0]!.replace(/-/g, ""),
-        },
-        { includeCrc32: true, sortAttributes: true }
-      );
-    }
-
-    const invoice = generateFakeBolt11(amountMsat, { description });
-    return jsonResponse({ pr: invoice, ...(description ? { description } : {}) });
-  } catch (err: unknown) {
-    logger.error("Fake invoice generation failed", { error: getErrorMessage(err) });
-    return errorResponse("Internal error", 500);
-  }
-});
+router.get("/api/fake-invoice", (request, env) => handleFakeInvoice(request, env));
 router.get("/status", (request, env) => handleStatus(request, env));
 router.all("/boltcards/api/v1/lnurl/cb*", (request, env) => handleLnurlpPayment(request, env));
 router.get("/2fa", (request, env) => handleTwoFactor(request, env));
@@ -216,14 +129,14 @@ router.get("/experimental/wipe", withOperatorAuth((request, env) => {
   if (uid) return handleReset(uid, env, getRequestOrigin(request));
   return handleWipePage(request, env);
 }));
-  router.get("/experimental/bulkwipe", withOperatorAuth((request) => handleBulkWipePage(request)));
-  router.get("/experimental/analytics", withOperatorAuth(() => handleAnalyticsPage()));
+router.get("/experimental/bulkwipe", withOperatorAuth((request) => handleBulkWipePage(request)));
+router.get("/experimental/analytics", withOperatorAuth(() => handleAnalyticsPage()));
 router.get("/experimental/analytics/data", withOperatorAuth((request, env) => handleAnalyticsData(request, env)));
 router.get("/api/keys", withOperatorAuth((request, env) => handleGetKeys(request, env)));
 router.post("/api/keys", withOperatorAuth((request, env) => handleGetKeys(request, env)));
 router.all("/api/v1/pull-payments/:pullPaymentId/boltcards", withOperatorAuth((request, env) => fetchBoltCardKeys(request, env)));
-  router.get("/api/bulk-wipe-keys", withOperatorAuth((request) => handleBulkWipeKeys(request)));
-  router.post("/api/bulk-wipe-keys", withOperatorAuth((request) => handleBulkWipeKeys(request)));
+router.get("/api/bulk-wipe-keys", withOperatorAuth((request) => handleBulkWipeKeys(request)));
+router.post("/api/bulk-wipe-keys", withOperatorAuth((request) => handleBulkWipeKeys(request)));
 router.get("/identity", (request) => handleIdentityPage(request));
 
 router.get("/card", (request, env) => handleCardPage(request, env));
@@ -262,43 +175,7 @@ router.get("/", (request, env) => {
   return handleLoginPage(request);
 });
 router.get("/static/js/:file", (request) => {
-  const file = request.params.file;
-  if (!file) return errorResponse("Not found", 404);
-  const files: Record<string, { content: string; hash: string }> = {
-    "nfc.js": { content: NFC_JS, hash: NFC_JS_HASH },
-    "helpers.js": { content: HELPERS_JS, hash: HELPERS_JS_HASH },
-    "csrf.js": { content: CSRF_JS, hash: CSRF_JS_HASH },
-    "debug.js": { content: DEBUG_JS, hash: DEBUG_JS_HASH },
-    "card-dashboard.js": { content: CARD_DASHBOARD_JS, hash: CARD_DASHBOARD_JS_HASH },
-    "login.js": { content: LOGIN_JS, hash: LOGIN_JS_HASH },
-    "activate.js": { content: ACTIVATE_JS, hash: ACTIVATE_JS_HASH },
-    "analytics.js": { content: ANALYTICS_JS, hash: ANALYTICS_JS_HASH },
-    "card-audit.js": { content: CARD_AUDIT_JS, hash: CARD_AUDIT_JS_HASH },
-    "menu-editor.js": { content: MENU_EDITOR_JS, hash: MENU_EDITOR_JS_HASH },
-    "wipe.js": { content: WIPE_JS, hash: WIPE_JS_HASH },
-    "bulk-wipe.js": { content: BULK_WIPE_JS, hash: BULK_WIPE_JS_HASH },
-    "two-factor.js": { content: TWO_FACTOR_JS, hash: TWO_FACTOR_JS_HASH },
-    "bolt11-decode.js": { content: BOLT11_DECODE_JS, hash: BOLT11_DECODE_JS_HASH },
-    "pos.js": { content: POS_JS, hash: POS_JS_HASH },
-    "topup.js": { content: TOPUP_JS, hash: TOPUP_JS_HASH },
-    "refund.js": { content: REFUND_JS, hash: REFUND_JS_HASH },
-    "identity.js": { content: IDENTITY_JS, hash: IDENTITY_JS_HASH },
-  };
-  const entry = files[file];
-  if (!entry) return errorResponse("Not found", 404);
-
-  const ifNoneMatch = request.headers.get("If-None-Match");
-  if (ifNoneMatch === `"${entry.hash}"`) {
-    return new Response(null, { status: 304 });
-  }
-
-  return new Response(entry.content, {
-    headers: {
-      "Content-Type": "application/javascript; charset=utf-8",
-      "Cache-Control": "public, max-age=3600",
-      "ETag": `"${entry.hash}"`,
-    },
-  });
+  return serveStaticJs(request.params.file, request.headers.get("If-None-Match"));
 });
 router.all("*", (request) => {
   const pathname = new URL(request.url).pathname;
@@ -309,7 +186,7 @@ router.all("*", (request) => {
   } else {
     logger.warn("Route not found", { pathname, method: request.method });
   }
-    return errorResponse("Not found", 404);
+  return errorResponse("Not found", 404);
 });
 
 const SECURITY_HEADERS: Record<string, string> = {
