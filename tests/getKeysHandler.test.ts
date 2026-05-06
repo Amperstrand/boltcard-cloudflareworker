@@ -1,11 +1,12 @@
 import { handleRequest } from "../index.js";
 import { buildCardTestEnv } from "./testHelpers.js";
+import type { Env } from "../types/core.js";
 
 const env = buildCardTestEnv({ operatorAuth: true });
 
 const VALID_UID = "040660fa967380";
 
-async function makeRequest(path: string, method = "GET", body: Record<string, unknown> | null = null, requestEnv: any = env) {
+async function makeRequest(path: string, method = "GET", body: Record<string, unknown> | null = null, requestEnv: Env = env) {
   const url = "https://test.local" + path;
   const options: RequestInit = { method };
   if (body) {

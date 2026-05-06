@@ -7,6 +7,7 @@ import indexModule, { handleRequest as _handleRequest } from '../index.js';
 import { logger } from '../utils/logger.js';
 import { createSession } from '../middleware/operatorAuth.js';
 import { makeReplayNamespace } from './replayNamespace.js';
+import type { ReplayNamespace } from './replayNamespace.js';
 import { TEST_OPERATOR_AUTH, buildCardTestEnv } from './testHelpers.js';
 
 const handleRequest = _handleRequest;
@@ -43,7 +44,7 @@ const DO_CARD_CONFIGS = {
   '044561fa967380': JSON.parse(LEGACY_UID_CONFIGS['044561fa967380'])
 };
 
-const seedDoConfigs = (replay: any, configs = DO_CARD_CONFIGS) => {
+const seedDoConfigs = (replay: ReplayNamespace, configs = DO_CARD_CONFIGS) => {
   Object.entries(configs).forEach(([uid, config]) => {
     replay.__cardConfigs.set(uid.toLowerCase(), config);
   });

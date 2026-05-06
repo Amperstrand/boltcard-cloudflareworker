@@ -128,7 +128,7 @@ describe("handleCardAuditData", () => {
     env.UID_CONFIG = {
       get: async (key: string) => store[key] ?? null,
       put: async (key: string, val: string) => { store[key] = val; },
-      list: async (opts?: any) => {
+      list: async (opts?: { prefix?: string; cursor?: string }) => {
         capturedCursor = opts?.cursor;
         return {
           keys: Object.keys(store).map(k => ({ name: k })),
@@ -160,14 +160,14 @@ describe("handleIndexRepair", () => {
     env.UID_CONFIG = {
       get: async (key: string) => store[key] ?? null,
       put: async (key: string, val: string) => { store[key] = val; },
-      list: async (opts?: any) => ({
+      list: async (opts?: { prefix?: string; cursor?: string }) => ({
         keys: Object.keys(store).filter(k => k.startsWith(opts?.prefix ?? "")).map(k => ({ name: k })),
         list_complete: true,
       }),
     } as any;
     env.CARD_REPLAY = {
       idFromName: (name: string) => name as any,
-      get: (id: any) => ({
+      get: (id: string) => ({
         fetch: async (req: Request) => {
           const url = new URL(req.url);
           if (url.pathname === "/card-state") {

@@ -18,7 +18,7 @@ function callbackUrl(pHex: string, cHex: string, params: Record<string, string |
   return url.toString();
 }
 
-function replay(env: any): ReplayNamespace {
+function replay(env: { CARD_REPLAY: ReplayNamespace }): ReplayNamespace {
   return env.CARD_REPLAY as ReplayNamespace;
 }
 
@@ -258,7 +258,7 @@ describe("handleLnurlpPayment", () => {
     const env = buildEnv(10000);
     const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const origGet = (env.CARD_REPLAY as any).get.bind(env.CARD_REPLAY);
-    (env.CARD_REPLAY as any).get = (id: any) => {
+    (env.CARD_REPLAY as ReplayNamespace).get = (id: string) => {
       const obj = origGet(id);
       return {
         fetch: async (request: Request) => {

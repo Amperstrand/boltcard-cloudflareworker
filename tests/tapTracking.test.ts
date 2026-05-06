@@ -6,6 +6,7 @@ import { getDeterministicKeys } from "../keygenerator.js";
 import { buildVerificationData } from "../cryptoutils.js";
 import { getCardState } from "../replayProtection.js";
 import aesjs from "aes-js";
+import type { Env } from "../types/core.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 
@@ -56,7 +57,7 @@ function computeRealC(uidHex: string, ctrHex: string, k2Hex: string) {
   return bytesToHex(vd.ct);
 }
 
-function makeEnv(replayInitial: Record<string, number> = {}, balance = 0) {
+function makeEnv(replayInitial: Record<string, number> = {}, balance = 0): Env {
   const ns = makeReplayNamespace(replayInitial);
   if (balance > 0) {
     const uid = TEST_UID.toLowerCase();
@@ -65,15 +66,15 @@ function makeEnv(replayInitial: Record<string, number> = {}, balance = 0) {
   }
   return {
     BOLT_CARD_K1,
-    CARD_REPLAY: ns,
+    CARD_REPLAY: ns as unknown as DurableObjectNamespace,
     UID_CONFIG: {
       get: async (uid: string) => uid === TEST_UID ? TEST_UID_CONFIG : null,
       put: async () => {},
-    },
-  };
+    } as KVNamespace,
+  } as Env;
 }
 
-async function makeRequest(path: string, method = "GET", body: Record<string, unknown> | null = null, requestEnv: any) {
+async function makeRequest(path: string, method = "GET", body: Record<string, unknown> | null = null, requestEnv: Env) {
   const url = "https://test.local" + path;
   const options: RequestInit = { method };
   if (body) {
@@ -83,7 +84,7 @@ async function makeRequest(path: string, method = "GET", body: Record<string, un
   return handleRequest(new Request(url, options), requestEnv);
 }
 
-function replay(env: any): ReplayNamespace {
+function replay(env: Env): ReplayNamespace {
   return env.CARD_REPLAY as ReplayNamespace;
 }
 
@@ -123,7 +124,7 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
   let keys: ReturnType<typeof getDeterministicKeys>;
 
   beforeAll(async () => {
-    const env: any = { BOLT_CARD_K1: BOLT_CARD_K1 };
+    const env = { BOLT_CARD_K1: BOLT_CARD_K1 } as Env;
     keys = getDeterministicKeys(TEST_UID, env);
   });
 
@@ -397,7 +398,7 @@ describe("Tap tracking — list-taps", () => {
     const json = await listResp.json() as Record<string, any>;
 
     expect(json.taps).toHaveLength(2);
-    const counters = json.taps.map((t: any) => t.counter);
+    const counters = json.taps.map((t: { counter: number }) => t.counter);
     expect(counters).toHaveLength(2);
   });
 });
@@ -424,7 +425,7 @@ describe("Tap tracking — login response", () => {
   test("POST /login tapHistory shows recorded taps", async () => {
     const env = makeEnv({}, 100000);
 
-    const keys = getDeterministicKeys(TEST_UID, env as any);
+    const keys = getDeterministicKeys(TEST_UID, env);
     env.UID_CONFIG = {
       get: async (uid: string) => {
         if (uid === TEST_UID) {

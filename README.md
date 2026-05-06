@@ -228,7 +228,7 @@ To submit keys for a service, add a CSV file to `keys/` and run `node scripts/bu
 | POST | `/operator/cards/batch` | Yes | Batch terminate/wipe/activate/reprovision |
 | POST | `/operator/cards/repair` | Yes | Sync KV card index with DO state |
 | GET | `/operator/cards/data` | Yes | Card registry data (JSON, paginated) |
-| GET | `/api/fake-invoice?amount=N` | No | Generate fake BOLT11 invoice |
+| GET | `/api/fake-invoice?amount=N` | No | Generate fake bolt11/SPAYD/UPI/payto invoice |
 | POST | `/api/balance-check` | No | Read card balance |
 | POST | `/api/identify-card` | Yes | Operator card identification |
 | POST | `/api/identify-issuer-key` | Yes | Tap-to-detect issuer key + version |
@@ -342,7 +342,7 @@ npm run deploy                        # tests → build_keys → wrangler deploy
 ├── replayProtection.ts          # Replay check + balance/txn helpers → DO
 ├── middleware/
 │   └── operatorAuth.ts          # PIN auth, session cookies, requireOperator()
-├── handlers/                    # 35 route handlers
+├── handlers/                    # 36 route handlers
 │   ├── operatorLoginHandler.ts  # PIN login/logout
 │   ├── loginHandler.ts          # Customer NFC key recovery + privileged actions
 │   ├── loginActions.ts          # Terminate, wipe, top-up action handlers
@@ -377,9 +377,16 @@ npm run deploy                        # tests → build_keys → wrangler deploy
 │   ├── getKeysHandler.ts        # Key listing + bulk wipe
 │   ├── identifyCardHandler.ts   # Card identification
 │   ├── identifyIssuerKeyHandler.ts # Tap-to-detect issuer key
+│   ├── fakeInvoiceHandler.ts   # Fake bolt11/SPAYD/UPI/payto generation
 │   └── statusHandler.ts         # Health check
-├── templates/                   # 19 HTML pages (Tailwind CSS, rawHtml tagged template)
-│   ├── browserNfc.ts            # Shared NFC scanner + CSRF + esc() helpers
+├── static/js/                   # 17 browser JS files (classic scripts, no ES modules)
+│   ├── registry.ts              # serveStaticJs() router for /static/js/*
+│   ├── exports.ts               # All JS content as string constants with SHA-256 hashes
+│   ├── nfc.js                   # Web NFC scanner helpers
+│   ├── helpers.js               # Shared browser utilities (esc, data-action delegation)
+│   ├── csrf.js                  # CSRF token management
+│   └── ... (per-page JS files)
+├── templates/                   # 18 HTML pages (Tailwind CSS, rawHtml tagged template)
 │   ├── pageShell.ts             # Shared Tailwind page wrapper
 │   ├── loginPage.ts             # NFC key recovery page
 │   ├── operatorLoginPage.ts     # PIN login form

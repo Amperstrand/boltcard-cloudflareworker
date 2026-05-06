@@ -97,7 +97,7 @@ describe("handleCardBatchAction", () => {
     expect(json.action).toBe("terminate");
     expect(json.processed).toBe(2);
     expect(json.results).toHaveLength(2);
-    expect(json.results.every((r: any) => r.status === "terminated")).toBe(true);
+    expect(json.results.every((r: { status: string }) => r.status === "terminated")).toBe(true);
 
     const s1 = (env.CARD_REPLAY as any).__cardStates.get("ff000000000001");
     expect(s1.state).toBe("terminated");
@@ -171,7 +171,7 @@ describe("handleCardBatchAction", () => {
     const json = await resp.json() as Record<string, any>;
     expect(json.processed).toBe(3);
     expect(json.results).toHaveLength(3);
-    const statuses = json.results.map((r: any) => r.status);
+    const statuses = json.results.map((r: { status: string }) => r.status);
     expect(statuses).toContain("terminated");
     expect(statuses).toContain("skipped");
   });
@@ -252,8 +252,8 @@ describe("batch reprovision", () => {
 
     const body = await resp.json() as Record<string, any>;
     expect(body.results).toHaveLength(2);
-    expect(body.results.find((r: any) => r.uid === uid1).status).toBe("reprovisioned");
-    expect(body.results.find((r: any) => r.uid === uid2).status).toBe("skipped");
+    expect(body.results.find((r: { uid: string; status: string }) => r.uid === uid1).status).toBe("reprovisioned");
+    expect(body.results.find((r: { uid: string; status: string }) => r.uid === uid2).status).toBe("skipped");
   });
 
   it("records audit event for re-provisioned cards", async () => {

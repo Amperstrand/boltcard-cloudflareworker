@@ -4,36 +4,37 @@ import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js
 import { getDeterministicKeys, deriveKeysFromHex } from "../keygenerator.js";
 import { handleTerminateAction, handleRequestWipeAction, handleTopUpAction, normalizeSubmittedUid } from "../handlers/loginActions.js";
 import aesjs from "aes-js";
+import type { Env } from "../types/core.js";
 
-const env = {
+const env: Env = {
   BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
   ISSUER_KEY: "00000000000000000000000000000001",
-  CARD_REPLAY: makeReplayNamespace(),
-} as any;
+  CARD_REPLAY: makeReplayNamespace() as unknown as DurableObjectNamespace,
+};
 
 // Test vector: p/c that decrypts with K1=55da174c9608993dc27bb3f30a4a7314
 const VALID_P = "4E2E289D945A66BB13377A728884E867";
 const VALID_C = "E19CCB1FED8892CE";
 const ACTION_UID = "04a39493cc8680";
 
-function makeEnv(replay = makeReplayNamespace()): any {
+function makeEnv(replay = makeReplayNamespace()): Env & { __TEST_OPERATOR_SESSION: { shiftId: string } } {
   return {
     ...env,
-    CARD_REPLAY: replay,
+    CARD_REPLAY: replay as unknown as DurableObjectNamespace,
     __TEST_OPERATOR_SESSION: { shiftId: "test-shift" },
   };
 }
 
-function makeEnvWithoutIssuerKey(replay = makeReplayNamespace()): any {
+function makeEnvWithoutIssuerKey(replay = makeReplayNamespace()): Env & { __TEST_OPERATOR_SESSION: { shiftId: string } } {
   const { ISSUER_KEY, ...envWithoutKey } = env;
   return {
     ...envWithoutKey,
-    CARD_REPLAY: replay,
+    CARD_REPLAY: replay as unknown as DurableObjectNamespace,
     __TEST_OPERATOR_SESSION: { shiftId: "test-shift" },
   };
 }
 
-async function makeRequest(path: string, method: string = "GET", body: Record<string, unknown> | null = null, requestEnv: any = env) {
+async function makeRequest(path: string, method: string = "GET", body: Record<string, unknown> | null = null, requestEnv: Env = env) {
   const url = "https://test.local" + path;
   const options: RequestInit = { method };
   if (body) {
@@ -1084,7 +1085,7 @@ describe("loginActions branch coverage", () => {
     replay.__activate(ACTION_UID, 1);
     const testEnv = makeEnv(replay);
     const origGet = testEnv.CARD_REPLAY.get.bind(testEnv.CARD_REPLAY);
-     (testEnv.CARD_REPLAY as any).get = (id: any) => {
+     (testEnv.CARD_REPLAY as unknown as Record<string, unknown>).get = (id: string) => {
       const obj = origGet(id);
       const origFetch = obj.fetch.bind(obj);
       return {

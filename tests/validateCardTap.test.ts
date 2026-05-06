@@ -3,6 +3,7 @@ import { hexToBytes } from "../cryptoutils.js";
 import { validateCardTap } from "../utils/validateCardTap.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import type { ReplayNamespace } from "./replayNamespace.js";
+import type { Env } from "../types/core.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { virtualTap } from "./testHelpers.js";
 
@@ -10,11 +11,11 @@ const UID = "04a39493cc8680";
 const ISSUER_KEY = "00000000000000000000000000000001";
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 
-function asEnv(obj: any): any {
+function asEnv(obj: Partial<Env>): Partial<Env> {
   return obj;
 }
 
-function replay(env: any): ReplayNamespace {
+function replay(env: Partial<Env>): ReplayNamespace {
   return env.CARD_REPLAY as ReplayNamespace;
 }
 

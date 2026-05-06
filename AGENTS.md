@@ -126,7 +126,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | GET | `/decode` | `handleDecodePage()` | BOLT11 invoice decoder page |
 | POST | `/api/card/lock` | `handleCardLock()` | Cardholder self-service card lock (CMAC auth) |
 | POST | `/api/card/reactivate` | `handleCardReactivate()` | Cardholder self-service re-provision (NFC tap, version advance) |
-| GET | `/api/fake-invoice` | inline | Generate fake bolt11 for fakewallet |
+| GET | `/api/fake-invoice` | `handleFakeInvoice()` | Generate fake bolt11/SPAYD/UPI/payto for fakewallet |
 | GET | `/api/verify-identity` | `handleIdentityVerify()` | Identity verification API |
 | POST | `/api/identity/profile` | `handleIdentityProfileUpdate()` | Identity profile update |
 | POST | `/api/identify-card` | `handleIdentifyCard()` | Operator card identification |
@@ -177,7 +177,8 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 - `redirect()` from `utils/responses.ts` for all HTTP redirects
 - `renderTailwindPage()` + `rawHtml` tagged template for all HTML pages (auto-escapes interpolations; use `safe()` for known-safe HTML, `jsString()` for JS contexts)
 - `validateCardTap()` from `utils/validateCardTap.ts` for card-tap validation in operator handlers
-- Static JS files served from `/static/js/:file` — shared browser helpers (`nfc.js`, `helpers.js`, `csrf.js`) + per-page JS files; all templates load via `<script src>` tags (see `static/js/exports.ts` for content)
+- Static JS files served from `/static/js/:file` via `serveStaticJs()` from `static/js/registry.ts` — shared browser helpers (`nfc.js`, `helpers.js`, `csrf.js`) + per-page JS files; all templates load via `<script src>` tags (see `static/js/exports.ts` for content)
+- `replayProtection.ts` uses generic DO facade helpers (`doCounterPost`, `doRequiredPost`, `doOptionalGet`, `doOptionalPost`, `doSafeGet`, `doOptionalVoidPost`) — avoids repetitive getStub→doPost→parseJSON
 - All NFC pages auto-start scanning on page load; `/operator/pos` auto-starts after amount is entered (debounced 1s)
 - CSRF: double-submit cookie (`op_csrf`) on operator pages; `withOperatorAuth` validates on mutating methods; test bypass via `__TEST_OPERATOR_SESSION`
 - `POST /login` privileged actions (top-up, terminate, request-wipe) require operator auth via `requireOperator()`
@@ -216,7 +217,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 - Deploy: `npm run deploy` (unit tests → DO tests → build_keys → wrangler deploy)
 - **1343 unit tests** across 73 test suites + **52 DO integration tests** = 1395 total (as of 2026-05-05)
 - TypeScript: `tsc --noEmit` passes with `strict: true`, 0 errors (source + tests)
-- Source `: any` count: 105 (down from 318); source `as any` count: 0; `// @ts-nocheck` only in `tests/do/cardReplayDO.real.test.ts` and `tests/testHelpers.ts`
+- Source `: any` count: 105 (down from 318); source `as any` count: 0; `// @ts-nocheck` only in `tests/do/cardReplayDO.real.test.ts` and `tests/testHelpers.ts`; test `: any` count: being reduced from 67
 
 ## Test Inventory
 
@@ -305,6 +306,11 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | `resolveCardIdentity()` shared pipeline | Done | `utils/cardAuth.ts` — decrypt→state→config→CMAC across 5 handlers |
 | TypeScript type tightening | Done | Source `: any` 318→105; `// @ts-nocheck` removed from all test files except `testHelpers.ts` and `do/cardReplayDO.real.test.ts`; `types/core.ts` centralizes shared types; `catch(e: unknown)` + `getErrorMessage()` throughout |
 | Shared `Env` type | Done | `types/core.ts` → `worker-configuration.d.ts` — eliminated 9 duplicate `EnvLike` interfaces |
+| Inline JS → static files | Done | 17 static JS files in `static/js/`, zero inline `<script>` blocks, `serveStaticJs()` in `static/js/registry.ts` |
+| Dead code cleanup | Done | Deleted `templates/browserNfc.ts` (all 9 exports unused after static JS extraction) |
+| Router cleanup | Done | `index.ts` 372→249 lines: fake-invoice handler extracted to `handlers/fakeInvoiceHandler.ts`, static JS registry extracted |
+| replayProtection DRY | Done | 334→288 lines: 6 generic DO facade helpers, 16 exports rewritten to 1-3 lines |
+| Test `: any` reduction | Done | 67 `: any` annotations replaced with proper types across 17 test files |
 
 ### Feature Development
 

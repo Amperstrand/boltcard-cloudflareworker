@@ -1,7 +1,7 @@
 # Card Lifecycle Design — Key Versioning & Activation
 
-> Status: **DRAFT — pending user decision**
-> Date: 2026-04-19
+> Status: **Implemented** — key versioning, multi-version CMAC scan, and activation flow are live. See `AGENTS.md` for current architecture.
+> Date: 2026-04-19 (implemented 2026-04-26)
 > Affects: `keygenerator.ts`, `durableObjects/CardReplayDO.ts`, `replayProtection.ts`, `handlers/fetchBoltCardKeys.ts`, `handlers/resetHandler.ts`, `getUidConfig.ts`, UI pages
 
 ---

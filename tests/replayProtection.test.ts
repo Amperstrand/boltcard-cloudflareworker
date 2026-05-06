@@ -1,13 +1,14 @@
 import { recordTap, updateTapStatus, listTaps, resetReplayProtection, getCardState, deliverKeys, activateCard, terminateCard, requestWipe, getCardConfig, setCardConfig, debitCard, creditCard, getBalance, listTransactions, recordTapRead, getAnalytics, checkAndAdvanceCounter, markPending, discoverCard } from "../replayProtection.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
+import type { Env } from "../types/core.js";
 
 const UID = "04a39493cc8680";
 
-function makeEnv(): any {
-  return { CARD_REPLAY: makeReplayNamespace({} as any, { [UID]: 1 }) };
+function makeEnv(): Partial<Env> {
+  return { CARD_REPLAY: makeReplayNamespace({} as Record<string, number>, { [UID]: 1 }) };
 }
 
-function makeErrorEnv(statusCode: number, reason: string): any {
+function makeErrorEnv(statusCode: number, reason: string): Partial<Env> {
   return {
     CARD_REPLAY: {
       idFromName: () => "stub",

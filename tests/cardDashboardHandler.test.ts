@@ -1,6 +1,7 @@
 import { handleCardPage, handleCardInfo, handleCardLock, handleCardReactivate } from "../handlers/cardDashboardHandler.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { virtualTap, buildCardTestEnv } from "./testHelpers.js";
+import type { Env } from "../types/core.js";
 
 const UID = "ff000000000001";
 const ISSUER_KEY = "00000000000000000000000000000001";
@@ -11,7 +12,7 @@ function makeTapRequest(uid: string, issuerKey: string, counter: number) {
   return new Request(`https://test.local/card/info?p=${pHex}&c=${cHex}`);
 }
 
-function setCardState(env: any, uid: string, overrides: Record<string, any>) {
+function setCardState(env: Env, uid: string, overrides: Record<string, unknown>) {
   const state = (env.CARD_REPLAY as any).__cardStates.get(uid);
   Object.assign(state, overrides);
 }
@@ -263,9 +264,9 @@ describe("handleCardInfo", () => {
   });
 
   describe("graceful degradation", () => {
-    function interceptDo(env: any, uid: string, pathToBlock: string) {
+    function interceptDo(env: Env, uid: string, pathToBlock: string) {
       const originalGet = (env.CARD_REPLAY as any).get.bind(env.CARD_REPLAY);
-      (env as any).CARD_REPLAY.get = (id: any) => {
+      (env.CARD_REPLAY as any).get = (id: string) => {
         const stub = originalGet(id);
         const origFetch = stub.fetch.bind(stub);
         return {
@@ -436,7 +437,7 @@ describe("handleCardLock", () => {
   it("returns 500 when DO terminate fails", async () => {
      const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
     const originalGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
-    (env.CARD_REPLAY as any).get = (id: any) => {
+    (env.CARD_REPLAY as any).get = (id: string) => {
       const stub = originalGet(id);
       const origFetch = stub.fetch.bind(stub);
       return {
@@ -553,7 +554,7 @@ describe("handleCardReactivate", () => {
     const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
     setCardState(env, UID, { state: "terminated", latest_issued_version: 1 });
      const originalGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
-    (env.CARD_REPLAY as any).get = (id: any) => {
+    (env.CARD_REPLAY as any).get = (id: string) => {
       const stub = originalGet(id);
       const origFetch = stub.fetch.bind(stub);
       return {

@@ -148,7 +148,7 @@ describe("decodeBolt11", () => {
     const result = decodeBolt11(inv);
 
     if (!result.ok) return;
-    const codes = result.rawTags.map((t: any) => t.code);
+    const codes = result.rawTags.map((t: { code: number }) => t.code);
     expect(codes).toContain(1);
     expect(codes).toContain(13);
     expect(codes).toContain(6);
@@ -162,7 +162,7 @@ describe("decodeBolt11", () => {
     const result = decodeBolt11(inv);
 
     if (!result.ok) return;
-    const featuresTag = result.rawTags.find((t: any) => t.code === 9);
+    const featuresTag = result.rawTags.find((t: { code: number }) => t.code === 9);
     expect(featuresTag).toBeDefined();
     if (!featuresTag) return;
     expect(featuresTag.rawHex).toBe("41");

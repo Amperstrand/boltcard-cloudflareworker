@@ -76,7 +76,9 @@ npm run typecheck
 - **TypeScript**: This project uses TypeScript with `strict: true`
 - **ES Modules**: This project uses ES modules (`import/export`)
 - **Runtime**: Cloudflare Workers — no Node.js APIs available in production
-- **Error Handling**: Always handle errors appropriately with `errorResponse()`
+- **Error Handling**: Always handle errors appropriately with `errorResponse()` from `utils/responses.ts`
+- **Template System**: Use `renderTailwindPage()` + `rawHtml` tagged template for all HTML pages; browser JS in `static/js/` loaded via `<script src>` tags
+- **DO Facade**: Use generic helpers from `replayProtection.ts` (`doRequiredPost`, `doCounterPost`, etc.) — avoid manual getStub→doPost→parseJSON
 - **Security**: Never commit secrets or sensitive data
 
 #### File Structure
@@ -92,8 +94,9 @@ boltcard-cloudflareworker/
 ├── rateLimiter.ts               # IP-based rate limiting
 ├── middleware/
 │   └── operatorAuth.ts          # PIN auth, session cookies
-├── handlers/                    # 35 route handlers
-├── templates/                   # 19 HTML pages (Tailwind CSS)
+├── handlers/                    # 36 route handlers
+├── templates/                   # 18 HTML pages (Tailwind CSS, rawHtml tagged template)
+├── static/js/                   # 17 browser JS files (classic scripts, no ES modules)
 ├── utils/                       # 20 utility modules
 ├── durableObjects/
 │   └── CardReplayDO.ts          # Per-card SQLite Durable Object

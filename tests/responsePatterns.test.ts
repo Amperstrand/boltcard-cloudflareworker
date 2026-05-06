@@ -1,6 +1,8 @@
 import worker, { handleRequest } from "../index.js";
 ;
 import { makeReplayNamespace } from "./replayNamespace.js";
+import type { ReplayNamespace } from "./replayNamespace.js";
+import type { Env, CardConfig } from "../types/core.js";
 import { hexToBytes, bytesToHex, _computeAesCmacForVerification } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import AES from "aes-js";
@@ -57,7 +59,7 @@ const DO_CARD_CONFIGS = {
   "04d070fa967380": JSON.parse(LEGACY_UID_CONFIGS["04d070fa967380"]),
 };
 
-const seedDoConfigs = (replay: any, configs: any = DO_CARD_CONFIGS) => {
+const seedDoConfigs = (replay: ReplayNamespace, configs: Record<string, CardConfig> = DO_CARD_CONFIGS) => {
   Object.entries(configs).forEach(([uid, config]) => {
     replay.__cardConfigs.set(uid.toLowerCase(), config);
   });
@@ -85,7 +87,7 @@ const makeKvEnv = (initialStore = {}) => {
   };
 };
 
-async function makeRequest(path: string, method: string = "GET", body: Record<string, unknown> | null = null, requestEnv: any = env) {
+async function makeRequest(path: string, method: string = "GET", body: Record<string, unknown> | null = null, requestEnv: Env = env) {
   const url = "https://test.local" + path;
   const options: RequestInit = { method };
   if (body) {
@@ -95,7 +97,7 @@ async function makeRequest(path: string, method: string = "GET", body: Record<st
   return handleRequest(new Request(url, options), requestEnv);
 }
 
-const expectBoltcardKeys = (json: any) => {
+const expectBoltcardKeys = (json: Record<string, unknown>) => {
   expect(json).toMatchObject({
     PROTOCOL_NAME: "NEW_BOLT_CARD_RESPONSE",
     PROTOCOL_VERSION: "1",

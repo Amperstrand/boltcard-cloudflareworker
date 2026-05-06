@@ -3,6 +3,7 @@ import { handleLnurlw } from "../handlers/lnurlwHandler.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { virtualTap, buildCardTestEnv } from "./testHelpers.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
+import type { Env } from "../types/core.js";
 
 const UID = "04a39493cc8680";
 const ISSUER_KEY = "00000000000000000000000000000001";
@@ -457,11 +458,11 @@ describe("handleLnurlw", () => {
       const replay = makeReplayNamespace({}, {});
       const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY } as any, 1);
 
-      const env: any = {
+      const env: Env = {
         ISSUER_KEY,
         BOLT_CARD_K1: keys.k1,
-        CARD_REPLAY: replay,
-        UID_CONFIG: { get: async () => null, put: async () => {} },
+        CARD_REPLAY: replay as unknown as DurableObjectNamespace,
+        UID_CONFIG: { get: async () => null, put: async () => {} } as unknown as KVNamespace,
       };
 
       const req = tapRequest(discoveryUid, 1, keys.k1, keys.k2);
@@ -495,11 +496,11 @@ describe("handleLnurlw", () => {
       });
       replay.__cardConfigs.set(discoveryUid, { payment_method: "fakewallet", K2: keys.k2 });
 
-      const env: any = {
+      const env: Env = {
         ISSUER_KEY,
         BOLT_CARD_K1: keys.k1,
-        CARD_REPLAY: replay,
-        UID_CONFIG: { get: async () => null, put: async () => {} },
+        CARD_REPLAY: replay as unknown as DurableObjectNamespace,
+        UID_CONFIG: { get: async () => null, put: async () => {} } as unknown as KVNamespace,
       };
 
       const req = tapRequest(discoveryUid, 2, keys.k1, keys.k2);
@@ -550,11 +551,11 @@ describe("handleLnurlw", () => {
       const replay = makeReplayNamespace({}, {});
       const keys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: nonPublicKey } as any, 1);
 
-      const env: any = {
+      const env: Env = {
         ISSUER_KEY: nonPublicKey,
         BOLT_CARD_K1: keys.k1,
-        CARD_REPLAY: replay,
-        UID_CONFIG: { get: async () => null, put: async () => {} },
+        CARD_REPLAY: replay as unknown as DurableObjectNamespace,
+        UID_CONFIG: { get: async () => null, put: async () => {} } as unknown as KVNamespace,
       };
 
       const req = tapRequest(discoveryUid, 1, keys.k1, keys.k2);
@@ -572,12 +573,12 @@ describe("handleLnurlw", () => {
       const recoveryKeys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: recoveryKey } as any, 1);
       const replay = makeReplayNamespace({}, {});
 
-      const env: any = {
+      const env: Env = {
         ISSUER_KEY: "cccccccccccccccccccccccccccccccc",
         RECOVERY_ISSUER_KEYS: recoveryKey,
         BOLT_CARD_K1: recoveryKeys.k1,
-        CARD_REPLAY: replay,
-        UID_CONFIG: { get: async () => null, put: async () => {} },
+        CARD_REPLAY: replay as unknown as DurableObjectNamespace,
+        UID_CONFIG: { get: async () => null, put: async () => {} } as unknown as KVNamespace,
       };
 
       const req = tapRequest(discoveryUid, 1, recoveryKeys.k1, recoveryKeys.k2);
@@ -611,11 +612,11 @@ describe("handleLnurlw", () => {
         first_seen_at: Math.floor(Date.now() / 1000),
       });
 
-      const env: any = {
+      const env: Env = {
         ISSUER_KEY: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
         BOLT_CARD_K1: wrongKeys.k1,
-        CARD_REPLAY: replay,
-        UID_CONFIG: { get: async () => null, put: async () => {} },
+        CARD_REPLAY: replay as unknown as DurableObjectNamespace,
+        UID_CONFIG: { get: async () => null, put: async () => {} } as unknown as KVNamespace,
       };
 
       const req = tapRequest(discoveryUid, 1, wrongKeys.k1, wrongKeys.k2);
@@ -632,11 +633,11 @@ describe("handleLnurlw", () => {
       const unknownKeys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: unknownKey } as any, 1);
       const replay = makeReplayNamespace({}, {});
 
-      const env: any = {
+      const env: Env = {
         ISSUER_KEY: "11111111111111111111111111111111",
         BOLT_CARD_K1: unknownKeys.k1,
-        CARD_REPLAY: replay,
-        UID_CONFIG: { get: async () => null, put: async () => {} },
+        CARD_REPLAY: replay as unknown as DurableObjectNamespace,
+        UID_CONFIG: { get: async () => null, put: async () => {} } as unknown as KVNamespace,
       };
 
       const req = tapRequest(discoveryUid, 1, unknownKeys.k1, unknownKeys.k2);
@@ -665,11 +666,11 @@ describe("handleLnurlw", () => {
         first_seen_at: null,
       });
 
-      const env: any = {
+      const env: Env = {
         ISSUER_KEY,
         BOLT_CARD_K1: keys.k1,
-        CARD_REPLAY: replay,
-        UID_CONFIG: { get: async () => null, put: async () => {} },
+        CARD_REPLAY: replay as unknown as DurableObjectNamespace,
+        UID_CONFIG: { get: async () => null, put: async () => {} } as unknown as KVNamespace,
       };
 
       const req = tapRequest(discoveryUid, 1, keys.k1, keys.k2);
@@ -685,12 +686,12 @@ describe("handleLnurlw", () => {
       const recoveryKeys = getDeterministicKeys(discoveryUid, { ISSUER_KEY: recoveryKey } as any, 1);
       const replay = makeReplayNamespace({}, {});
 
-      const env: any = {
+      const env: Env = {
         ISSUER_KEY: mainKey,
         RECOVERY_ISSUER_KEYS: recoveryKey,
         BOLT_CARD_K1: recoveryKeys.k1,
-        CARD_REPLAY: replay,
-        UID_CONFIG: { get: async () => null, put: async () => {} },
+        CARD_REPLAY: replay as unknown as DurableObjectNamespace,
+        UID_CONFIG: { get: async () => null, put: async () => {} } as unknown as KVNamespace,
       };
 
       const req1 = tapRequest(discoveryUid, 1, recoveryKeys.k1, recoveryKeys.k2);

@@ -18,11 +18,11 @@ const LEGACY_UID_CONFIGS: Record<string, string> = {
   }),
 };
 
-const DO_CARD_CONFIGS: Record<string, any> = {
+const DO_CARD_CONFIGS: Record<string, Record<string, unknown>> = {
   "04996c6a926980": JSON.parse(LEGACY_UID_CONFIGS["04996c6a926980"]),
 };
 
-const seedDoConfigs = (replay: any, configs = DO_CARD_CONFIGS) => {
+const seedDoConfigs = (replay: ReturnType<typeof makeReplayNamespace>, configs = DO_CARD_CONFIGS) => {
   Object.entries(configs).forEach(([uid, config]) => {
     replay.__cardConfigs.set(uid.toLowerCase(), config);
   });
@@ -77,7 +77,7 @@ describe("Logging and Observability", () => {
     it("should log on successful withdraw response construction", async () => {
       const logs: string[] = [];
       const originalLog = console.log;
-      console.log = (...args: any[]) => logs.push(args.join(" "));
+      console.log = (...args: unknown[]) => logs.push(args.join(" "));
 
       try {
         const env = makeEnv();
@@ -103,7 +103,7 @@ describe("Logging and Observability", () => {
     it("should log warn on CMAC validation failure in withdraw", async () => {
       const warns: string[] = [];
       const originalWarn = console.warn;
-      console.warn = (...args: any[]) => warns.push(args.join(" "));
+      console.warn = (...args: unknown[]) => warns.push(args.join(" "));
 
       try {
         const env = makeEnv();
@@ -138,7 +138,7 @@ describe("Logging and Observability", () => {
     it("should log LNURLW decrypted at info level with uidHex and counterValue", async () => {
       const logs: string[] = [];
       const originalLog = console.log;
-      console.log = (...args: any[]) => logs.push(args.join(" "));
+      console.log = (...args: unknown[]) => logs.push(args.join(" "));
 
       try {
         const env = makeEnv();
@@ -162,7 +162,7 @@ describe("Logging and Observability", () => {
     it("should log card config loaded at info level", async () => {
       const logs: string[] = [];
       const originalLog = console.log;
-      console.log = (...args: any[]) => logs.push(args.join(" "));
+      console.log = (...args: unknown[]) => logs.push(args.join(" "));
 
       try {
         const env = makeEnv();
@@ -186,7 +186,7 @@ describe("Logging and Observability", () => {
     it("should log LNURLW request accepted at info level", async () => {
       const logs: string[] = [];
       const originalLog = console.log;
-      console.log = (...args: any[]) => logs.push(args.join(" "));
+      console.log = (...args: unknown[]) => logs.push(args.join(" "));
 
       try {
         const env = makeEnv();
@@ -214,8 +214,8 @@ describe("Logging and Observability", () => {
       const errors: string[] = [];
       const originalWarn = console.warn;
       const originalError = console.error;
-      console.warn = (...args: any[]) => warns.push(args.join(" "));
-      console.error = (...args: any[]) => errors.push(args.join(" "));
+      console.warn = (...args: unknown[]) => warns.push(args.join(" "));
+      console.error = (...args: unknown[]) => errors.push(args.join(" "));
 
       try {
         await makeRequest("/some-unknown-path", "GET", null, makeEnv());
@@ -240,7 +240,7 @@ describe("Logging and Observability", () => {
     it("should emit debug messages when level is debug", () => {
       const logs: string[] = [];
       const originalLog = console.log;
-      console.log = (...args: any[]) => logs.push(args.join(" "));
+      console.log = (...args: unknown[]) => logs.push(args.join(" "));
 
       try {
         logger.setLevel("debug");
@@ -257,7 +257,7 @@ describe("Logging and Observability", () => {
     it("should suppress debug messages at info level", () => {
       const logs: string[] = [];
       const originalLog = console.log;
-      console.log = (...args: any[]) => logs.push(args.join(" "));
+      console.log = (...args: unknown[]) => logs.push(args.join(" "));
 
       try {
         logger.setLevel("info");
@@ -273,7 +273,7 @@ describe("Logging and Observability", () => {
     it("should emit trace messages when level is trace", () => {
       const logs: string[] = [];
       const originalLog = console.log;
-      console.log = (...args: any[]) => logs.push(args.join(" "));
+      console.log = (...args: unknown[]) => logs.push(args.join(" "));
 
       try {
         logger.setLevel("trace");
@@ -290,7 +290,7 @@ describe("Logging and Observability", () => {
     it("should suppress trace messages at debug level", () => {
       const logs: string[] = [];
       const originalLog = console.log;
-      console.log = (...args: any[]) => logs.push(args.join(" "));
+      console.log = (...args: unknown[]) => logs.push(args.join(" "));
 
       try {
         logger.setLevel("debug");
@@ -306,7 +306,7 @@ describe("Logging and Observability", () => {
     it("should not change level for invalid level name", () => {
       const logs: string[] = [];
       const originalLog = console.log;
-      console.log = (...args: any[]) => logs.push(args.join(" "));
+      console.log = (...args: unknown[]) => logs.push(args.join(" "));
 
       try {
         logger.setLevel("invalid" as any);
@@ -321,7 +321,7 @@ describe("Logging and Observability", () => {
     it("should format message without context", () => {
       const logs: string[] = [];
       const originalLog = console.log;
-      console.log = (...args: any[]) => logs.push(args.join(" "));
+      console.log = (...args: unknown[]) => logs.push(args.join(" "));
 
       try {
         logger.setLevel("info");
@@ -337,7 +337,7 @@ describe("Logging and Observability", () => {
     it("should suppress info messages at warn level", () => {
       const logs: string[] = [];
       const originalLog = console.log;
-      console.log = (...args: any[]) => logs.push(args.join(" "));
+      console.log = (...args: unknown[]) => logs.push(args.join(" "));
 
       try {
         logger.setLevel("warn");
@@ -352,7 +352,7 @@ describe("Logging and Observability", () => {
     it("should suppress warn messages at error level", () => {
       const warns: string[] = [];
       const originalWarn = console.warn;
-      console.warn = (...args: any[]) => warns.push(args.join(" "));
+      console.warn = (...args: unknown[]) => warns.push(args.join(" "));
 
       try {
         logger.setLevel("error");
@@ -370,7 +370,7 @@ describe("Logging and Observability", () => {
       const testLogger = new LoggerClass("nonexistent");
       const logs: string[] = [];
       const origLog = console.log;
-      console.log = (...args: any[]) => logs.push(args.join(" "));
+      console.log = (...args: unknown[]) => logs.push(args.join(" "));
       try {
         testLogger.info("visible");
         testLogger.debug("hidden");

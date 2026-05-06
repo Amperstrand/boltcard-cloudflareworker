@@ -1,11 +1,15 @@
 import { indexCard, _deindexCard as _deindexCard, _getIndexedCard as _getIndexedCard, listIndexedCards, repairCardIndex } from "../utils/cardIndex.js";
+import type { Env } from "../types/core.js";
 
 describe("cardIndex", () => {
-  function makeKvEnv(store: Record<string, any> = {}) {
+  function makeKvEnv(store: Record<string, string | { value: string; opts?: { expirationTtl?: number } }> = {}) {
     return {
       UID_CONFIG: {
-        get: async (key: string) => store[key] ?? null,
-        put: async (key: string, val: string, opts?: any) => { store[key] = { value: val, opts }; },
+        get: async (key: string) => {
+          const entry = store[key];
+          return typeof entry === "string" ? entry : (entry?.value ?? null);
+        },
+        put: async (key: string, val: string, opts?: { expirationTtl?: number }) => { store[key] = { value: val, opts }; },
         delete: async (key: string) => { delete store[key]; },
         list: async ({ prefix, limit, cursor }: { prefix?: string; limit?: number; cursor?: string } = {}) => {
           const keys = Object.keys(store)
@@ -221,7 +225,7 @@ describe("cardIndex", () => {
       const env = {
         UID_CONFIG: {
           get: async (key: string) => store[key] ?? null,
-          put: async (key: string, val: string, opts?: any) => { store[key] = { value: val, opts }; },
+          put: async (key: string, val: string, opts?: { expirationTtl?: number }) => { store[key] = { value: val, opts }; },
           delete: async (key: string) => { delete store[key]; },
           list: async ({ prefix, limit }: { prefix: string; limit: number }) => {
             const keys = Object.keys(store).filter(k => k.startsWith(prefix)).slice(0, limit).map(k => ({ name: k }));
@@ -231,7 +235,7 @@ describe("cardIndex", () => {
         CARD_REPLAY: {},
       } as any;
 
-      const getCardStateFn = async (_env: any, uid: string) => {
+      const getCardStateFn = async (_env: Env, uid: string) => {
         if (uid === "ff000000000001") return { state: "active" };
         return { state: "active" };
       };
@@ -369,7 +373,7 @@ describe("cardIndex", () => {
       const env = {
         UID_CONFIG: {
           get: async (key: string) => store[key] ?? null,
-          put: async (key: string, val: string, opts?: any) => { store[key] = { value: val, opts }; },
+          put: async (key: string, val: string, opts?: { expirationTtl?: number }) => { store[key] = { value: val, opts }; },
           list: async ({ prefix }: { prefix: string }) => ({
             keys: Object.keys(store).filter(k => k.startsWith(prefix)).map(k => ({ name: k })),
             list_complete: true,

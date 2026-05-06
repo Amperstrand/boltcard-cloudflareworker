@@ -1,7 +1,18 @@
 // @ts-expect-error -- better-sqlite3 has no type declarations
 import Database from "better-sqlite3";
 
-function createDoDb(): any {
+interface DoDb {
+  pragma(pragma: string): void;
+  exec(sql: string): void;
+  prepare(sql: string): {
+    get(...params: unknown[]): Record<string, string | number | null> | undefined;
+    run(...params: unknown[]): { changes: number };
+    all(...params: unknown[]): Record<string, string | number | null>[];
+  };
+  close(): void;
+}
+
+function createDoDb(): DoDb {
   const db = new Database(":memory:");
   db.pragma("journal_mode = WAL");
 
@@ -60,7 +71,7 @@ function nowSec() {
 }
 
 describe("CardReplayDO SQL logic", () => {
-  let db: any;
+  let db: DoDb;
 
   beforeEach(() => {
     db = createDoDb();
@@ -609,15 +620,15 @@ describe("CardReplayDO SQL logic", () => {
       const stateRows = db.prepare("SELECT * FROM card_state WHERE singleton = 1").all();
       const cardState = stateRows[0];
 
-      const events: any[] = [];
+      const events: Array<{ counter: number | null; status: string; created_at: number }> = [];
       if (cardState.keys_delivered_at) {
-        events.push({ counter: null, status: 'provisioned', created_at: cardState.keys_delivered_at });
+        events.push({ counter: null, status: 'provisioned', created_at: cardState.keys_delivered_at as number });
       }
       if (cardState.activated_at) {
-        events.push({ counter: null, status: 'activated', created_at: cardState.activated_at });
+        events.push({ counter: null, status: 'activated', created_at: cardState.activated_at as number });
       }
 
-      const merged = [...taps, ...events].sort((a: any, b: any) => {
+      const merged = [...taps, ...events].sort((a, b) => {
         const timeDiff = (b.created_at || 0) - (a.created_at || 0);
         if (timeDiff !== 0) return timeDiff;
         return (b.counter || 0) - (a.counter || 0);
