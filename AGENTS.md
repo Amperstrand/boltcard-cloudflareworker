@@ -177,7 +177,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 - `redirect()` from `utils/responses.ts` for all HTTP redirects
 - `renderTailwindPage()` + `rawHtml` tagged template for all HTML pages (auto-escapes interpolations; use `safe()` for known-safe HTML, `jsString()` for JS contexts)
 - `validateCardTap()` from `utils/validateCardTap.ts` for card-tap validation in operator handlers
-- `BROWSER_NFC_HELPERS` + `BROWSER_VALIDATE_UID_HELPER` from `templates/browserNfc.ts` for NFC pages (includes `CSRF_FETCH_HELPER` for automatic CSRF token injection, `createNfcScanner()` for shared scan-loop wrapper, `esc()` for HTML escaping)
+- Static JS files served from `/static/js/:file` — shared browser helpers (`nfc.js`, `helpers.js`, `csrf.js`) + per-page JS files; all templates load via `<script src>` tags (see `static/js/exports.ts` for content)
 - All NFC pages auto-start scanning on page load; `/operator/pos` auto-starts after amount is entered (debounced 1s)
 - CSRF: double-submit cookie (`op_csrf`) on operator pages; `withOperatorAuth` validates on mutating methods; test bypass via `__TEST_OPERATOR_SESSION`
 - `POST /login` privileged actions (top-up, terminate, request-wipe) require operator auth via `requireOperator()`

@@ -1,6 +1,6 @@
 import { _buildErrorPayload, errorResponse } from "../utils/responses.js";
 import { renderTailwindPage } from "../templates/pageShell.js";
-import { BROWSER_NFC_HELPERS } from "../templates/browserNfc.js";
+import { NFC_JS } from "../static/js/exports.js";
 import { renderBulkWipePage } from "../templates/bulkWipePage.js";
 import { renderActivatePage, renderActivateCardPage } from "../templates/activatePage.js";
 import { renderAnalyticsPage } from "../templates/analyticsPage.js";
@@ -51,11 +51,11 @@ describe("template helpers", () => {
     expect(html).toContain("<main>Hello</main>");
   });
 
-  test("browser NFC helper snippet exports shared primitives", () => {
-    expect(BROWSER_NFC_HELPERS).toContain("function browserSupportsNfc()");
-    expect(BROWSER_NFC_HELPERS).toContain("function normalizeNfcSerial(serialNumber)");
-    expect(BROWSER_NFC_HELPERS).toContain("async function extractNdefUrl(records, prefixes)");
-    expect(BROWSER_NFC_HELPERS).toContain("function normalizeBrowserNfcUrl(rawUrl)");
+  test("static NFC JS exports shared primitives", () => {
+    expect(NFC_JS).toContain("function browserSupportsNfc()");
+    expect(NFC_JS).toContain("function normalizeNfcSerial(serialNumber)");
+    expect(NFC_JS).toContain("async function extractNdefUrl(records, prefixes)");
+    expect(NFC_JS).toContain("function normalizeBrowserNfcUrl(rawUrl)");
   });
 });
 
