@@ -1,6 +1,7 @@
 import { logger } from "./utils/logger.js";
 import { getErrorMessage } from "./utils/logger.js";
 import type { Env, CardStateRow, CardConfig, CounterCheckResult, TapRecordResult, ListTapsResult, ClaimTapResult, AnalyticsResult, BalanceResult, ListTransactionsResult, DiscoverResult, MarkPendingResult, OpResult } from "./types/core.js";
+import type { DoPostRoutes, DoGetRoutes, DoRequestBody, DoResponseBody, PathWithOptionalQuery } from "./durableObjects/cardReplay/routes.js";
 import { DEFAULT_TAP_LIMIT, DEFAULT_TXN_LIMIT, CARD_STATE } from "./utils/constants.js";
 import { indexCard } from "./utils/cardIndex.js";
 
@@ -52,7 +53,7 @@ function doGet(stub: DurableObjectStub, path: string): Promise<Response> {
   return stub.fetch(new Request(`https://card-replay.internal${path}`));
 }
 
-function doPost(stub: DurableObjectStub, path: string, body: Record<string, unknown>): Promise<Response> {
+function doPost(stub: DurableObjectStub, path: string, body: unknown): Promise<Response> {
   return stub.fetch(new Request(`https://card-replay.internal${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -62,14 +63,13 @@ function doPost(stub: DurableObjectStub, path: string, body: Record<string, unkn
 
 // --- Generic DO interaction helpers ---
 
-/** State mutation with 404→legacy fallback and card indexing */
-async function doStateTransition<T = CardStateRow>(env: Env, uidHex: string, path: string, body: Record<string, unknown>, errorMsg: string, { legacyFallback, indexMetadata }: { legacyFallback?: T; indexMetadata?: Record<string, unknown> } = {}): Promise<T> {
+async function doStateTransition<K extends DoPostRoutes>(env: Env, uidHex: string, path: K, body: DoRequestBody<K>, errorMsg: string, { legacyFallback, indexMetadata }: { legacyFallback?: DoResponseBody<K>; indexMetadata?: Record<string, unknown> } = {}): Promise<DoResponseBody<K>> {
   requireDo(env);
   const stub: DurableObjectStub = getCardStub(env, uidHex);
   const response: Response = await doPost(stub, path, body);
 
   if (response.status === 404) {
-    return legacyFallback || { ...legacyCardState } as T;
+    return (legacyFallback || { ...legacyCardState }) as DoResponseBody<K>;
   }
 
   if (!response.ok) {
@@ -77,7 +77,7 @@ async function doStateTransition<T = CardStateRow>(env: Env, uidHex: string, pat
     throw new Error(String(payload.error || errorMsg));
   }
 
-  const result = await response.json() as T;
+  const result = await response.json() as DoResponseBody<K>;
 
   if (indexMetadata) {
     await indexCard(env, uidHex, indexMetadata);
@@ -86,19 +86,17 @@ async function doStateTransition<T = CardStateRow>(env: Env, uidHex: string, pat
   return result;
 }
 
-/** Require DO, POST, handle ok+accepted and 409-as-success */
-async function doCounterPost<T extends { accepted?: boolean; reason?: string }>(env: Env, uidHex: string, path: string, body: Record<string, unknown>, errorMsg: string): Promise<T> {
+async function doCounterPost<K extends "/check" | "/record-tap">(env: Env, uidHex: string, path: K, body: DoRequestBody<K>, errorMsg: string): Promise<DoResponseBody<K>> {
   requireDo(env);
   const stub = getCardStub(env, uidHex);
   const response = await doPost(stub, path, body);
-  const payload = await response.json() as T;
+  const payload = await response.json() as DoResponseBody<K>;
   if (response.ok && payload.accepted) return payload;
   if (response.status === 409) return payload;
   throw new Error(payload.reason || errorMsg);
 }
 
-/** Require DO, POST, throw on non-ok */
-async function doRequiredPost(env: Env, uidHex: string, path: string, body: Record<string, unknown>, errorMsg: string): Promise<void> {
+async function doRequiredPost<K extends DoPostRoutes>(env: Env, uidHex: string, path: K, body: DoRequestBody<K>, errorMsg: string): Promise<void> {
   requireDo(env);
   const stub = getCardStub(env, uidHex);
   const response = await doPost(stub, path, body);
@@ -108,33 +106,29 @@ async function doRequiredPost(env: Env, uidHex: string, path: string, body: Reco
   }
 }
 
-/** Optional DO, GET, return fallback on no-DO or non-ok */
-async function doSafeGet<T>(env: Env, uidHex: string, path: string, fallback: T): Promise<T> {
+async function doSafeGet<K extends DoGetRoutes>(env: Env, uidHex: string, path: PathWithOptionalQuery<K>, fallback: DoResponseBody<K>): Promise<DoResponseBody<K>> {
   if (!env?.CARD_REPLAY) return fallback;
   const stub = getCardStub(env, uidHex);
   const response = await doGet(stub, path);
   if (!response.ok) return fallback;
-  return response.json() as Promise<T>;
+  return response.json() as Promise<DoResponseBody<K>>;
 }
 
-/** Optional DO, GET, return fallback only on no-DO */
-async function doOptionalGet<T>(env: Env, uidHex: string, path: string, fallback: T): Promise<T> {
+async function doOptionalGet<K extends DoGetRoutes>(env: Env, uidHex: string, path: PathWithOptionalQuery<K>, fallback: DoResponseBody<K>): Promise<DoResponseBody<K>> {
   if (!env?.CARD_REPLAY) return fallback;
   const stub = getCardStub(env, uidHex);
   const response = await doGet(stub, path);
-  return response.json() as Promise<T>;
+  return response.json() as Promise<DoResponseBody<K>>;
 }
 
-/** Optional DO, POST, return fallback only on no-DO */
-async function doOptionalPost<T>(env: Env, uidHex: string, path: string, body: Record<string, unknown>, fallback: T): Promise<T> {
+async function doOptionalPost<K extends DoPostRoutes>(env: Env, uidHex: string, path: K, body: DoRequestBody<K>, fallback: DoResponseBody<K>): Promise<DoResponseBody<K>> {
   if (!env?.CARD_REPLAY) return fallback;
   const stub = getCardStub(env, uidHex);
   const response = await doPost(stub, path, body);
-  return response.json() as Promise<T>;
+  return response.json() as Promise<DoResponseBody<K>>;
 }
 
-/** Optional DO, POST, void return */
-async function doOptionalVoidPost(env: Env, uidHex: string, path: string, body: Record<string, unknown>): Promise<void> {
+async function doOptionalVoidPost<K extends DoPostRoutes>(env: Env, uidHex: string, path: K, body: DoRequestBody<K>): Promise<void> {
   if (!env?.CARD_REPLAY) return;
   const stub = getCardStub(env, uidHex);
   await doPost(stub, path, body);
@@ -143,7 +137,7 @@ async function doOptionalVoidPost(env: Env, uidHex: string, path: string, body: 
 // --- Exported functions ---
 
 export async function checkAndAdvanceCounter(env: Env, uidHex: string, counterValue: number): Promise<CounterCheckResult> {
-  return doCounterPost<CounterCheckResult>(env, uidHex, "/check", { counterValue }, "Replay protection check failed");
+  return doCounterPost(env, uidHex, "/check", { counterValue }, "Replay protection check failed");
 }
 
 export async function recordTapRead(env: Env, uidHex: string, counterValue: number | null, { userAgent, requestUrl }: { userAgent?: string | null; requestUrl?: string } = {}): Promise<void> {
@@ -154,7 +148,7 @@ export async function recordTapRead(env: Env, uidHex: string, counterValue: numb
 }
 
 export async function recordTap(env: Env, uidHex: string, counterValue: number, { bolt11, amountMsat, userAgent, requestUrl }: { bolt11?: string; amountMsat?: number; userAgent?: string | null; requestUrl?: string } = {}): Promise<TapRecordResult> {
-  return doCounterPost<TapRecordResult>(env, uidHex, "/record-tap", { counterValue, bolt11, amountMsat, userAgent, requestUrl }, "Tap recording failed");
+  return doCounterPost(env, uidHex, "/record-tap", { counterValue, bolt11, amountMsat, userAgent, requestUrl }, "Tap recording failed");
 }
 
 export async function updateTapStatus(env: Env, uidHex: string, counter: number, status: string, meta: Record<string, unknown> = {}): Promise<void> {
@@ -192,7 +186,7 @@ export async function getCardState(env: Env, uidHex: string): Promise<CardStateR
 }
 
 export async function getCardConfig(env: Env, uidHex: string): Promise<CardConfig | null> {
-  return doSafeGet<CardConfig | null>(env, uidHex, "/get-config", null);
+  return doSafeGet(env, uidHex, "/get-config", null);
 }
 
 export async function setCardConfig(env: Env, uidHex: string, config: Record<string, unknown>): Promise<void> {
@@ -230,7 +224,7 @@ export async function listTransactions(env: Env, uidHex: string, limit: number =
 }
 
 export async function deliverKeys(env: Env, uidHex: string): Promise<CardStateRow & { version: number }> {
-  return doStateTransition<CardStateRow & { version: number }>(env, uidHex, "/deliver-keys", {}, "Key delivery failed", {
+  return doStateTransition(env, uidHex, "/deliver-keys", {}, "Key delivery failed", {
     legacyFallback: { ...legacyCardState, state: CARD_STATE.KEYS_DELIVERED, latest_issued_version: 1, version: 1 },
     indexMetadata: { state: CARD_STATE.KEYS_DELIVERED },
   });
@@ -257,7 +251,7 @@ export async function requestWipe(env: Env, uidHex: string): Promise<CardStateRo
 }
 
 export async function markPending(env: Env, uidHex: string, { key_provenance, key_fingerprint, key_label }: { key_provenance?: string; key_fingerprint?: string; key_label?: string } = {}): Promise<MarkPendingResult> {
-  return doStateTransition<MarkPendingResult>(env, uidHex, "/mark-pending", {
+  return doStateTransition(env, uidHex, "/mark-pending", {
     key_provenance: key_provenance || null,
     key_fingerprint: key_fingerprint || null,
     key_label: key_label || null,
@@ -272,7 +266,7 @@ export async function markPending(env: Env, uidHex: string, { key_provenance, ke
 }
 
 export async function discoverCard(env: Env, uidHex: string, { key_provenance, key_fingerprint, key_label, active_version }: { key_provenance?: string; key_fingerprint?: string; key_label?: string; active_version?: number } = {}): Promise<DiscoverResult> {
-  return doStateTransition<DiscoverResult>(env, uidHex, "/discover", {
+  return doStateTransition(env, uidHex, "/discover", {
     key_provenance: key_provenance || null,
     key_fingerprint: key_fingerprint || null,
     key_label: key_label || null,
