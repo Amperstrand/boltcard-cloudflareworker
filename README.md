@@ -427,7 +427,14 @@ npm run deploy                        # tests → build_keys → wrangler deploy
 │   ├── validateCardTap.ts       # Card tap validation for operator handlers
 │   └── validation.ts            # Input validation (validateUid, getRequestOrigin)
 ├── durableObjects/
-│   └── CardReplayDO.ts          # Per-card SQLite DO (balance, txns, counter, state)
+│   ├── CardReplayDO.ts          # Thin Durable Object shell + route dispatcher
+│   └── cardReplay/              # DO schema + route handlers grouped by responsibility
+│       ├── schema.ts            # SQLite table creation + idempotent migrations
+│       ├── tapHandlers.ts       # Counter replay, tap recording, analytics
+│       ├── cardStateHandlers.ts # Lifecycle transitions and discovery
+│       ├── configHandlers.ts    # K2/payment method config
+│       ├── balanceHandlers.ts   # Balance + transaction ledger
+│       └── types.ts             # DO payload/row types
 ├── tests/                       # 1395 tests across 73 suites
 │   ├── testHelpers.ts           # virtualTap, buildCardTestEnv, TEST_OPERATOR_AUTH
 │   ├── replayNamespace.ts       # In-memory DO mock with balance enforcement
