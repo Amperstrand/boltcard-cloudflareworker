@@ -26,7 +26,9 @@
     "test:all": "npm test && npm run test:do",
     "typecheck": "tsc --noEmit",
     "typecheck:src": "tsc --noEmit --project tsconfig.build.json",
+    "lint:innerhtml": "node scripts/check-innerhtml.js",
+    "live:test": "node scripts/live-adversarial-test.mjs",
     "cf-typegen": "wrangler types",
-    "deploy": "npm test && npm run test:do && npm run typecheck:src && node scripts/build_keys.js && wrangler deploy"
+    "deploy": "npm test && npm run test:do && npm run typecheck && npm run lint:innerhtml && node scripts/build_keys.js && wrangler deploy"
   }
 }
