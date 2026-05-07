@@ -135,7 +135,7 @@ describe("Adversarial: Duplicate Callbacks", () => {
   });
 
   it("rejects second callback with same counter and same bolt11", async () => {
-    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1testinvoice" });
 
@@ -147,7 +147,7 @@ describe("Adversarial: Duplicate Callbacks", () => {
   });
 
   it("rejects second callback with same counter but different bolt11", async () => {
-    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url1 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1first" });
     const url2 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1second" });
@@ -160,7 +160,7 @@ describe("Adversarial: Duplicate Callbacks", () => {
   });
 
   it("rejects callback-only replay (skip Step 1, replay same counter)", async () => {
-    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1test" });
 
@@ -172,7 +172,7 @@ describe("Adversarial: Duplicate Callbacks", () => {
   });
 
   it("prevents double-spend: two callbacks for same counter, only one payment deducted", async () => {
-    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url1 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1first" });
     const url2 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1second" });
@@ -272,7 +272,7 @@ describe("Adversarial: Cross-Endpoint Counter", () => {
   });
 
   it("POS charge then LNURL Step 1 with same counter: Step 1 rejected", async () => {
-    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
     const charge = await handlePosCharge(
@@ -291,7 +291,7 @@ describe("Adversarial: Cross-Endpoint Counter", () => {
   });
 
   it("LNURL Step 1 then POS charge with same counter: POS rejected", async () => {
-    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
     const step1 = await makeRequest(`/?p=${pHex}&c=${cHex}`, "GET", null, env);
@@ -310,7 +310,7 @@ describe("Adversarial: Cross-Endpoint Counter", () => {
   });
 
   it("two POS charges with same counter: second rejected", async () => {
-    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
     const req = new Request("https://test.local/operator/pos/charge", {
@@ -327,7 +327,7 @@ describe("Adversarial: Cross-Endpoint Counter", () => {
   });
 
   it("validateCardTap rejects replayed counter", async () => {
-    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
     const req = new Request("https://test.local/api/test");
 
@@ -361,7 +361,7 @@ describe("Adversarial: Wipe/Reset", () => {
 
   it("rejects counter replay after terminate (card terminated)", async () => {
     const env = makeAdversarialEnv();
-    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const keys = getDeterministicKeys(UID, env, 1);
 
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
@@ -419,7 +419,7 @@ describe("Adversarial: Concurrent Callbacks (TOCTOU)", () => {
   });
 
   it("two concurrent callbacks with same counter: only one payment succeeds", async () => {
-    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url1 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1invoiceA" });
     const url2 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1invoiceB" });
@@ -431,14 +431,14 @@ describe("Adversarial: Concurrent Callbacks (TOCTOU)", () => {
 
     const statuses = [r1.status, r2.status].sort();
     expect(statuses).toContain(200);
-    expect(statuses[0]).toBeLessThanOrEqual(statuses[1]);
+    expect(statuses[0]!).toBeLessThanOrEqual(statuses[1]!);
 
     const bal = await getBalance(env, UID);
     expect(bal.balance).toBeGreaterThanOrEqual(0);
   });
 
   it("two concurrent POS charges with same tap: no double-debit", async () => {
-    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
     const makeChargeReq = () => new Request("https://test.local/operator/pos/charge", {
@@ -461,7 +461,7 @@ describe("Adversarial: Concurrent Callbacks (TOCTOU)", () => {
 
   it("two concurrent POS charges with same tap, exact balance: no overdraft", async () => {
     const envExact = makeAdversarialEnv(100);
-    const k1Hex = envExact.BOLT_CARD_K1!.split(",")[0];
+    const k1Hex = envExact.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, getDeterministicKeys(UID, envExact, 1).k2);
 
     const makeChargeReq = () => new Request("https://test.local/operator/pos/charge", {
@@ -503,7 +503,7 @@ describe("Adversarial: Concurrent Callbacks (TOCTOU)", () => {
 describe("Adversarial: State Exploits", () => {
   it("rejects tap on terminated card", async () => {
     const env = makeAdversarialEnv();
-    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const keys = getDeterministicKeys(UID, env, 1);
 
     const id = env.CARD_REPLAY.idFromName(UID);
@@ -523,7 +523,7 @@ describe("Adversarial: State Exploits", () => {
 
   it("rejects tap on wipe_requested card", async () => {
     const env = makeAdversarialEnv();
-    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const keys = getDeterministicKeys(UID, env, 1);
 
     const id = env.CARD_REPLAY.idFromName(UID);
@@ -543,7 +543,7 @@ describe("Adversarial: State Exploits", () => {
 
   it("auto-activates keys_delivered card on valid tap", async () => {
     const env = buildCardTestEnv({ uid: UID, balance: INITIAL_BALANCE, cardState: "keys_delivered", operatorAuth: true });
-    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const keys = getDeterministicKeys(UID, env, 1);
 
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
@@ -557,7 +557,7 @@ describe("Adversarial: State Exploits", () => {
 
   it("rejects invalid CMAC on keys_delivered card (version mismatch)", async () => {
     const env = buildCardTestEnv({ uid: UID, balance: INITIAL_BALANCE, cardState: "keys_delivered", operatorAuth: true });
-    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
 
     // Generate tap with wrong version keys
     const wrongKeys = getDeterministicKeys(UID, { ISSUER_KEY: "00000000000000000000000000000BAD" } as any, 1);
@@ -575,7 +575,7 @@ describe("Adversarial: Edge Cases", () => {
   it("rejects callback with missing pr AND missing amount", async () => {
     const env = makeAdversarialEnv();
     const keys = getDeterministicKeys(UID, env, 1);
-    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url = `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}`;
 
@@ -593,7 +593,7 @@ describe("Adversarial: Edge Cases", () => {
 
   it("POS charge rejects zero amount", async () => {
     const env = makeAdversarialEnv();
-    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const keys = getDeterministicKeys(UID, env, 1);
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
@@ -611,7 +611,7 @@ describe("Adversarial: Edge Cases", () => {
 
   it("POS charge rejects negative amount", async () => {
     const env = makeAdversarialEnv();
-    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const keys = getDeterministicKeys(UID, env, 1);
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 

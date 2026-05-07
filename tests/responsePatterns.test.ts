@@ -6,17 +6,28 @@ import type { Env, CardConfig } from "../types/core.js";
 import { hexToBytes, bytesToHex, _computeAesCmacForVerification } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import AES from "aes-js";
-import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
+import { TEST_OPERATOR_AUTH, createMockKV } from "./testHelpers.js";
 
 const env = {
+  UID_CONFIG: createMockKV(),
   BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
   CLN_PROTOCOL: "https",
   CLN_IP: "192.0.2.10",
   CLN_PORT: "8080",
   CLN_RUNE: "your-rune-string",
-  CARD_REPLAY: makeReplayNamespace(),
+  CARD_REPLAY: makeReplayNamespace() as unknown as DurableObjectNamespace,
   ...TEST_OPERATOR_AUTH,
-};
+} as Env;
+
+const envWithoutKv = {
+  BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
+  CLN_PROTOCOL: "https",
+  CLN_IP: "192.0.2.10",
+  CLN_PORT: "8080",
+  CLN_RUNE: "your-rune-string",
+  CARD_REPLAY: makeReplayNamespace() as unknown as DurableObjectNamespace,
+  ...TEST_OPERATOR_AUTH,
+} as unknown as Env;
 
 const LEGACY_UID_CONFIGS = {
   "04996c6a926980": JSON.stringify({
@@ -66,7 +77,7 @@ const seedDoConfigs = (replay: ReplayNamespace, configs: Record<string, CardConf
   return replay;
 };
 
-const makeKvEnv = (initialStore = {}) => {
+const makeKvEnv = (initialStore = {}): Env & { __kvStore: Record<string, string>; __replayStore: Map<string, number>; __cardConfigs: Map<string, CardConfig> } => {
   const kvStore: Record<string, string> = { ...LEGACY_UID_CONFIGS, ...initialStore };
   const replay = seedDoConfigs(makeReplayNamespace());
   return {
@@ -79,12 +90,12 @@ const makeKvEnv = (initialStore = {}) => {
       delete: async (key: string) => {
         delete kvStore[key];
       },
-    },
-    CARD_REPLAY: replay,
+    } as unknown as KVNamespace,
+    CARD_REPLAY: replay as unknown as DurableObjectNamespace,
     __kvStore: kvStore,
     __replayStore: replay.__counters,
     __cardConfigs: replay.__cardConfigs,
-  };
+  } as Env & { __kvStore: Record<string, string>; __replayStore: Map<string, number>; __cardConfigs: Map<string, CardConfig> };
 };
 
 async function makeRequest(path: string, method: string = "GET", body: Record<string, unknown> | null = null, requestEnv: Env = env) {
@@ -118,7 +129,7 @@ describe("response patterns", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toContain("application/json");
 
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json).toMatchObject({
       status: "OK",
       kv_status: "working",
@@ -127,7 +138,7 @@ describe("response patterns", () => {
   });
 
   test("GET /status redirects to /activate when UID_CONFIG is absent", async () => {
-    const response = await makeRequest("/status");
+    const response = await makeRequest("/status", "GET", null, envWithoutKv);
 
     expect(response.status).toBe(302);
     expect(response.headers.get("Location")).toBe("https://test.local/login");
@@ -139,19 +150,19 @@ describe("response patterns", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toContain("application/json");
 
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expectBoltcardKeys(json);
     expect(json.LNURLW).toContain("lnurlw://test.local/");
   });
 
   test("GET /wipe returns JSON error body on exception", async () => {
     const { CARD_REPLAY, ...envWithoutReplay } = env;
-    const response = await makeRequest("/wipe?uid=04996c6a926980", "GET", null, envWithoutReplay);
+    const response = await makeRequest("/wipe?uid=04996c6a926980", "GET", null, envWithoutReplay as Env);
 
     expect(response.status).toBe(500);
     expect(response.headers.get("Content-Type")).toContain("application/json");
 
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json).toMatchObject({
       status: "ERROR",
       reason: expect.any(String),
@@ -198,7 +209,7 @@ describe("response patterns", () => {
     expect(response.status).toBe(201);
     expect(response.headers.get("Content-Type")).toContain("application/json");
 
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json).toMatchObject({
       status: "SUCCESS",
       message: expect.any(String),
@@ -216,7 +227,7 @@ describe("response patterns", () => {
     expect(response.status).toBe(400);
     expect(response.headers.get("Content-Type")).toContain("application/json");
 
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json).toMatchObject({
       status: "ERROR",
       reason: expect.any(String),
@@ -225,12 +236,12 @@ describe("response patterns", () => {
 
   test("POST /activate/form returns JSON error when DO is unavailable", async () => {
     const { CARD_REPLAY, ...envWithoutReplay } = env;
-    const response = await makeRequest("/activate/form", "POST", { uid: "04a39493cc8680" }, envWithoutReplay);
+    const response = await makeRequest("/activate/form", "POST", { uid: "04a39493cc8680" }, envWithoutReplay as Env);
 
     expect(response.status).toBe(500);
     expect(response.headers.get("Content-Type")).toContain("application/json");
 
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json).toMatchObject({
       status: "ERROR",
       reason: expect.any(String),
@@ -243,7 +254,7 @@ describe("response patterns", () => {
     expect(response.status).toBe(405);
     expect(response.headers.get("Content-Type")).toContain("application/json");
 
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json).toMatchObject({
       status: "ERROR",
       reason: expect.any(String),
@@ -263,7 +274,7 @@ describe("response patterns", () => {
     expect(response.status).toBe(400);
     expect(response.headers.get("Content-Type")).toContain("application/json");
 
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json).toMatchObject({
       status: "ERROR",
       reason: expect.any(String),
@@ -283,7 +294,7 @@ describe("response patterns", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toContain("application/json");
 
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expectBoltcardKeys(json);
   });
 
@@ -302,10 +313,10 @@ describe("response patterns", () => {
 
     expect(response.status).toBe(200);
 
-    const savedConfig = kvEnv.__cardConfigs.get(newUid);
+    const savedConfig = kvEnv.__cardConfigs.get(newUid)!;
     expect(savedConfig.payment_method).toBe("fakewallet");
     expect(savedConfig.K2).toBeDefined();
-    expect(savedConfig.K2.length).toBe(32);
+    expect(savedConfig.K2!.length).toBe(32);
   });
 
   test("POST boltcards program withdraw overwrites existing DO mode to fakewallet", async () => {
@@ -328,10 +339,10 @@ describe("response patterns", () => {
       kvEnv
     );
 
-    const savedConfig = kvEnv.__cardConfigs.get("04a39493cc8680");
+    const savedConfig = kvEnv.__cardConfigs.get("04a39493cc8680")!;
     expect(savedConfig.payment_method).toBe("fakewallet");
     expect(savedConfig.K2).toBeDefined();
-    expect(savedConfig.K2.length).toBe(32);
+    expect(savedConfig.K2!.length).toBe(32);
   });
 
   test("POST boltcards with card_type=pos registers as lnurlpay in DO", async () => {
@@ -346,11 +357,11 @@ describe("response patterns", () => {
     );
 
     expect(response.status).toBe(200);
-    const savedConfig = kvEnv.__cardConfigs.get(posUid);
+    const savedConfig = kvEnv.__cardConfigs.get(posUid)!;
     expect(savedConfig.payment_method).toBe("lnurlpay");
-    expect(savedConfig.lnurlpay.lightning_address).toBe("merchant@getalby.com");
-    expect(savedConfig.lnurlpay.min_sendable).toBe(2000);
-    expect(savedConfig.lnurlpay.max_sendable).toBe(2000);
+    expect(savedConfig.lnurlpay!.lightning_address).toBe("merchant@getalby.com");
+    expect(savedConfig.lnurlpay!.min_sendable).toBe(2000);
+    expect(savedConfig.lnurlpay!.max_sendable).toBe(2000);
     expect(savedConfig.K2).toBeDefined();
   });
 
@@ -378,11 +389,11 @@ describe("response patterns", () => {
       kvEnv
     );
     expect(withdrawResponse.status).toBe(200);
-    let savedConfig = kvEnv.__cardConfigs.get(uid);
+    let savedConfig = kvEnv.__cardConfigs.get(uid)!;
     expect(savedConfig.payment_method).toBe("fakewallet");
 
     // Terminate card before reprogramming to a different card type
-    kvEnv.CARD_REPLAY.__cardStates.get(uid.toLowerCase()).state = "terminated";
+    (kvEnv.CARD_REPLAY as unknown as { __cardStates: Map<string, { state: string }> }).__cardStates.get(uid.toLowerCase())!.state = "terminated";
 
     const posResponse = await makeRequest(
       "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion&card_type=pos&lightning_address=merchant%40getalby.com&min_sendable=2000&max_sendable=2000",
@@ -391,12 +402,12 @@ describe("response patterns", () => {
       kvEnv
     );
     expect(posResponse.status).toBe(200);
-    savedConfig = kvEnv.__cardConfigs.get(uid);
+    savedConfig = kvEnv.__cardConfigs.get(uid)!;
     expect(savedConfig.payment_method).toBe("lnurlpay");
-    expect(savedConfig.lnurlpay.lightning_address).toBe("merchant@getalby.com");
+    expect(savedConfig.lnurlpay!.lightning_address).toBe("merchant@getalby.com");
 
     // Terminate again before reprogramming back to withdraw
-    kvEnv.CARD_REPLAY.__cardStates.get(uid.toLowerCase()).state = "terminated";
+    (kvEnv.CARD_REPLAY as unknown as { __cardStates: Map<string, { state: string }> }).__cardStates.get(uid.toLowerCase())!.state = "terminated";
 
     const withdrawAgainResponse = await makeRequest(
       "/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards?onExisting=UpdateVersion",
@@ -405,7 +416,7 @@ describe("response patterns", () => {
       kvEnv
     );
     expect(withdrawAgainResponse.status).toBe(200);
-    savedConfig = kvEnv.__cardConfigs.get(uid);
+    savedConfig = kvEnv.__cardConfigs.get(uid)!;
     expect(savedConfig.payment_method).toBe("fakewallet");
   });
 
@@ -422,7 +433,7 @@ describe("response patterns", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toContain("application/json");
 
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expectBoltcardKeys(json);
   });
 
@@ -437,7 +448,7 @@ describe("response patterns", () => {
     expect(response.status).toBe(400);
     expect(response.headers.get("Content-Type")).toContain("application/json");
 
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json).toMatchObject({ error: expect.any(String) });
   });
 
@@ -450,7 +461,7 @@ describe("response patterns", () => {
     );
 
     expect(response.status).toBe(405);
-    const body = await response.json();
+    const body = await response.json() as Record<string, unknown>;
     expect(body.status).toBe("ERROR");
     expect(body.reason).toContain("Method Not Allowed");
   });
@@ -468,7 +479,7 @@ describe("response patterns", () => {
     );
 
     expect(response.status).toBe(405);
-    const body2 = await response.json();
+    const body2 = await response.json() as Record<string, unknown>;
     expect(body2.status).toBe("ERROR");
     expect(body2.reason).toContain("Method Not Allowed");
   });
@@ -478,7 +489,7 @@ describe("response patterns", () => {
 
     expect(response.status).toBe(404);
     expect(response.headers.get("Content-Type")).toContain("application/json");
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json.status).toBe("ERROR");
   });
 
@@ -498,7 +509,7 @@ describe("response patterns", () => {
     expect(response.status).toBe(429);
     expect(response.headers.get("Content-Type")).toContain("application/json");
 
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json).toMatchObject({
       status: "ERROR",
       reason: "Rate limit exceeded",
@@ -528,17 +539,17 @@ describe("response patterns", () => {
     );
     expect(progResponse.status).toBe(200);
 
-    const savedConfig = kvEnv.__cardConfigs.get(zeroUid);
+    const savedConfig = kvEnv.__cardConfigs.get(zeroUid)!;
     expect(savedConfig.payment_method).toBe("fakewallet");
     expect(savedConfig.K2).toBeDefined();
 
     // --- Step 2: Generate valid p and c ---
     // K1 for encryption = first key in BOLT_CARD_K1 (what the server decrypts with)
-    const k1Hex = kvEnv.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = kvEnv.BOLT_CARD_K1!.split(",")[0]!;
     const k1Bytes = hexToBytes(k1Hex);
 
     // K2 for CMAC = from deterministic keys (what was stored in KV)
-    const keys = getDeterministicKeys(zeroUid, kvEnv as any);
+    const keys = getDeterministicKeys(zeroUid, kvEnv);
     const k2Bytes = hexToBytes(keys.k2);
 
     // Build PICCData plaintext: [0xC7][UID 7 bytes][Counter LE 3 bytes][Padding 5 bytes]
@@ -569,7 +580,7 @@ describe("response patterns", () => {
       new Uint8Array([
         0x3C, 0xC3, 0x00, 0x01, 0x00, 0x80,
         ...uidBytes,
-        ctrBytes[2], ctrBytes[1], ctrBytes[0],
+        ctrBytes[2]!, ctrBytes[1]!, ctrBytes[0]!,
       ]),
       k2Bytes
     );
@@ -587,12 +598,12 @@ describe("response patterns", () => {
     expect(tapResponse.status).toBe(200);
     expect(tapResponse.headers.get("Content-Type")).toContain("application/json");
 
-    const json = await tapResponse.json();
+    const json = await tapResponse.json() as Record<string, unknown>;
     expect(json.tag).toBe("withdrawRequest");
     expect(json.callback).toBeDefined();
     expect(json.k1).toBeDefined();
-    expect(json.minWithdrawable).toBeGreaterThan(0);
-    expect(json.maxWithdrawable).toBeGreaterThanOrEqual(json.minWithdrawable);
+    expect(json.minWithdrawable as number).toBeGreaterThan(0);
+    expect(json.maxWithdrawable as number).toBeGreaterThanOrEqual(json.minWithdrawable as number);
     expect(json.defaultDescription).toContain("Boltcard payment");
   });
 
@@ -613,7 +624,7 @@ describe("response patterns", () => {
             baseurl: "https://relay.example.com/boltcards/api/v1/scan/test-backend",
           },
         },
-      }),
+      }) as unknown as DurableObjectNamespace,
       UID_CONFIG: {
         get: async (uid: string) => uid === "04996c6a926980"
           ? JSON.stringify({
@@ -625,8 +636,8 @@ describe("response patterns", () => {
             })
           : null,
         put: async () => {},
-      },
-    };
+      } as unknown as KVNamespace,
+    } as Env;
 
     try {
       const response = await handleRequest(
@@ -637,7 +648,7 @@ describe("response patterns", () => {
       expect(response.status).toBe(200);
       expect(response.headers.get("Content-Type")).toContain("application/json");
 
-      const json = await response.json();
+      const json = await response.json() as Record<string, unknown>;
       expect(json).toMatchObject({ status: "OK" });
     } finally {
       global.fetch = originalFetch;

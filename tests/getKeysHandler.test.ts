@@ -53,7 +53,7 @@ describe("GET /api/keys", () => {
     const json = await response.json() as Record<string, any>;
     expect(json.uid).toBe(VALID_UID.toLowerCase());
     expect(Array.isArray(json.keysets)).toBe(true);
-    expect(json.keysets.length).toBeGreaterThan(0);
+    expect((json.keysets as unknown[]).length).toBeGreaterThan(0);
     const ks: Record<string, unknown> = json.keysets[0];
     expect(ks.k0).toBeTruthy();
     expect(ks.k1).toBeTruthy();
@@ -64,10 +64,10 @@ describe("GET /api/keys", () => {
   test("unknown uid derives keys from default issuer (returns 200)", async () => {
     const response = await makeRequest("/api/keys?uid=99999999999999");
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json.uid).toBe("99999999999999");
     expect(Array.isArray(json.keysets)).toBe(true);
-    expect(json.keysets.length).toBeGreaterThan(0);
+    expect((json.keysets as unknown[]).length).toBeGreaterThan(0);
   });
 
   test("per-card UID returns percard keyset in listing", async () => {

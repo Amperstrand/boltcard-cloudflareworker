@@ -39,7 +39,7 @@ describe("GET /api/pos/menu", () => {
     expect(res.status).toBe(200);
     const json = await res.json() as Record<string, unknown>;
     expect(json.items as unknown[]).toHaveLength(2);
-    expect((json.items as Record<string, unknown>[])[0].name).toBe("Coffee");
+    expect((json.items as Record<string, unknown>[])[0]!.name).toBe("Coffee");
   });
 
   it("returns menu for specific terminal", async () => {
@@ -54,7 +54,7 @@ describe("GET /api/pos/menu", () => {
     );
     expect(res.status).toBe(200);
     const json = await res.json() as Record<string, unknown>;
-    expect((json.items as Record<string, unknown>[])[0].name).toBe("Espresso");
+    expect((json.items as Record<string, unknown>[])[0]!.name).toBe("Espresso");
   });
 
   it("requires operator auth", async () => {

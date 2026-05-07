@@ -28,7 +28,7 @@ function makeRequest(cookies: Record<string, string> = {}) {
 async function createTestSession(env: Env) {
   const { cookie } = await createSession(env);
   const match = cookie.match(/op_session=([^;]+)/);
-  return match![1];
+  return match![1]!;
 }
 
 describe("validatePinConfig", () => {

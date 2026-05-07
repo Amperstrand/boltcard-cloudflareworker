@@ -1,17 +1,19 @@
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
-import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
+import { TEST_OPERATOR_AUTH, createMockKV } from "./testHelpers.js";
+import type { Env } from "../types/core.js";
 
-const env = {
+const env: Env = {
+  UID_CONFIG: createMockKV(),
+  CARD_REPLAY: makeReplayNamespace() as unknown as DurableObjectNamespace,
   BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
-  CARD_REPLAY: makeReplayNamespace(),
   ...TEST_OPERATOR_AUTH,
-};
+} as Env;
 
 const VALID_UID = "040660fa967380";
 const VALID_KEY = "00000000000000000000000000000001";
 
-async function makeRequest(path: string, method = "GET", body: unknown = null, requestEnv = env) {
+async function makeRequest(path: string, method = "GET", body: unknown = null, requestEnv: Env = env) {
   const url = "https://test.local" + path;
   const options: RequestInit = { method };
   if (body) {
@@ -21,6 +23,14 @@ async function makeRequest(path: string, method = "GET", body: unknown = null, r
   return handleRequest(new Request(url, options), requestEnv);
 }
 
+type BulkWipeResponse = {
+  uid: string;
+  boltcard_response: Record<string, string>;
+  wipe_json: Record<string, string | number>;
+  reset_deeplink: string;
+  error?: string;
+};
+
 describe("GET /api/bulk-wipe-keys", () => {
   test("valid request returns 200 with uid, boltcard_response, wipe_json, reset_deeplink", async () => {
     const response = await makeRequest(
@@ -28,7 +38,7 @@ describe("GET /api/bulk-wipe-keys", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as BulkWipeResponse;
 
     expect(json).toHaveProperty("uid", VALID_UID);
     expect(json).toHaveProperty("boltcard_response");
@@ -42,8 +52,8 @@ describe("GET /api/bulk-wipe-keys", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
-    const br = json.boltcard_response;
+    const json = await response.json() as BulkWipeResponse;
+    const br = json.boltcard_response!;
 
     expect(br.CARD_NAME).toContain(VALID_UID.toUpperCase());
     expect(br.K0).toMatch(/^[0-9A-F]{32}$/);
@@ -63,8 +73,8 @@ describe("GET /api/bulk-wipe-keys", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
-    const wj = json.wipe_json;
+    const json = await response.json() as BulkWipeResponse;
+    const wj = json.wipe_json!;
 
     expect(wj.version).toBe(1);
     expect(wj.action).toBe("wipe");
@@ -81,7 +91,7 @@ describe("GET /api/bulk-wipe-keys", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await response.json();
+    const json = await response.json() as BulkWipeResponse;
 
     expect(json.reset_deeplink).toMatch(/^boltcard:\/\/reset\?url=/);
 
@@ -96,18 +106,18 @@ describe("GET /api/bulk-wipe-keys", () => {
     const res1 = await makeRequest(
       `/api/bulk-wipe-keys?uid=${VALID_UID}&key=${VALID_KEY}`
     );
-    const json1 = await res1.json();
+    const json1 = await res1.json() as BulkWipeResponse;
 
     const res2 = await makeRequest(
       `/api/bulk-wipe-keys?uid=${VALID_UID}&key=${VALID_KEY}`
     );
-    const json2 = await res2.json();
+    const json2 = await res2.json() as BulkWipeResponse;
 
-    expect(json1.boltcard_response.K0).toBe(json2.boltcard_response.K0);
-    expect(json1.boltcard_response.K1).toBe(json2.boltcard_response.K1);
-    expect(json1.boltcard_response.K2).toBe(json2.boltcard_response.K2);
-    expect(json1.boltcard_response.K3).toBe(json2.boltcard_response.K3);
-    expect(json1.boltcard_response.K4).toBe(json2.boltcard_response.K4);
+    expect(json1.boltcard_response!.K0).toBe(json2.boltcard_response!.K0);
+    expect(json1.boltcard_response!.K1).toBe(json2.boltcard_response!.K1);
+    expect(json1.boltcard_response!.K2).toBe(json2.boltcard_response!.K2);
+    expect(json1.boltcard_response!.K3).toBe(json2.boltcard_response!.K3);
+    expect(json1.boltcard_response!.K4).toBe(json2.boltcard_response!.K4);
   });
 
   test("missing uid returns 400", async () => {
@@ -116,7 +126,7 @@ describe("GET /api/bulk-wipe-keys", () => {
     );
 
     expect(response.status).toBe(400);
-    const json = await response.json();
+    const json = await response.json() as BulkWipeResponse;
     expect(json.error).toContain("UID");
   });
 
@@ -126,7 +136,7 @@ describe("GET /api/bulk-wipe-keys", () => {
     );
 
     expect(response.status).toBe(400);
-    const json = await response.json();
+    const json = await response.json() as BulkWipeResponse;
     expect(json.error).toContain("key");
   });
 
@@ -136,7 +146,7 @@ describe("GET /api/bulk-wipe-keys", () => {
     );
 
     expect(response.status).toBe(400);
-    const json = await response.json();
+    const json = await response.json() as BulkWipeResponse;
     expect(json.error).toContain("UID");
   });
 
@@ -146,7 +156,7 @@ describe("GET /api/bulk-wipe-keys", () => {
     );
 
     expect(response.status).toBe(400);
-    const json = await response.json();
+    const json = await response.json() as BulkWipeResponse;
     expect(json.error).toContain("key");
   });
 
@@ -157,32 +167,32 @@ describe("GET /api/bulk-wipe-keys", () => {
     const resA = await makeRequest(
       `/api/bulk-wipe-keys?uid=${VALID_UID}&key=${keyA}`
     );
-    const jsonA = await resA.json();
+    const jsonA = await resA.json() as BulkWipeResponse;
 
     const resB = await makeRequest(
       `/api/bulk-wipe-keys?uid=${VALID_UID}&key=${keyB}`
     );
-    const jsonB = await resB.json();
+    const jsonB = await resB.json() as BulkWipeResponse;
 
-    expect(jsonA.boltcard_response.K1).not.toBe(jsonB.boltcard_response.K1);
+    expect(jsonA.boltcard_response!.K1).not.toBe(jsonB.boltcard_response!.K1);
   });
 
   test("POST with JSON body key produces same result as GET", async () => {
     const getRes = await makeRequest(
       `/api/bulk-wipe-keys?uid=${VALID_UID}&key=${VALID_KEY}`
     );
-    const getJson = await getRes.json();
+    const getJson = await getRes.json() as BulkWipeResponse;
 
     const postRes = await makeRequest(
       `/api/bulk-wipe-keys?uid=${VALID_UID}`,
       "POST",
       { key: VALID_KEY }
     );
-    const postJson = await postRes.json();
+    const postJson = await postRes.json() as BulkWipeResponse;
 
     expect(postRes.status).toBe(200);
-    expect(postJson.boltcard_response.K0).toBe(getJson.boltcard_response.K0);
-    expect(postJson.boltcard_response.K2).toBe(getJson.boltcard_response.K2);
+    expect(postJson.boltcard_response!.K0).toBe(getJson.boltcard_response!.K0);
+    expect(postJson.boltcard_response!.K2).toBe(getJson.boltcard_response!.K2);
   });
 });
 

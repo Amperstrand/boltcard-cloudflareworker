@@ -4,14 +4,19 @@ import type { Env } from "../types/core.js";
 
 const UID = "04a39493cc8680";
 
-function makeEnv(): Partial<Env> {
-  return { CARD_REPLAY: makeReplayNamespace({} as Record<string, number>, { [UID]: 1 }) };
+function makeEnv(): Env {
+  return { UID_CONFIG: {} as unknown as KVNamespace, CARD_REPLAY: makeReplayNamespace({} as Record<string, number>, { [UID]: 1 }) as unknown as DurableObjectNamespace };
 }
 
-function makeErrorEnv(statusCode: number, reason: string): Partial<Env> {
+function makeErrorEnv(statusCode: number, reason: string): Env {
   return {
+    UID_CONFIG: {} as unknown as KVNamespace,
     CARD_REPLAY: {
-      idFromName: () => "stub",
+      idFromName: () => "stub" as unknown as DurableObjectId,
+      idFromString: () => "stub" as unknown as DurableObjectId,
+      newUniqueId: () => "stub" as unknown as DurableObjectId,
+      getByName: () => ({ fetch: async () => Response.json({ error: reason }, { status: statusCode }) }) as unknown as DurableObjectStub,
+      jurisdiction: () => ({}) as unknown as DurableObjectNamespace,
       get: () => ({
         fetch: async (req: Request) => {
           if (req.method === "GET") {
@@ -19,8 +24,8 @@ function makeErrorEnv(statusCode: number, reason: string): Partial<Env> {
           }
           return Response.json({ reason, error: reason }, { status: statusCode });
         },
-      }),
-    },
+      }) as unknown as DurableObjectStub,
+    } as unknown as DurableObjectNamespace,
   };
 }
 
@@ -117,7 +122,7 @@ describe("replayProtection", () => {
       await recordTap(env, UID, 3, { bolt11: "lnbc10n1test" });
       const result = await listTaps(env, UID);
       expect(result.taps).toHaveLength(1);
-      expect(result.taps[0].counter).toBe(3);
+      expect(result.taps[0]!.counter).toBe(3);
     });
 
     it("returns empty when CARD_REPLAY missing", async () => {
@@ -163,7 +168,7 @@ describe("replayProtection", () => {
   describe("deliverKeys", () => {
     it("delivers keys for new card", async () => {
       const env = makeEnv();
-      env.CARD_REPLAY.__cardStates.get(UID)!.state = "new";
+      (env.CARD_REPLAY as unknown as { __cardStates: Map<string, { state: string }> }).__cardStates.get(UID)!.state = "new";
       const result = await deliverKeys(env, UID);
       expect(result.state).toBe("keys_delivered");
       expect(result.latest_issued_version).toBeGreaterThanOrEqual(1);
@@ -177,7 +182,7 @@ describe("replayProtection", () => {
   describe("activateCard", () => {
     it("activates a card", async () => {
       const env = makeEnv();
-      env.CARD_REPLAY.__cardStates.get(UID)!.state = "keys_delivered";
+      (env.CARD_REPLAY as unknown as { __cardStates: Map<string, { state: string }> }).__cardStates.get(UID)!.state = "keys_delivered";
       const result = await activateCard(env, UID, 1);
       expect(result.state).toBe("active");
       expect(result.active_version).toBe(1);

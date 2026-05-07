@@ -34,7 +34,7 @@ test("getBoltCardK1 derives deterministic K1 from ISSUER_KEY when explicit K1 is
   const deterministicKeys = getDeterministicKeys("04a39493cc8680", env);
 
   expect(derivedK1Keys).toHaveLength(1);
-  expect(bytesToHex(derivedK1Keys[0])).toBe(deterministicKeys.k1);
+  expect(bytesToHex(derivedK1Keys[0]!)).toBe(deterministicKeys.k1);
 });
 
 test("extractUIDAndCounter works with ISSUER_KEY-only env", () => {

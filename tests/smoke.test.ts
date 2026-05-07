@@ -79,7 +79,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
 
   test("Phase 1: card tap returns valid LUD-06 payRequest", async () => {
     const env = makeEnv();
-    const { pHex, ctrHex } = generateRealPandC(POS_UID, 1, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(POS_UID, 1, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(POS_UID, ctrHex, keys.k2);
 
     const response = await handleRequest(
@@ -108,7 +108,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
 
   test("Phase 2: callback returns invoice from Lightning Address", async () => {
     const env = makeEnv();
-    const { pHex, ctrHex } = generateRealPandC(POS_UID, 1, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(POS_UID, 1, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(POS_UID, ctrHex, keys.k2);
 
     const originalFetch = global.fetch;
@@ -150,7 +150,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
 
   test("Phase 3: replayed callback is rejected", async () => {
     const env = makeEnv({ [POS_UID]: 1 });
-    const { pHex, ctrHex } = generateRealPandC(POS_UID, 1, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(POS_UID, 1, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(POS_UID, ctrHex, keys.k2);
 
     const response = await handleRequest(
@@ -165,7 +165,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
 
   test("Phase 4: incrementing counter works", async () => {
     const env = makeEnv({ [POS_UID]: 1 });
-    const { pHex, ctrHex } = generateRealPandC(POS_UID, 2, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(POS_UID, 2, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(POS_UID, ctrHex, keys.k2);
 
     const originalFetch = global.fetch;
@@ -201,7 +201,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
 
   test("Phase 5: initial tap shows counter=2 as Order #2", async () => {
     const env = makeEnv();
-    const { pHex, ctrHex } = generateRealPandC(POS_UID, 2, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(POS_UID, 2, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(POS_UID, ctrHex, keys.k2);
 
     const response = await handleRequest(
@@ -217,7 +217,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
 
   test("Phase 6: wrong CMAC is rejected", async () => {
     const env = makeEnv();
-    const { pHex } = generateRealPandC(POS_UID, 1, BOLT_CARD_K1.split(",")[0]);
+    const { pHex } = generateRealPandC(POS_UID, 1, BOLT_CARD_K1.split(",")[0]!);
 
     const response = await handleRequest(
       new Request(`https://boltcardpoc.psbt.me/?p=${pHex}&c=deadbeefdeadbeef`),
@@ -231,7 +231,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
 
   test("Phase 7: full e2e flow — tap → payRequest → callback → invoice", async () => {
     const env = makeEnv();
-    const { pHex, ctrHex } = generateRealPandC(POS_UID, 3, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(POS_UID, 3, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(POS_UID, ctrHex, keys.k2);
 
     const tapResponse = await handleRequest(

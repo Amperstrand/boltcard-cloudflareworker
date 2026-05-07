@@ -70,7 +70,7 @@ function makeEnv(replayInitial: Record<string, number> = {}, balance = 0): Env {
     UID_CONFIG: {
       get: async (uid: string) => uid === TEST_UID ? TEST_UID_CONFIG : null,
       put: async () => {},
-    } as KVNamespace,
+    } as unknown as KVNamespace,
   } as Env;
 }
 
@@ -141,9 +141,9 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
         return null;
       },
       put: async () => {},
-    };
+    } as unknown as KVNamespace;
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
     const response = await makeRequest(
@@ -184,7 +184,7 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
         return null;
       },
       put: async () => {},
-    };
+    } as unknown as KVNamespace;
 
     env.CARD_REPLAY = makeReplayNamespace({ [TEST_UID]: 1 });
 
@@ -208,7 +208,7 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
       body: JSON.stringify({ amount: 5000, note: "Initial funding" }),
     }));
 
-    const { pHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]);
+    const { pHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]!);
     const ctrHex = bytesToHex(new Uint8Array([0x00, 0x00, 0x01]));
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
@@ -241,7 +241,7 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
         return null;
       },
       put: async () => {},
-    };
+    } as unknown as KVNamespace;
 
     const id = env.CARD_REPLAY.idFromName(TEST_UID);
     const stub = env.CARD_REPLAY.get(id);
@@ -251,7 +251,7 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
       body: JSON.stringify({ amount: 5000, note: "Initial funding" }),
     }));
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 10, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 10, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
     const response = await makeRequest(
@@ -297,9 +297,9 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
         return null;
       },
       put: async () => {},
-    };
+    } as unknown as KVNamespace;
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 3, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 3, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
     await makeRequest(
@@ -437,9 +437,9 @@ describe("Tap tracking — login response", () => {
         return null;
       },
       put: async () => {},
-    };
+    } as unknown as KVNamespace;
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 15, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 15, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
     const callbackResp = await makeRequest(
@@ -492,9 +492,9 @@ describe("getCardState error handling", () => {
     };
 
     const replay = makeReplayNamespace();
-    replay.get = (id: string) => mockStub as any;
+    (replay as unknown as { get: (id: string) => unknown }).get = (id: string) => mockStub;
 
-    const env = { CARD_REPLAY: replay } as any;
+    const env = { CARD_REPLAY: replay } as unknown as Env;
 
     await expect(getCardState(env, "04996c6a926980")).rejects.toThrow("DO connection failed");
   });

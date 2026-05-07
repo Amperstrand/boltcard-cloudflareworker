@@ -3,11 +3,14 @@ export {};
 
 const worker = await import("../index.js");
 const defaultExport = worker.default;
+import type { Env } from "../types/core.js";
+import { createMockKV, TEST_OPERATOR_AUTH } from "./testHelpers.js";
+import { makeReplayNamespace } from "./replayNamespace.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 
-function makeEnv() {
-  return { BOLT_CARD_K1 };
+function makeEnv(): Env {
+  return { BOLT_CARD_K1, UID_CONFIG: createMockKV(), CARD_REPLAY: makeReplayNamespace() as unknown as DurableObjectNamespace, ...TEST_OPERATOR_AUTH } as Env;
 }
 
 describe("Security headers", () => {
@@ -91,7 +94,7 @@ describe("Security headers", () => {
   });
 
   it("sets security headers on status endpoint", async () => {
-    const env = { BOLT_CARD_K1, UID_CONFIG: { get: async () => null } };
+    const env = { BOLT_CARD_K1, UID_CONFIG: { get: async () => null } as unknown as KVNamespace } as unknown as Env;
     const res = await defaultExport.fetch(
       new Request("https://test.local/status"),
       env,

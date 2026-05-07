@@ -96,7 +96,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
   });
 
   test("full withdraw lifecycle: provision → tap → callback → tap history", async () => {
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
 
     // Step 1: Card tap — returns withdrawRequest, atomically advances counter
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
@@ -143,7 +143,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
   });
 
   test("replay protection: stale counter rejected in callback", async () => {
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
     // First callback — may succeed (200) or fail (400) due to fakewallet alternation,
@@ -168,7 +168,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
   });
 
   test("incrementing counter works after previous callback", async () => {
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
 
     // Record counter=1 via callback (payment status doesn't matter for this test)
     const tap1 = virtualTap(UID, 1, k1Hex, keys.k2);
@@ -200,7 +200,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
   });
 
   test("Step 1 atomically advances counter — repeated taps with same counter are rejected", async () => {
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
     const first = await makeRequest(`/?p=${pHex}&c=${cHex}`, "GET", null, env);
@@ -211,7 +211,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
   });
 
   test("wipe resets replay state, allows re-provisioning", async () => {
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
 
     // Record counter=5 via callback
     const tap5 = virtualTap(UID, 5, k1Hex, keys.k2);
@@ -292,7 +292,7 @@ describe("E2E: Virtual card — LNURL-pay (POS)", () => {
   });
 
   test("full POS lifecycle: tap → payRequest → callback → invoice", async () => {
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
     // Step 1: tap returns payRequest
@@ -318,7 +318,7 @@ describe("E2E: Virtual card — LNURL-pay (POS)", () => {
   });
 
   test("POS replay protection in callback", async () => {
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
     // First callback succeeds
@@ -340,7 +340,7 @@ describe("E2E: Virtual card — concurrent taps", () => {
   test("new tap accepted while old tap completed", async () => {
     const env = makeFreshEnv();
     const { keys } = await provisionCard(UID, env);
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
 
     // Record counter=1 via callback
     const tap1 = virtualTap(UID, 1, k1Hex, keys.k2);
@@ -368,7 +368,7 @@ describe("E2E: Virtual card — login and tap history", () => {
     const env = makeFreshEnv();
     const { keys } = await provisionCard(UID, env);
     await creditCard(env, UID, 100000);
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
 
     // Do 3 taps
     for (let i = 1; i <= 3; i++) {
@@ -402,7 +402,7 @@ describe("E2E: Virtual card — login and tap history", () => {
   test("login tap history limited to 20 entries", async () => {
     const env = makeFreshEnv();
     const { keys } = await provisionCard(UID, env);
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
 
     // Do 25 taps
     for (let i = 1; i <= 25; i++) {
@@ -445,7 +445,7 @@ describe("E2E: Virtual card — auto-discovery lifecycle", () => {
   test("unknown card → first tap → discovered → callback → payment → second tap", async () => {
     const env = makeDiscoveryEnv();
     const discoveryKeys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
-    const k1Hex = env.BOLT_CARD_K1.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
 
     expect(env.CARD_REPLAY.__cardStates.has(UID)).toBe(false);
 

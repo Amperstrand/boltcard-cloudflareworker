@@ -1,7 +1,7 @@
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { logger } from "../utils/logger.js";
-import type { Env } from "../types/core.js";
+import type { Env, CardConfig } from "../types/core.js";
 
 const LoggerClass = logger.constructor as any;
 
@@ -19,12 +19,12 @@ const LEGACY_UID_CONFIGS: Record<string, string> = {
 };
 
 const DO_CARD_CONFIGS: Record<string, Record<string, unknown>> = {
-  "04996c6a926980": JSON.parse(LEGACY_UID_CONFIGS["04996c6a926980"]),
+  "04996c6a926980": JSON.parse(LEGACY_UID_CONFIGS["04996c6a926980"]!),
 };
 
 const seedDoConfigs = (replay: ReturnType<typeof makeReplayNamespace>, configs = DO_CARD_CONFIGS) => {
   Object.entries(configs).forEach(([uid, config]) => {
-    replay.__cardConfigs.set(uid.toLowerCase(), config);
+    replay.__cardConfigs.set(uid.toLowerCase(), config as unknown as CardConfig);
   });
   return replay;
 };

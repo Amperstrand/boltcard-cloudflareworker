@@ -11,8 +11,8 @@ const UID = "04a39493cc8680";
 const ISSUER_KEY = "00000000000000000000000000000001";
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 
-function asEnv(obj: Partial<Env>): Partial<Env> {
-  return obj;
+function asEnv(obj: Partial<Env>): Env {
+  return obj as Env;
 }
 
 function replay(env: Partial<Env>): ReplayNamespace {
@@ -43,7 +43,7 @@ describe("validateCmac", () => {
 describe("validateCardTap", () => {
   function makeTestEnv() {
     const doStub = makeReplayNamespace({}, { [UID]: 1 });
-    return { CARD_REPLAY: doStub, BOLT_CARD_K1, ISSUER_KEY };
+    return { CARD_REPLAY: doStub as unknown as DurableObjectNamespace, BOLT_CARD_K1, ISSUER_KEY } as Partial<Env>;
   }
 
   function makeTestRequest() {
@@ -288,10 +288,10 @@ describe("validateCardTap", () => {
       CARD_REPLAY: {
         idFromName: () => "test",
         get: () => ({ fetch: async () => new Response("error", { status: 500 }) }),
-      },
+      } as unknown as DurableObjectNamespace,
       BOLT_CARD_K1,
       ISSUER_KEY,
-    };
+    } as Partial<Env>;
     const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex, cHex } = virtualTap(UID, 1, keys.k1, keys.k2);
 

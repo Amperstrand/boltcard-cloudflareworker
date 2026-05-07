@@ -2,12 +2,13 @@ import { handleRequest } from "../../index.js";
 import { makeReplayNamespace } from "../replayNamespace.js";
 import { TEST_OPERATOR_AUTH, virtualTap, buildCardTestEnv } from "../testHelpers.js";
 import { getDeterministicKeys } from "../../keygenerator.js";
+import type { Env } from "../../types/core.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 
 const worker = (await import("../../index.js")).default;
 
-async function req(path: string, method = "GET", body: Record<string, unknown> | null = null, env: Record<string, unknown>, headers: Record<string, string> = {}) {
+async function req(path: string, method = "GET", body: Record<string, unknown> | null = null, env: Env, headers: Record<string, string> = {}) {
   const url = "https://boltcardpoc.psbt.me" + path;
   const opts: RequestInit = { method, headers };
   if (body) {
@@ -17,17 +18,17 @@ async function req(path: string, method = "GET", body: Record<string, unknown> |
   return handleRequest(new Request(url, opts), env);
 }
 
-function makePageEnv() {
+function makePageEnv(): Env {
   return {
     BOLT_CARD_K1,
     ISSUER_KEY: "00000000000000000000000000000001",
-    CARD_REPLAY: makeReplayNamespace(),
+    CARD_REPLAY: makeReplayNamespace() as unknown as DurableObjectNamespace,
     UID_CONFIG: {
       get: async () => null,
       put: async () => {},
-    },
+    } as unknown as KVNamespace,
     ...TEST_OPERATOR_AUTH,
-  };
+  } as Env;
 }
 
 describe("E2E: Page rendering", () => {
@@ -117,7 +118,7 @@ describe("E2E: /card/info API", () => {
     const uid = "04a111fa967380";
     const env = buildCardTestEnv({ uid, operatorAuth: true, cardState: "active" });
     const keys = getDeterministicKeys(uid, { ISSUER_KEY: env.ISSUER_KEY } as any, 1);
-    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(uid, 1, k1Hex, keys.k2);
 
     const resp = await req(`/card/info?p=${pHex}&c=${cHex}`, "GET", null, env as any);
@@ -138,7 +139,7 @@ describe("E2E: /card/info API", () => {
     const uid = "04a222fa967380";
     const env = buildCardTestEnv({ uid, operatorAuth: true, cardState: "active" });
     const keys = getDeterministicKeys(uid, { ISSUER_KEY: env.ISSUER_KEY } as any, 1);
-    const k1Hex = env.BOLT_CARD_K1!.split(",")[0];
+    const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
 
     const state = (env.CARD_REPLAY as any).__cardStates.get(uid.toLowerCase());
     state.state = "terminated";
@@ -195,9 +196,9 @@ describe("E2E: Security headers on all responses", () => {
   it("auth-protected page returns 302 redirect with security headers", async () => {
     const env = {
       BOLT_CARD_K1,
-      CARD_REPLAY: makeReplayNamespace(),
-      UID_CONFIG: { get: async () => null, put: async () => {} },
-    };
+      CARD_REPLAY: makeReplayNamespace() as unknown as DurableObjectNamespace,
+      UID_CONFIG: { get: async () => null, put: async () => {} } as unknown as KVNamespace,
+    } as Env;
     const resp = await worker.fetch(new Request("https://boltcardpoc.psbt.me/operator/pos"), env, {} as ExecutionContext);
     expect(resp.status).toBe(302);
     expect(resp.headers.get("X-Content-Type-Options")).toBe("nosniff");
@@ -218,9 +219,9 @@ describe("E2E: Auth-protected pages redirect unauthenticated", () => {
     it(`GET ${page} redirects to login without auth`, async () => {
       const env = {
         BOLT_CARD_K1,
-        CARD_REPLAY: makeReplayNamespace(),
-        UID_CONFIG: { get: async () => null, put: async () => {} },
-      };
+        CARD_REPLAY: makeReplayNamespace() as unknown as DurableObjectNamespace,
+        UID_CONFIG: { get: async () => null, put: async () => {} } as unknown as KVNamespace,
+      } as Env;
       const resp = await req(page, "GET", null, env);
       expect(resp.status).toBe(302);
       expect(resp.headers.get("Location")).toContain("/operator/login");
@@ -240,11 +241,11 @@ describe("E2E: Operator login flow", () => {
   it("POST /operator/login with correct PIN redirects with session cookie", async () => {
     const env = {
       BOLT_CARD_K1,
-      CARD_REPLAY: makeReplayNamespace(),
-      UID_CONFIG: { get: async () => null, put: async () => {} },
+      CARD_REPLAY: makeReplayNamespace() as unknown as DurableObjectNamespace,
+      UID_CONFIG: { get: async () => null, put: async () => {} } as unknown as KVNamespace,
       OPERATOR_PIN: "1234",
       OPERATOR_SESSION_SECRET: "test-session-secret-for-jest",
-    };
+    } as Env;
     const form = new FormData();
     form.append("pin", "1234");
     const resp = await handleRequest(
@@ -261,11 +262,11 @@ describe("E2E: Operator login flow", () => {
   it("POST /operator/login with wrong PIN returns login page with error", async () => {
     const env = {
       BOLT_CARD_K1,
-      CARD_REPLAY: makeReplayNamespace(),
-      UID_CONFIG: { get: async () => null, put: async () => {} },
+      CARD_REPLAY: makeReplayNamespace() as unknown as DurableObjectNamespace,
+      UID_CONFIG: { get: async () => null, put: async () => {} } as unknown as KVNamespace,
       OPERATOR_PIN: "1234",
       OPERATOR_SESSION_SECRET: "test-session-secret-for-jest",
-    };
+    } as Env;
     const form = new FormData();
     form.append("pin", "9999");
     const resp = await handleRequest(

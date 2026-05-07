@@ -142,7 +142,7 @@ describe("resolveLightningAddress", () => {
     expect(result.pr).toBe("lnbc1000u1p3hkx7e");
     expect(result.routes).toEqual([]);
     expect(globalThis.fetch).toHaveBeenCalledTimes(2);
-    expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[1][0]).toContain("amount=50000");
+    expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[1]![0]!).toContain("amount=50000");
   });
 
   it("encodes special characters in user part", async () => {
@@ -151,7 +151,7 @@ describe("resolveLightningAddress", () => {
       .mockResolvedValueOnce({ ok: true, json: async () => ({ pr: "lnbc...", routes: [] }) });
 
     await resolveLightningAddress("user+tag@example.com", 1000);
-    expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0]).toContain("user%2Btag");
+    expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]![0]!).toContain("user%2Btag");
   });
 
 });

@@ -19,7 +19,7 @@ describe("menuHandler", () => {
       const env = { UID_CONFIG: { get: async () => JSON.stringify(menu) } } as unknown as Env;
       const result = await getMenu(env, "default");
       expect(result.items).toHaveLength(1);
-      expect(result.items[0].name).toBe("Coffee");
+      expect(result.items[0]!.name).toBe("Coffee");
     });
 
     it("returns empty items on KV error", async () => {

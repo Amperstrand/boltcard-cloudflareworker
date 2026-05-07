@@ -1,23 +1,26 @@
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
+import { createMockKV, type TestEnv } from "./testHelpers.js";
+import type { Env } from "../types/core.js";
 
-const baseEnv = {
+const baseEnv: TestEnv = {
   BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
   CARD_REPLAY: makeReplayNamespace(),
+  UID_CONFIG: createMockKV(),
 };
 
 const VALID_P = "4E2E289D945A66BB13377A728884E867";
 const VALID_C = "E19CCB1FED8892CE";
 const TEST_UID = "04996c6a926980";
 
-async function makeRequest(path: string, method: string = "GET", body: Record<string, unknown> | null = null, requestEnv: Record<string, unknown> = baseEnv) {
+async function makeRequest(path: string, method: string = "GET", body: Record<string, unknown> | null = null, requestEnv: Env = baseEnv) {
   const url = "https://test.local" + path;
   const options: RequestInit = { method };
   if (body) {
     options.body = JSON.stringify(body);
     options.headers = { "Content-Type": "application/json" };
   }
-  return handleRequest(new Request(url, options), requestEnv as any);
+  return handleRequest(new Request(url, options), requestEnv as Env);
 }
 
 function makeKvEnv(uidConfig: Record<string, string>) {
@@ -28,12 +31,9 @@ function makeKvEnv(uidConfig: Record<string, string>) {
   });
   return {
     ...baseEnv,
-    UID_CONFIG: {
-      get: async (key: string) => kvStore[key] ?? null,
-      put: async (key: string, value: string) => { kvStore[key] = value; },
-    },
+    UID_CONFIG: createMockKV(kvStore),
     CARD_REPLAY: replay,
-  };
+  } satisfies TestEnv as Env;
 }
 
 describe("GET /2fa", () => {

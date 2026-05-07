@@ -8,7 +8,7 @@ import { buildCardTestEnv } from "./testHelpers.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const TEST_UID = "04aabbccdd7788";
-const K1_HEX = BOLT_CARD_K1.split(",")[0];
+const K1_HEX = BOLT_CARD_K1.split(",")[0]!;
 
 function generateP(uidHex: string, counter: number, k1Hex: string) {
   const k1 = hexToBytes(k1Hex);
@@ -30,7 +30,7 @@ function computeC(uidHex: string, ctrHex: string, k2Hex: string) {
 }
 
 function makeEnv(replay = makeReplayNamespace({ [TEST_UID]: 1 })) {
-  return buildCardTestEnv({ operatorAuth: true, extraEnv: { CARD_REPLAY: replay as unknown as DurableObjectNamespace, BOLT_CARD_K1 } });
+  return buildCardTestEnv({ operatorAuth: true, extraEnv: { CARD_REPLAY: replay, BOLT_CARD_K1 } });
 }
 
 let keys: { k2: string };
@@ -53,7 +53,7 @@ describe("POST /api/identify-card", () => {
       env,
     );
     expect(res.status).toBe(400);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.reason).toMatch(/missing.*p.*c/i);
   });
 
@@ -69,7 +69,7 @@ describe("POST /api/identify-card", () => {
       env,
     );
     expect(res.status).toBe(400);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.reason).toMatch(/missing.*p.*c/i);
   });
 
@@ -84,7 +84,7 @@ describe("POST /api/identify-card", () => {
       env,
     );
     expect(res.status).toBe(400);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.reason).toMatch(/unable to decode/i);
   });
 
@@ -104,15 +104,15 @@ describe("POST /api/identify-card", () => {
       env,
     );
     expect(res.status).toBe(200);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.uid).toBe(TEST_UID);
     expect(json.counter).toBe(counter);
     expect(json.card_state).toBe("active");
-    expect(json.matched).toBeTruthy();
-    expect(json.matched.source).toBe("config");
-    expect(json.matched.cmac_validated).toBe(true);
-    expect(Array.isArray(json.all_attempts)).toBe(true);
-    expect(json.all_attempts.length).toBeGreaterThan(0);
+    expect(json.matched as boolean).toBeTruthy();
+    expect((json.matched as Record<string, unknown>).source).toBe("config");
+    expect((json.matched as Record<string, unknown>).cmac_validated).toBe(true);
+    expect(Array.isArray((json.all_attempts as unknown[]))).toBe(true);
+    expect((json.all_attempts as unknown[]).length).toBeGreaterThan(0);
   });
 
   it("returns matched null when CMAC does not validate", async () => {
@@ -127,10 +127,10 @@ describe("POST /api/identify-card", () => {
       env,
     );
     expect(res.status).toBe(200);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.uid).toBe(TEST_UID);
-    expect(json.matched).toBeNull();
-    expect(json.all_attempts.length).toBeGreaterThan(0);
+    expect(json.matched as boolean).toBeNull();
+    expect((json.all_attempts as unknown[]).length).toBeGreaterThan(0);
   });
 
   it("reports active_version from card state", async () => {
@@ -152,9 +152,9 @@ describe("POST /api/identify-card", () => {
       }),
       env,
     );
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.active_version).toBe(3);
-    expect(json.matched.version).toBe(3);
+    expect((json.matched as Record<string, unknown>).version).toBe(3);
   });
 
   it("returns unknown card_state when no DO state exists", async () => {
@@ -172,7 +172,7 @@ describe("POST /api/identify-card", () => {
       }),
       env,
     );
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.card_state).toBe("new");
   });
 
@@ -192,9 +192,9 @@ describe("POST /api/identify-card", () => {
       env,
     );
     expect(res.status).toBe(200);
-    const json = await res.json();
+    const json = await res.json() as Record<string, unknown>;
     expect(json.uid).toBe(TEST_UID);
-    expect(json.matched).toBeTruthy();
+    expect(json.matched as boolean).toBeTruthy();
   });
 
   it("requires operator auth", async () => {

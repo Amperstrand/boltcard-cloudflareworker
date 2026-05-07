@@ -152,7 +152,7 @@ describe("cardIndex", () => {
       });
       const result = await listIndexedCards(env);
       expect(result.cards).toHaveLength(1);
-      expect(result.cards[0].uid).toBe("ff000000000002");
+      expect(result.cards[0]!.uid).toBe("ff000000000002");
     });
 
     it("passes cursor through and returns next cursor when list incomplete", async () => {
@@ -318,7 +318,7 @@ describe("cardIndex", () => {
       expect(result.scanned).toBe(1);
       expect(result.repaired).toBe(0);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].uid).toBe("ff000000000001");
+      expect(result.errors[0]!.uid).toBe("ff000000000001");
     });
 
     it("paginates through KV entries", async () => {

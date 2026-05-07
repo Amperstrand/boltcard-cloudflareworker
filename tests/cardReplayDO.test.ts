@@ -6,8 +6,8 @@ interface DoDb {
   exec(sql: string): void;
   prepare(sql: string): {
     get(...params: unknown[]): Record<string, string | number | null> | undefined;
-    run(...params: unknown[]): { changes: number };
     all(...params: unknown[]): Record<string, string | number | null>[];
+    run(...params: unknown[]): { changes: number };
   };
   close(): void;
 }
@@ -15,6 +15,18 @@ interface DoDb {
 function createDoDb(): DoDb {
   const db = new Database(":memory:");
   db.pragma("journal_mode = WAL");
+
+  const rawPrepare = db.prepare.bind(db);
+  const wrappedDb: DoDb = {
+    pragma: (p) => db.pragma(p),
+    exec: (s) => db.exec(s),
+    prepare: (sql: string) => ({
+      get: (...params: unknown[]) => rawPrepare(sql).get(...params) as Record<string, string | number | null> | undefined,
+      all: (...params: unknown[]) => rawPrepare(sql).all(...params) as Record<string, string | number | null>[],
+      run: (...params: unknown[]) => rawPrepare(sql).run(...params) as { changes: number },
+    }),
+    close: () => db.close(),
+  };
 
   db.exec(`CREATE TABLE IF NOT EXISTS replay_state (
     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
@@ -63,7 +75,7 @@ function createDoDb(): DoDb {
     note TEXT
   )`);
 
-  return db;
+  return wrappedDb;
 }
 
 function nowSec() {
@@ -89,7 +101,7 @@ describe("CardReplayDO SQL logic", () => {
          WHERE replay_state.last_counter < excluded.last_counter
          RETURNING last_counter`
       ).get(5);
-      expect(result.last_counter).toBe(5);
+      expect(result!.last_counter).toBe(5);
     });
 
     it("accepts higher counter", () => {
@@ -100,7 +112,7 @@ describe("CardReplayDO SQL logic", () => {
          WHERE replay_state.last_counter < excluded.last_counter
          RETURNING last_counter`
       ).get(7);
-      expect(result.last_counter).toBe(7);
+      expect(result!.last_counter).toBe(7);
     });
 
     it("rejects same counter (no row returned)", () => {
@@ -128,7 +140,7 @@ describe("CardReplayDO SQL logic", () => {
     it("returns current last_counter on rejection", () => {
       db.prepare("INSERT INTO replay_state (singleton, last_counter) VALUES (1, ?)").run(10);
       const row = db.prepare("SELECT last_counter FROM replay_state WHERE singleton = 1").get();
-      expect(row.last_counter).toBe(10);
+      expect(row!.last_counter).toBe(10);
     });
   });
 
@@ -142,9 +154,9 @@ describe("CardReplayDO SQL logic", () => {
       ).run(5, "lnbc10n1test", 1000, null, null, now, now);
 
       const tap = db.prepare("SELECT * FROM taps WHERE counter = 5").get();
-      expect(tap.bolt11).toBe("lnbc10n1test");
-      expect(tap.amount_msat).toBe(1000);
-      expect(tap.status).toBe("pending");
+      expect(tap!.bolt11).toBe("lnbc10n1test");
+      expect(tap!.amount_msat).toBe(1000);
+      expect(tap!.status).toBe("pending");
     });
   });
 
@@ -169,8 +181,8 @@ describe("CardReplayDO SQL logic", () => {
            wipe_keys_fetched_at = NULL
          RETURNING *`
       ).get(now, now);
-      expect(row.state).toBe("keys_delivered");
-      expect(row.latest_issued_version).toBe(1);
+      expect(row!.state).toBe("keys_delivered");
+      expect(row!.latest_issued_version).toBe(1);
     });
 
     it("activate transitions to active", () => {
@@ -186,8 +198,8 @@ describe("CardReplayDO SQL logic", () => {
          RETURNING *`
       ).get(1, 1, now);
       const row = db.prepare("SELECT * FROM card_state WHERE singleton = 1").get();
-      expect(row.state).toBe("active");
-      expect(row.active_version).toBe(1);
+      expect(row!.state).toBe("active");
+      expect(row!.active_version).toBe(1);
     });
 
     it("terminate clears taps and counters", () => {
@@ -214,9 +226,9 @@ describe("CardReplayDO SQL logic", () => {
       db.exec("DELETE FROM replay_state WHERE singleton = 1");
 
       const state = db.prepare("SELECT * FROM card_state WHERE singleton = 1").get();
-      expect(state.state).toBe("terminated");
+      expect(state!.state).toBe("terminated");
       const taps = db.prepare("SELECT COUNT(*) as count FROM taps").get();
-      expect(taps.count).toBe(0);
+      expect(taps!.count).toBe(0);
       const counter = db.prepare("SELECT * FROM replay_state WHERE singleton = 1").get();
       expect(counter).toBeUndefined();
     });
@@ -232,7 +244,7 @@ describe("CardReplayDO SQL logic", () => {
         `UPDATE card_state SET state = 'wipe_requested', wipe_keys_fetched_at = ?
          WHERE singleton = 1 RETURNING *`
       ).get(now);
-      expect(row.state).toBe("wipe_requested");
+      expect(row!.state).toBe("wipe_requested");
     });
   });
 
@@ -251,8 +263,8 @@ describe("CardReplayDO SQL logic", () => {
       ).run("abcdef0123456789", "fakewallet", null, null, now);
 
       const row = db.prepare("SELECT * FROM card_config WHERE singleton = 1").get();
-      expect(row.K2).toBe("abcdef0123456789");
-      expect(row.payment_method).toBe("fakewallet");
+      expect(row!.K2).toBe("abcdef0123456789");
+      expect(row!.payment_method).toBe("fakewallet");
     });
 
     it("returns null when no config set", () => {
@@ -274,9 +286,9 @@ describe("CardReplayDO SQL logic", () => {
            updated_at = excluded.updated_at`
       ).run(null, "clnrest", extra, null, now);
 
-      const row = db.prepare("SELECT * FROM card_config WHERE singleton = 1").get();
-      const parsed = JSON.parse(row.config_json);
-      expect(parsed.clnrest.host).toBe("https://cln.example.com");
+      const row = db.prepare("SELECT * FROM card_config WHERE singleton = 1").get()!;
+      const parsed = JSON.parse(row.config_json as string);
+      expect(parsed.clnrest!.host).toBe("https://cln.example.com");
     });
   });
 
@@ -300,12 +312,12 @@ describe("CardReplayDO SQL logic", () => {
       ).run(null, -300, 700, now, "payment");
 
       const state = db.prepare("SELECT balance FROM card_state WHERE singleton = 1").get();
-      expect(state.balance).toBe(700);
+      expect(state!.balance).toBe(700);
 
       const txs = db.prepare("SELECT * FROM transactions ORDER BY id").all();
       expect(txs).toHaveLength(2);
-      expect(txs[0].amount).toBe(1000);
-      expect(txs[1].amount).toBe(-300);
+      expect(txs[0]!.amount).toBe(1000);
+      expect(txs[1]!.amount).toBe(-300);
     });
   });
 
@@ -338,11 +350,11 @@ describe("CardReplayDO SQL logic", () => {
          FROM taps`
       ).get();
 
-      expect(stats.totalTaps).toBe(3);
-      expect(stats.completedMsat).toBe(3000);
-      expect(stats.failedMsat).toBe(500);
-      expect(stats.completedTaps).toBe(2);
-      expect(stats.failedTaps).toBe(1);
+      expect(stats!.totalTaps).toBe(3);
+      expect(stats!.completedMsat).toBe(3000);
+      expect(stats!.failedMsat).toBe(500);
+      expect(stats!.completedTaps).toBe(2);
+      expect(stats!.failedTaps).toBe(1);
     });
   });
 
@@ -359,9 +371,9 @@ describe("CardReplayDO SQL logic", () => {
       ).run("completed", nowSec(), "lnbc1test", 1000, 2);
 
       const tap = db.prepare("SELECT * FROM taps WHERE counter = 2").get();
-      expect(tap.status).toBe("completed");
-      expect(tap.bolt11).toBe("lnbc1test");
-      expect(tap.amount_msat).toBe(1000);
+      expect(tap!.status).toBe("completed");
+      expect(tap!.bolt11).toBe("lnbc1test");
+      expect(tap!.amount_msat).toBe(1000);
     });
   });
 
@@ -377,7 +389,7 @@ describe("CardReplayDO SQL logic", () => {
       db.exec("DELETE FROM taps");
       db.exec("DELETE FROM replay_state WHERE singleton = 1");
 
-      expect(db.prepare("SELECT COUNT(*) as c FROM taps").get().c).toBe(0);
+      expect(db.prepare("SELECT COUNT(*) as c FROM taps").get()!.c).toBe(0);
       expect(db.prepare("SELECT * FROM replay_state WHERE singleton = 1").get()).toBeUndefined();
     });
   });
@@ -391,11 +403,11 @@ describe("CardReplayDO SQL logic", () => {
       ).run("public_issuer", "abc123", "test-key-0", now);
 
       const row = db.prepare("SELECT * FROM card_state WHERE singleton = 1").get();
-      expect(row.state).toBe("pending");
-      expect(row.key_provenance).toBe("public_issuer");
-      expect(row.key_fingerprint).toBe("abc123");
-      expect(row.key_label).toBe("test-key-0");
-      expect(row.first_seen_at).toBe(now);
+      expect(row!.state).toBe("pending");
+      expect(row!.key_provenance).toBe("public_issuer");
+      expect(row!.key_fingerprint).toBe("abc123");
+      expect(row!.key_label).toBe("test-key-0");
+      expect(row!.first_seen_at).toBe(now);
     });
 
     it("is idempotent when row already exists", () => {
@@ -406,14 +418,14 @@ describe("CardReplayDO SQL logic", () => {
       ).run(now);
 
       const existing = db.prepare("SELECT state FROM card_state WHERE singleton = 1").get();
-      expect(existing.state).toBe("pending");
+      expect(existing!.state).toBe("pending");
 
       const insertResult = db.prepare(
         `INSERT INTO card_state (singleton, state, balance, key_provenance, key_fingerprint, key_label, first_seen_at)
          VALUES (1, 'pending', 0, 'env_issuer', 'def', 'other', ?)
          ON CONFLICT(singleton) DO NOTHING`
       ).run(now);
-      expect(insertResult.changes).toBe(0);
+      expect(insertResult!.changes).toBe(0);
     });
   });
 
@@ -426,11 +438,11 @@ describe("CardReplayDO SQL logic", () => {
       ).run(now);
 
       const row = db.prepare("SELECT * FROM card_state WHERE singleton = 1").get();
-      expect(row.state).toBe("discovered");
-      expect(row.active_version).toBe(1);
-      expect(row.key_provenance).toBe("public_issuer");
-      expect(row.key_fingerprint).toBe("abc123");
-      expect(row.first_seen_at).toBe(now);
+      expect(row!.state).toBe("discovered");
+      expect(row!.active_version).toBe(1);
+      expect(row!.key_provenance).toBe("public_issuer");
+      expect(row!.key_fingerprint).toBe("abc123");
+      expect(row!.first_seen_at).toBe(now);
     });
 
     it("upgrades pending to discovered", () => {
@@ -451,10 +463,10 @@ describe("CardReplayDO SQL logic", () => {
       ).run("public_issuer", "abc", "test-key-0");
 
       const row = db.prepare("SELECT * FROM card_state WHERE singleton = 1").get();
-      expect(row.state).toBe("discovered");
-      expect(row.active_version).toBe(1);
-      expect(row.key_provenance).toBe("public_issuer");
-      expect(row.first_seen_at).toBe(now);
+      expect(row!.state).toBe("discovered");
+      expect(row!.active_version).toBe(1);
+      expect(row!.key_provenance).toBe("public_issuer");
+      expect(row!.first_seen_at).toBe(now);
     });
 
     it("preserves first_seen_at from pending when upgrading", () => {
@@ -469,7 +481,7 @@ describe("CardReplayDO SQL logic", () => {
       ).run();
 
       const row = db.prepare("SELECT first_seen_at FROM card_state WHERE singleton = 1").get();
-      expect(row.first_seen_at).toBe(pendingTime);
+      expect(row!.first_seen_at).toBe(pendingTime);
     });
 
     it("upgrades new state to discovered", () => {
@@ -490,9 +502,9 @@ describe("CardReplayDO SQL logic", () => {
       ).run("env_issuer", "def", "test");
 
       const row = db.prepare("SELECT state, active_version, key_provenance FROM card_state WHERE singleton = 1").get();
-      expect(row.state).toBe("discovered");
-      expect(row.active_version).toBe(1);
-      expect(row.key_provenance).toBe("env_issuer");
+      expect(row!.state).toBe("discovered");
+      expect(row!.active_version).toBe(1);
+      expect(row!.key_provenance).toBe("env_issuer");
     });
 
     it("upgrades legacy state to discovered", () => {
@@ -507,8 +519,8 @@ describe("CardReplayDO SQL logic", () => {
       ).run();
 
       const row = db.prepare("SELECT state, active_version FROM card_state WHERE singleton = 1").get();
-      expect(row.state).toBe("discovered");
-      expect(row.active_version).toBe(2);
+      expect(row!.state).toBe("discovered");
+      expect(row!.active_version).toBe(2);
     });
   });
 
@@ -534,9 +546,9 @@ describe("CardReplayDO SQL logic", () => {
       ).run(now, now);
 
       const row = db.prepare("SELECT * FROM card_state WHERE singleton = 1").get();
-      expect(row.state).toBe("keys_delivered");
-      expect(row.key_provenance).toBe("public_issuer");
-      expect(row.first_seen_at).toBe(now);
+      expect(row!.state).toBe("keys_delivered");
+      expect(row!.key_provenance).toBe("public_issuer");
+      expect(row!.first_seen_at).toBe(now);
     });
   });
 
@@ -549,8 +561,8 @@ describe("CardReplayDO SQL logic", () => {
       ).run("AABB", now);
 
       const row = db.prepare("SELECT * FROM card_config WHERE singleton = 1").get();
-      expect(row.K2).toBe("AABB");
-      expect(row.payment_method).toBe("fakewallet");
+      expect(row!.K2).toBe("AABB");
+      expect(row!.payment_method).toBe("fakewallet");
     });
 
     it("updates only K2 preserving existing payment_method and config_json", () => {
@@ -565,9 +577,9 @@ describe("CardReplayDO SQL logic", () => {
       ).run("NEW_K2", nowSec());
 
       const row = db.prepare("SELECT * FROM card_config WHERE singleton = 1").get();
-      expect(row.K2).toBe("NEW_K2");
-      expect(row.payment_method).toBe("lnurlpay");
-      expect(row.config_json).toBe('{"lightning_address":"test@example.com"}');
+      expect(row!.K2).toBe("NEW_K2");
+      expect(row!.payment_method).toBe("lnurlpay");
+      expect(row!.config_json).toBe('{"lightning_address":"test@example.com"}');
     });
   });
 
@@ -580,9 +592,9 @@ describe("CardReplayDO SQL logic", () => {
       ).run(5, "TestAgent", "https://example.com", now, now);
 
       const row = db.prepare("SELECT * FROM taps WHERE counter = 5").get();
-      expect(row.status).toBe("read");
-      expect(row.bolt11).toBeNull();
-      expect(row.user_agent).toBe("TestAgent");
+      expect(row!.status).toBe("read");
+      expect(row!.bolt11).toBeNull();
+      expect(row!.user_agent).toBe("TestAgent");
     });
 
     it("ignores duplicate counter on second insert", () => {
@@ -598,8 +610,8 @@ describe("CardReplayDO SQL logic", () => {
       ).run(now + 1, now + 1);
 
       const row = db.prepare("SELECT * FROM taps WHERE counter = 5").get();
-      expect(row.user_agent).toBeNull();
-      expect(row.updated_at).toBe(now);
+      expect(row!.user_agent).toBeNull();
+      expect(row!.updated_at).toBe(now);
     });
   });
 
@@ -618,7 +630,7 @@ describe("CardReplayDO SQL logic", () => {
 
       const taps = db.prepare("SELECT * FROM taps ORDER BY counter DESC LIMIT 50").all();
       const stateRows = db.prepare("SELECT * FROM card_state WHERE singleton = 1").all();
-      const cardState = stateRows[0];
+      const cardState = stateRows[0]!;
 
       const events: Array<{ counter: number | null; status: string; created_at: number }> = [];
       if (cardState.keys_delivered_at) {
@@ -629,15 +641,15 @@ describe("CardReplayDO SQL logic", () => {
       }
 
       const merged = [...taps, ...events].sort((a, b) => {
-        const timeDiff = (b.created_at || 0) - (a.created_at || 0);
+        const timeDiff = (b.created_at as number || 0) - (a.created_at as number || 0);
         if (timeDiff !== 0) return timeDiff;
-        return (b.counter || 0) - (a.counter || 0);
+        return ((b.counter as number) || 0) - ((a.counter as number) || 0);
       });
 
       expect(merged).toHaveLength(3);
-      expect(merged[0].status).toBe('completed');
-      expect(merged[1].status).toBe('activated');
-      expect(merged[2].status).toBe('provisioned');
+      expect(merged[0]!.status).toBe('completed');
+      expect(merged[1]!.status).toBe('activated');
+      expect(merged[2]!.status).toBe('provisioned');
     });
   });
 
@@ -648,18 +660,18 @@ describe("CardReplayDO SQL logic", () => {
          VALUES (1, 'AABB', 'lnurlpay', '{"lightning_address":"test@example.com","min_sendable":1000}', NULL, ?)`
       ).run(nowSec());
 
-      const row = db.prepare("SELECT * FROM card_config WHERE singleton = 1").get();
-      let config: Record<string, any> = { payment_method: row.payment_method };
+      const row = db.prepare("SELECT * FROM card_config WHERE singleton = 1").get()!;
+      let config: Record<string, string | number | null> = { payment_method: row.payment_method ?? null };
       if (row.K2) config.K2 = row.K2;
       if (row.config_json) {
-        const extra = JSON.parse(row.config_json);
+        const extra = JSON.parse(row.config_json as string);
         config = { ...config, ...extra };
       }
 
-      expect(config.payment_method).toBe("lnurlpay");
-      expect(config.K2).toBe("AABB");
-      expect(config.lightning_address).toBe("test@example.com");
-      expect(config.min_sendable).toBe(1000);
+      expect(config!.payment_method).toBe("lnurlpay");
+      expect(config!.K2).toBe("AABB");
+      expect(config!.lightning_address).toBe("test@example.com");
+      expect(config!.min_sendable).toBe(1000);
     });
 
     it("returns base fields when config_json is null", () => {
@@ -668,12 +680,12 @@ describe("CardReplayDO SQL logic", () => {
          VALUES (1, 'CCDD', 'fakewallet', NULL, NULL, ?)`
       ).run(nowSec());
 
-      const row = db.prepare("SELECT * FROM card_config WHERE singleton = 1").get();
-      const config: Record<string, any> = { payment_method: row.payment_method };
+      const row = db.prepare("SELECT * FROM card_config WHERE singleton = 1").get()!;
+      const config: Record<string, string | number | null> = { payment_method: row.payment_method ?? null };
       if (row.K2) config.K2 = row.K2;
 
-      expect(config.payment_method).toBe("fakewallet");
-      expect(config.K2).toBe("CCDD");
+      expect(config!.payment_method).toBe("fakewallet");
+      expect(config!.K2).toBe("CCDD");
       expect(Object.keys(config)).toHaveLength(2);
     });
   });
@@ -709,8 +721,8 @@ describe("CardReplayDO SQL logic", () => {
 
       const txs = db.prepare("SELECT * FROM transactions ORDER BY id DESC LIMIT 50").all();
       expect(txs).toHaveLength(2);
-      expect(txs[0].amount).toBe(-500);
-      expect(txs[1].amount).toBe(-1000);
+      expect(txs[0]!.amount).toBe(-500);
+      expect(txs[1]!.amount).toBe(-1000);
     });
   });
 
@@ -720,7 +732,7 @@ describe("CardReplayDO SQL logic", () => {
         `INSERT INTO card_state (singleton, state, balance) VALUES (1, 'active', 7500)`
       ).run();
       const rows = db.prepare("SELECT balance FROM card_state WHERE singleton = 1").all();
-      expect(rows[0].balance).toBe(7500);
+      expect(rows[0]!.balance).toBe(7500);
     });
 
     it("returns 0 when no card_state row", () => {
@@ -753,17 +765,17 @@ describe("CardReplayDO SQL logic", () => {
       db2.exec(`ALTER TABLE card_state ADD COLUMN first_seen_at INTEGER`);
 
       const row = db2.prepare("SELECT state, balance, key_provenance, first_seen_at FROM card_state WHERE singleton = 1").get();
-      expect(row.state).toBe("active");
-      expect(row.balance).toBe(1000);
-      expect(row.key_provenance).toBeNull();
-      expect(row.first_seen_at).toBeNull();
+      expect(row!.state).toBe("active");
+      expect(row!.balance).toBe(1000);
+      expect(row!.key_provenance).toBeNull();
+      expect(row!.first_seen_at).toBeNull();
 
       const now = nowSec();
       db2.prepare(`UPDATE card_state SET key_provenance = ?, first_seen_at = ? WHERE singleton = 1`).run("public_issuer", now);
 
       const row1b = db2.prepare("SELECT key_provenance, first_seen_at FROM card_state WHERE singleton = 1").get();
-      expect(row1b.key_provenance).toBe("public_issuer");
-      expect(row1b.first_seen_at).toBe(now);
+      expect(row1b!.key_provenance).toBe("public_issuer");
+      expect(row1b!.first_seen_at).toBe(now);
 
       db2.close();
     });

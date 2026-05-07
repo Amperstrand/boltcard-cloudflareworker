@@ -7,7 +7,7 @@ import type { Env } from "../types/core.js";
 const TEST_UID = "04aabbccdd7788";
 
 function makeEnv(replay: ReplayNamespace = makeReplayNamespace({ [TEST_UID]: 1 })): Env {
-  return buildCardTestEnv({ operatorAuth: true, extraEnv: { CARD_REPLAY: replay as unknown as DurableObjectNamespace } });
+  return buildCardTestEnv({ operatorAuth: true, extraEnv: { CARD_REPLAY: replay } });
 }
 
 async function creditCard(replay: ReplayNamespace, uid: string, amount: number, note: string | null): Promise<Response> {

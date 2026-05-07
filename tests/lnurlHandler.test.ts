@@ -258,7 +258,7 @@ describe("handleLnurlpPayment", () => {
     const env = buildEnv(10000);
     const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const origGet = (env.CARD_REPLAY as any).get.bind(env.CARD_REPLAY);
-    (env.CARD_REPLAY as ReplayNamespace).get = (id: string) => {
+    (env.CARD_REPLAY as unknown as { get: (id: string) => DurableObjectStub<undefined> }).get = (id: string) => {
       const obj = origGet(id);
       return {
         fetch: async (request: Request) => {
@@ -268,7 +268,7 @@ describe("handleLnurlpPayment", () => {
           }
           return obj.fetch(request);
         },
-      };
+      } as unknown as DurableObjectStub<undefined>;
     };
     const { pHex, cHex } = virtualTap(UID, 9, keys.k1, keys.k2);
     const res = await handleLnurlpPayment(new Request(callbackUrl(pHex, cHex, { amount: 500 })), env);

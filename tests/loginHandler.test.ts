@@ -5,11 +5,13 @@ import { getDeterministicKeys, deriveKeysFromHex } from "../keygenerator.js";
 import { handleTerminateAction, handleRequestWipeAction, handleTopUpAction, normalizeSubmittedUid } from "../handlers/loginActions.js";
 import aesjs from "aes-js";
 import type { Env } from "../types/core.js";
+import { createMockKV } from "./testHelpers.js";
 
 const env: Env = {
   BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
   ISSUER_KEY: "00000000000000000000000000000001",
   CARD_REPLAY: makeReplayNamespace() as unknown as DurableObjectNamespace,
+  UID_CONFIG: createMockKV(),
 };
 
 // Test vector: p/c that decrypts with K1=55da174c9608993dc27bb3f30a4a7314
@@ -17,20 +19,20 @@ const VALID_P = "4E2E289D945A66BB13377A728884E867";
 const VALID_C = "E19CCB1FED8892CE";
 const ACTION_UID = "04a39493cc8680";
 
-function makeEnv(replay = makeReplayNamespace()): Env & { __TEST_OPERATOR_SESSION: { shiftId: string } } {
+function makeEnv(replay = makeReplayNamespace()): Env & { __TEST_OPERATOR_SESSION: { shiftId: string; iat: number; exp: number } } {
   return {
     ...env,
     CARD_REPLAY: replay as unknown as DurableObjectNamespace,
-    __TEST_OPERATOR_SESSION: { shiftId: "test-shift" },
+    __TEST_OPERATOR_SESSION: { shiftId: "test-shift", iat: Date.now(), exp: Date.now() + 43200000 },
   };
 }
 
-function makeEnvWithoutIssuerKey(replay = makeReplayNamespace()): Env & { __TEST_OPERATOR_SESSION: { shiftId: string } } {
+function makeEnvWithoutIssuerKey(replay = makeReplayNamespace()): Env & { __TEST_OPERATOR_SESSION: { shiftId: string; iat: number; exp: number } } {
   const { ISSUER_KEY, ...envWithoutKey } = env;
   return {
     ...envWithoutKey,
     CARD_REPLAY: replay as unknown as DurableObjectNamespace,
-    __TEST_OPERATOR_SESSION: { shiftId: "test-shift" },
+    __TEST_OPERATOR_SESSION: { shiftId: "test-shift", iat: Date.now(), exp: Date.now() + 43200000 },
   };
 }
 
@@ -759,7 +761,7 @@ describe("POST /login (handleLoginVerify)", () => {
       replay.get = (id) => {
         const obj = origGet(id);
         return {
-          fetch: async (request) => {
+          fetch: async (request: Request) => {
             const url = new URL(request.url);
             if (url.pathname === "/balance") {
               balanceCallCount++;
@@ -767,7 +769,7 @@ describe("POST /login (handleLoginVerify)", () => {
             }
             return obj.fetch(request);
           },
-        };
+        } as unknown as DurableObjectStub<undefined>;
       };
 
       const warns: string[] = [];
@@ -815,17 +817,17 @@ describe("POST /login (handleLoginVerify)", () => {
       const replay = makeReplayNamespace();
       const origGet = replay.get.bind(replay);
       replay.get = (id) => {
-        const obj = origGet(id);
-        return {
-          fetch: async (request) => {
-            const url = new URL(request.url);
-            if (url.pathname === "/list-taps") {
-              throw new Error("tap list failed");
-            }
-            return obj.fetch(request);
-          },
-        };
-      };
+              const obj = origGet(id);
+              return {
+                fetch: async (request: Request) => {
+                  const url = new URL(request.url);
+                  if (url.pathname === "/list-taps") {
+                    throw new Error("tap list failed");
+                  }
+                  return obj.fetch(request);
+                },
+              } as unknown as DurableObjectStub<undefined>;
+            };
 
       const warns: string[] = [];
       const origWarn = console.warn;
@@ -847,17 +849,17 @@ describe("POST /login (handleLoginVerify)", () => {
       const replay = makeReplayNamespace();
       const origGet = replay.get.bind(replay);
       replay.get = (id) => {
-        const obj = origGet(id);
-        return {
-          fetch: async (request) => {
-            const url = new URL(request.url);
-            if (url.pathname === "/transactions") {
-              throw new Error("tx list failed");
-            }
-            return obj.fetch(request);
-          },
-        };
-      };
+              const obj = origGet(id);
+              return {
+                fetch: async (request: Request) => {
+                  const url = new URL(request.url);
+                  if (url.pathname === "/transactions") {
+                    throw new Error("tx list failed");
+                  }
+                  return obj.fetch(request);
+                },
+              } as unknown as DurableObjectStub<undefined>;
+            };
 
       const warns: string[] = [];
       const origWarn = console.warn;
@@ -887,17 +889,17 @@ describe("POST /login (handleLoginVerify)", () => {
       replay.__activate(ACTION_UID, 1);
       const origGet = replay.get.bind(replay);
       replay.get = (id) => {
-        const obj = origGet(id);
-        return {
-          fetch: async (request) => {
-            const url = new URL(request.url);
-            if (url.pathname === "/balance") {
-              throw new Error("balance fetch failed");
-            }
-            return obj.fetch(request);
-          },
-        };
-      };
+              const obj = origGet(id);
+              return {
+                fetch: async (request: Request) => {
+                  const url = new URL(request.url);
+                  if (url.pathname === "/balance") {
+                    throw new Error("balance fetch failed");
+                  }
+                  return obj.fetch(request);
+                },
+              } as unknown as DurableObjectStub<undefined>;
+            };
 
       const warns: string[] = [];
       const origWarn = console.warn;
@@ -946,17 +948,17 @@ describe("POST /login (handleLoginVerify)", () => {
       replay.__activate(ACTION_UID, 1);
       const origGet = replay.get.bind(replay);
       replay.get = (id) => {
-        const obj = origGet(id);
-        return {
-          fetch: async (request) => {
-            const url = new URL(request.url);
-            if (url.pathname === "/list-taps") {
-              throw new Error("tap list failed");
-            }
-            return obj.fetch(request);
-          },
-        };
-      };
+              const obj = origGet(id);
+              return {
+                fetch: async (request: Request) => {
+                  const url = new URL(request.url);
+                  if (url.pathname === "/list-taps") {
+                    throw new Error("tap list failed");
+                  }
+                  return obj.fetch(request);
+                },
+              } as unknown as DurableObjectStub<undefined>;
+            };
 
       const warns: string[] = [];
       const origWarn = console.warn;
@@ -979,17 +981,17 @@ describe("POST /login (handleLoginVerify)", () => {
       replay.__activate(ACTION_UID, 1);
       const origGet = replay.get.bind(replay);
       replay.get = (id) => {
-        const obj = origGet(id);
-        return {
-          fetch: async (request) => {
-            const url = new URL(request.url);
-            if (request.method === "POST" && url.pathname === "/credit") {
-              return Response.json({ ok: false, reason: "Credit limit exceeded" });
-            }
-            return obj.fetch(request);
-          },
-        };
-      };
+              const obj = origGet(id);
+              return {
+                fetch: async (request: Request) => {
+                  const url = new URL(request.url);
+                  if (request.method === "POST" && url.pathname === "/credit") {
+                    return Response.json({ ok: false, reason: "Credit limit exceeded" });
+                  }
+                  return obj.fetch(request);
+                },
+              } as unknown as DurableObjectStub<undefined>;
+            };
 
       const response = await makeRequest(
         "/login",
@@ -1007,17 +1009,17 @@ describe("POST /login (handleLoginVerify)", () => {
       replay.__activate(ACTION_UID, 1);
       const origGet = replay.get.bind(replay);
       replay.get = (id) => {
-        const obj = origGet(id);
-        return {
-          fetch: async (request) => {
-            const url = new URL(request.url);
-            if (request.method === "POST" && url.pathname === "/credit") {
-              throw new Error("credit DO failed");
-            }
-            return obj.fetch(request);
-          },
-        };
-      };
+              const obj = origGet(id);
+              return {
+                fetch: async (request: Request) => {
+                  const url = new URL(request.url);
+                  if (request.method === "POST" && url.pathname === "/credit") {
+                    throw new Error("credit DO failed");
+                  }
+                  return obj.fetch(request);
+                },
+              } as unknown as DurableObjectStub<undefined>;
+            };
 
       const errors: string[] = [];
       const origError = console.error;
@@ -1085,8 +1087,8 @@ describe("loginActions branch coverage", () => {
     replay.__activate(ACTION_UID, 1);
     const testEnv = makeEnv(replay);
     const origGet = testEnv.CARD_REPLAY.get.bind(testEnv.CARD_REPLAY);
-     (testEnv.CARD_REPLAY as unknown as Record<string, unknown>).get = (id: string) => {
-      const obj = origGet(id);
+      (testEnv.CARD_REPLAY as unknown as Record<string, unknown>).get = (id: string) => {
+       const obj = origGet(id as unknown as DurableObjectId);
       const origFetch = obj.fetch.bind(obj);
       return {
         fetch: async (request: Request) => {

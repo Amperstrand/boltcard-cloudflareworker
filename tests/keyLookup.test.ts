@@ -32,8 +32,8 @@ describe("keyLookup — getAllIssuerKeyCandidates", () => {
   test("includes env ISSUER_KEY first", () => {
     const env = { ISSUER_KEY: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" } as any;
     const candidates = getAllIssuerKeyCandidates(env);
-    expect(candidates[0].hex).toBe("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-    expect(candidates[0].label).toBe("current");
+    expect(candidates[0]!.hex).toBe("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    expect(candidates[0]!.label).toBe("current");
   });
 
   test("includes RECOVERY_ISSUER_KEYS from env", () => {

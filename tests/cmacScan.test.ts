@@ -63,8 +63,8 @@ describe("cmacScanVersions", () => {
     });
     expect(matchedVersion).toBe(4);
     expect(attempts).toHaveLength(6);
-    expect(attempts[0].version).toBe(0);
-    expect(attempts[5].version).toBe(5);
+    expect(attempts[0]!.version).toBe(0);
+    expect(attempts[5]!.version).toBe(5);
   });
 
   test("single version range works", async () => {

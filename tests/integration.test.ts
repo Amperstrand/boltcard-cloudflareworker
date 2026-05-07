@@ -9,6 +9,7 @@ import { createSession } from '../middleware/operatorAuth.js';
 import { makeReplayNamespace } from './replayNamespace.js';
 import type { ReplayNamespace } from './replayNamespace.js';
 import { TEST_OPERATOR_AUTH, buildCardTestEnv } from './testHelpers.js';
+import type { Env } from '../types/core.js';
 
 const handleRequest = _handleRequest;
 const defaultFetch = indexModule.fetch.bind(indexModule);
@@ -56,10 +57,10 @@ const mockEnv = {
   UID_CONFIG: {
     get: async (key: string) => LEGACY_UID_CONFIGS[key as keyof typeof LEGACY_UID_CONFIGS] ?? null,
     put: async () => {}
-  },
-  CARD_REPLAY: seedDoConfigs(makeReplayNamespace()),
+  } as unknown as KVNamespace,
+  CARD_REPLAY: seedDoConfigs(makeReplayNamespace()) as unknown as DurableObjectNamespace,
   ...TEST_OPERATOR_AUTH,
-};
+} as Env;
 
 const TEST_DATA = [
   {
@@ -93,12 +94,12 @@ const TEST_DATA = [
 describe('End-to-End Payment Flow Integration Tests', () => {
   beforeEach(() => {
     Object.assign(mockEnv, {});
-    mockEnv.CARD_REPLAY = seedDoConfigs(makeReplayNamespace());
+    mockEnv.CARD_REPLAY = seedDoConfigs(makeReplayNamespace()) as unknown as DurableObjectNamespace;
     mockEnv.BOLT_CARD_K1 = '55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d';
     mockEnv.UID_CONFIG = {
       get: async (key: string) => LEGACY_UID_CONFIGS[key as keyof typeof LEGACY_UID_CONFIGS] ?? null,
       put: async () => {}
-    };
+    } as unknown as KVNamespace;
   });
 
   describe('NFC Request Processing', () => {
@@ -113,19 +114,19 @@ describe('End-to-End Payment Flow Integration Tests', () => {
         expect(response.status).toBe(200);
         expect(response.headers.get('Content-Type')).toContain('application/json');
         
-        const responseData = await response.json();
+        const responseData = await response.json() as Record<string, unknown>;
         
         expect(responseData.tag).toBe('withdrawRequest');
         expect(responseData.callback).toBeDefined();
         expect(responseData.k1).toBeDefined();
-        expect(responseData.minWithdrawable).toBeGreaterThan(0);
-        expect(responseData.maxWithdrawable).toBeGreaterThanOrEqual(responseData.minWithdrawable);
+        expect(responseData.minWithdrawable as number).toBeGreaterThan(0);
+        expect(responseData.maxWithdrawable as number).toBeGreaterThanOrEqual(responseData.minWithdrawable as number);
         expect(responseData.defaultDescription).toContain('Boltcard payment');
         
         // The callback should be a path-based URL with the p parameter as the last path segment
         expect(responseData.callback).toContain('/boltcards/api/v1/lnurl/cb');
         expect(responseData.callback).not.toContain('?');
-        expect(responseData.callback).toContain('/' + testCase.url.split('?')[1].split('&')[0].split('=')[1]);
+        expect(responseData.callback).toContain('/' + testCase.url!.split('?')[1]!.split('&')[0]!.split('=')[1]!);
       });
     });
   });
@@ -144,7 +145,7 @@ describe('End-to-End Payment Flow Integration Tests', () => {
       expect(response.status).toBe(200);
       expect(response.headers.get('Content-Type')).toContain('application/json');
       
-      const responseData = await response.json();
+      const responseData = await response.json() as Record<string, unknown>;
       
       expect(responseData.PROTOCOL_NAME).toBe('NEW_BOLT_CARD_RESPONSE');
       expect(responseData.PROTOCOL_VERSION).toBe('1');
@@ -172,7 +173,7 @@ describe('End-to-End Payment Flow Integration Tests', () => {
       const response = await handleRequest(request, mockEnv);
       
       expect(response.status).toBe(400);
-      const responseData = await response.json();
+      const responseData = await response.json() as Record<string, unknown>;
       expect(responseData.reason).toBeDefined();
     });
 
@@ -201,7 +202,7 @@ describe('End-to-End Payment Flow Integration Tests', () => {
       const response = await handleRequest(request, mockEnv);
       
       expect(response.status).toBe(200);
-      const responseData = await response.json();
+      const responseData = await response.json() as Record<string, unknown>;
       expect(responseData.status).toBeDefined();
     });
 
@@ -209,7 +210,7 @@ describe('End-to-End Payment Flow Integration Tests', () => {
       const noKvEnv = { ...mockEnv } as Record<string, unknown>;
       delete noKvEnv.UID_CONFIG;
       const request = new Request('https://test.local/status');
-      const response = await handleRequest(request, noKvEnv);
+      const response = await handleRequest(request, noKvEnv as unknown as Env);
       expect(response.status).toBe(302);
       expect(response.headers.get('Location')).toContain('/login');
     });
@@ -224,9 +225,9 @@ describe('End-to-End Payment Flow Integration Tests', () => {
         },
       };
       const request = new Request('https://test.local/status');
-      const response = await handleRequest(request, brokenKvEnv);
+      const response = await handleRequest(request, brokenKvEnv as unknown as Env);
       expect(response.status).toBe(200);
-      const responseData = await response.json();
+      const responseData = await response.json() as Record<string, unknown>;
       expect(responseData.kv_status).toBe('not working');
     });
 
@@ -237,12 +238,12 @@ describe('End-to-End Payment Flow Integration Tests', () => {
           get: async () => { throw new Error('KV down'); },
           put: async () => { throw new Error('KV down'); },
           delete: async () => {},
-        },
+        } as unknown as KVNamespace,
       };
       const request = new Request('https://test.local/status');
-      const response = await handleRequest(request, errorKvEnv);
+      const response = await handleRequest(request, errorKvEnv as Env);
       expect(response.status).toBe(200);
-      const responseData = await response.json();
+      const responseData = await response.json() as Record<string, unknown>;
       expect(responseData.status).toBe('ERROR');
       expect(responseData.kv_status).toBe('error');
     });
@@ -256,14 +257,14 @@ describe('End-to-End Payment Flow Integration Tests', () => {
       const response = await handleRequest(request, mockEnv);
       
       expect(response.status).toBe(200);
-      const responseData = await response.json();
+      const responseData = await response.json() as Record<string, unknown>;
       
       // Verify standard LNURL-W withdraw response fields
       expect(responseData.tag).toBe('withdrawRequest');
       expect(responseData.callback).toBeDefined();
       expect(responseData.k1).toBeDefined();
-      expect(responseData.minWithdrawable).toBeGreaterThan(0);
-      expect(responseData.maxWithdrawable).toBeGreaterThanOrEqual(responseData.minWithdrawable);
+      expect(responseData.minWithdrawable as number).toBeGreaterThan(0);
+      expect(responseData.maxWithdrawable as number).toBeGreaterThanOrEqual(responseData.minWithdrawable as number);
       expect(responseData.defaultDescription).toBeDefined();
     });
   });
@@ -285,7 +286,7 @@ describe('End-to-End Payment Flow Integration Tests', () => {
       const request = new Request('https://test.local/?p=malformed&c=data');
       
       const response = await handleRequest(request, mockEnv);
-      const responseData = await response.json();
+      const responseData = await response.json() as Record<string, unknown>;
       
       expect(responseData.reason).toBeDefined();
       expect(responseData.reason).not.toMatch(/stack|trace|private|secret|key/i);
@@ -300,10 +301,10 @@ describe('Complete Payment Flow Integration', () => {
       const nfcResponse = await handleRequest(nfcRequest, mockEnv);
       
       expect(nfcResponse.status).toBe(200);
-      const lnurlResponse = await nfcResponse.json();
+      const lnurlResponse = await nfcResponse.json() as Record<string, unknown>;
       
       // Step 2: Extract callback URL and simulate LNURL payment
-      const callbackUrl = new URL(lnurlResponse.callback);
+      const callbackUrl = new URL(lnurlResponse.callback as string);
       expect(callbackUrl.pathname).toContain('/boltcards/api/v1/lnurl/cb');
       expect(callbackUrl.pathname).not.toBe('/boltcards/api/v1/lnurl/cb'); // Should have additional path segments
       
@@ -330,7 +331,7 @@ describe('Complete Payment Flow Integration', () => {
       const statusResponse = await handleRequest(statusRequest, mockEnv);
       
       expect(statusResponse.status).toBe(200);
-      const statusData = await statusResponse.json();
+      const statusData = await statusResponse.json() as Record<string, unknown>;
       expect(statusData.status).toBeDefined();
       
       expect(true).toBe(true);
@@ -344,8 +345,8 @@ describe('Rate Limiting', () => {
       RATE_LIMITS: {
         get: async () => '100',
         put: async () => {},
-      },
-    };
+      } as unknown as KVNamespace,
+    } as Env;
     const request = new Request('https://test.local/status', {
       headers: { 'CF-Connecting-IP': '1.2.3.4' },
     });
@@ -361,8 +362,8 @@ describe('Rate Limiting', () => {
       RATE_LIMITS: {
         get: async () => '0',
         put: async () => {},
-      },
-    };
+      } as unknown as KVNamespace,
+    } as Env;
     const request = new Request('https://test.local/status', {
       headers: { 'CF-Connecting-IP': '1.2.3.4' },
     });
@@ -374,7 +375,7 @@ describe('Rate Limiting', () => {
     const env: Record<string, unknown> = { ...mockEnv };
     delete env.RATE_LIMITS;
     const request = new Request('https://test.local/status');
-    const response = await defaultFetch(request, env as any, {} as ExecutionContext);
+    const response = await defaultFetch(request, env as unknown as Env, {} as ExecutionContext);
     expect(response.status).toBe(200);
   });
 });
@@ -437,8 +438,8 @@ describe('Unhandled Error', () => {
       RATE_LIMITS: {
         get: async () => { throw new Error('KV timeout'); },
         put: async () => {},
-      },
-    };
+      } as unknown as KVNamespace,
+    } as Env;
     const req = new Request('https://test.local/status', {
       headers: { 'CF-Connecting-IP': '1.2.3.4' },
     });

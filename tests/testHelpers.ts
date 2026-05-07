@@ -1,12 +1,139 @@
 import aesjs from "aes-js";
 import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
-import { makeReplayNamespace } from "./replayNamespace.js";
+import { makeReplayNamespace, type ReplayNamespace } from "./replayNamespace.js";
 import type { Env, CardConfig, SessionPayload } from "../types/core.js";
 
 const DEFAULT_BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const DEFAULT_ISSUER_KEY = "00000000000000000000000000000001";
 const DEFAULT_UID = "04a39493cc8680";
+
+export type TestEnv = Omit<Env, "CARD_REPLAY"> & {
+  CARD_REPLAY: ReplayNamespace;
+  UID_CONFIG: KVNamespace;
+  __kvStore?: Record<string, string>;
+};
+
+export class MockKVNamespace implements KVNamespace {
+  private store = new Map<string, string>();
+
+  constructor(initial?: Record<string, string>) {
+    if (initial) {
+      for (const [k, v] of Object.entries(initial)) {
+        this.store.set(k, v);
+      }
+    }
+  }
+
+  get(key: string, options?: Partial<KVNamespaceGetOptions<undefined>>): Promise<string | null>;
+  get(key: string, type: "text"): Promise<string | null>;
+  get<ExpectedValue = unknown>(key: string, type: "json"): Promise<ExpectedValue | null>;
+  get(key: string, type: "arrayBuffer"): Promise<ArrayBuffer | null>;
+  get(key: string, type: "stream"): Promise<ReadableStream | null>;
+  get(key: string, options?: KVNamespaceGetOptions<"text">): Promise<string | null>;
+  get<ExpectedValue = unknown>(key: string, options?: KVNamespaceGetOptions<"json">): Promise<ExpectedValue | null>;
+  get(key: string, options?: KVNamespaceGetOptions<"arrayBuffer">): Promise<ArrayBuffer | null>;
+  get(key: string, options?: KVNamespaceGetOptions<"stream">): Promise<ReadableStream | null>;
+  get(key: Array<string>, type: "text"): Promise<Map<string, string | null>>;
+  get<ExpectedValue = unknown>(key: Array<string>, type: "json"): Promise<Map<string, ExpectedValue | null>>;
+  get(key: Array<string>, options?: Partial<KVNamespaceGetOptions<undefined>>): Promise<Map<string, string | null>>;
+  get(key: Array<string>, options?: KVNamespaceGetOptions<"text">): Promise<Map<string, string | null>>;
+  get<ExpectedValue = unknown>(key: Array<string>, options?: KVNamespaceGetOptions<"json">): Promise<Map<string, ExpectedValue | null>>;
+  async get(key: string | Array<string>, typeOrOptions?: unknown): Promise<unknown> {
+    if (Array.isArray(key)) {
+      const result = new Map<string, unknown>();
+      for (const k of key) {
+        result.set(k, this.store.get(k) ?? null);
+      }
+      return result;
+    }
+    const val = this.store.get(key) ?? null;
+    if (val === null) return null;
+    const typeStr = typeof typeOrOptions === "string" ? typeOrOptions : (typeof typeOrOptions === "object" && typeOrOptions !== null && "type" in typeOrOptions ? (typeOrOptions as { type: string }).type : undefined);
+    if (typeStr === "json") {
+      return JSON.parse(val) as unknown;
+    }
+    if (typeStr === "arrayBuffer") {
+      return new TextEncoder().encode(val).buffer as ArrayBuffer;
+    }
+    if (typeStr === "stream") {
+      return new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(val));
+          controller.close();
+        },
+      });
+    }
+    return val;
+  }
+
+  async list<Metadata = unknown>(options?: KVNamespaceListOptions): Promise<KVNamespaceListResult<Metadata>> {
+    let keys = [...this.store.keys()];
+    if (options?.prefix) {
+      keys = keys.filter((k) => k.startsWith(options.prefix!));
+    }
+    if (options?.limit) {
+      keys = keys.slice(0, options.limit);
+    }
+    return {
+      list_complete: true,
+      keys: keys.map((name) => ({ name })),
+      cacheStatus: null,
+    };
+  }
+
+  async put(key: string, value: string | ArrayBuffer | ArrayBufferView | ReadableStream, _options?: KVNamespacePutOptions): Promise<void> {
+    if (typeof value === "string") {
+      this.store.set(key, value);
+    } else if (value instanceof ArrayBuffer) {
+      this.store.set(key, new TextDecoder().decode(value));
+    } else if (ArrayBuffer.isView(value)) {
+      this.store.set(key, new TextDecoder().decode(value));
+    } else {
+      const reader = value.getReader();
+      const chunks: Uint8Array[] = [];
+      for (;;) {
+        const { done, value: chunk } = await reader.read();
+        if (done) break;
+        chunks.push(chunk);
+      }
+      const total = chunks.reduce((sum, c) => sum + c.length, 0);
+      const combined = new Uint8Array(total);
+      let offset = 0;
+      for (const c of chunks) {
+        combined.set(c, offset);
+        offset += c.length;
+      }
+      this.store.set(key, new TextDecoder().decode(combined));
+    }
+  }
+
+  async getWithMetadata<Metadata = unknown>(key: string, options?: Partial<KVNamespaceGetOptions<undefined>>): Promise<KVNamespaceGetWithMetadataResult<string, Metadata>>;
+  async getWithMetadata<Metadata = unknown>(key: string, type: "text"): Promise<KVNamespaceGetWithMetadataResult<string, Metadata>>;
+  async getWithMetadata<ExpectedValue = unknown, Metadata = unknown>(key: string, type: "json"): Promise<KVNamespaceGetWithMetadataResult<ExpectedValue, Metadata>>;
+  async getWithMetadata<Metadata = unknown>(key: string, type: "arrayBuffer"): Promise<KVNamespaceGetWithMetadataResult<ArrayBuffer, Metadata>>;
+  async getWithMetadata<Metadata = unknown>(key: string, type: "stream"): Promise<KVNamespaceGetWithMetadataResult<ReadableStream, Metadata>>;
+  async getWithMetadata<Metadata = unknown>(key: string, options: KVNamespaceGetOptions<"text">): Promise<KVNamespaceGetWithMetadataResult<string, Metadata>>;
+  async getWithMetadata<ExpectedValue = unknown, Metadata = unknown>(key: string, options: KVNamespaceGetOptions<"json">): Promise<KVNamespaceGetWithMetadataResult<ExpectedValue, Metadata>>;
+  async getWithMetadata<Metadata = unknown>(key: string, options: KVNamespaceGetOptions<"arrayBuffer">): Promise<KVNamespaceGetWithMetadataResult<ArrayBuffer, Metadata>>;
+  async getWithMetadata<Metadata = unknown>(key: string, options: KVNamespaceGetOptions<"stream">): Promise<KVNamespaceGetWithMetadataResult<ReadableStream, Metadata>>;
+  async getWithMetadata<Metadata = unknown>(key: Array<string>, type: "text"): Promise<Map<string, KVNamespaceGetWithMetadataResult<string, Metadata>>>;
+  async getWithMetadata<ExpectedValue = unknown, Metadata = unknown>(key: Array<string>, type: "json"): Promise<Map<string, KVNamespaceGetWithMetadataResult<ExpectedValue, Metadata>>>;
+  async getWithMetadata<Metadata = unknown>(key: Array<string>, options?: Partial<KVNamespaceGetOptions<undefined>>): Promise<Map<string, KVNamespaceGetWithMetadataResult<string, Metadata>>>;
+  async getWithMetadata<Metadata = unknown>(key: Array<string>, options?: KVNamespaceGetOptions<"text">): Promise<Map<string, KVNamespaceGetWithMetadataResult<string, Metadata>>>;
+  async getWithMetadata<ExpectedValue = unknown, Metadata = unknown>(key: Array<string>, options?: KVNamespaceGetOptions<"json">): Promise<Map<string, KVNamespaceGetWithMetadataResult<ExpectedValue, Metadata>>>;
+  async getWithMetadata(_key: string | Array<string>, _typeOrOptions?: unknown): Promise<unknown> {
+    return { value: null, metadata: null, cacheStatus: null };
+  }
+
+  async delete(key: string): Promise<void> {
+    this.store.delete(key);
+  }
+}
+
+export function createMockKV(initial?: Record<string, string>): KVNamespace {
+  return new MockKVNamespace(initial) as unknown as KVNamespace;
+}
 
 export const TEST_OPERATOR_AUTH: {
   OPERATOR_PIN: string;
@@ -60,10 +187,10 @@ interface BuildCardTestEnvOptions {
   operatorAuth?: boolean;
   exposeKvStore?: boolean;
   noIssuerKey?: boolean;
-  extraEnv?: Partial<Env>;
+  extraEnv?: Partial<TestEnv>;
 }
 
-export function buildCardTestEnv(options: BuildCardTestEnvOptions = {}): Env & { __kvStore?: Record<string, string> } {
+export function buildCardTestEnv(options: BuildCardTestEnvOptions = {}): TestEnv {
   const {
     uid = DEFAULT_UID,
     issuerKey = DEFAULT_ISSUER_KEY,
@@ -116,23 +243,15 @@ export function buildCardTestEnv(options: BuildCardTestEnvOptions = {}): Env & {
   const kvStore: Record<string, string> = {};
   if (kvData) kvStore[uid] = kvData;
 
-  const env: Env & { __kvStore?: Record<string, string> } = {} as Env;
+  const env: TestEnv = {
+    UID_CONFIG: new MockKVNamespace(kvStore) as unknown as KVNamespace,
+    CARD_REPLAY: replay,
+    BOLT_CARD_K1: keys ? keys.k1 : DEFAULT_BOLT_CARD_K1,
+  } as TestEnv;
 
   if (!noIssuerKey && issuerKey) {
     env.ISSUER_KEY = issuerKey;
   }
-  if (keys) {
-    env.BOLT_CARD_K1 = keys.k1;
-  } else {
-    env.BOLT_CARD_K1 = DEFAULT_BOLT_CARD_K1;
-  }
-  env.CARD_REPLAY = replay as unknown as DurableObjectNamespace;
-  env.UID_CONFIG = {
-    get: async (key: string) => kvStore[key] ?? null,
-    put: async (key: string, val: string) => {
-      kvStore[key] = val;
-    },
-  } as KVNamespace;
   if (operatorAuth) {
     Object.assign(env, TEST_OPERATOR_AUTH);
   }

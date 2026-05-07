@@ -18,13 +18,13 @@ describe('getBoltCardK1', () => {
       const keys = getBoltCardK1(asEnv({}));
       expect(keys).toBeInstanceOf(Array);
       expect(keys).toHaveLength(2);
-      expect(keys[0]).toBeInstanceOf(Uint8Array);
-      expect(keys[1]).toBeInstanceOf(Uint8Array);
+      expect(keys[0]!).toBeInstanceOf(Uint8Array);
+      expect(keys[1]!).toBeInstanceOf(Uint8Array);
       // Verify they match the hardcoded dev keys
       const devKey0 = new Uint8Array([85, 218, 23, 76, 150, 8, 153, 61, 194, 123, 179, 243, 10, 74, 115, 20]);
       const devKey1 = new Uint8Array([12, 59, 37, 217, 43, 56, 174, 68, 50, 41, 221, 89, 173, 52, 184, 93]);
-      expect(keys[0]).toEqual(devKey0);
-      expect(keys[1]).toEqual(devKey1);
+      expect(keys[0]!).toEqual(devKey0);
+      expect(keys[1]!).toEqual(devKey1);
     });
 
     it('returns dev fallback keys when WORKER_ENV is not production', () => {
@@ -32,8 +32,8 @@ describe('getBoltCardK1', () => {
       expect(keys).toHaveLength(2);
       const devKey0 = new Uint8Array([85, 218, 23, 76, 150, 8, 153, 61, 194, 123, 179, 243, 10, 74, 115, 20]);
       const devKey1 = new Uint8Array([12, 59, 37, 217, 43, 56, 174, 68, 50, 41, 221, 89, 173, 52, 184, 93]);
-      expect(keys[0]).toEqual(devKey0);
-      expect(keys[1]).toEqual(devKey1);
+      expect(keys[0]!).toEqual(devKey0);
+      expect(keys[1]!).toEqual(devKey1);
     });
 
     it('returns dev fallback keys when ENVIRONMENT is not production', () => {
@@ -41,8 +41,8 @@ describe('getBoltCardK1', () => {
       expect(keys).toHaveLength(2);
       const devKey0 = new Uint8Array([85, 218, 23, 76, 150, 8, 153, 61, 194, 123, 179, 243, 10, 74, 115, 20]);
       const devKey1 = new Uint8Array([12, 59, 37, 217, 43, 56, 174, 68, 50, 41, 221, 89, 173, 52, 184, 93]);
-      expect(keys[0]).toEqual(devKey0);
-      expect(keys[1]).toEqual(devKey1);
+      expect(keys[0]!).toEqual(devKey0);
+      expect(keys[1]!).toEqual(devKey1);
     });
 
     it('returns dev fallback keys when both are set to non-production', () => {
@@ -50,8 +50,8 @@ describe('getBoltCardK1', () => {
       expect(keys).toHaveLength(2);
       const devKey0 = new Uint8Array([85, 218, 23, 76, 150, 8, 153, 61, 194, 123, 179, 243, 10, 74, 115, 20]);
       const devKey1 = new Uint8Array([12, 59, 37, 217, 43, 56, 174, 68, 50, 41, 221, 89, 173, 52, 184, 93]);
-      expect(keys[0]).toEqual(devKey0);
-      expect(keys[1]).toEqual(devKey1);
+      expect(keys[0]!).toEqual(devKey0);
+      expect(keys[1]!).toEqual(devKey1);
     });
   });
 
@@ -95,11 +95,11 @@ describe('getBoltCardK1', () => {
         BOLT_CARD_K1_1: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
       }));
       expect(keys).toHaveLength(2);
-      expect(keys[0]).toBeInstanceOf(Uint8Array);
-      expect(keys[1]).toBeInstanceOf(Uint8Array);
+      expect(keys[0]!).toBeInstanceOf(Uint8Array);
+      expect(keys[1]!).toBeInstanceOf(Uint8Array);
       // Verify they're not empty arrays
-      expect(keys[0].length).toBeGreaterThan(0);
-      expect(keys[1].length).toBeGreaterThan(0);
+      expect(keys[0]!!.length).toBeGreaterThan(0);
+      expect(keys[1]!!.length).toBeGreaterThan(0);
     });
 
     it('returns keys when BOLT_CARD_K1_0/1 set with WORKER_ENV production', () => {
@@ -109,8 +109,8 @@ describe('getBoltCardK1', () => {
         BOLT_CARD_K1_1: '11111111111111111111111111111111',
       }));
       expect(keys).toHaveLength(2);
-      expect(Array.from(keys[0])).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-      expect(Array.from(keys[1])).toEqual([17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17]);
+      expect(Array.from(keys[0]! as Iterable<number>)).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+      expect(Array.from(keys[1]! as Iterable<number>)).toEqual([17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17]);
     });
   });
 
@@ -121,8 +121,8 @@ describe('getBoltCardK1', () => {
         BOLT_CARD_K1: '11111111111111111111111111111111,22222222222222222222222222222222',
       }));
       expect(keys).toHaveLength(2);
-      expect(Array.from(keys[0])).toEqual([17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17]);
-      expect(Array.from(keys[1])).toEqual([34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34]);
+      expect(Array.from(keys[0]! as Iterable<number>)).toEqual([17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17]);
+      expect(Array.from(keys[1]! as Iterable<number>)).toEqual([34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34, 34]);
     });
 
     it('returns keys when BOLT_CARD_K1 set with ENVIRONMENT production', () => {
@@ -131,10 +131,10 @@ describe('getBoltCardK1', () => {
         BOLT_CARD_K1: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
       }));
       expect(keys).toHaveLength(2);
-      expect(keys[0]).toBeInstanceOf(Uint8Array);
-      expect(keys[1]).toBeInstanceOf(Uint8Array);
-      expect(keys[0].length).toBeGreaterThan(0);
-      expect(keys[1].length).toBeGreaterThan(0);
+      expect(keys[0]!).toBeInstanceOf(Uint8Array);
+      expect(keys[1]!).toBeInstanceOf(Uint8Array);
+      expect(keys[0]!!.length).toBeGreaterThan(0);
+      expect(keys[1]!!.length).toBeGreaterThan(0);
     });
   });
 
@@ -145,10 +145,10 @@ describe('getBoltCardK1', () => {
         ISSUER_KEY: '00000000000000000000000000000001', // Dev key
       }));
       expect(keys).toHaveLength(1);
-      expect(keys[0]).toBeInstanceOf(Uint8Array);
+      expect(keys[0]!).toBeInstanceOf(Uint8Array);
       // Code computes computeAesCmac(hexToBytes("2d003f77"), issuerKeyBytes) - a CMAC, not raw bytes
       // Just verify length is 16 bytes for a valid CMAC
-      expect(keys[0].length).toBe(16);
+      expect(keys[0]!!.length).toBe(16);
     });
 
     it('returns ISSUER_KEY keys when ISSUER_KEY set and WORKER_ENV production', () => {
@@ -158,8 +158,8 @@ describe('getBoltCardK1', () => {
         ISSUER_KEY: '00000000000000000000000000000000',
       }));
       expect(keys).toHaveLength(1);
-      expect(keys[0]).toBeInstanceOf(Uint8Array);
-      expect(keys[0]).toEqual(new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
+      expect(keys[0]!).toBeInstanceOf(Uint8Array);
+      expect(keys[0]!).toEqual(new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
     });
   });
 
@@ -207,7 +207,7 @@ describe('getUidConfig', () => {
 
   it('returns DO config when available with K2', async () => {
     const doStub = makeReplayNamespace({}, { [UID]: 1 });
-    const doObj = doStub.get(UID);
+    const doObj = doStub.get(UID as unknown as DurableObjectId);
     await doObj.fetch(new Request('https://internal/set-config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -222,7 +222,7 @@ describe('getUidConfig', () => {
 
   it('augments DO config without K2 with deterministic K2', async () => {
     const doStub = makeReplayNamespace({}, { [UID]: 1 });
-    const doObj = doStub.get(UID);
+    const doObj = doStub.get(UID as unknown as DurableObjectId);
     await doObj.fetch(new Request('https://internal/set-config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

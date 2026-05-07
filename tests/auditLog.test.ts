@@ -34,7 +34,7 @@ describe("auditLog", () => {
 
       const keys = Object.keys(env.__store).filter(k => k.startsWith("audit_log:"));
       expect(keys).toHaveLength(1);
-      const entry = JSON.parse(env.__store[keys[0]!].value);
+      const entry = JSON.parse(env.__store[keys[0]!]!.value);
       expect(entry.action).toBe("topup");
       expect(entry.uid).toBe("ff000000000001");
       expect(entry.operator).toBe("shift-123");
@@ -46,7 +46,7 @@ describe("auditLog", () => {
       const env = makeKvEnv();
       await recordAuditEvent(env, { action: "refund", uidHex: "ff000000000002" });
       const key = Object.keys(env.__store).find(k => k.startsWith("audit_log:"));
-      expect(env.__store[key!].opts!.expirationTtl).toBe(90 * 24 * 60 * 60);
+      expect(env.__store[key!]!.opts!.expirationTtl).toBe(90 * 24 * 60 * 60);
     });
 
     it("silently fails when UID_CONFIG is missing", async () => {
@@ -89,9 +89,9 @@ describe("auditLog", () => {
 
       const result = await _listAuditEvents(env);
       expect(result.events).toHaveLength(3);
-      expect(result.events[0].timestamp).toBe(2000);
-      expect(result.events[1].timestamp).toBe(1500);
-      expect(result.events[2].timestamp).toBe(1000);
+      expect(result.events[0]!.timestamp).toBe(2000);
+      expect(result.events[1]!.timestamp).toBe(1500);
+      expect(result.events[2]!.timestamp).toBe(1000);
     });
 
     it("returns empty when no events", async () => {
@@ -118,7 +118,7 @@ describe("auditLog", () => {
 
       const result = await _listAuditEvents(env);
       expect(result.events).toHaveLength(1);
-      expect(result.events[0].action).toBe("topup");
+      expect(result.events[0]!.action).toBe("topup");
     });
 
     it("returns empty when UID_CONFIG is missing", async () => {

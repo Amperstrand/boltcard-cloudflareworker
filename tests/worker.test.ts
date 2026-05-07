@@ -39,8 +39,8 @@ const LEGACY_UID_CONFIGS: Record<string, string> = {
 };
 
 const DO_CARD_CONFIGS: Record<string, Record<string, unknown>> = {
-  "04996c6a926980": JSON.parse(LEGACY_UID_CONFIGS["04996c6a926980"]),
-  "044561fa967380": JSON.parse(LEGACY_UID_CONFIGS["044561fa967380"]),
+  "04996c6a926980": JSON.parse(LEGACY_UID_CONFIGS["04996c6a926980"]!),
+  "044561fa967380": JSON.parse(LEGACY_UID_CONFIGS["044561fa967380"]!),
 };
 
 const seedDoConfigs = (replay: ReturnType<typeof makeReplayNamespace>, configs: Record<string, unknown> = DO_CARD_CONFIGS) => {

@@ -103,7 +103,7 @@ describe("Identity Verify API", () => {
 
   test("returns verified for valid card", async () => {
     const env = makeEnv({ payment_method: "fakewallet", K2: keys.k2 } as Record<string, unknown>);
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
     const resp = await makeRequest(`/api/verify-identity?p=${pHex}&c=${cHex}`, env);
@@ -125,7 +125,7 @@ describe("Identity Verify API", () => {
 
   test("saves a selected emoji avatar for a verified card", async () => {
     const env = makeEnv({ payment_method: "fakewallet", K2: keys.k2 } as Record<string, unknown>);
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
     const response = await handleRequest(new Request("https://test.local/api/identity/profile", {
@@ -146,7 +146,7 @@ describe("Identity Verify API", () => {
 
   test("rejects unsupported emoji selection", async () => {
     const env = makeEnv({ payment_method: "fakewallet", K2: keys.k2 } as Record<string, unknown>);
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
     const response = await handleRequest(new Request("https://test.local/api/identity/profile", {
@@ -162,7 +162,7 @@ describe("Identity Verify API", () => {
 
   test("returns unverified for unknown card", async () => {
     const env = makeEnv(null);
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
     const resp = await makeRequest(`/api/verify-identity?p=${pHex}&c=${cHex}`, env);

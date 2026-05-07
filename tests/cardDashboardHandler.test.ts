@@ -266,8 +266,8 @@ describe("handleCardInfo", () => {
   describe("graceful degradation", () => {
     function interceptDo(env: Env, uid: string, pathToBlock: string) {
       const originalGet = (env.CARD_REPLAY as any).get.bind(env.CARD_REPLAY);
-      (env.CARD_REPLAY as any).get = (id: string) => {
-        const stub = originalGet(id);
+     (env.CARD_REPLAY as any).get = (id: string) => {
+       const stub = originalGet(id as unknown as DurableObjectId);
         const origFetch = stub.fetch.bind(stub);
         return {
           fetch: async (req: Request) => {
@@ -438,7 +438,7 @@ describe("handleCardLock", () => {
      const env = buildCardTestEnv({ uid: UID, issuerKey: ISSUER_KEY, paymentMethod: "fakewallet" });
     const originalGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
     (env.CARD_REPLAY as any).get = (id: string) => {
-      const stub = originalGet(id);
+       const stub = originalGet(id as unknown as DurableObjectId);
       const origFetch = stub.fetch.bind(stub);
       return {
         fetch: async (req: Request) => {
@@ -555,7 +555,7 @@ describe("handleCardReactivate", () => {
     setCardState(env, UID, { state: "terminated", latest_issued_version: 1 });
      const originalGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
     (env.CARD_REPLAY as any).get = (id: string) => {
-      const stub = originalGet(id);
+       const stub = originalGet(id as unknown as DurableObjectId);
       const origFetch = stub.fetch.bind(stub);
       return {
         fetch: async (req: Request) => {

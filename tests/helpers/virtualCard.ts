@@ -1,7 +1,7 @@
 import { handleRequest } from "../../index.js";
 import { getDeterministicKeys } from "../../keygenerator.js";
 import { makeReplayNamespace, type ReplayNamespace } from "../replayNamespace.js";
-import { virtualTap, TEST_OPERATOR_AUTH } from "../testHelpers.js";
+import { virtualTap, TEST_OPERATOR_AUTH, MockKVNamespace, type TestEnv } from "../testHelpers.js";
 import type { Env, CardConfig, Transaction } from "../../types/core.js";
 
 const DEFAULT_BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
@@ -32,7 +32,7 @@ interface ProvisionResult {
   version: number;
 }
 
-type TestEnv = Env & { CARD_REPLAY: ReplayNamespace };
+type VirtualCardTestEnv = Omit<Env, "CARD_REPLAY"> & { CARD_REPLAY: ReplayNamespace };
 
 export class VirtualCard {
   uid: string;
@@ -41,7 +41,7 @@ export class VirtualCard {
   version: number;
   issuerKey: string;
   k1Hex: string;
-  env: TestEnv;
+  env: VirtualCardTestEnv;
 
   private constructor(options: VirtualCardOptions) {
     this.uid = options.uid || `04${randomHex(6)}`;
@@ -49,8 +49,8 @@ export class VirtualCard {
     this.version = 0;
     this.issuerKey = options.issuerKey || DEFAULT_ISSUER_KEY;
     this.k1Hex = options.boltCardK1
-      ? options.boltCardK1.split(",")[0]
-      : DEFAULT_BOLT_CARD_K1.split(",")[0];
+      ? options.boltCardK1.split(",")[0]!
+      : DEFAULT_BOLT_CARD_K1.split(",")[0]!;
 
     const replay = makeReplayNamespace();
     const kvStore: Record<string, string> = {};
@@ -58,14 +58,9 @@ export class VirtualCard {
       BOLT_CARD_K1: options.boltCardK1 || DEFAULT_BOLT_CARD_K1,
       ISSUER_KEY: this.issuerKey,
       CARD_REPLAY: replay,
-      UID_CONFIG: {
-        get: async (key: string) => kvStore[key] ?? null,
-        put: async (key: string, val: string) => {
-          kvStore[key] = val;
-        },
-      } as KVNamespace,
+      UID_CONFIG: new MockKVNamespace(kvStore) as unknown as KVNamespace,
       ...TEST_OPERATOR_AUTH,
-    } as TestEnv;
+    } as VirtualCardTestEnv;
   }
 
   static async createProvisioned(options: VirtualCardOptions = {}): Promise<VirtualCard> {

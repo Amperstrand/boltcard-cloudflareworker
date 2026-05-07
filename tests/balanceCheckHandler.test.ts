@@ -9,7 +9,7 @@ import type { Env } from "../types/core.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const TEST_UID = "04aabbccdd7788";
-const K1_HEX = BOLT_CARD_K1.split(",")[0];
+const K1_HEX = BOLT_CARD_K1.split(",")[0]!;
 
 function generateP(uidHex: string, counter: number, k1Hex: string) {
   const k1 = hexToBytes(k1Hex);
@@ -31,7 +31,7 @@ function computeC(uidHex: string, ctrHex: string, k2Hex: string) {
 }
 
 function makeEnv(replay: ReturnType<typeof makeReplayNamespace> = makeReplayNamespace({ [TEST_UID]: 1 })) {
-  return buildCardTestEnv({ operatorAuth: true, extraEnv: { CARD_REPLAY: replay as unknown as DurableObjectNamespace, BOLT_CARD_K1 } });
+  return buildCardTestEnv({ operatorAuth: true, extraEnv: { CARD_REPLAY: replay, BOLT_CARD_K1 } });
 }
 
 async function provisionCard(env: ReturnType<typeof buildCardTestEnv>, replay: ReturnType<typeof makeReplayNamespace>, balance = 0) {

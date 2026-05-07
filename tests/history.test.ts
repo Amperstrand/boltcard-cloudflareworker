@@ -17,25 +17,25 @@ describe("_mergeHistory", () => {
   it("maps positive amount transactions to topup status", () => {
     const result = _mergeHistory([], [{ amount: 1000, created_at: 100, balance_after: 1000 }] as Transaction[]);
     expect(result).toHaveLength(1);
-    expect(result[0].status).toBe("topup");
-    expect(result[0].amount_msat).toBe(1000);
+    expect(result[0]!.status).toBe("topup");
+    expect(result[0]!.amount_msat).toBe(1000);
   });
 
   it("maps negative amount transactions to payment status", () => {
     const result = _mergeHistory([], [{ amount: -500, created_at: 200, balance_after: 500 }] as Transaction[]);
     expect(result).toHaveLength(1);
-    expect(result[0].status).toBe("payment");
-    expect(result[0].amount_msat).toBe(500);
+    expect(result[0]!.status).toBe("payment");
+    expect(result[0]!.amount_msat).toBe(500);
   });
 
   it("preserves note when present", () => {
     const result = _mergeHistory([], [{ amount: 100, created_at: 100, balance_after: 100, note: "Manual top-up" }] as Transaction[]);
-    expect(result[0].note).toBe("Manual top-up");
+    expect(result[0]!.note).toBe("Manual top-up");
   });
 
   it("sets note to null when absent", () => {
     const result = _mergeHistory([], [{ amount: 100, created_at: 100, balance_after: 100 }] as Transaction[]);
-    expect(result[0].note).toBeNull();
+    expect(result[0]!.note).toBeNull();
   });
 
   it("sorts by created_at descending", () => {
@@ -47,9 +47,9 @@ describe("_mergeHistory", () => {
       { amount: 100, created_at: 200, balance_after: 100 },
     ] as Transaction[];
     const result = _mergeHistory(taps, txs);
-    expect(result[0].created_at).toBe(300);
-    expect(result[1].created_at).toBe(200);
-    expect(result[2].created_at).toBe(100);
+    expect(result[0]!.created_at).toBe(300);
+    expect(result[1]!.created_at).toBe(200);
+    expect(result[2]!.created_at).toBe(100);
   });
 
   it("sorts by counter descending when created_at is equal", () => {
@@ -58,22 +58,22 @@ describe("_mergeHistory", () => {
       { counter: 10, created_at: 100 },
     ] as TapEntry[];
     const result = _mergeHistory(taps, []);
-    expect(result[0].counter).toBe(10);
-    expect(result[1].counter).toBe(5);
+    expect(result[0]!.counter).toBe(10);
+    expect(result[1]!.counter).toBe(5);
   });
 
   it("handles entries with missing created_at (sorts as 0)", () => {
     const taps = [{ counter: 1 }] as TapEntry[];
     const txs = [{ amount: 50, created_at: 50, balance_after: 50 }] as Transaction[];
     const result = _mergeHistory(taps, txs);
-    expect(result[0].created_at).toBe(50);
-    expect(result[1].created_at).toBeUndefined();
+    expect(result[0]!.created_at).toBe(50);
+    expect(result[1]!.created_at).toBeUndefined();
   });
 
   it("handles entries with missing counter (sorts as 0)", () => {
     const taps = [{ created_at: 100 }] as TapEntry[];
     const result = _mergeHistory(taps, []);
-    expect(result[0].counter).toBeUndefined();
+    expect(result[0]!.counter).toBeUndefined();
   });
 
   it("limits to 25 entries", () => {
@@ -87,9 +87,9 @@ describe("_mergeHistory", () => {
     const txs = [{ amount: -200, created_at: 150, balance_after: 800 }] as Transaction[];
     const result = _mergeHistory(taps, txs);
     expect(result).toHaveLength(2);
-    expect(result[0].created_at).toBe(150);
-    expect(result[0].status).toBe("payment");
-    expect(result[1].created_at).toBe(100);
+    expect(result[0]!.created_at).toBe(150);
+    expect(result[0]!.status).toBe("payment");
+    expect(result[1]!.created_at).toBe(100);
   });
 });
 
@@ -109,7 +109,7 @@ describe("getUnifiedHistory", () => {
 
     const result = await getUnifiedHistory(env, uid);
     expect(result.length).toBeGreaterThanOrEqual(1);
-    expect(result[0].counter).toBe(2);
+    expect(result[0]!.counter).toBe(2);
   });
 
   it("returns empty when DO has no data", async () => {

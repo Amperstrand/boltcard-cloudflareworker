@@ -1,7 +1,8 @@
 import { decodeBolt11Amount, generateFakeBolt11 } from "../utils/bolt11.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { handleRequest } from "../index.js";
-import { TEST_OPERATOR_AUTH } from "./testHelpers.js";
+import { TEST_OPERATOR_AUTH, createMockKV } from "./testHelpers.js";
+import type { Env } from "../types/core.js";
 
 describe("decodeBolt11Amount", () => {
   test("returns null for null input", () => {
@@ -129,11 +130,11 @@ describe("analytics mock", () => {
 describe("analytics HTTP routes", () => {
   const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 
-  function makeEnv() {
-    return { BOLT_CARD_K1, CARD_REPLAY: makeReplayNamespace(), ...TEST_OPERATOR_AUTH };
+  function makeEnv(): Env {
+    return { BOLT_CARD_K1, CARD_REPLAY: makeReplayNamespace() as unknown as DurableObjectNamespace, UID_CONFIG: createMockKV(), ...TEST_OPERATOR_AUTH } as Env;
   }
 
-  async function makeRequest(path: string, env: Record<string, unknown>) {
+  async function makeRequest(path: string, env: Env) {
     return handleRequest(new Request("https://test.local" + path), env);
   }
 
@@ -148,14 +149,14 @@ describe("analytics HTTP routes", () => {
   test("GET /analytics/data without uid returns 400", async () => {
     const resp = await makeRequest("/analytics/data", makeEnv());
     expect(resp.status).toBe(400);
-    const json = await resp.json();
+    const json = await resp.json() as Record<string, unknown>;
     expect(json.error).toMatch(/missing uid/i);
   });
 
   test("GET /analytics/data with valid uid returns analytics", async () => {
     const resp = await makeRequest("/analytics/data?uid=04996c6a926980", makeEnv());
     expect(resp.status).toBe(200);
-    const json = await resp.json();
+    const json = await resp.json() as Record<string, unknown>;
     expect(json.totalTaps).toBe(0);
     expect(json.completedMsat).toBe(0);
     expect(json).toHaveProperty("completedTaps");
@@ -202,15 +203,15 @@ describe("generateFakeBolt11", () => {
 });
 
 describe("GET /api/fake-invoice", () => {
-  function makeEnv() {
+  function makeEnv(): Env {
     return {
       BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
-      CARD_REPLAY: makeReplayNamespace(),
-      UID_CONFIG: { get: async () => null, put: async () => {} },
-    };
+      CARD_REPLAY: makeReplayNamespace() as unknown as DurableObjectNamespace,
+      UID_CONFIG: { get: async () => null, put: async () => {} } as unknown as KVNamespace,
+    } as Env;
   }
 
-  async function makeRequest(path: string, env: Record<string, unknown>) {
+  async function makeRequest(path: string, env: Env) {
     return handleRequest(new Request("https://test.local" + path, { method: "GET" }), env);
   }
 
@@ -219,9 +220,9 @@ describe("GET /api/fake-invoice", () => {
     const response = await makeRequest("/api/fake-invoice?amount=5000", env);
     expect(response.status).toBe(200);
 
-    const json = await response.json();
-    expect(json.pr).toMatch(/^lnbc/);
-    expect(decodeBolt11Amount(json.pr)).toBe(5000);
+    const json = await response.json() as Record<string, unknown>;
+    expect(json.pr as string).toMatch(/^lnbc/);
+    expect(decodeBolt11Amount(json.pr as string)).toBe(5000);
   });
 
   test("returns 400 for missing amount", async () => {
@@ -229,7 +230,7 @@ describe("GET /api/fake-invoice", () => {
     const response = await makeRequest("/api/fake-invoice", env);
     expect(response.status).toBe(400);
 
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json.status).toBe("ERROR");
     expect(json.reason).toMatch(/positive integer/);
   });
@@ -256,8 +257,8 @@ describe("GET /api/fake-invoice", () => {
     const env = makeEnv();
     const resp1 = await makeRequest("/api/fake-invoice?amount=1000", env);
     const resp2 = await makeRequest("/api/fake-invoice?amount=1000", env);
-    const json1 = await resp1.json();
-    const json2 = await resp2.json();
+    const json1 = await resp1.json() as Record<string, unknown>;
+    const json2 = await resp2.json() as Record<string, unknown>;
     expect(json1.pr).not.toBe(json2.pr);
   });
 
@@ -266,7 +267,7 @@ describe("GET /api/fake-invoice", () => {
     const response = await makeRequest("/api/fake-invoice?amount=5000&rail=upi&pa=test@upi&pn=TestMerchant&currency=INR", env);
     expect(response.status).toBe(200);
 
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json.pr).toMatch(/^lnbc/);
     expect(json.description).toMatch(/^upi:\/\/pay\?pa=test%40upi/);
     expect(json.description).toContain("cu=INR");
@@ -277,7 +278,7 @@ describe("GET /api/fake-invoice", () => {
     const response = await makeRequest("/api/fake-invoice?amount=5000&rail=spayd&acc=CZ12345-67890&currency=CZK", env);
     expect(response.status).toBe(200);
 
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json.pr).toMatch(/^lnbc/);
     expect(json.description).toMatch(/^SPD\*1\.0\*/);
     expect(json.description).toContain("ACC:CZ12345-67890");
@@ -290,7 +291,7 @@ describe("GET /api/fake-invoice", () => {
     const response = await makeRequest("/api/fake-invoice?amount=3000&rail=upi", env);
     expect(response.status).toBe(200);
 
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json.description).toContain("pa=default%40bank");
   });
 
@@ -299,7 +300,7 @@ describe("GET /api/fake-invoice", () => {
     const response = await makeRequest("/api/fake-invoice?amount=3000&rail=spayd", env);
     expect(response.status).toBe(200);
 
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json.description).toContain("ACC:CZ00-DEFAULT");
   });
 
@@ -308,7 +309,7 @@ describe("GET /api/fake-invoice", () => {
     const response = await makeRequest("/api/fake-invoice?amount=1000&rail=unknown", env);
     expect(response.status).toBe(200);
 
-    const json = await response.json();
+    const json = await response.json() as Record<string, unknown>;
     expect(json.pr).toMatch(/^lnbc/);
     expect(json.description).toBeUndefined();
   });

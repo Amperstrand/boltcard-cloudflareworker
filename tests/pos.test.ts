@@ -105,7 +105,7 @@ describe("POS Amount Parameter Support", () => {
       put: async () => {},
     } as any;
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
     const response = await makeRequest(
@@ -143,7 +143,7 @@ describe("POS Amount Parameter Support", () => {
       put: async () => {},
     } as any;
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 2, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 2, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
     const response = await makeRequest(
@@ -182,7 +182,7 @@ describe("POS Amount Parameter Support", () => {
       put: async () => {},
     } as any;
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 3, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 3, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
     const response = await makeRequest(
@@ -213,7 +213,7 @@ describe("POS Amount Parameter Support", () => {
       put: async () => {},
     } as any;
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 4, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 4, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
     const bolt11Invoice = "lnbc1000n1pjrw..." + "u".repeat(50);
@@ -244,7 +244,7 @@ describe("POS Amount Parameter Support", () => {
       put: async () => {},
     } as any;
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 5, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 5, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
     const response = await makeRequest(
@@ -290,7 +290,7 @@ describe("POS Amount Parameter Support", () => {
       body: JSON.stringify({ amount: 50000, note: "Initial funding" }),
     }));
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 6, BOLT_CARD_K1.split(",")[0]);
+    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 6, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
     const debitAmount = 15000;

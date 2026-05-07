@@ -6,7 +6,7 @@ import { TEST_OPERATOR_AUTH, buildCardTestEnv } from "./testHelpers.js";
 const TEST_UID = "04aabbccdd7788";
 
 function makeEnv(replay: ReturnType<typeof makeReplayNamespace> = makeReplayNamespace({ [TEST_UID]: 1 })) {
-  return buildCardTestEnv({ replayInitial: { [TEST_UID]: 1 }, operatorAuth: true, extraEnv: { CARD_REPLAY: replay as unknown as DurableObjectNamespace } });
+  return buildCardTestEnv({ replayInitial: { [TEST_UID]: 1 }, operatorAuth: true, extraEnv: { CARD_REPLAY: replay } });
 }
 
 async function recordTap(replay: ReturnType<typeof makeReplayNamespace>, uid: string, counter: number, amountMsat: number, status: string) {
