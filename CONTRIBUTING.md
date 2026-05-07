@@ -99,7 +99,8 @@ boltcard-cloudflareworker/
 ├── static/js/                   # 17 browser JS files (classic scripts, no ES modules)
 ├── utils/                       # 20 utility modules
 ├── durableObjects/
-│   └── CardReplayDO.ts          # Per-card SQLite Durable Object
+│   ├── CardReplayDO.ts          # Per-card SQLite Durable Object shell/dispatcher
+│   └── cardReplay/              # DO schema + route handlers grouped by responsibility
 ├── tests/                       # 1395 tests across 73 suites
 │   ├── testHelpers.ts           # Test utilities
 │   ├── replayNamespace.ts       # In-memory DO mock
