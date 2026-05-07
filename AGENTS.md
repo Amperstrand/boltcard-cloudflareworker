@@ -202,6 +202,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 - `recordAuditEvent()` from `utils/auditLog.ts` for persistent operator action log (prefix `audit_log:`, TTL 90 days). Called from topup, refund, POS charge, batch operations.
 - `getCardProgrammingEndpoint()` from `handlers/loginActions.ts` for card config → pull payment → programming endpoint lookup (shared by 4 call sites)
 - `safeGetBalance()` exported from `replayProtection.ts` — graceful balance fetch fallback (used by `loginHandler.ts` and `cardDashboardHandler.ts`)
+- `durableObjects/CardReplayDO.ts` is a thin Durable Object shell/dispatcher; SQL schema and route handlers live under `durableObjects/cardReplay/` grouped by responsibility (schema, tap/replay, card state, config, balance/transactions)
 - All DO callers must wrap in try/catch with specific error messages (see #10 audit)
 - `processWithdrawalPayment` uses `normalizedUid` local variable — never mutate parameters
 - Tests use `makeReplayNamespace()` (in-memory DO mock) from `tests/replayNamespace.ts`
@@ -311,6 +312,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | Router cleanup | Done | `index.ts` 372→249 lines: fake-invoice handler extracted to `handlers/fakeInvoiceHandler.ts`, static JS registry extracted |
 | replayProtection DRY | Done | 334→288 lines: 6 generic DO facade helpers, 16 exports rewritten to 1-3 lines |
 | Test `: any` reduction | Done | 67 `: any` annotations replaced with proper types across 17 test files |
+| CardReplayDO split | Done | 933-line god object split into dispatcher + `durableObjects/cardReplay/` modules while preserving all DO route contracts |
 
 ### Feature Development
 
