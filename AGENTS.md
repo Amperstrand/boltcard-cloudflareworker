@@ -215,8 +215,10 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 - Run: `npm test` (Vitest, node environment)
 - Run DO tests: `npm run test:do` (Vitest, `@cloudflare/vitest-pool-workers` with real SQLite)
 - Run all: `npm run test:all`
-- Deploy: `npm run deploy` (unit tests → DO tests → build_keys → wrangler deploy)
-- **1343 unit tests** across 73 test suites + **52 DO integration tests** = 1395 total (as of 2026-05-05)
+- Deploy: `npm run deploy` (unit tests → DO tests → build_keys → wrangler deploy → live smoke test)
+- Lint: `npm run lint:innerhtml` (zero innerHTML tolerance, enforced by `scripts/check-innerhtml.js`)
+- Sync JS exports: `node scripts/sync-js-exports.mjs` (auto-regenerates `static/js/exports.ts` with SHA-256 hashes)
+- **1344 unit tests** across 74 test suites + **52 DO integration tests** = 1396 total (as of 2026-05-08)
 - TypeScript: `tsc --noEmit` passes with `strict: true`, 0 errors (source + tests)
 - Source `: any` count: 105 (down from 318); source `as any` count: 0; `// @ts-nocheck` only in `tests/do/cardReplayDO.real.test.ts` and `tests/testHelpers.ts`; test `: any` count: being reduced from 67
 
@@ -337,7 +339,7 @@ The following exports are prefixed with `_` and only used in tests:
 - Security headers applied to all responses via `withSecurityHeaders()` in `index.ts`: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Content-Security-Policy`
 - All error responses sanitized — internal error details logged server-side, generic `"Internal error"` returned to client
 - `POST /login` privileged actions (top-up, terminate, request-wipe) require operator session auth
-- All innerHTML assignments use `esc()` for dynamic data (53 assignments audited)
+- **Zero innerHTML policy**: all browser JS uses safe DOM APIs (`textContent`, `createElement`, `replaceChildren`); `esc()` removed; baseline = 0 (enforced by `scripts/check-innerhtml.js`)
 - `/2fa` endpoint supports JSON response mode via `Accept: application/json` header (prevents raw HTML injection in debug console)
 - Proxy handler filters request/response headers via allow-list (`proxyHandler.ts`)
 - CSRF: double-submit cookie pattern with timing-safe comparison
