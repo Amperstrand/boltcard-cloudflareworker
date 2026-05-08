@@ -20,7 +20,7 @@ const BASELINE = {
   "login.js": 11,
   "card-dashboard.js": 2,
   "debug.js": 19,
-  "helpers.js": 2,
+  "helpers.js": 0,
   "identity.js": 4,
   "wipe.js": 1,
   "pos.js": 2,
