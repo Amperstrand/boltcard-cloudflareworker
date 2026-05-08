@@ -5,6 +5,9 @@ coverage/
 # Archive of subagent-generated noise (kept for reference, not tracked)
 .archive/
 
+# AI tooling metadata (not project documentation)
+.sisyphus/
+
 # Audit artifacts (generated during analysis)
 audit-report.md
 config-audit-*.json

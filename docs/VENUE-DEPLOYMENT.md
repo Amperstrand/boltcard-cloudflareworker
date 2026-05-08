@@ -210,7 +210,7 @@ Attendees can also check their own card balance at `/card` by tapping on an NFC-
 
 - The operator PIN is shared among all operators at a venue. Change it between shifts or events.
 - Session cookies expire after 12 hours. Operators must re-authenticate.
-- Login attempts are rate-limited to 10 per minute per IP.
+- Login attempts are rate-limited to 5 per 15 minutes per IP.
 - All card operations are replay-protected via Durable Objects — a tapped card counter cannot be reused.
 - Card state (balance, transactions) lives in the Durable Object's SQLite storage — strongly consistent, not eventually consistent.
 - The system has no offline mode. If the worker is unreachable, taps will fail.

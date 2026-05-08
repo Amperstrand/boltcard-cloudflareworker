@@ -337,7 +337,7 @@ The following exports are prefixed with `_` and only used in tests:
 - Security headers applied to all responses via `withSecurityHeaders()` in `index.ts`: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Content-Security-Policy`
 - All error responses sanitized — internal error details logged server-side, generic `"Internal error"` returned to client
 - `POST /login` privileged actions (top-up, terminate, request-wipe) require operator session auth
-- All innerHTML assignments use `esc()` for dynamic data (41 assignments audited)
+- All innerHTML assignments use `esc()` for dynamic data (53 assignments audited)
 - `/2fa` endpoint supports JSON response mode via `Accept: application/json` header (prevents raw HTML injection in debug console)
 - Proxy handler filters request/response headers via allow-list (`proxyHandler.ts`)
 - CSRF: double-submit cookie pattern with timing-safe comparison

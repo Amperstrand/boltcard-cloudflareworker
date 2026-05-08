@@ -267,7 +267,7 @@ To submit keys for a service, add a CSV file to `keys/` and run `node scripts/bu
 - **Header filtering**: Proxy relay filters request/response headers to prevent credential leakage
 - **Rate limiting**: IP-based fixed-window (login: 5 req/15min; default: 100 req/min)
 - **Security headers**: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Content-Security-Policy` on all responses
-- **XSS prevention**: All innerHTML assignments use `esc()` for dynamic data (41 assignments audited)
+- **XSS prevention**: All innerHTML assignments use `esc()` for dynamic data (53 assignments audited)
 - **No offline mode**: If the worker is unreachable, taps fail
 
 ### Production Checklist
@@ -429,6 +429,7 @@ npm run deploy                        # tests → build_keys → wrangler deploy
 ├── durableObjects/
 │   ├── CardReplayDO.ts          # Thin Durable Object shell + route dispatcher
 │   └── cardReplay/              # DO schema + route handlers grouped by responsibility
+│       ├── routes.ts            # Typed DO route contract map (compile-time drift detection)
 │       ├── schema.ts            # SQLite table creation + idempotent migrations
 │       ├── tapHandlers.ts       # Counter replay, tap recording, analytics
 │       ├── cardStateHandlers.ts # Lifecycle transitions and discovery
