@@ -1,5 +1,4 @@
 // menu-editor.js — classic script (no import/export)
-// Depends on: nfc.js (esc)
 
 (function() {
   var configEl = document.getElementById('menu-editor-config');
@@ -9,27 +8,50 @@
   function render() {
     var list = document.getElementById('items-list');
     if (items.length === 0) {
-      list.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">No items. Click "Add Item" to start.</p>';
+      var p = document.createElement('p');
+      p.className = 'text-gray-500 text-sm text-center py-4';
+      p.textContent = 'No items. Click "Add Item" to start.';
+      list.replaceChildren(p);
       return;
     }
-    list.innerHTML = items.map(function(item, i) {
-      return '<div class="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-lg p-3">'
-        + '<input type="text" data-idx="' + i + '" data-field="name" value="' + esc(item.name) + '" placeholder="Item name" '
-        + 'class="flex-1 bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-gray-200 text-sm focus:border-emerald-500 focus:outline-none" />'
-        + '<input type="number" data-idx="' + i + '" data-field="price" value="' + esc(String(item.price)) + '" placeholder="Price" min="0" '
-        + 'class="w-24 bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-gray-200 text-sm text-right focus:border-emerald-500 focus:outline-none" />'
-        + '<button type="button" data-remove="' + i + '" class="text-red-500 hover:text-red-400 text-lg font-bold px-1">&times;</button>'
-        + '</div>';
-    }).join('');
+    list.replaceChildren.apply(list, items.map(function(item, i) {
+      var row = document.createElement('div');
+      row.className = 'flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-lg p-3';
 
-    list.querySelectorAll('input').forEach(function(inp) {
-      inp.addEventListener('input', function() {
-        items[parseInt(this.dataset.idx)][this.dataset.field] = this.dataset.field === 'price' ? parseInt(this.value) || 0 : this.value;
+      var nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.dataset.idx = i;
+      nameInput.dataset.field = 'name';
+      nameInput.value = item.name;
+      nameInput.placeholder = 'Item name';
+      nameInput.className = 'flex-1 bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-gray-200 text-sm focus:border-emerald-500 focus:outline-none';
+      nameInput.addEventListener('input', function() {
+        items[i].name = this.value;
       });
-    });
-    list.querySelectorAll('[data-remove]').forEach(function(btn) {
-      btn.addEventListener('click', function() { items.splice(parseInt(this.dataset.remove), 1); render(); });
-    });
+      row.appendChild(nameInput);
+
+      var priceInput = document.createElement('input');
+      priceInput.type = 'number';
+      priceInput.dataset.idx = i;
+      priceInput.dataset.field = 'price';
+      priceInput.value = String(item.price);
+      priceInput.placeholder = 'Price';
+      priceInput.min = '0';
+      priceInput.className = 'w-24 bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-gray-200 text-sm text-right focus:border-emerald-500 focus:outline-none';
+      priceInput.addEventListener('input', function() {
+        items[i].price = parseInt(this.value) || 0;
+      });
+      row.appendChild(priceInput);
+
+      var removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.textContent = '\u00D7';
+      removeBtn.className = 'text-red-500 hover:text-red-400 text-lg font-bold px-1';
+      removeBtn.addEventListener('click', function() { items.splice(i, 1); render(); });
+      row.appendChild(removeBtn);
+
+      return row;
+    }));
   }
 
   document.getElementById('add-item-btn').addEventListener('click', function() {

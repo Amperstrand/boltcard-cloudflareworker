@@ -1,5 +1,5 @@
 // card-dashboard.js — classic script (no import/export)
-// Depends on: nfc.js (esc, browserSupportsNfc, createNfcScanner, stateLabel, stateColor, provenanceLabel, provenanceColor)
+// Depends on: nfc.js (browserSupportsNfc, createNfcScanner, stateLabel, stateColor, provenanceLabel, provenanceColor)
 
 var lastP = null;
 var lastC = null;
@@ -22,10 +22,13 @@ function formatTime(iso) {
 function renderHistory(items) {
   var el = document.getElementById('history-list');
   if (!items || items.length === 0) {
-    el.innerHTML = '<p class="text-gray-500 text-xs text-center">No activity</p>';
+    var p = document.createElement('p');
+    p.className = 'text-gray-500 text-xs text-center';
+    p.textContent = 'No activity';
+    el.replaceChildren(p);
     return;
   }
-  el.innerHTML = items.slice(0, 15).map(function(item) {
+  el.replaceChildren.apply(el, items.slice(0, 15).map(function(item) {
     var status = item.status || 'unknown';
     var icon, color;
     if (status === 'completed') { icon = '\u2713'; color = 'text-emerald-400'; }
@@ -36,15 +39,47 @@ function renderHistory(items) {
     else { icon = '?'; color = 'text-gray-500'; }
     var amt = item.amount_msat || item.amountMsat;
     var time = formatTime(item.created_at || item.createdAt);
-    var note = item.note ? ' <span class="text-gray-600">(' + esc(item.note) + ')</span>' : '';
-    return '<div class="flex items-center gap-2 text-xs py-1.5 border-b border-gray-700/30 last:border-0">' +
-      '<span class="' + color + ' w-4 text-center font-bold">' + icon + '</span>' +
-      '<span class="text-gray-400 font-mono w-12 text-[10px]">ctr ' + esc(item.counter || '-') + '</span>' +
-      '<span class="' + color + ' flex-1">' + esc(status) + note + '</span>' +
-      (amt ? '<span class="text-gray-300 font-mono">' + esc(formatBalance(amt)) + '</span>' : '') +
-      (time ? '<span class="text-gray-600 text-[10px] w-28 text-right">' + esc(time) + '</span>' : '') +
-      '</div>';
-  }).join('');
+
+    var row = document.createElement('div');
+    row.className = 'flex items-center gap-2 text-xs py-1.5 border-b border-gray-700/30 last:border-0';
+
+    var iconSpan = document.createElement('span');
+    iconSpan.className = color + ' w-4 text-center font-bold';
+    iconSpan.textContent = icon;
+    row.appendChild(iconSpan);
+
+    var counterSpan = document.createElement('span');
+    counterSpan.className = 'text-gray-400 font-mono w-12 text-[10px]';
+    counterSpan.textContent = 'ctr ' + (item.counter || '-');
+    row.appendChild(counterSpan);
+
+    var statusSpan = document.createElement('span');
+    statusSpan.className = color + ' flex-1';
+    statusSpan.textContent = status;
+    if (item.note) {
+      var noteSpan = document.createElement('span');
+      noteSpan.className = 'text-gray-600';
+      noteSpan.textContent = ' (' + item.note + ')';
+      statusSpan.appendChild(noteSpan);
+    }
+    row.appendChild(statusSpan);
+
+    if (amt) {
+      var amtSpan = document.createElement('span');
+      amtSpan.className = 'text-gray-300 font-mono';
+      amtSpan.textContent = formatBalance(amt);
+      row.appendChild(amtSpan);
+    }
+
+    if (time) {
+      var timeSpan = document.createElement('span');
+      timeSpan.className = 'text-gray-600 text-[10px] w-28 text-right';
+      timeSpan.textContent = time;
+      row.appendChild(timeSpan);
+    }
+
+    return row;
+  }));
 }
 
 function showLoading() {

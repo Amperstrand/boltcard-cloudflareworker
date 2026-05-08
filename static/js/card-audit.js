@@ -1,5 +1,5 @@
 // card-audit.js — classic script (no import/export)
-// Depends on: nfc.js (esc, stateLabel, stateColor, provenanceLabel, provenanceColor)
+// Depends on: nfc.js (stateLabel, stateColor, provenanceLabel, provenanceColor)
 
 var currentFilter = "";
 var nextCursor = null;
@@ -99,25 +99,59 @@ function _loadCards(append) {
 
 function _renderCards() {
   var list = document.getElementById('cards-list');
-  var html = allCards.map(function(card) {
-    var checked = selectedUids.has(card.uid) ? 'checked' : '';
-    return '<div class="grid grid-cols-7 gap-2 px-4 py-3 text-sm hover:bg-gray-700/30 transition-colors">' +
-      '<div class="w-5"><input type="checkbox" class="card-checkbox rounded" data-uid="' + esc(card.uid) + '" ' + checked + ' /></div>' +
-      '<span class="font-mono text-gray-300 text-xs">' + esc(card.uid) + '</span>' +
-      '<span class="font-mono ' + stateColor(card.state) + '">' + esc(card.state) + '</span>' +
-      '<span class="font-mono text-xs ' + provenanceColor(card.keyProvenance) + '">' + esc(provenanceLabel(card.keyProvenance, true)) + '</span>' +
-      '<span class="font-mono text-xs text-gray-400">' + esc(card.keyLabel || '-') + '</span>' +
-      '<span class="text-xs text-gray-500">' + esc(_auditFormatTime(card.updatedAt)) + '</span>' +
-      '<span class="text-right"><a href="/experimental/analytics?uid=' + encodeURIComponent(card.uid) + '" class="text-emerald-500 hover:text-emerald-400 text-xs">analytics</a></span>' +
-      '</div>';
-  }).join('');
-  list.innerHTML = html;
+  list.replaceChildren.apply(list, allCards.map(function(card) {
+    var row = document.createElement('div');
+    row.className = 'grid grid-cols-7 gap-2 px-4 py-3 text-sm hover:bg-gray-700/30 transition-colors';
 
-  list.querySelectorAll('.card-checkbox').forEach(function(cb) {
+    var checkCell = document.createElement('div');
+    checkCell.className = 'w-5';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'card-checkbox rounded';
+    cb.setAttribute('data-uid', card.uid);
+    cb.checked = selectedUids.has(card.uid);
     cb.addEventListener('change', function() {
       _toggleCard(this.getAttribute('data-uid'));
     });
-  });
+    checkCell.appendChild(cb);
+    row.appendChild(checkCell);
+
+    var uidSpan = document.createElement('span');
+    uidSpan.className = 'font-mono text-gray-300 text-xs';
+    uidSpan.textContent = card.uid;
+    row.appendChild(uidSpan);
+
+    var stateSpan = document.createElement('span');
+    stateSpan.className = 'font-mono ' + stateColor(card.state);
+    stateSpan.textContent = card.state;
+    row.appendChild(stateSpan);
+
+    var provSpan = document.createElement('span');
+    provSpan.className = 'font-mono text-xs ' + provenanceColor(card.keyProvenance);
+    provSpan.textContent = provenanceLabel(card.keyProvenance, true);
+    row.appendChild(provSpan);
+
+    var labelSpan = document.createElement('span');
+    labelSpan.className = 'font-mono text-xs text-gray-400';
+    labelSpan.textContent = card.keyLabel || '-';
+    row.appendChild(labelSpan);
+
+    var timeSpan = document.createElement('span');
+    timeSpan.className = 'text-xs text-gray-500';
+    timeSpan.textContent = _auditFormatTime(card.updatedAt);
+    row.appendChild(timeSpan);
+
+    var linkCell = document.createElement('span');
+    linkCell.className = 'text-right';
+    var link = document.createElement('a');
+    link.href = '/experimental/analytics?uid=' + encodeURIComponent(card.uid);
+    link.className = 'text-emerald-500 hover:text-emerald-400 text-xs';
+    link.textContent = 'analytics';
+    linkCell.appendChild(link);
+    row.appendChild(linkCell);
+
+    return row;
+  }));
 }
 
 function _batchAction(action) {
@@ -147,22 +181,39 @@ function _batchAction(action) {
       var skipped = data.results.filter(function(r) { return r.status === 'skipped'; }).length;
       var failed = (data.errors || []).length;
 
-      var html = '<div class="space-y-1">' +
-        '<p class="text-emerald-300 font-semibold">' + succeeded + ' card(s) processed: ' + esc(action) + '</p>';
+      var wrapper = document.createElement('div');
+      wrapper.className = 'space-y-1';
+
+      var successP = document.createElement('p');
+      successP.className = 'text-emerald-300 font-semibold';
+      successP.textContent = succeeded + ' card(s) processed: ' + action;
+      wrapper.appendChild(successP);
+
       if (skipped > 0) {
-        html += '<p class="text-yellow-300">' + skipped + ' card(s) skipped</p>';
+        var skipP = document.createElement('p');
+        skipP.className = 'text-yellow-300';
+        skipP.textContent = skipped + ' card(s) skipped';
+        wrapper.appendChild(skipP);
         data.results.filter(function(r) { return r.status === 'skipped'; }).forEach(function(r) {
-          html += '<p class="text-xs text-gray-500 ml-3">' + esc(r.uid) + ': ' + esc(r.reason) + '</p>';
+          var detail = document.createElement('p');
+          detail.className = 'text-xs text-gray-500 ml-3';
+          detail.textContent = r.uid + ': ' + r.reason;
+          wrapper.appendChild(detail);
         });
       }
       if (failed > 0) {
-        html += '<p class="text-red-300">' + failed + ' card(s) failed</p>';
+        var failP = document.createElement('p');
+        failP.className = 'text-red-300';
+        failP.textContent = failed + ' card(s) failed';
+        wrapper.appendChild(failP);
         data.errors.forEach(function(e) {
-          html += '<p class="text-xs text-gray-500 ml-3">' + esc(e.uid) + ': ' + esc(e.error) + '</p>';
+          var detail = document.createElement('p');
+          detail.className = 'text-xs text-gray-500 ml-3';
+          detail.textContent = e.uid + ': ' + e.error;
+          wrapper.appendChild(detail);
         });
       }
-      html += '</div>';
-      contentDiv.innerHTML = html;
+      contentDiv.replaceChildren(wrapper);
       resultDiv.classList.remove('hidden');
 
       selectedUids.clear();
@@ -250,19 +301,43 @@ function _handleRepair(btn) {
       var contentDiv = document.getElementById('repair-result-content');
 
       if (!resp.ok) {
-        contentDiv.innerHTML = '<p class="text-red-300">Repair failed: ' + esc(data.error || 'unknown error') + '</p>';
+        var errP = document.createElement('p');
+        errP.className = 'text-red-300';
+        errP.textContent = 'Repair failed: ' + (data.error || 'unknown error');
+        contentDiv.replaceChildren(errP);
       } else {
-        var html = '<p class="text-amber-300">Scanned <strong>' + data.scanned + '</strong> card(s), repaired <strong>' + data.repaired + '</strong></p>';
+        var wrapper = document.createElement('div');
+        var mainP = document.createElement('p');
+        mainP.className = 'text-amber-300';
+        mainP.textContent = 'Scanned ';
+        var strong1 = document.createElement('strong');
+        strong1.textContent = data.scanned;
+        mainP.appendChild(strong1);
+        mainP.appendChild(document.createTextNode(' card(s), repaired '));
+        var strong2 = document.createElement('strong');
+        strong2.textContent = data.repaired;
+        mainP.appendChild(strong2);
+        wrapper.appendChild(mainP);
+
         if (data.errors && data.errors.length > 0) {
-          html += '<p class="text-red-300 text-xs mt-1">' + data.errors.length + ' error(s):</p>';
+          var errHeader = document.createElement('p');
+          errHeader.className = 'text-red-300 text-xs mt-1';
+          errHeader.textContent = data.errors.length + ' error(s):';
+          wrapper.appendChild(errHeader);
           data.errors.forEach(function(e) {
-            html += '<p class="text-xs text-gray-500 ml-3">' + esc(e.uid) + ': ' + esc(e.error) + '</p>';
+            var detail = document.createElement('p');
+            detail.className = 'text-xs text-gray-500 ml-3';
+            detail.textContent = e.uid + ': ' + e.error;
+            wrapper.appendChild(detail);
           });
         }
         if (data.repaired === 0 && (!data.errors || data.errors.length === 0)) {
-          html += '<p class="text-gray-400 text-xs mt-1">All index entries match DO state.</p>';
+          var noneP = document.createElement('p');
+          noneP.className = 'text-gray-400 text-xs mt-1';
+          noneP.textContent = 'All index entries match DO state.';
+          wrapper.appendChild(noneP);
         }
-        contentDiv.innerHTML = html;
+        contentDiv.replaceChildren(wrapper);
       }
       resultDiv.classList.remove('hidden');
       if (data.repaired > 0) _loadCards(false);

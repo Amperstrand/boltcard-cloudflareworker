@@ -23,6 +23,27 @@
     errorBox.classList.add('hidden');
   }
 
+  function _el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  function _kv(label, value, valueCls, labelCls) {
+    var d = document.createElement('div');
+    d.appendChild(_el('span', labelCls || 'font-semibold text-gray-100', label));
+    if (valueCls) {
+      d.appendChild(document.createTextNode(' '));
+      var s = _el('span', valueCls);
+      s.textContent = value;
+      d.appendChild(s);
+    } else {
+      d.appendChild(document.createTextNode(' ' + value));
+    }
+    return d;
+  }
+
   function updateScanBtn(state) {
     if (state === 'scanning') {
       scanBtn.textContent = 'Scanning\u2026';
@@ -145,7 +166,7 @@
 
     if (!data.nfcUrl) {
       ndefBox.textContent = 'No NDEF records (blank or unprogrammed card)';
-      detailsBox.innerHTML = '<span class="text-gray-500">No LNURLW payload found.</span>';
+      detailsBox.replaceChildren(_el('span', 'text-gray-500', 'No LNURLW payload found.'));
       payBtn.classList.add('hidden');
       statusBox.classList.add('hidden');
       return;
@@ -158,13 +179,12 @@
     if (data.nfcUrl.startsWith('https://')) {
       fetch(data.nfcUrl).then(function(r) { return r.json(); }).then(function(json) {
         if (json.tag === 'withdrawRequest') {
-          detailsBox.innerHTML =
-            '<div class="space-y-1 text-sm">' +
-            '<div><span class="font-semibold text-gray-100">Callback:</span> <span class="break-all font-mono text-xs text-cyan-300">' + esc(json.callback) + '</span></div>' +
-            '<div><span class="font-semibold text-gray-100">K1:</span> <span class="break-all font-mono text-xs text-amber-300">' + esc(json.k1) + '</span></div>' +
-            '<div><span class="font-semibold text-gray-100">Min:</span> ' + (json.minWithdrawable / 1000) + ' sats</div>' +
-            '<div><span class="font-semibold text-gray-100">Max:</span> ' + (json.maxWithdrawable / 1000) + ' sats</div>' +
-            '</div>';
+          var _w = _el('div', 'space-y-1 text-sm');
+          _w.appendChild(_kv('Callback:', json.callback, 'break-all font-mono text-xs text-cyan-300'));
+          _w.appendChild(_kv('K1:', json.k1, 'break-all font-mono text-xs text-amber-300'));
+          _w.appendChild(_kv('Min:', (json.minWithdrawable / 1000) + ' sats'));
+          _w.appendChild(_kv('Max:', (json.maxWithdrawable / 1000) + ' sats'));
+          detailsBox.replaceChildren(_w);
           payBtn.classList.remove('hidden');
           payBtn.disabled = false;
           window._consoleCallbackUrl = json.callback;
@@ -183,12 +203,12 @@
     var rawBox = document.getElementById('identify-raw');
 
     if (!data.p || !data.c) {
-      detailsBox.innerHTML = '<p class="text-gray-500">No card data available.</p>';
+      detailsBox.replaceChildren(_el('p', 'text-gray-500', 'No card data available.'));
       rawBox.textContent = '--';
       return;
     }
 
-    detailsBox.innerHTML = '<p class="text-gray-500 animate-pulse">Identifying\u2026</p>';
+    detailsBox.replaceChildren(_el('p', 'text-gray-500 animate-pulse', 'Identifying\u2026'));
     fetch('/api/identify-card', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -198,22 +218,21 @@
       rawBox.textContent = JSON.stringify(json, null, 2);
 
       if (json.status === 'ERROR') {
-        detailsBox.innerHTML = '<p class="text-red-300">' + esc(json.reason || 'Identification failed') + '</p>';
+        detailsBox.replaceChildren(_el('p', 'text-red-300', json.reason || 'Identification failed'));
         return;
       }
 
       if (json.matched) {
         var m = json.matched;
-        detailsBox.innerHTML =
-          '<div class="space-y-2 text-sm">' +
-          '<div><span class="font-semibold text-gray-100">UID:</span> <span class="font-mono text-amber-300">' + esc(json.uid || '--') + '</span></div>' +
-          '<div><span class="font-semibold text-gray-100">Counter:</span> <span class="font-mono text-cyan-300">' + esc(json.counter || '--') + '</span></div>' +
-          '<div><span class="font-semibold text-gray-100">CMAC:</span> <span class="text-emerald-300">valid</span></div>' +
-          '<div><span class="font-semibold text-gray-100">State:</span> ' + esc(m.card_state || '--') + '</div>' +
-          '<div><span class="font-semibold text-gray-100">Method:</span> ' + esc(m.payment_method || '--') + '</div>' +
-          '<div><span class="font-semibold text-gray-100">Version:</span> ' + esc(m.version != null ? m.version : '--') + '</div>' +
-          '<div><span class="font-semibold text-gray-100">Source:</span> ' + (m.source === 'config' ? 'Known card' : 'Deterministic') + '</div>' +
-          '</div>';
+        var _w = _el('div', 'space-y-2 text-sm');
+        _w.appendChild(_kv('UID:', json.uid || '--', 'font-mono text-amber-300'));
+        _w.appendChild(_kv('Counter:', json.counter || '--', 'font-mono text-cyan-300'));
+        _w.appendChild(_kv('CMAC:', 'valid', 'text-emerald-300'));
+        _w.appendChild(_kv('State:', m.card_state || '--'));
+        _w.appendChild(_kv('Method:', m.payment_method || '--'));
+        _w.appendChild(_kv('Version:', m.version != null ? String(m.version) : '--'));
+        _w.appendChild(_kv('Source:', m.source === 'config' ? 'Known card' : 'Deterministic'));
+        detailsBox.replaceChildren(_w);
 
         setCardInfo({
           uid: json.uid,
@@ -226,13 +245,14 @@
           cmac: 'valid',
         });
       } else {
-        detailsBox.innerHTML =
-          '<div class="space-y-2 text-sm">' +
-          '<div><span class="font-semibold text-gray-100">UID:</span> <span class="font-mono text-amber-300">' + esc(json.uid || '--') + '</span></div>' +
-          '<div><span class="font-semibold text-gray-100">Counter:</span> <span class="font-mono text-cyan-300">' + esc(json.counter || '--') + '</span></div>' +
-          '<div><span class="font-semibold text-gray-100">CMAC:</span> <span class="text-red-300">no match</span></div>' +
-          '<div class="text-xs text-gray-500 mt-2">Tried ' + ((json.all_attempts && json.all_attempts.length) || 0) + ' key(s). None matched CMAC.</div>' +
-          '</div>';
+        var _w2 = _el('div', 'space-y-2 text-sm');
+        _w2.appendChild(_kv('UID:', json.uid || '--', 'font-mono text-amber-300'));
+        _w2.appendChild(_kv('Counter:', json.counter || '--', 'font-mono text-cyan-300'));
+        _w2.appendChild(_kv('CMAC:', 'no match', 'text-red-300'));
+        var _att = _el('div', 'text-xs text-gray-500 mt-2');
+        _att.textContent = 'Tried ' + ((json.all_attempts && json.all_attempts.length) || 0) + ' key(s). None matched CMAC.';
+        _w2.appendChild(_att);
+        detailsBox.replaceChildren(_w2);
 
         setCardInfo({
           uid: json.uid,
@@ -241,7 +261,7 @@
         });
       }
     }).catch(function(err) {
-      detailsBox.innerHTML = '<p class="text-red-300">Error: ' + esc(err.message) + '</p>';
+      detailsBox.replaceChildren(_el('p', 'text-red-300', 'Error: ' + err.message));
     });
   }
 
@@ -282,7 +302,7 @@
 
             if (wipeQrCode) { wipeQrCode.clear(); wipeQrCode = null; }
             var qrContainer = document.getElementById('wipe-qr');
-            qrContainer.innerHTML = '';
+            qrContainer.replaceChildren();
             wipeQrCode = new QRCode(qrContainer, { text: deeplink, width: 200, height: 200, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.L });
             actionsDiv.classList.remove('hidden');
           } else {
@@ -300,58 +320,72 @@
   function handleTwofaTab(data) {
     var outputDiv = document.getElementById('twofa-output');
     if (!data.p || !data.c) {
-      outputDiv.innerHTML = '<div class="text-center text-gray-500 py-4">Tap a card to load 2FA codes.</div>';
+      outputDiv.replaceChildren(_el('div', 'text-center text-gray-500 py-4', 'Tap a card to load 2FA codes.'));
       return;
     }
-    outputDiv.innerHTML = '<div class="text-center text-gray-500 py-4 animate-pulse">Loading\u2026</div>';
+    outputDiv.replaceChildren(_el('div', 'text-center text-gray-500 py-4 animate-pulse', 'Loading\u2026'));
     fetch(BASE_URL + '/2fa?p=' + encodeURIComponent(data.p) + '&c=' + encodeURIComponent(data.c), {
       headers: { 'Accept': 'application/json' }
     })
       .then(function(r) { return r.json(); })
       .then(function(json) {
         if (json.totpCode) {
-          outputDiv.innerHTML =
-            '<div class="space-y-4 text-center">' +
-            '<div><p class="text-xs text-gray-500 uppercase tracking-wider mb-1">TOTP</p>' +
-            '<p class="text-2xl font-mono text-emerald-400">' + esc(json.totpCode) + '</p>' +
-            '<p class="text-xs text-gray-500 mt-1">' + esc(String(json.totpSecondsRemaining)) + 's remaining</p></div>' +
-            '<div><p class="text-xs text-gray-500 uppercase tracking-wider mb-1">HOTP</p>' +
-            '<p class="text-2xl font-mono text-blue-400">' + esc(json.hotpCode) + '</p>' +
-            '<p class="text-xs text-gray-500 mt-1">Counter: ' + esc(String(json.counterValue)) + '</p></div>' +
-            '<p class="text-xs text-gray-500 font-mono">UID: ' + esc(json.maskedUid || json.uidHex || '--') + '</p>' +
-            '</div>';
+          var _w = _el('div', 'space-y-4 text-center');
+          var _td = _el('div');
+          _td.appendChild(_el('p', 'text-xs text-gray-500 uppercase tracking-wider mb-1', 'TOTP'));
+          _td.appendChild(_el('p', 'text-2xl font-mono text-emerald-400', json.totpCode));
+          _td.appendChild(_el('p', 'text-xs text-gray-500 mt-1', String(json.totpSecondsRemaining) + 's remaining'));
+          _w.appendChild(_td);
+          var _hd = _el('div');
+          _hd.appendChild(_el('p', 'text-xs text-gray-500 uppercase tracking-wider mb-1', 'HOTP'));
+          _hd.appendChild(_el('p', 'text-2xl font-mono text-blue-400', json.hotpCode));
+          _hd.appendChild(_el('p', 'text-xs text-gray-500 mt-1', 'Counter: ' + String(json.counterValue)));
+          _w.appendChild(_hd);
+          _w.appendChild(_el('p', 'text-xs text-gray-500 font-mono', 'UID: ' + (json.maskedUid || json.uidHex || '--')));
+          outputDiv.replaceChildren(_w);
         } else {
-          outputDiv.innerHTML = '<div class="text-center text-red-400 py-4">' + esc(json.reason || json.error || 'Error') + '</div>';
+          outputDiv.replaceChildren(_el('div', 'text-center text-red-400 py-4', json.reason || json.error || 'Error'));
         }
       })
-      .catch(function() { outputDiv.innerHTML = '<div class="text-center text-red-400 py-4">Error loading 2FA data.</div>'; });
+      .catch(function() { outputDiv.replaceChildren(_el('div', 'text-center text-red-400 py-4', 'Error loading 2FA data.')); });
   }
 
   function handleIdentityTab(data) {
     var outputDiv = document.getElementById('identity-output');
     if (!data.p || !data.c) {
-      outputDiv.innerHTML = '<div class="text-center text-gray-500 py-4">Tap a card to verify identity.</div>';
+      outputDiv.replaceChildren(_el('div', 'text-center text-gray-500 py-4', 'Tap a card to verify identity.'));
       return;
     }
-    outputDiv.innerHTML = '<div class="text-center text-gray-500 py-4 animate-pulse">Verifying\u2026</div>';
+    outputDiv.replaceChildren(_el('div', 'text-center text-gray-500 py-4 animate-pulse', 'Verifying\u2026'));
     fetch(BASE_URL + '/api/verify-identity?p=' + encodeURIComponent(data.p) + '&c=' + encodeURIComponent(data.c))
       .then(function(r) { return r.json(); })
       .then(function(json) {
         if (json.verified) {
-          outputDiv.innerHTML =
-            '<div class="rounded-xl border border-pink-500/20 bg-pink-500/5 p-4 mt-4">' +
-            '<div class="flex items-center gap-3 mb-3"><div class="h-8 w-8 rounded-full bg-pink-500 flex items-center justify-center text-xl">' + esc(json.profile && json.profile.emoji || '?') + '</div>' +
-            '<div><div class="font-bold text-white text-lg">' + esc(json.profile && json.profile.name || 'Unknown') + '</div>' +
-            '<div class="text-xs text-gray-400">' + esc(json.profile && json.profile.role || '') + ' \u00b7 ' + esc(json.profile && json.profile.department || '') + '</div></div></div>' +
-            '<div class="grid grid-cols-2 gap-2 text-sm"><div><span class="text-gray-500">UID:</span> <span class="font-mono text-amber-300">' + esc(json.uid || '--') + '</span></div>' +
-            '<div><span class="text-gray-500">Clearance:</span> <span class="text-pink-300">' + esc(json.profile && json.profile.clearance || '--') + '</span></div></div>' +
-            '</div>';
+          var _outer = _el('div', 'rounded-xl border border-pink-500/20 bg-pink-500/5 p-4 mt-4');
+          var _flex = _el('div', 'flex items-center gap-3 mb-3');
+          var _emoji = _el('div', 'h-8 w-8 rounded-full bg-pink-500 flex items-center justify-center text-xl');
+          _emoji.textContent = (json.profile && json.profile.emoji) || '?';
+          _flex.appendChild(_emoji);
+          var _info = _el('div');
+          var _name = _el('div', 'font-bold text-white text-lg');
+          _name.textContent = (json.profile && json.profile.name) || 'Unknown';
+          _info.appendChild(_name);
+          var _role = _el('div', 'text-xs text-gray-400');
+          _role.textContent = (json.profile && json.profile.role || '') + ' \u00b7 ' + (json.profile && json.profile.department || '');
+          _info.appendChild(_role);
+          _flex.appendChild(_info);
+          _outer.appendChild(_flex);
+          var _grid = _el('div', 'grid grid-cols-2 gap-2 text-sm');
+          _grid.appendChild(_kv('UID:', json.uid || '--', 'font-mono text-amber-300', 'text-gray-500'));
+          _grid.appendChild(_kv('Clearance:', (json.profile && json.profile.clearance) || '--', 'text-pink-300', 'text-gray-500'));
+          _outer.appendChild(_grid);
+          outputDiv.replaceChildren(_outer);
         } else {
-          outputDiv.innerHTML =
-            '<div class="rounded-xl border border-red-500/30 bg-red-500/10 p-4 mt-4">' +
-            '<p class="text-red-300">' + esc(json.reason || 'Not verified') + '</p></div>';
+          var _denied = _el('div', 'rounded-xl border border-red-500/30 bg-red-500/10 p-4 mt-4');
+          _denied.appendChild(_el('p', 'text-red-300', json.reason || 'Not verified'));
+          outputDiv.replaceChildren(_denied);
         }
-      }).catch(function() { outputDiv.innerHTML = '<div class="text-center text-red-400 py-4">Error loading identity data.</div>'; });
+      }).catch(function() { outputDiv.replaceChildren(_el('div', 'text-center text-red-400 py-4', 'Error loading identity data.')); });
   }
 
   function handlePosTab(data) {

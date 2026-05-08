@@ -1,5 +1,5 @@
 // activate.js — classic script (no import/export)
-// Depends on: nfc.js (esc, browserSupportsNfc, createNfcScanner)
+// Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
 // Used by both renderActivatePage() and renderActivateCardPage()
 
 var UID_REGEX = /^[0-9a-f]{14}$/;

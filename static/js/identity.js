@@ -1,5 +1,5 @@
 // identity.js — classic script (no import/export)
-// Depends on: nfc.js (esc, browserSupportsNfc, createNfcScanner)
+// Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
 
 (function() {
   var ui = {
@@ -29,6 +29,13 @@
     emojiSaveStatus: document.getElementById('emoji-save-status'),
     emojiButtons: Array.from(document.querySelectorAll('.identity-emoji-btn')),
   };
+
+  function iconSpan(cls, text) {
+    var s = document.createElement('span');
+    s.className = cls;
+    s.textContent = text;
+    return s;
+  }
 
   var appState = 'idle';
   var currentVerification = null;
@@ -114,7 +121,7 @@
 
     ui.panel.className = 'w-full bg-gray-900/80 backdrop-blur-md rounded-2xl border border-gray-800 p-8 shadow-2xl transition-all duration-500 relative overflow-hidden flex flex-col items-center text-center';
     ui.nfcStatus.className = 'w-10 h-10 rounded-full border flex items-center justify-center transition-all duration-300';
-    ui.nfcStatus.innerHTML = '<span class="text-gray-500">\u26A1</span>';
+    ui.nfcStatus.replaceChildren(iconSpan('text-gray-500', '\u26A1'));
 
     var target = ui[newState];
     target.classList.remove('hidden');
@@ -128,16 +135,16 @@
       ui.panel.classList.replace('border-gray-800', 'border-emerald-500/50');
       ui.panel.classList.add('shadow-[0_0_30px_rgba(16,185,129,0.15)]');
       ui.nfcStatus.classList.add('bg-emerald-500/20', 'border-emerald-500/50');
-      ui.nfcStatus.innerHTML = '<span class="text-emerald-400">\u2713</span>';
+      ui.nfcStatus.replaceChildren(iconSpan('text-emerald-400', '\u2713'));
     } else if (newState === 'denied') {
       ui.panel.classList.replace('border-gray-800', 'border-red-500/50');
       ui.panel.classList.add('shadow-[0_0_30px_rgba(239,68,68,0.15)]');
       ui.nfcStatus.classList.add('bg-red-500/20', 'border-red-500/50');
-      ui.nfcStatus.innerHTML = '<span class="text-red-400">\u2717</span>';
+      ui.nfcStatus.replaceChildren(iconSpan('text-red-400', '\u2717'));
     } else if (newState === 'scanning') {
       ui.panel.classList.replace('border-gray-800', 'border-blue-500/50');
       ui.nfcStatus.classList.add('bg-blue-500/20', 'border-blue-500/50', 'animate-pulse');
-      ui.nfcStatus.innerHTML = '<span class="text-blue-400">\uD83D\uDCF3</span>';
+      ui.nfcStatus.replaceChildren(iconSpan('text-blue-400', '\uD83D\uDCF3'));
     } else {
       ui.nfcStatus.classList.add('bg-gray-900', 'border-gray-800');
     }

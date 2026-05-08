@@ -1,5 +1,5 @@
 // bulk-wipe.js — classic script (no import/export)
-// Depends on: nfc.js (esc, browserSupportsNfc, createNfcScanner)
+// Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
 
 var UID_REGEX = /^[0-9a-f]{14}$/;
 function validateUid(uid) {
@@ -11,6 +11,13 @@ function validateUid(uid) {
 (function() {
   var bulkRoot = document.getElementById('bulk-wipe-root');
   var baseUrl = bulkRoot ? bulkRoot.getAttribute('data-base-url') : '';
+
+  function _el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
 
   // Tap-to-detect
   var detectScanner = null;
@@ -166,7 +173,7 @@ function validateUid(uid) {
   document.getElementById('btn-generate').addEventListener('click', function() {
     hideError();
     var results = document.getElementById('results');
-    results.innerHTML = '';
+    results.replaceChildren();
 
     var keySelect = document.getElementById('key-select');
     var key = keySelect.value;
@@ -234,35 +241,54 @@ function validateUid(uid) {
 
     var card = document.createElement('div');
     card.className = 'bg-gray-800 border border-gray-700 rounded-lg p-6 shadow-xl';
-    card.innerHTML =
-      '<div class="flex items-center justify-between mb-4 border-b border-gray-700 pb-2">' +
-        '<h3 class="text-lg font-bold text-gray-200">UID: <span class="text-amber-500 font-mono">' + esc(uid) + '</span></h3>' +
-        '<span class="px-2 py-1 bg-green-500/10 text-green-500 text-xs font-mono rounded border border-green-500/20">OK</span>' +
-      '</div>' +
-      '<div class="grid grid-cols-1 md:grid-cols-2 gap-6">' +
-        '<div>' +
-          '<label class="block text-xs font-bold text-gray-500 uppercase mb-2">Wipe JSON</label>' +
-          '<pre class="font-mono text-xs text-green-400 bg-gray-900 p-4 rounded border border-gray-700 overflow-x-auto min-h-[140px] mb-2">' + esc(JSON.stringify(wipeJson, null, 2)) + '</pre>' +
-          '<button data-copy="' + encodeURIComponent(wipeJsonStr) + '" class="copy-btn text-xs text-amber-500 hover:text-amber-400 font-bold">COPY JSON</button>' +
-        '</div>' +
-        '<div class="flex flex-col items-center">' +
-          '<label class="block text-xs font-bold text-gray-500 uppercase mb-2">QR Code</label>' +
-          '<div id="qr-' + esc(data.uid) + '" class="qr-container mb-4"></div>' +
-        '</div>' +
-      '</div>' +
-      '<div class="mt-4 bg-gray-900 rounded p-3 border border-gray-800">' +
-        '<div class="flex justify-between items-center mb-2">' +
-          '<span class="text-xs font-bold text-red-500 uppercase">Reset Deeplink</span>' +
-          '<button data-copy="' + encodeURIComponent(resetLink) + '" class="copy-btn text-xs text-amber-500 hover:text-amber-400 font-bold">COPY LINK</button>' +
-        '</div>' +
-        '<a href="' + esc(resetLink) + '" class="text-blue-400 hover:text-blue-300 text-sm font-mono break-all underline">' + esc(resetLink) + '</a>' +
-      '</div>';
+
+    var header = _el('div', 'flex items-center justify-between mb-4 border-b border-gray-700 pb-2');
+    var h3 = _el('h3', 'text-lg font-bold text-gray-200');
+    h3.appendChild(document.createTextNode('UID: '));
+    var uidSpan = _el('span', 'text-amber-500 font-mono');
+    uidSpan.textContent = uid;
+    h3.appendChild(uidSpan);
+    header.appendChild(h3);
+    header.appendChild(_el('span', 'px-2 py-1 bg-green-500/10 text-green-500 text-xs font-mono rounded border border-green-500/20', 'OK'));
+    card.appendChild(header);
+
+    var grid = _el('div', 'grid grid-cols-1 md:grid-cols-2 gap-6');
+    var jsonCol = _el('div');
+    jsonCol.appendChild(_el('label', 'block text-xs font-bold text-gray-500 uppercase mb-2', 'Wipe JSON'));
+    var pre = _el('pre', 'font-mono text-xs text-green-400 bg-gray-900 p-4 rounded border border-gray-700 overflow-x-auto min-h-[140px] mb-2');
+    pre.textContent = JSON.stringify(wipeJson, null, 2);
+    jsonCol.appendChild(pre);
+    var jsonCopyBtn = _el('button', 'copy-btn text-xs text-amber-500 hover:text-amber-400 font-bold', 'COPY JSON');
+    jsonCopyBtn.dataset.copy = encodeURIComponent(wipeJsonStr);
+    jsonCol.appendChild(jsonCopyBtn);
+    grid.appendChild(jsonCol);
+
+    var qrCol = _el('div', 'flex flex-col items-center');
+    qrCol.appendChild(_el('label', 'block text-xs font-bold text-gray-500 uppercase mb-2', 'QR Code'));
+    var qrDiv = _el('div', 'qr-container mb-4');
+    qrDiv.id = 'qr-' + data.uid;
+    qrCol.appendChild(qrDiv);
+    grid.appendChild(qrCol);
+    card.appendChild(grid);
+
+    var footer = _el('div', 'mt-4 bg-gray-900 rounded p-3 border border-gray-800');
+    var footerRow = _el('div', 'flex justify-between items-center mb-2');
+    footerRow.appendChild(_el('span', 'text-xs font-bold text-red-500 uppercase', 'Reset Deeplink'));
+    var linkCopyBtn = _el('button', 'copy-btn text-xs text-amber-500 hover:text-amber-400 font-bold', 'COPY LINK');
+    linkCopyBtn.dataset.copy = encodeURIComponent(resetLink);
+    footerRow.appendChild(linkCopyBtn);
+    footer.appendChild(footerRow);
+    var resetAnchor = document.createElement('a');
+    resetAnchor.href = resetLink;
+    resetAnchor.className = 'text-blue-400 hover:text-blue-300 text-sm font-mono break-all underline';
+    resetAnchor.textContent = resetLink;
+    footer.appendChild(resetAnchor);
+    card.appendChild(footer);
 
     container.appendChild(card);
 
-    var qrEl = card.querySelector('#qr-' + data.uid);
-    if (qrEl && wipeJsonStr) {
-      new QRCode(qrEl, {
+    if (qrDiv && wipeJsonStr) {
+      new QRCode(qrDiv, {
         text: wipeJsonStr,
         width: 200,
         height: 200,
@@ -276,12 +302,19 @@ function validateUid(uid) {
   function renderCardError(container, uid, msg) {
     var card = document.createElement('div');
     card.className = 'bg-gray-800 border border-red-500/30 rounded-lg p-6 shadow-xl';
-    card.innerHTML =
-      '<div class="flex items-center justify-between mb-2">' +
-        '<h3 class="text-lg font-bold text-gray-200">UID: <span class="text-amber-500 font-mono">' + esc(uid.toUpperCase()) + '</span></h3>' +
-        '<span class="px-2 py-1 bg-red-500/10 text-red-500 text-xs font-mono rounded border border-red-500/20">ERROR</span>' +
-      '</div>' +
-      '<p class="text-sm text-red-400 font-mono">' + esc(msg) + '</p>';
+
+    var header = _el('div', 'flex items-center justify-between mb-2');
+    var h3 = _el('h3', 'text-lg font-bold text-gray-200');
+    h3.appendChild(document.createTextNode('UID: '));
+    var uidSpan = _el('span', 'text-amber-500 font-mono');
+    uidSpan.textContent = uid.toUpperCase();
+    h3.appendChild(uidSpan);
+    header.appendChild(h3);
+    header.appendChild(_el('span', 'px-2 py-1 bg-red-500/10 text-red-500 text-xs font-mono rounded border border-red-500/20', 'ERROR'));
+    card.appendChild(header);
+
+    card.appendChild(_el('p', 'text-sm text-red-400 font-mono', msg));
+
     container.appendChild(card);
   }
 

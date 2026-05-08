@@ -1,5 +1,5 @@
 // refund.js — classic script (no import/export)
-// Depends on: nfc.js (esc, browserSupportsNfc, createNfcScanner)
+// Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
 
 (function() {
   // Result box helpers (inlined)

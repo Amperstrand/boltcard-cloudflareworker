@@ -1,5 +1,5 @@
 // pos.js — classic script (no import/export)
-// Depends on: nfc.js (esc, browserSupportsNfc, createNfcScanner)
+// Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
 
 (function() {
   var posRoot = document.getElementById('pos-root');
@@ -187,22 +187,39 @@
     }
     menuEmpty.classList.add('hidden');
     menuItems.classList.remove('hidden');
-    var html = '';
+    var fragment = document.createDocumentFragment();
     for (var i = 0; i < menuData.items.length; i++) {
-      var item = menuData.items[i];
-      var cartItem = cart.find(function(c) { return c.name === item.name; });
-      var qty = cartItem ? cartItem.qty : 0;
-      var badge = qty > 0 ? '<span class="absolute -top-1 -right-1 bg-emerald-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">' + qty + '</span>' : '';
-      html += '<button type="button" data-item-idx="' + i + '" class="relative bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 rounded-lg p-3 transition-colors text-left">'
-        + badge
-        + '<div class="font-semibold text-sm text-gray-200">' + esc(item.name) + '</div>'
-        + '<div class="text-emerald-400 font-bold text-lg">' + esc(String(item.price)) + '</div>'
-        + '</button>';
+      (function(idx) {
+        var item = menuData.items[idx];
+        var cartItem = cart.find(function(c) { return c.name === item.name; });
+        var qty = cartItem ? cartItem.qty : 0;
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'relative bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 rounded-lg p-3 transition-colors text-left';
+
+        if (qty > 0) {
+          var badge = document.createElement('span');
+          badge.className = 'absolute -top-1 -right-1 bg-emerald-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center';
+          badge.textContent = qty;
+          btn.appendChild(badge);
+        }
+
+        var nameDiv = document.createElement('div');
+        nameDiv.className = 'font-semibold text-sm text-gray-200';
+        nameDiv.textContent = item.name;
+        btn.appendChild(nameDiv);
+
+        var priceDiv = document.createElement('div');
+        priceDiv.className = 'text-emerald-400 font-bold text-lg';
+        priceDiv.textContent = String(item.price);
+        btn.appendChild(priceDiv);
+
+        btn.addEventListener('click', function() { addToCart(menuData.items[idx]); });
+        fragment.appendChild(btn);
+      })(i);
     }
-    menuItems.innerHTML = html;
-    menuItems.querySelectorAll('[data-item-idx]').forEach(function(btn) {
-      btn.addEventListener('click', function() { addToCart(menuData.items[parseInt(btn.dataset.itemIdx)]); });
-    });
+    menuItems.replaceChildren(fragment);
   }
 
   function addToCart(item) {
@@ -220,20 +237,29 @@
     if (cart.length === 0) {
       cartBar.classList.add('hidden');
       cartCount.textContent = '';
+      cartItemsEl.replaceChildren();
       return;
     }
     cartBar.classList.remove('hidden');
     var total = 0;
     var totalQty = 0;
-    var html = '';
+    var fragment = document.createDocumentFragment();
     for (var i = 0; i < cart.length; i++) {
       var c = cart[i];
       var subtotal = c.price * c.qty;
       total += subtotal;
       totalQty += c.qty;
-      html += '<div class="flex justify-between text-xs text-gray-400"><span>' + esc(c.name) + ' x' + c.qty + '</span><span>' + subtotal + '</span></div>';
+      var row = document.createElement('div');
+      row.className = 'flex justify-between text-xs text-gray-400';
+      var labelSpan = document.createElement('span');
+      labelSpan.textContent = c.name + ' x' + c.qty;
+      row.appendChild(labelSpan);
+      var valSpan = document.createElement('span');
+      valSpan.textContent = String(subtotal);
+      row.appendChild(valSpan);
+      fragment.appendChild(row);
     }
-    cartItemsEl.innerHTML = html;
+    cartItemsEl.replaceChildren(fragment);
     cartTotal.textContent = total + ' ' + CURRENCY_LABEL;
     cartCount.textContent = totalQty + ' item' + (totalQty !== 1 ? 's' : '');
   }

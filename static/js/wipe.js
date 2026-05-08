@@ -1,5 +1,5 @@
 // wipe.js — classic script (no import/export)
-// Depends on: nfc.js (esc, browserSupportsNfc, createNfcScanner)
+// Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
 
 (function() {
   var wipeRoot = document.getElementById('wipe-root');
@@ -100,7 +100,7 @@
     document.getElementById('link-wipe-text').innerText = currentResetLink;
 
     var qrContainer = document.getElementById('qr-wipe');
-    qrContainer.innerHTML = '';
+    qrContainer.replaceChildren();
 
     wipeQrCode = new QRCode(qrContainer, {
       text: currentResetLink,

@@ -1,12 +1,6 @@
 // bolt11-decode.js — classic script (no import/export)
 
 (function() {
-  function esc(s) {
-    var d = document.createElement('div');
-    d.textContent = s;
-    return d.innerHTML;
-  }
-
   function decode() {
     var input = document.getElementById('invoice-input').value.trim();
     var errEl = document.getElementById('decode-error');
@@ -24,66 +18,139 @@
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (!data.ok) {
-          errEl.textContent = esc(data.error || 'Decode failed');
+          errEl.textContent = data.error || 'Decode failed';
           errEl.classList.remove('hidden');
           return;
         }
         renderResult(data);
       })
       .catch(function(e) {
-        errEl.textContent = 'Request failed: ' + esc(e.message);
+        errEl.textContent = 'Request failed: ' + e.message;
         errEl.classList.remove('hidden');
       });
+  }
+
+  function makeBadge(text, bgClass, textClass) {
+    var span = document.createElement('span');
+    span.className = 'inline-block px-2 py-0.5 text-xs font-bold rounded ' + bgClass + ' ' + textClass;
+    span.textContent = text;
+    return span;
+  }
+
+  function cardEl(labelEl, valueContent) {
+    var div = document.createElement('div');
+    div.className = 'bg-gray-800 border border-gray-700 rounded-lg p-3';
+    var labelP = document.createElement('p');
+    labelP.className = 'text-xs text-gray-500 uppercase tracking-wider mb-1';
+    labelP.appendChild(labelEl);
+    div.appendChild(labelP);
+    var valueP = document.createElement('p');
+    valueP.className = 'text-sm font-mono text-gray-200';
+    valueP.appendChild(valueContent);
+    div.appendChild(valueP);
+    return div;
+  }
+
+  function textNode(s) {
+    return document.createTextNode(String(s));
   }
 
   function renderResult(d) {
     document.getElementById('decode-result').classList.remove('hidden');
 
     var sigBadge = d.signatureValid
-      ? '<span class="inline-block px-2 py-0.5 text-xs font-bold rounded bg-emerald-900 text-emerald-300">VALID</span>'
-      : '<span class="inline-block px-2 py-0.5 text-xs font-bold rounded bg-red-900 text-red-300">INVALID</span>';
+      ? makeBadge('VALID', 'bg-emerald-900', 'text-emerald-300')
+      : makeBadge('INVALID', 'bg-red-900', 'text-red-300');
 
     var expiryBadge = d.isExpired
-      ? '<span class="inline-block px-2 py-0.5 text-xs font-bold rounded bg-red-900 text-red-300">EXPIRED</span>'
-      : '<span class="inline-block px-2 py-0.5 text-xs font-bold rounded bg-emerald-900 text-emerald-300">ACTIVE</span>';
+      ? makeBadge('EXPIRED', 'bg-red-900', 'text-red-300')
+      : makeBadge('ACTIVE', 'bg-emerald-900', 'text-emerald-300');
 
-    document.getElementById('result-header').innerHTML = [
-      card('Network', esc(d.network)),
-      card('Amount', esc(d.amountDisplay || 'any')),
-      card('Timestamp', esc(d.timestampISO || '')),
-      card('Expiry', esc(d.expiry + 's') + ' ' + expiryBadge),
-      card('Expires At', esc(d.expiresAt || '')),
-      card('Signature', sigBadge),
-    ].join('');
+    var headerCards = [
+      cardEl(textNode('Network'), textNode(d.network)),
+      cardEl(textNode('Amount'), textNode(d.amountDisplay || 'any')),
+      cardEl(textNode('Timestamp'), textNode(d.timestampISO || '')),
+      (function() {
+        var c = cardEl(textNode('Expiry'), textNode(d.expiry + 's '));
+        c.querySelector('p:last-child').appendChild(expiryBadge);
+        return c;
+      })(),
+      cardEl(textNode('Expires At'), textNode(d.expiresAt || '')),
+      cardEl(textNode('Signature'), sigBadge),
+    ];
+    document.getElementById('result-header').replaceChildren.apply(
+      document.getElementById('result-header'), headerCards
+    );
 
-    var tagRows = '';
+    var table = document.createElement('table');
+    table.className = 'w-full';
     var tags = d.rawTags || [];
     for (var i = 0; i < tags.length; i++) {
       var t = tags[i];
-      var val = '';
+      var tr = document.createElement('tr');
+      tr.className = 'border-b border-gray-700/50';
+
+      var td1 = document.createElement('td');
+      td1.className = 'px-4 py-2 text-xs text-gray-500 font-mono whitespace-nowrap';
+      td1.textContent = t.name + ' ';
+      var codeSpan = document.createElement('span');
+      codeSpan.className = 'text-gray-600';
+      codeSpan.textContent = '[' + t.code + ']';
+      td1.appendChild(codeSpan);
+      tr.appendChild(td1);
+
+      var td2 = document.createElement('td');
+      td2.className = 'px-4 py-2 text-sm text-gray-300';
       if (Array.isArray(t.value)) {
-        val = t.value.map(function(v) { return '<span class="inline-block bg-gray-700 rounded px-1.5 py-0.5 text-xs mr-1 mb-1">' + esc(v) + '</span>'; }).join('');
+        t.value.forEach(function(v) {
+          var chip = document.createElement('span');
+          chip.className = 'inline-block bg-gray-700 rounded px-1.5 py-0.5 text-xs mr-1 mb-1';
+          chip.textContent = v;
+          td2.appendChild(chip);
+        });
       } else {
-        val = '<span class="font-mono text-xs break-all">' + esc(String(t.value)) + '</span>';
+        var valSpan = document.createElement('span');
+        valSpan.className = 'font-mono text-xs break-all';
+        valSpan.textContent = String(t.value);
+        td2.appendChild(valSpan);
         if (String(t.value).length === 64) {
-          val += ' <button data-copy-val="' + esc(String(t.value)) + '" class="copy-val-btn ml-1 text-amber-400 hover:text-amber-300 text-xs">copy</button>';
+          var copyBtn = document.createElement('button');
+          copyBtn.setAttribute('data-copy-val', String(t.value));
+          copyBtn.className = 'copy-val-btn ml-1 text-amber-400 hover:text-amber-300 text-xs';
+          copyBtn.textContent = 'copy';
+          td2.appendChild(copyBtn);
         }
       }
       if (t.rawHex) {
-        val += ' <span class="text-gray-500 text-xs">(' + esc(t.rawHex) + ')</span>';
+        var hexNote = document.createElement('span');
+        hexNote.className = 'text-gray-500 text-xs';
+        hexNote.textContent = ' (' + t.rawHex + ')';
+        td2.appendChild(hexNote);
       }
-      tagRows += '<tr class="border-b border-gray-700/50"><td class="px-4 py-2 text-xs text-gray-500 font-mono whitespace-nowrap">' + esc(t.name) + ' <span class="text-gray-600">[' + t.code + ']</span></td><td class="px-4 py-2 text-sm text-gray-300">' + val + '</td></tr>';
+      tr.appendChild(td2);
+      table.appendChild(tr);
     }
 
     if (d.payee) {
-      tagRows += '<tr class="border-b border-gray-700/50"><td class="px-4 py-2 text-xs text-gray-500 font-mono whitespace-nowrap">payee (recovered)</td><td class="px-4 py-2 text-sm font-mono text-purple-300 break-all">' + esc(d.payee) + ' <button data-copy-val="' + esc(d.payee) + '" class="copy-val-btn ml-1 text-amber-400 hover:text-amber-300 text-xs">copy</button></td></tr>';
+      var payeeTr = document.createElement('tr');
+      payeeTr.className = 'border-b border-gray-700/50';
+      var payeeTd1 = document.createElement('td');
+      payeeTd1.className = 'px-4 py-2 text-xs text-gray-500 font-mono whitespace-nowrap';
+      payeeTd1.textContent = 'payee (recovered)';
+      payeeTr.appendChild(payeeTd1);
+      var payeeTd2 = document.createElement('td');
+      payeeTd2.className = 'px-4 py-2 text-sm font-mono text-purple-300 break-all';
+      payeeTd2.textContent = d.payee + ' ';
+      var payeeCopyBtn = document.createElement('button');
+      payeeCopyBtn.setAttribute('data-copy-val', d.payee);
+      payeeCopyBtn.className = 'copy-val-btn ml-1 text-amber-400 hover:text-amber-300 text-xs';
+      payeeCopyBtn.textContent = 'copy';
+      payeeTd2.appendChild(payeeCopyBtn);
+      payeeTr.appendChild(payeeTd2);
+      table.appendChild(payeeTr);
     }
 
-    document.getElementById('result-tags').innerHTML = '<table class="w-full">' + tagRows + '</table>';
-  }
-
-  function card(label, value) {
-    return '<div class="bg-gray-800 border border-gray-700 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wider mb-1">' + label + '</p><p class="text-sm font-mono text-gray-200">' + value + '</p></div>';
+    document.getElementById('result-tags').replaceChildren(table);
   }
 
   function clearAll() {

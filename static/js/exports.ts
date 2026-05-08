@@ -1,9 +1,4 @@
-export const NFC_JS = `// nfc.js \u2014 classic script (no import/export)
-
-function esc(s) {
-  if (s == null) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
+export const NFC_JS = `// nfc.js — classic script (no import/export)
 
 function browserSupportsNfc() {
   return 'NDEFReader' in window;
@@ -39,7 +34,7 @@ function normalizeBrowserNfcUrl(rawUrl) {
   if (rawUrl.startsWith('lnurlw://') || rawUrl.startsWith('lnurlp://')) {
     return 'https://' + rawUrl.substring(rawUrl.indexOf('://') + 3);
   }
-  return rawUrl.replace(/^http:\\/\\//i, 'https://');
+  return rawUrl.replace(/^http:\/\//i, 'https://');
 }
 
 function createNfcScanner(opts) {
@@ -162,12 +157,10 @@ function provenanceColor(p) {
   if (p === 'public_issuer') return 'text-yellow-400';
   if (p === 'env_issuer') return 'text-emerald-400';
   return 'text-gray-300';
-}
-`;
+}`;
+export const NFC_JS_HASH = "59dac754d09c";
 
-export const NFC_JS_HASH = "80a070178484";
-
-export const HELPERS_JS = `// helpers.js \u2014 classic script (no import/export)
+export const HELPERS_JS = `// helpers.js — classic script (no import/export)
 
 function setText(id, text) {
   var el = document.getElementById(id);
@@ -187,15 +180,13 @@ function hideEl(id) {
 function toggleEl(id) {
   var el = document.getElementById(id);
   if (el) el.classList.toggle('hidden');
-}
-`;
+}`;
+export const HELPERS_JS_HASH = "35e24f38ee2c";
 
-export const HELPERS_JS_HASH = "eb27cad3b1b2";
-
-export const CSRF_JS = `// csrf.js \u2014 classic script (no import/export)
+export const CSRF_JS = `// csrf.js — classic script (no import/export)
 
 function getCsrfToken() {
-  var match = document.cookie.match(/(?:^|;\\s*)op_csrf=([^;]*)/);
+  var match = document.cookie.match(/(?:^|;\s*)op_csrf=([^;]*)/);
   return match ? match[1] : '';
 }
 var _origFetch = window.fetch;
@@ -208,13 +199,11 @@ window.fetch = function(input, init) {
     if (!init.headers['X-CSRF-Token']) init.headers['X-CSRF-Token'] = getCsrfToken();
   }
   return _origFetch.call(this, input, init);
-};
-`;
-
-export const CSRF_JS_HASH = "c88d1f897dc4";
+};`;
+export const CSRF_JS_HASH = "27a4b8928b37";
 
 export const CARD_DASHBOARD_JS = `// card-dashboard.js — classic script (no import/export)
-// Depends on: nfc.js (esc, browserSupportsNfc, createNfcScanner, stateLabel, stateColor, provenanceLabel, provenanceColor)
+// Depends on: nfc.js (browserSupportsNfc, createNfcScanner, stateLabel, stateColor, provenanceLabel, provenanceColor)
 
 var lastP = null;
 var lastC = null;
@@ -237,29 +226,64 @@ function formatTime(iso) {
 function renderHistory(items) {
   var el = document.getElementById('history-list');
   if (!items || items.length === 0) {
-    el.innerHTML = '<p class="text-gray-500 text-xs text-center">No activity</p>';
+    var p = document.createElement('p');
+    p.className = 'text-gray-500 text-xs text-center';
+    p.textContent = 'No activity';
+    el.replaceChildren(p);
     return;
   }
-  el.innerHTML = items.slice(0, 15).map(function(item) {
+  el.replaceChildren.apply(el, items.slice(0, 15).map(function(item) {
     var status = item.status || 'unknown';
     var icon, color;
-    if (status === 'completed') { icon = '\\u2713'; color = 'text-emerald-400'; }
-    else if (status === 'failed') { icon = '\\u2717'; color = 'text-red-400'; }
+    if (status === 'completed') { icon = '\u2713'; color = 'text-emerald-400'; }
+    else if (status === 'failed') { icon = '\u2717'; color = 'text-red-400'; }
     else if (status === 'topup') { icon = '+'; color = 'text-cyan-400'; }
-    else if (status === 'payment') { icon = '\\u2192'; color = 'text-amber-400'; }
-    else if (status === 'read') { icon = '\\u2022'; color = 'text-gray-500'; }
+    else if (status === 'payment') { icon = '\u2192'; color = 'text-amber-400'; }
+    else if (status === 'read') { icon = '\u2022'; color = 'text-gray-500'; }
     else { icon = '?'; color = 'text-gray-500'; }
     var amt = item.amount_msat || item.amountMsat;
     var time = formatTime(item.created_at || item.createdAt);
-    var note = item.note ? ' <span class="text-gray-600">(' + esc(item.note) + ')</span>' : '';
-    return '<div class="flex items-center gap-2 text-xs py-1.5 border-b border-gray-700/30 last:border-0">' +
-      '<span class="' + color + ' w-4 text-center font-bold">' + icon + '</span>' +
-      '<span class="text-gray-400 font-mono w-12 text-[10px]">ctr ' + esc(item.counter || '-') + '</span>' +
-      '<span class="' + color + ' flex-1">' + esc(status) + note + '</span>' +
-      (amt ? '<span class="text-gray-300 font-mono">' + esc(formatBalance(amt)) + '</span>' : '') +
-      (time ? '<span class="text-gray-600 text-[10px] w-28 text-right">' + esc(time) + '</span>' : '') +
-      '</div>';
-  }).join('');
+
+    var row = document.createElement('div');
+    row.className = 'flex items-center gap-2 text-xs py-1.5 border-b border-gray-700/30 last:border-0';
+
+    var iconSpan = document.createElement('span');
+    iconSpan.className = color + ' w-4 text-center font-bold';
+    iconSpan.textContent = icon;
+    row.appendChild(iconSpan);
+
+    var counterSpan = document.createElement('span');
+    counterSpan.className = 'text-gray-400 font-mono w-12 text-[10px]';
+    counterSpan.textContent = 'ctr ' + (item.counter || '-');
+    row.appendChild(counterSpan);
+
+    var statusSpan = document.createElement('span');
+    statusSpan.className = color + ' flex-1';
+    statusSpan.textContent = status;
+    if (item.note) {
+      var noteSpan = document.createElement('span');
+      noteSpan.className = 'text-gray-600';
+      noteSpan.textContent = ' (' + item.note + ')';
+      statusSpan.appendChild(noteSpan);
+    }
+    row.appendChild(statusSpan);
+
+    if (amt) {
+      var amtSpan = document.createElement('span');
+      amtSpan.className = 'text-gray-300 font-mono';
+      amtSpan.textContent = formatBalance(amt);
+      row.appendChild(amtSpan);
+    }
+
+    if (time) {
+      var timeSpan = document.createElement('span');
+      timeSpan.className = 'text-gray-600 text-[10px] w-28 text-right';
+      timeSpan.textContent = time;
+      row.appendChild(timeSpan);
+    }
+
+    return row;
+  }));
 }
 
 function showLoading() {
@@ -432,7 +456,7 @@ var cardScanner = createNfcScanner({
   debounceMs: 0,
   onStatus: function(status) {
     if (status === 'scanning') {
-      document.getElementById('scan-status').textContent = 'Ready \\u2014 tap your card now...';
+      document.getElementById('scan-status').textContent = 'Ready \u2014 tap your card now...';
     } else if (status === 'stopped') {
       document.getElementById('scan-status').textContent = 'Hold your card to the back of your phone';
     }
@@ -635,14 +659,522 @@ async function submitReactivate(p, c) {
   } else {
     document.getElementById('nfc-unsupported').classList.remove('hidden');
   }
-})();
-`;
+})();`;
+export const CARD_DASHBOARD_JS_HASH = "51aefb0201d3";
 
-export const CARD_DASHBOARD_JS_HASH = "de1b82423e5b";
+export const DEBUG_JS = `// debug.js — classic script (no import/export)
+// Requires: nfc.js (esc, browserSupportsNfc, createNfcScanner)
 
+(function() {
+  var debugRoot = document.getElementById('debug-root');
+  var BASE_URL = debugRoot ? debugRoot.getAttribute('data-base-url') : '';
+
+  var lastP = null;
+  var lastC = null;
+  var lastIdentifyData = null;
+  var wipeQrCode = null;
+  var nfcScanner = null;
+
+  var scanBtn = document.getElementById('nfc-scan-btn');
+  var errorBox = document.getElementById('error-message');
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.classList.remove('hidden');
+  }
+  function clearError() {
+    errorBox.textContent = '';
+    errorBox.classList.add('hidden');
+  }
+
+  function _el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  function _kv(label, value, valueCls, labelCls) {
+    var d = document.createElement('div');
+    d.appendChild(_el('span', labelCls || 'font-semibold text-gray-100', label));
+    if (valueCls) {
+      d.appendChild(document.createTextNode(' '));
+      var s = _el('span', valueCls);
+      s.textContent = value;
+      d.appendChild(s);
+    } else {
+      d.appendChild(document.createTextNode(' ' + value));
+    }
+    return d;
+  }
+
+  function updateScanBtn(state) {
+    if (state === 'scanning') {
+      scanBtn.textContent = 'Scanning\u2026';
+      scanBtn.className = 'ml-auto rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition hover:border-emerald-500/50';
+    } else if (state === 'error') {
+      scanBtn.textContent = 'Restart NFC scan';
+      scanBtn.className = 'ml-auto rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:border-red-500/50';
+    } else {
+      scanBtn.textContent = 'Start NFC scan';
+      scanBtn.className = 'ml-auto rounded-lg border border-gray-700 bg-gray-950 px-3 py-1.5 text-xs font-semibold text-gray-300 transition hover:border-cyan-500/50 hover:text-cyan-300';
+    }
+  }
+
+  function setCardInfo(data) {
+    document.getElementById('ci-uid').textContent = data.uid || '--';
+    document.getElementById('ci-counter').textContent = data.counter || '--';
+    document.getElementById('ci-issuer').textContent = data.issuer || '--';
+    document.getElementById('ci-version').textContent = data.version != null ? data.version : '--';
+    document.getElementById('ci-state').textContent = data.state || '--';
+    document.getElementById('ci-method').textContent = data.method || '--';
+    document.getElementById('ci-fingerprint').textContent = data.fingerprint || '--';
+    document.getElementById('ci-cmac').textContent = data.cmac || '--';
+    if (data.cmac === 'valid') {
+      document.getElementById('ci-cmac').className = 'font-mono text-xs text-emerald-400';
+    } else if (data.cmac === 'invalid') {
+      document.getElementById('ci-cmac').className = 'font-mono text-xs text-red-400';
+    } else {
+      document.getElementById('ci-cmac').className = 'font-mono text-xs';
+    }
+  }
+
+  function switchTab(tabId) {
+    document.querySelectorAll('.debug-tab').forEach(function(t) { t.classList.toggle('active', t.dataset.tab === tabId); });
+    document.querySelectorAll('.debug-panel').forEach(function(p) { p.classList.toggle('hidden', p.id !== 'panel-' + tabId); });
+  }
+
+  function initTabs() {
+    document.querySelectorAll('.debug-tab').forEach(function(t) {
+      t.addEventListener('click', function() { switchTab(t.dataset.tab); });
+    });
+    var hash = location.hash.replace('#', '');
+    if (hash && document.getElementById('panel-' + hash)) switchTab(hash);
+  }
+
+  function initNfc() {
+    if (!browserSupportsNfc()) {
+      updateScanBtn('error');
+      scanBtn.textContent = 'Web NFC unavailable';
+      scanBtn.disabled = true;
+      return;
+    }
+
+    nfcScanner = createNfcScanner({
+      onTap: handleNfcTap,
+      onError: function(err, phase) {
+        if (phase === 'permission') {
+          updateScanBtn('error');
+          showError('NFC permission denied. Click the button to retry.');
+        } else if (phase === 'scan') {
+          showError('NFC read error: ' + err.message);
+        } else {
+          showError('Error: ' + err.message);
+        }
+      },
+      onStatus: function(status) {
+        if (status === 'scanning') updateScanBtn('scanning');
+        else if (status === 'stopped') updateScanBtn('error');
+        else if (status === 'starting') updateScanBtn('scanning');
+      },
+      debounceMs: 3000
+    });
+
+    scanBtn.addEventListener('click', function() {
+      clearError();
+      if (nfcScanner.isActive()) {
+        nfcScanner.restart();
+      } else {
+        nfcScanner.scan();
+      }
+    });
+  }
+
+  function handleNfcTap(tap) {
+    clearError();
+    var uid = tap.serial || null;
+    var nfcUrl = tap.url;
+    var p = null, c = null;
+
+    if (nfcUrl) {
+      try {
+        var u = new URL(nfcUrl);
+        p = u.searchParams.get('p');
+        c = u.searchParams.get('c');
+      } catch (e) {}
+    }
+
+    lastP = p;
+    lastC = c;
+
+    var activePanel = document.querySelector('.debug-panel:not(.hidden)');
+    if (!activePanel) return;
+    var tabId = activePanel.id.replace('panel-', '');
+
+    var handlers = {
+      console: handleConsoleTab,
+      identify: handleIdentifyTab,
+      wipe: handleWipeTab,
+      twofa: handleTwofaTab,
+      identity: handleIdentityTab,
+      pos: handlePosTab
+    };
+    if (handlers[tabId]) handlers[tabId]({ uid: uid, nfcUrl: nfcUrl, p: p, c: c });
+  }
+
+  function handleConsoleTab(data) {
+    var ndefBox = document.getElementById('console-ndef');
+    var detailsBox = document.getElementById('console-lnurlw-details');
+    var payBtn = document.getElementById('console-pay-btn');
+    var statusBox = document.getElementById('console-payment-status');
+
+    if (!data.nfcUrl) {
+      ndefBox.textContent = 'No NDEF records (blank or unprogrammed card)';
+      detailsBox.replaceChildren(_el('span', 'text-gray-500', 'No LNURLW payload found.'));
+      payBtn.classList.add('hidden');
+      statusBox.classList.add('hidden');
+      return;
+    }
+
+    ndefBox.textContent = data.nfcUrl;
+    payBtn.classList.add('hidden');
+    statusBox.classList.add('hidden');
+
+    if (data.nfcUrl.startsWith('https://')) {
+      fetch(data.nfcUrl).then(function(r) { return r.json(); }).then(function(json) {
+        if (json.tag === 'withdrawRequest') {
+          var _w = _el('div', 'space-y-1 text-sm');
+          _w.appendChild(_kv('Callback:', json.callback, 'break-all font-mono text-xs text-cyan-300'));
+          _w.appendChild(_kv('K1:', json.k1, 'break-all font-mono text-xs text-amber-300'));
+          _w.appendChild(_kv('Min:', (json.minWithdrawable / 1000) + ' sats'));
+          _w.appendChild(_kv('Max:', (json.maxWithdrawable / 1000) + ' sats'));
+          detailsBox.replaceChildren(_w);
+          payBtn.classList.remove('hidden');
+          payBtn.disabled = false;
+          window._consoleCallbackUrl = json.callback;
+          window._consoleK1 = json.k1;
+        } else {
+          detailsBox.textContent = 'The card did not return a withdrawRequest payload.';
+        }
+      }).catch(function(e) {
+        detailsBox.textContent = 'Error fetching LNURLW response: ' + e.message;
+      });
+    }
+  }
+
+  function handleIdentifyTab(data) {
+    var detailsBox = document.getElementById('identify-details');
+    var rawBox = document.getElementById('identify-raw');
+
+    if (!data.p || !data.c) {
+      detailsBox.replaceChildren(_el('p', 'text-gray-500', 'No card data available.'));
+      rawBox.textContent = '--';
+      return;
+    }
+
+    detailsBox.replaceChildren(_el('p', 'text-gray-500 animate-pulse', 'Identifying\u2026'));
+    fetch('/api/identify-card', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p: data.p, c: data.c }),
+    }).then(function(r) { return r.json(); }).then(function(json) {
+      lastIdentifyData = json;
+      rawBox.textContent = JSON.stringify(json, null, 2);
+
+      if (json.status === 'ERROR') {
+        detailsBox.replaceChildren(_el('p', 'text-red-300', json.reason || 'Identification failed'));
+        return;
+      }
+
+      if (json.matched) {
+        var m = json.matched;
+        var _w = _el('div', 'space-y-2 text-sm');
+        _w.appendChild(_kv('UID:', json.uid || '--', 'font-mono text-amber-300'));
+        _w.appendChild(_kv('Counter:', json.counter || '--', 'font-mono text-cyan-300'));
+        _w.appendChild(_kv('CMAC:', 'valid', 'text-emerald-300'));
+        _w.appendChild(_kv('State:', m.card_state || '--'));
+        _w.appendChild(_kv('Method:', m.payment_method || '--'));
+        _w.appendChild(_kv('Version:', m.version != null ? String(m.version) : '--'));
+        _w.appendChild(_kv('Source:', m.source === 'config' ? 'Known card' : 'Deterministic'));
+        detailsBox.replaceChildren(_w);
+
+        setCardInfo({
+          uid: json.uid,
+          counter: json.counter,
+          state: m.card_state,
+          method: m.payment_method,
+          issuer: m.issuerKeyFingerprint ? m.issuerKeyFingerprint.slice(0, 8) + '...' : '--',
+          version: m.version != null ? m.version : '--',
+          fingerprint: m.issuerKeyFingerprint || '--',
+          cmac: 'valid',
+        });
+      } else {
+        var _w2 = _el('div', 'space-y-2 text-sm');
+        _w2.appendChild(_kv('UID:', json.uid || '--', 'font-mono text-amber-300'));
+        _w2.appendChild(_kv('Counter:', json.counter || '--', 'font-mono text-cyan-300'));
+        _w2.appendChild(_kv('CMAC:', 'no match', 'text-red-300'));
+        var _att = _el('div', 'text-xs text-gray-500 mt-2');
+        _att.textContent = 'Tried ' + ((json.all_attempts && json.all_attempts.length) || 0) + ' key(s). None matched CMAC.';
+        _w2.appendChild(_att);
+        detailsBox.replaceChildren(_w2);
+
+        setCardInfo({
+          uid: json.uid,
+          counter: json.counter,
+          cmac: 'invalid',
+        });
+      }
+    }).catch(function(err) {
+      detailsBox.replaceChildren(_el('p', 'text-red-300', 'Error: ' + err.message));
+    });
+  }
+
+  function handleWipeTab(data) {
+    var statusDiv = document.getElementById('wipe-status');
+    var generateBtn = document.getElementById('wipe-generate-btn');
+    var outputDiv = document.getElementById('wipe-output');
+    var actionsDiv = document.getElementById('wipe-actions');
+
+    if (!data.uid || data.uid === 'blank') {
+      statusDiv.textContent = 'No card detected. Tap a card first.';
+      generateBtn.classList.add('hidden');
+      outputDiv.classList.add('hidden');
+      actionsDiv.classList.add('hidden');
+      return;
+    }
+
+    statusDiv.textContent = 'Card detected: ' + data.uid.toUpperCase();
+    generateBtn.classList.remove('hidden');
+    generateBtn.disabled = false;
+    outputDiv.classList.add('hidden');
+    actionsDiv.classList.add('hidden');
+
+    generateBtn.onclick = function() {
+      generateBtn.disabled = true;
+      generateBtn.textContent = 'Generating\u2026';
+      fetch(BASE_URL + '/wipe?uid=' + encodeURIComponent(data.uid))
+        .then(function(r) { return r.json(); })
+        .then(function(json) {
+          outputDiv.classList.remove('hidden');
+          var resultDiv = document.getElementById('wipe-result');
+
+          if (json.reset_deeplink) {
+            resultDiv.textContent = 'Keys generated successfully.';
+            var deeplink = json.reset_deeplink;
+            document.getElementById('wipe-deeplink').href = deeplink;
+            document.getElementById('wipe-deeplink').textContent = deeplink;
+
+            if (wipeQrCode) { wipeQrCode.clear(); wipeQrCode = null; }
+            var qrContainer = document.getElementById('wipe-qr');
+            qrContainer.replaceChildren();
+            wipeQrCode = new QRCode(qrContainer, { text: deeplink, width: 200, height: 200, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.L });
+            actionsDiv.classList.remove('hidden');
+          } else {
+            resultDiv.textContent = json.reason || 'Failed to generate wipe data.';
+          }
+        }).catch(function(err) {
+          var resultDiv = document.getElementById('wipe-result');
+          resultDiv.textContent = 'Error: ' + err.message;
+        });
+      generateBtn.textContent = 'Generate Wipe Data';
+      generateBtn.disabled = false;
+    };
+  }
+
+  function handleTwofaTab(data) {
+    var outputDiv = document.getElementById('twofa-output');
+    if (!data.p || !data.c) {
+      outputDiv.replaceChildren(_el('div', 'text-center text-gray-500 py-4', 'Tap a card to load 2FA codes.'));
+      return;
+    }
+    outputDiv.replaceChildren(_el('div', 'text-center text-gray-500 py-4 animate-pulse', 'Loading\u2026'));
+    fetch(BASE_URL + '/2fa?p=' + encodeURIComponent(data.p) + '&c=' + encodeURIComponent(data.c), {
+      headers: { 'Accept': 'application/json' }
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(json) {
+        if (json.totpCode) {
+          var _w = _el('div', 'space-y-4 text-center');
+          var _td = _el('div');
+          _td.appendChild(_el('p', 'text-xs text-gray-500 uppercase tracking-wider mb-1', 'TOTP'));
+          _td.appendChild(_el('p', 'text-2xl font-mono text-emerald-400', json.totpCode));
+          _td.appendChild(_el('p', 'text-xs text-gray-500 mt-1', String(json.totpSecondsRemaining) + 's remaining'));
+          _w.appendChild(_td);
+          var _hd = _el('div');
+          _hd.appendChild(_el('p', 'text-xs text-gray-500 uppercase tracking-wider mb-1', 'HOTP'));
+          _hd.appendChild(_el('p', 'text-2xl font-mono text-blue-400', json.hotpCode));
+          _hd.appendChild(_el('p', 'text-xs text-gray-500 mt-1', 'Counter: ' + String(json.counterValue)));
+          _w.appendChild(_hd);
+          _w.appendChild(_el('p', 'text-xs text-gray-500 font-mono', 'UID: ' + (json.maskedUid || json.uidHex || '--')));
+          outputDiv.replaceChildren(_w);
+        } else {
+          outputDiv.replaceChildren(_el('div', 'text-center text-red-400 py-4', json.reason || json.error || 'Error'));
+        }
+      })
+      .catch(function() { outputDiv.replaceChildren(_el('div', 'text-center text-red-400 py-4', 'Error loading 2FA data.')); });
+  }
+
+  function handleIdentityTab(data) {
+    var outputDiv = document.getElementById('identity-output');
+    if (!data.p || !data.c) {
+      outputDiv.replaceChildren(_el('div', 'text-center text-gray-500 py-4', 'Tap a card to verify identity.'));
+      return;
+    }
+    outputDiv.replaceChildren(_el('div', 'text-center text-gray-500 py-4 animate-pulse', 'Verifying\u2026'));
+    fetch(BASE_URL + '/api/verify-identity?p=' + encodeURIComponent(data.p) + '&c=' + encodeURIComponent(data.c))
+      .then(function(r) { return r.json(); })
+      .then(function(json) {
+        if (json.verified) {
+          var _outer = _el('div', 'rounded-xl border border-pink-500/20 bg-pink-500/5 p-4 mt-4');
+          var _flex = _el('div', 'flex items-center gap-3 mb-3');
+          var _emoji = _el('div', 'h-8 w-8 rounded-full bg-pink-500 flex items-center justify-center text-xl');
+          _emoji.textContent = (json.profile && json.profile.emoji) || '?';
+          _flex.appendChild(_emoji);
+          var _info = _el('div');
+          var _name = _el('div', 'font-bold text-white text-lg');
+          _name.textContent = (json.profile && json.profile.name) || 'Unknown';
+          _info.appendChild(_name);
+          var _role = _el('div', 'text-xs text-gray-400');
+          _role.textContent = (json.profile && json.profile.role || '') + ' \u00b7 ' + (json.profile && json.profile.department || '');
+          _info.appendChild(_role);
+          _flex.appendChild(_info);
+          _outer.appendChild(_flex);
+          var _grid = _el('div', 'grid grid-cols-2 gap-2 text-sm');
+          _grid.appendChild(_kv('UID:', json.uid || '--', 'font-mono text-amber-300', 'text-gray-500'));
+          _grid.appendChild(_kv('Clearance:', (json.profile && json.profile.clearance) || '--', 'text-pink-300', 'text-gray-500'));
+          _outer.appendChild(_grid);
+          outputDiv.replaceChildren(_outer);
+        } else {
+          var _denied = _el('div', 'rounded-xl border border-red-500/30 bg-red-500/10 p-4 mt-4');
+          _denied.appendChild(_el('p', 'text-red-300', json.reason || 'Not verified'));
+          outputDiv.replaceChildren(_denied);
+        }
+      }).catch(function() { outputDiv.replaceChildren(_el('div', 'text-center text-red-400 py-4', 'Error loading identity data.')); });
+  }
+
+  function handlePosTab(data) {
+    var chargeBtn = document.getElementById('pos-charge-btn');
+    var statusBox = document.getElementById('pos-status');
+
+    if (!data.p || !data.c) {
+      chargeBtn.classList.add('hidden');
+      statusBox.classList.add('hidden');
+      return;
+    }
+
+    chargeBtn.classList.remove('hidden');
+    chargeBtn.disabled = false;
+    statusBox.classList.add('hidden');
+    document.getElementById('pos-amount').focus();
+  }
+
+  function showPosStatus(msg, ok) {
+    var statusBox = document.getElementById('pos-status');
+    statusBox.textContent = msg;
+    statusBox.className = ok
+      ? 'mt-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-200'
+      : 'mt-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200';
+    statusBox.classList.remove('hidden');
+  }
+
+  function handleManualUrl() {
+    var input = document.getElementById('manual-url');
+    var url = input.value.trim();
+    if (!url) return;
+    try {
+      var u = new URL(url);
+      var p = u.searchParams.get('p');
+      var c = u.searchParams.get('c');
+      if (!p || !c) { showError('URL must contain p and c parameters'); return; }
+      input.value = '';
+      clearError();
+      var activePanel = document.querySelector('.debug-panel:not(.hidden)');
+      if (!activePanel) return;
+      var tabId = activePanel.id.replace('panel-', '');
+      var handlers = {
+        console: handleConsoleTab,
+        identify: handleIdentifyTab,
+        wipe: handleWipeTab,
+        twofa: handleTwofaTab,
+        identity: handleIdentityTab,
+        pos: handlePosTab
+      };
+      lastP = p;
+      lastC = c;
+      if (handlers[tabId]) handlers[tabId]({ uid: null, nfcUrl: url, p: p, c: c });
+    } catch (e) { showError('Invalid URL format'); }
+  }
+
+  // Event delegation for data-action buttons
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    var action = btn.getAttribute('data-action');
+    if (action === 'copy-wipe-deeplink') {
+      var link = document.getElementById('wipe-deeplink');
+      if (link) {
+        navigator.clipboard.writeText(link.href).then(function() {
+          var t = document.getElementById('wipe-copy-toast');
+          if (t) {
+            t.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(function() { t.classList.add('translate-y-20', 'opacity-0'); }, 2000);
+          }
+        });
+      }
+    }
+  });
+
+  // POS charge button
+  document.getElementById('pos-charge-btn').addEventListener('click', function() {
+    if (!lastP || !lastC) return;
+    var amount = parseInt(document.getElementById('pos-amount').value, 10);
+    if (!amount || amount <= 0) { showPosStatus('Enter a valid amount', false); return; }
+    var chargeBtn = document.getElementById('pos-charge-btn');
+    chargeBtn.disabled = true;
+    fetch(BASE_URL + '/operator/pos/charge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p: lastP, c: lastC, amount: amount }),
+    }).then(function(r) { return r.json(); }).then(function(json) {
+      showPosStatus(json.reason || (json.status === 'OK' ? 'Charged ' + amount + ' credits' : 'Charge failed'), json.status === 'OK');
+    }).catch(function(err) { showPosStatus('Error: ' + err.message, false); });
+    chargeBtn.disabled = false;
+  });
+
+  // Console toggle JSON
+  document.getElementById('console-toggle-json').addEventListener('click', function() {
+    var jsonBox = document.getElementById('console-json');
+    jsonBox.classList.toggle('hidden');
+    this.textContent = jsonBox.classList.contains('hidden') ? 'Show raw JSON' : 'Hide raw JSON';
+  });
+
+  // Manual URL input
+  document.getElementById('manual-load-btn').addEventListener('click', handleManualUrl);
+  document.getElementById('manual-url').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') handleManualUrl();
+  });
+
+  // Initialize
+  initTabs();
+  initNfc();
+
+  var nfcStatusEl = document.getElementById('nfc-status');
+  if (nfcStatusEl) {
+    if (!browserSupportsNfc()) {
+      nfcStatusEl.classList.remove('hidden');
+      nfcStatusEl.textContent = 'Web NFC not available in this browser. Use the manual URL input below.';
+    }
+  }
+
+  var activePanel = document.querySelector('.debug-panel:not(.hidden)');
+  if (activePanel && activePanel.id === 'panel-console' && nfcScanner) {
+    nfcScanner.scan();
+  }
+})();`;
+export const DEBUG_JS_HASH = "460689587e94";
 
 export const LOGIN_JS = `// login.js — classic script (no import/export)
-// Depends on: nfc.js (esc, browserSupportsNfc, extractNdefUrl, normalizeBrowserNfcUrl, normalizeNfcSerial)
+// Depends on: nfc.js (browserSupportsNfc, extractNdefUrl, normalizeBrowserNfcUrl, normalizeNfcSerial)
 
 (function() {
   // Read server config from data attributes
@@ -737,8 +1269,11 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
     };
     var labels = { topup: 'TOP UP', payment: 'PAYMENT' };
     var cls = map[status] || map.pending;
-    var label = labels[status] || esc(status);
-    return '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ' + cls + '">' + label + '</span>';
+    var label = labels[status] || status;
+    var span = document.createElement('span');
+    span.className = 'px-1.5 py-0.5 rounded text-[10px] font-bold border ' + cls;
+    span.textContent = label;
+    return span;
   }
 
   function renderTapHistory(taps, prefix) {
@@ -747,48 +1282,63 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
     var countEl = document.getElementById(prefix + '-tap-count');
     if (!taps || taps.length === 0) {
       section.classList.remove('hidden');
-      list.innerHTML = '';
+      list.replaceChildren();
       countEl.textContent = '';
       document.getElementById(prefix + '-tap-empty').classList.remove('hidden');
       return;
     }
     document.getElementById(prefix + '-tap-empty').classList.add('hidden');
     countEl.textContent = taps.length + ' entries';
-    var html = '';
+    var elements = [];
     for (var i = 0; i < taps.length; i++) {
       var t = taps[i];
       var time = relativeTime(t.created_at);
       var isTopup = t.status === 'topup';
       var isPayment = t.status === 'payment';
 
-      var amountHtml = '';
+      var amountEl = null;
       if (isTopup && t.amount_msat) {
-        amountHtml = '<span class="font-mono text-emerald-400 font-bold">+' + formatUnits(t.amount_msat) + '</span>';
+        amountEl = document.createElement('span');
+        amountEl.className = 'font-mono text-emerald-400 font-bold';
+        amountEl.textContent = '+' + formatUnits(t.amount_msat);
       } else if (isPayment && t.amount_msat) {
-        amountHtml = '<span class="font-mono text-orange-400 font-bold">-' + formatUnits(t.amount_msat) + '</span>';
+        amountEl = document.createElement('span');
+        amountEl.className = 'font-mono text-orange-400 font-bold';
+        amountEl.textContent = '-' + formatUnits(t.amount_msat);
       } else if (t.amount_msat) {
-        amountHtml = '<span class="font-mono text-gray-400">' + formatUnits(t.amount_msat) + '</span>';
+        amountEl = document.createElement('span');
+        amountEl.className = 'font-mono text-gray-400';
+        amountEl.textContent = formatUnits(t.amount_msat);
       }
 
       var detailParts = [];
-      if (t.counter != null) detailParts.push('#' + esc(String(t.counter)));
-      if (t.note) detailParts.push(esc(t.note));
-      if (t.balance_after != null && (isTopup || isPayment)) detailParts.push('bal: ' + esc(String(t.balance_after)));
+      if (t.counter != null) detailParts.push('#' + String(t.counter));
+      if (t.note) detailParts.push(t.note);
+      if (t.balance_after != null && (isTopup || isPayment)) detailParts.push('bal: ' + String(t.balance_after));
 
-      html += '<div class="py-2 border-b border-gray-700/50 last:border-0">'
-        + '<div class="flex items-center justify-between">'
-        + '<div class="flex items-center gap-2">'
-        + '<span class="text-gray-500 text-xs shrink-0">' + time + '</span>'
-        + statusBadge(t.status)
-        + '</div>'
-        + amountHtml
-        + '</div>'
-        + (detailParts.length > 0
-          ? '<div class="text-gray-500 text-[11px] mt-0.5 pl-1">' + detailParts.join(' · ') + '</div>'
-          : '')
-        + '</div>';
+      var outer = document.createElement('div');
+      outer.className = 'py-2 border-b border-gray-700/50 last:border-0';
+      var row = document.createElement('div');
+      row.className = 'flex items-center justify-between';
+      var left = document.createElement('div');
+      left.className = 'flex items-center gap-2';
+      var timeSpan = document.createElement('span');
+      timeSpan.className = 'text-gray-500 text-xs shrink-0';
+      timeSpan.textContent = time;
+      left.appendChild(timeSpan);
+      left.appendChild(statusBadge(t.status));
+      row.appendChild(left);
+      if (amountEl) row.appendChild(amountEl);
+      outer.appendChild(row);
+      if (detailParts.length > 0) {
+        var detailDiv = document.createElement('div');
+        detailDiv.className = 'text-gray-500 text-[11px] mt-0.5 pl-1';
+        detailDiv.textContent = detailParts.join(' \u00B7 ');
+        outer.appendChild(detailDiv);
+      }
+      elements.push(outer);
     }
-    list.innerHTML = html;
+    list.replaceChildren.apply(list, elements);
     section.classList.remove('hidden');
   }
 
@@ -867,11 +1417,27 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
   }
 
   function buildKeysRows(k0, k1, k2, k3, k4) {
-    return '<tr><td class="pr-3 text-gray-500">K0</td><td class="font-mono text-xs text-gray-400">' + esc(k0 || '-') + '</td></tr>' +
-      '<tr><td class="pr-3 text-gray-500">K1</td><td class="font-mono text-xs text-gray-400">' + esc(k1 || '-') + '</td></tr>' +
-      '<tr><td class="pr-3 text-gray-500">K2</td><td class="font-mono text-xs text-gray-400">' + esc(k2 || '-') + '</td></tr>' +
-      '<tr><td class="pr-3 text-gray-500">K3</td><td class="font-mono text-xs text-gray-400">' + esc(k3 || '-') + '</td></tr>' +
-      '<tr><td class="pr-3 text-gray-500">K4</td><td class="font-mono text-xs text-gray-400">' + esc(k4 || '-') + '</td></tr>';
+    var keys = [
+      { label: 'K0', value: k0 },
+      { label: 'K1', value: k1 },
+      { label: 'K2', value: k2 },
+      { label: 'K3', value: k3 },
+      { label: 'K4', value: k4 }
+    ];
+    var fragment = document.createDocumentFragment();
+    for (var i = 0; i < keys.length; i++) {
+      var tr = document.createElement('tr');
+      var td1 = document.createElement('td');
+      td1.className = 'pr-3 text-gray-500';
+      td1.textContent = keys[i].label;
+      var td2 = document.createElement('td');
+      td2.className = 'font-mono text-xs text-gray-400';
+      td2.textContent = keys[i].value || '-';
+      tr.appendChild(td1);
+      tr.appendChild(td2);
+      fragment.appendChild(tr);
+    }
+    return fragment;
   }
 
   function setCurrentProgrammingEndpoint(endpointUrl) {
@@ -889,7 +1455,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
   function showUndeployedProgrammingInstructions(endpointUrl, deliveredAt) {
     var deeplink = buildProgrammingDeeplink(endpointUrl || buildProgrammingEndpointUrl());
     var qrEl = document.getElementById('qr-undep-program');
-    qrEl.innerHTML = '';
+    qrEl.replaceChildren();
     new QRCode(qrEl, { text: deeplink, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
     document.getElementById('undep-program-deeplink').href = deeplink;
     if (deliveredAt) {
@@ -955,7 +1521,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
     document.getElementById('undep-uid-display').textContent = 'UID: ' + result.uidHex.toUpperCase();
     document.getElementById('undep-version').textContent = result.keyVersion || 1;
     document.getElementById('undep-state').textContent = result.cardState || 'new';
-    document.getElementById('undep-keys').innerHTML = buildKeysRows(result.k0, result.k1, result.k2, result.k3, result.k4);
+    document.getElementById('undep-keys').replaceChildren(buildKeysRows(result.k0, result.k1, result.k2, result.k3, result.k4));
     var btn = document.getElementById('undep-provision-btn');
     btn.disabled = false;
     btn.textContent = 'PROVISION AS WITHDRAW CARD';
@@ -986,7 +1552,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
     var cmacEl = document.getElementById('pub-cmac');
     cmacEl.textContent = result.cmacValid ? 'VERIFIED' : 'FAILED';
     cmacEl.className = result.cmacValid ? 'font-mono text-emerald-400' : 'font-mono text-red-400';
-    document.getElementById('pub-keys').innerHTML = buildKeysRows(result.k0, result.k1, result.k2, result.k3, result.k4);
+    document.getElementById('pub-keys').replaceChildren(buildKeysRows(result.k0, result.k1, result.k2, result.k3, result.k4));
     document.getElementById('pub-ndef').textContent = result.ndef || '';
     document.getElementById('public-view').classList.remove('hidden');
     renderTapHistory(result.tapHistory || [], 'pub');
@@ -996,7 +1562,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
       var endpointUrl = API_HOST + '/api/keys?uid=' + pubUid + '&format=boltcard';
       document.getElementById('pub-wipe-deeplink').href = 'boltcard://reset?url=' + encodeURIComponent(endpointUrl);
       var qrEl = document.getElementById('qr-pub-wipe');
-      qrEl.innerHTML = '';
+      qrEl.replaceChildren();
       new QRCode(qrEl, { text: wipeJson('pub'), width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
     }
   }
@@ -1036,7 +1602,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
         }).join(', ');
       }
     }
-    document.getElementById('priv-keys').innerHTML = buildKeysRows(result.k0, result.k1, result.k2, result.k3, result.k4);
+    document.getElementById('priv-keys').replaceChildren(buildKeysRows(result.k0, result.k1, result.k2, result.k3, result.k4));
     document.getElementById('priv-ndef').textContent = result.ndef || '';
     var privProgrammingSection = document.getElementById('priv-awaiting-programming');
     var terminatedBanner = document.getElementById('priv-terminated-banner');
@@ -1052,7 +1618,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
       var privProgramEndpoint = result.programmingEndpoint;
       var privDeeplink = 'boltcard://program?url=' + encodeURIComponent(privProgramEndpoint);
       var privQrEl = document.getElementById('qr-priv-program');
-      privQrEl.innerHTML = '';
+      privQrEl.replaceChildren();
       new QRCode(privQrEl, { text: privDeeplink, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
       document.getElementById('priv-program-deeplink').href = privDeeplink;
       if (result.keysDeliveredAt) {
@@ -1213,7 +1779,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
         status.className = 'mt-3 text-center text-sm text-emerald-400';
         status.textContent = 'Card is now pending wipe (v' + result.data.keyVersion + ')';
         var qrEl = document.getElementById('qr-priv-wipe');
-        qrEl.innerHTML = '';
+        qrEl.replaceChildren();
         new QRCode(qrEl, { text: result.data.wipeJson, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
         document.getElementById('priv-wipe-link').href = result.data.wipeDeeplink;
         document.getElementById('priv-wipe-json').textContent = result.data.wipeJson;
@@ -1316,7 +1882,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
         btn.classList.add('bg-gray-600');
         var deeplink = buildProgrammingDeeplink(endpoint);
         var qrEl = document.getElementById('qr-term-program');
-        qrEl.innerHTML = '';
+        qrEl.replaceChildren();
         new QRCode(qrEl, { text: deeplink, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
         document.getElementById('term-program-deeplink').href = deeplink;
         document.getElementById('term-keys-delivered-time').textContent = 'Keys generated just now.';
@@ -1361,7 +1927,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
         btn.classList.add('bg-gray-600');
         var deeplink = buildProgrammingDeeplink(endpoint);
         var qrEl = document.getElementById('qr-priv-reprovision');
-        qrEl.innerHTML = '';
+        qrEl.replaceChildren();
         new QRCode(qrEl, { text: deeplink, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
         document.getElementById('priv-reprovision-deeplink').href = deeplink;
         document.getElementById('priv-reprovision-program').classList.remove('hidden');
@@ -1567,493 +2133,11 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
       }
     }
   }
-})();
-`;
-
-export const LOGIN_JS_HASH = "28985471367c";
-
-
-export const DEBUG_JS = `// debug.js — classic script (no import/export)
-// Requires: nfc.js (esc, browserSupportsNfc, createNfcScanner)
-
-(function() {
-  var debugRoot = document.getElementById('debug-root');
-  var BASE_URL = debugRoot ? debugRoot.getAttribute('data-base-url') : '';
-
-  var lastP = null;
-  var lastC = null;
-  var lastIdentifyData = null;
-  var wipeQrCode = null;
-  var nfcScanner = null;
-
-  var scanBtn = document.getElementById('nfc-scan-btn');
-  var errorBox = document.getElementById('error-message');
-
-  function showError(msg) {
-    errorBox.textContent = msg;
-    errorBox.classList.remove('hidden');
-  }
-  function clearError() {
-    errorBox.textContent = '';
-    errorBox.classList.add('hidden');
-  }
-
-  function updateScanBtn(state) {
-    if (state === 'scanning') {
-      scanBtn.textContent = 'Scanning\u2026';
-      scanBtn.className = 'ml-auto rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition hover:border-emerald-500/50';
-    } else if (state === 'error') {
-      scanBtn.textContent = 'Restart NFC scan';
-      scanBtn.className = 'ml-auto rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:border-red-500/50';
-    } else {
-      scanBtn.textContent = 'Start NFC scan';
-      scanBtn.className = 'ml-auto rounded-lg border border-gray-700 bg-gray-950 px-3 py-1.5 text-xs font-semibold text-gray-300 transition hover:border-cyan-500/50 hover:text-cyan-300';
-    }
-  }
-
-  function setCardInfo(data) {
-    document.getElementById('ci-uid').textContent = data.uid || '--';
-    document.getElementById('ci-counter').textContent = data.counter || '--';
-    document.getElementById('ci-issuer').textContent = data.issuer || '--';
-    document.getElementById('ci-version').textContent = data.version != null ? data.version : '--';
-    document.getElementById('ci-state').textContent = data.state || '--';
-    document.getElementById('ci-method').textContent = data.method || '--';
-    document.getElementById('ci-fingerprint').textContent = data.fingerprint || '--';
-    document.getElementById('ci-cmac').textContent = data.cmac || '--';
-    if (data.cmac === 'valid') {
-      document.getElementById('ci-cmac').className = 'font-mono text-xs text-emerald-400';
-    } else if (data.cmac === 'invalid') {
-      document.getElementById('ci-cmac').className = 'font-mono text-xs text-red-400';
-    } else {
-      document.getElementById('ci-cmac').className = 'font-mono text-xs';
-    }
-  }
-
-  function switchTab(tabId) {
-    document.querySelectorAll('.debug-tab').forEach(function(t) { t.classList.toggle('active', t.dataset.tab === tabId); });
-    document.querySelectorAll('.debug-panel').forEach(function(p) { p.classList.toggle('hidden', p.id !== 'panel-' + tabId); });
-  }
-
-  function initTabs() {
-    document.querySelectorAll('.debug-tab').forEach(function(t) {
-      t.addEventListener('click', function() { switchTab(t.dataset.tab); });
-    });
-    var hash = location.hash.replace('#', '');
-    if (hash && document.getElementById('panel-' + hash)) switchTab(hash);
-  }
-
-  function initNfc() {
-    if (!browserSupportsNfc()) {
-      updateScanBtn('error');
-      scanBtn.textContent = 'Web NFC unavailable';
-      scanBtn.disabled = true;
-      return;
-    }
-
-    nfcScanner = createNfcScanner({
-      onTap: handleNfcTap,
-      onError: function(err, phase) {
-        if (phase === 'permission') {
-          updateScanBtn('error');
-          showError('NFC permission denied. Click the button to retry.');
-        } else if (phase === 'scan') {
-          showError('NFC read error: ' + err.message);
-        } else {
-          showError('Error: ' + err.message);
-        }
-      },
-      onStatus: function(status) {
-        if (status === 'scanning') updateScanBtn('scanning');
-        else if (status === 'stopped') updateScanBtn('error');
-        else if (status === 'starting') updateScanBtn('scanning');
-      },
-      debounceMs: 3000
-    });
-
-    scanBtn.addEventListener('click', function() {
-      clearError();
-      if (nfcScanner.isActive()) {
-        nfcScanner.restart();
-      } else {
-        nfcScanner.scan();
-      }
-    });
-  }
-
-  function handleNfcTap(tap) {
-    clearError();
-    var uid = tap.serial || null;
-    var nfcUrl = tap.url;
-    var p = null, c = null;
-
-    if (nfcUrl) {
-      try {
-        var u = new URL(nfcUrl);
-        p = u.searchParams.get('p');
-        c = u.searchParams.get('c');
-      } catch (e) {}
-    }
-
-    lastP = p;
-    lastC = c;
-
-    var activePanel = document.querySelector('.debug-panel:not(.hidden)');
-    if (!activePanel) return;
-    var tabId = activePanel.id.replace('panel-', '');
-
-    var handlers = {
-      console: handleConsoleTab,
-      identify: handleIdentifyTab,
-      wipe: handleWipeTab,
-      twofa: handleTwofaTab,
-      identity: handleIdentityTab,
-      pos: handlePosTab
-    };
-    if (handlers[tabId]) handlers[tabId]({ uid: uid, nfcUrl: nfcUrl, p: p, c: c });
-  }
-
-  function handleConsoleTab(data) {
-    var ndefBox = document.getElementById('console-ndef');
-    var detailsBox = document.getElementById('console-lnurlw-details');
-    var payBtn = document.getElementById('console-pay-btn');
-    var statusBox = document.getElementById('console-payment-status');
-
-    if (!data.nfcUrl) {
-      ndefBox.textContent = 'No NDEF records (blank or unprogrammed card)';
-      detailsBox.innerHTML = '<span class="text-gray-500">No LNURLW payload found.</span>';
-      payBtn.classList.add('hidden');
-      statusBox.classList.add('hidden');
-      return;
-    }
-
-    ndefBox.textContent = data.nfcUrl;
-    payBtn.classList.add('hidden');
-    statusBox.classList.add('hidden');
-
-    if (data.nfcUrl.startsWith('https://')) {
-      fetch(data.nfcUrl).then(function(r) { return r.json(); }).then(function(json) {
-        if (json.tag === 'withdrawRequest') {
-          detailsBox.innerHTML =
-            '<div class="space-y-1 text-sm">' +
-            '<div><span class="font-semibold text-gray-100">Callback:</span> <span class="break-all font-mono text-xs text-cyan-300">' + esc(json.callback) + '</span></div>' +
-            '<div><span class="font-semibold text-gray-100">K1:</span> <span class="break-all font-mono text-xs text-amber-300">' + esc(json.k1) + '</span></div>' +
-            '<div><span class="font-semibold text-gray-100">Min:</span> ' + (json.minWithdrawable / 1000) + ' sats</div>' +
-            '<div><span class="font-semibold text-gray-100">Max:</span> ' + (json.maxWithdrawable / 1000) + ' sats</div>' +
-            '</div>';
-          payBtn.classList.remove('hidden');
-          payBtn.disabled = false;
-          window._consoleCallbackUrl = json.callback;
-          window._consoleK1 = json.k1;
-        } else {
-          detailsBox.textContent = 'The card did not return a withdrawRequest payload.';
-        }
-      }).catch(function(e) {
-        detailsBox.textContent = 'Error fetching LNURLW response: ' + e.message;
-      });
-    }
-  }
-
-  function handleIdentifyTab(data) {
-    var detailsBox = document.getElementById('identify-details');
-    var rawBox = document.getElementById('identify-raw');
-
-    if (!data.p || !data.c) {
-      detailsBox.innerHTML = '<p class="text-gray-500">No card data available.</p>';
-      rawBox.textContent = '--';
-      return;
-    }
-
-    detailsBox.innerHTML = '<p class="text-gray-500 animate-pulse">Identifying\u2026</p>';
-    fetch('/api/identify-card', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ p: data.p, c: data.c }),
-    }).then(function(r) { return r.json(); }).then(function(json) {
-      lastIdentifyData = json;
-      rawBox.textContent = JSON.stringify(json, null, 2);
-
-      if (json.status === 'ERROR') {
-        detailsBox.innerHTML = '<p class="text-red-300">' + esc(json.reason || 'Identification failed') + '</p>';
-        return;
-      }
-
-      if (json.matched) {
-        var m = json.matched;
-        detailsBox.innerHTML =
-          '<div class="space-y-2 text-sm">' +
-          '<div><span class="font-semibold text-gray-100">UID:</span> <span class="font-mono text-amber-300">' + esc(json.uid || '--') + '</span></div>' +
-          '<div><span class="font-semibold text-gray-100">Counter:</span> <span class="font-mono text-cyan-300">' + esc(json.counter || '--') + '</span></div>' +
-          '<div><span class="font-semibold text-gray-100">CMAC:</span> <span class="text-emerald-300">valid</span></div>' +
-          '<div><span class="font-semibold text-gray-100">State:</span> ' + esc(m.card_state || '--') + '</div>' +
-          '<div><span class="font-semibold text-gray-100">Method:</span> ' + esc(m.payment_method || '--') + '</div>' +
-          '<div><span class="font-semibold text-gray-100">Version:</span> ' + esc(m.version != null ? m.version : '--') + '</div>' +
-          '<div><span class="font-semibold text-gray-100">Source:</span> ' + (m.source === 'config' ? 'Known card' : 'Deterministic') + '</div>' +
-          '</div>';
-
-        setCardInfo({
-          uid: json.uid,
-          counter: json.counter,
-          state: m.card_state,
-          method: m.payment_method,
-          issuer: m.issuerKeyFingerprint ? m.issuerKeyFingerprint.slice(0, 8) + '...' : '--',
-          version: m.version != null ? m.version : '--',
-          fingerprint: m.issuerKeyFingerprint || '--',
-          cmac: 'valid',
-        });
-      } else {
-        detailsBox.innerHTML =
-          '<div class="space-y-2 text-sm">' +
-          '<div><span class="font-semibold text-gray-100">UID:</span> <span class="font-mono text-amber-300">' + esc(json.uid || '--') + '</span></div>' +
-          '<div><span class="font-semibold text-gray-100">Counter:</span> <span class="font-mono text-cyan-300">' + esc(json.counter || '--') + '</span></div>' +
-          '<div><span class="font-semibold text-gray-100">CMAC:</span> <span class="text-red-300">no match</span></div>' +
-          '<div class="text-xs text-gray-500 mt-2">Tried ' + ((json.all_attempts && json.all_attempts.length) || 0) + ' key(s). None matched CMAC.</div>' +
-          '</div>';
-
-        setCardInfo({
-          uid: json.uid,
-          counter: json.counter,
-          cmac: 'invalid',
-        });
-      }
-    }).catch(function(err) {
-      detailsBox.innerHTML = '<p class="text-red-300">Error: ' + esc(err.message) + '</p>';
-    });
-  }
-
-  function handleWipeTab(data) {
-    var statusDiv = document.getElementById('wipe-status');
-    var generateBtn = document.getElementById('wipe-generate-btn');
-    var outputDiv = document.getElementById('wipe-output');
-    var actionsDiv = document.getElementById('wipe-actions');
-
-    if (!data.uid || data.uid === 'blank') {
-      statusDiv.textContent = 'No card detected. Tap a card first.';
-      generateBtn.classList.add('hidden');
-      outputDiv.classList.add('hidden');
-      actionsDiv.classList.add('hidden');
-      return;
-    }
-
-    statusDiv.textContent = 'Card detected: ' + data.uid.toUpperCase();
-    generateBtn.classList.remove('hidden');
-    generateBtn.disabled = false;
-    outputDiv.classList.add('hidden');
-    actionsDiv.classList.add('hidden');
-
-    generateBtn.onclick = function() {
-      generateBtn.disabled = true;
-      generateBtn.textContent = 'Generating\u2026';
-      fetch(BASE_URL + '/wipe?uid=' + encodeURIComponent(data.uid))
-        .then(function(r) { return r.json(); })
-        .then(function(json) {
-          outputDiv.classList.remove('hidden');
-          var resultDiv = document.getElementById('wipe-result');
-
-          if (json.reset_deeplink) {
-            resultDiv.textContent = 'Keys generated successfully.';
-            var deeplink = json.reset_deeplink;
-            document.getElementById('wipe-deeplink').href = deeplink;
-            document.getElementById('wipe-deeplink').textContent = deeplink;
-
-            if (wipeQrCode) { wipeQrCode.clear(); wipeQrCode = null; }
-            var qrContainer = document.getElementById('wipe-qr');
-            qrContainer.innerHTML = '';
-            wipeQrCode = new QRCode(qrContainer, { text: deeplink, width: 200, height: 200, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.L });
-            actionsDiv.classList.remove('hidden');
-          } else {
-            resultDiv.textContent = json.reason || 'Failed to generate wipe data.';
-          }
-        }).catch(function(err) {
-          var resultDiv = document.getElementById('wipe-result');
-          resultDiv.textContent = 'Error: ' + err.message;
-        });
-      generateBtn.textContent = 'Generate Wipe Data';
-      generateBtn.disabled = false;
-    };
-  }
-
-  function handleTwofaTab(data) {
-    var outputDiv = document.getElementById('twofa-output');
-    if (!data.p || !data.c) {
-      outputDiv.innerHTML = '<div class="text-center text-gray-500 py-4">Tap a card to load 2FA codes.</div>';
-      return;
-    }
-    outputDiv.innerHTML = '<div class="text-center text-gray-500 py-4 animate-pulse">Loading\u2026</div>';
-    fetch(BASE_URL + '/2fa?p=' + encodeURIComponent(data.p) + '&c=' + encodeURIComponent(data.c), {
-      headers: { 'Accept': 'application/json' }
-    })
-      .then(function(r) { return r.json(); })
-      .then(function(json) {
-        if (json.totpCode) {
-          outputDiv.innerHTML =
-            '<div class="space-y-4 text-center">' +
-            '<div><p class="text-xs text-gray-500 uppercase tracking-wider mb-1">TOTP</p>' +
-            '<p class="text-2xl font-mono text-emerald-400">' + esc(json.totpCode) + '</p>' +
-            '<p class="text-xs text-gray-500 mt-1">' + esc(String(json.totpSecondsRemaining)) + 's remaining</p></div>' +
-            '<div><p class="text-xs text-gray-500 uppercase tracking-wider mb-1">HOTP</p>' +
-            '<p class="text-2xl font-mono text-blue-400">' + esc(json.hotpCode) + '</p>' +
-            '<p class="text-xs text-gray-500 mt-1">Counter: ' + esc(String(json.counterValue)) + '</p></div>' +
-            '<p class="text-xs text-gray-500 font-mono">UID: ' + esc(json.maskedUid || json.uidHex || '--') + '</p>' +
-            '</div>';
-        } else {
-          outputDiv.innerHTML = '<div class="text-center text-red-400 py-4">' + esc(json.reason || json.error || 'Error') + '</div>';
-        }
-      })
-      .catch(function() { outputDiv.innerHTML = '<div class="text-center text-red-400 py-4">Error loading 2FA data.</div>'; });
-  }
-
-  function handleIdentityTab(data) {
-    var outputDiv = document.getElementById('identity-output');
-    if (!data.p || !data.c) {
-      outputDiv.innerHTML = '<div class="text-center text-gray-500 py-4">Tap a card to verify identity.</div>';
-      return;
-    }
-    outputDiv.innerHTML = '<div class="text-center text-gray-500 py-4 animate-pulse">Verifying\u2026</div>';
-    fetch(BASE_URL + '/api/verify-identity?p=' + encodeURIComponent(data.p) + '&c=' + encodeURIComponent(data.c))
-      .then(function(r) { return r.json(); })
-      .then(function(json) {
-        if (json.verified) {
-          outputDiv.innerHTML =
-            '<div class="rounded-xl border border-pink-500/20 bg-pink-500/5 p-4 mt-4">' +
-            '<div class="flex items-center gap-3 mb-3"><div class="h-8 w-8 rounded-full bg-pink-500 flex items-center justify-center text-xl">' + esc(json.profile && json.profile.emoji || '?') + '</div>' +
-            '<div><div class="font-bold text-white text-lg">' + esc(json.profile && json.profile.name || 'Unknown') + '</div>' +
-            '<div class="text-xs text-gray-400">' + esc(json.profile && json.profile.role || '') + ' \u00b7 ' + esc(json.profile && json.profile.department || '') + '</div></div></div>' +
-            '<div class="grid grid-cols-2 gap-2 text-sm"><div><span class="text-gray-500">UID:</span> <span class="font-mono text-amber-300">' + esc(json.uid || '--') + '</span></div>' +
-            '<div><span class="text-gray-500">Clearance:</span> <span class="text-pink-300">' + esc(json.profile && json.profile.clearance || '--') + '</span></div></div>' +
-            '</div>';
-        } else {
-          outputDiv.innerHTML =
-            '<div class="rounded-xl border border-red-500/30 bg-red-500/10 p-4 mt-4">' +
-            '<p class="text-red-300">' + esc(json.reason || 'Not verified') + '</p></div>';
-        }
-      }).catch(function() { outputDiv.innerHTML = '<div class="text-center text-red-400 py-4">Error loading identity data.</div>'; });
-  }
-
-  function handlePosTab(data) {
-    var chargeBtn = document.getElementById('pos-charge-btn');
-    var statusBox = document.getElementById('pos-status');
-
-    if (!data.p || !data.c) {
-      chargeBtn.classList.add('hidden');
-      statusBox.classList.add('hidden');
-      return;
-    }
-
-    chargeBtn.classList.remove('hidden');
-    chargeBtn.disabled = false;
-    statusBox.classList.add('hidden');
-    document.getElementById('pos-amount').focus();
-  }
-
-  function showPosStatus(msg, ok) {
-    var statusBox = document.getElementById('pos-status');
-    statusBox.textContent = msg;
-    statusBox.className = ok
-      ? 'mt-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-200'
-      : 'mt-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200';
-    statusBox.classList.remove('hidden');
-  }
-
-  function handleManualUrl() {
-    var input = document.getElementById('manual-url');
-    var url = input.value.trim();
-    if (!url) return;
-    try {
-      var u = new URL(url);
-      var p = u.searchParams.get('p');
-      var c = u.searchParams.get('c');
-      if (!p || !c) { showError('URL must contain p and c parameters'); return; }
-      input.value = '';
-      clearError();
-      var activePanel = document.querySelector('.debug-panel:not(.hidden)');
-      if (!activePanel) return;
-      var tabId = activePanel.id.replace('panel-', '');
-      var handlers = {
-        console: handleConsoleTab,
-        identify: handleIdentifyTab,
-        wipe: handleWipeTab,
-        twofa: handleTwofaTab,
-        identity: handleIdentityTab,
-        pos: handlePosTab
-      };
-      lastP = p;
-      lastC = c;
-      if (handlers[tabId]) handlers[tabId]({ uid: null, nfcUrl: url, p: p, c: c });
-    } catch (e) { showError('Invalid URL format'); }
-  }
-
-  // Event delegation for data-action buttons
-  document.addEventListener('click', function(e) {
-    var btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    var action = btn.getAttribute('data-action');
-    if (action === 'copy-wipe-deeplink') {
-      var link = document.getElementById('wipe-deeplink');
-      if (link) {
-        navigator.clipboard.writeText(link.href).then(function() {
-          var t = document.getElementById('wipe-copy-toast');
-          if (t) {
-            t.classList.remove('translate-y-20', 'opacity-0');
-            setTimeout(function() { t.classList.add('translate-y-20', 'opacity-0'); }, 2000);
-          }
-        });
-      }
-    }
-  });
-
-  // POS charge button
-  document.getElementById('pos-charge-btn').addEventListener('click', function() {
-    if (!lastP || !lastC) return;
-    var amount = parseInt(document.getElementById('pos-amount').value, 10);
-    if (!amount || amount <= 0) { showPosStatus('Enter a valid amount', false); return; }
-    var chargeBtn = document.getElementById('pos-charge-btn');
-    chargeBtn.disabled = true;
-    fetch(BASE_URL + '/operator/pos/charge', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ p: lastP, c: lastC, amount: amount }),
-    }).then(function(r) { return r.json(); }).then(function(json) {
-      showPosStatus(json.reason || (json.status === 'OK' ? 'Charged ' + amount + ' credits' : 'Charge failed'), json.status === 'OK');
-    }).catch(function(err) { showPosStatus('Error: ' + err.message, false); });
-    chargeBtn.disabled = false;
-  });
-
-  // Console toggle JSON
-  document.getElementById('console-toggle-json').addEventListener('click', function() {
-    var jsonBox = document.getElementById('console-json');
-    jsonBox.classList.toggle('hidden');
-    this.textContent = jsonBox.classList.contains('hidden') ? 'Show raw JSON' : 'Hide raw JSON';
-  });
-
-  // Manual URL input
-  document.getElementById('manual-load-btn').addEventListener('click', handleManualUrl);
-  document.getElementById('manual-url').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') handleManualUrl();
-  });
-
-  // Initialize
-  initTabs();
-  initNfc();
-
-  var nfcStatusEl = document.getElementById('nfc-status');
-  if (nfcStatusEl) {
-    if (!browserSupportsNfc()) {
-      nfcStatusEl.classList.remove('hidden');
-      nfcStatusEl.textContent = 'Web NFC not available in this browser. Use the manual URL input below.';
-    }
-  }
-
-  var activePanel = document.querySelector('.debug-panel:not(.hidden)');
-  if (activePanel && activePanel.id === 'panel-console' && nfcScanner) {
-    nfcScanner.scan();
-  }
-})();
-`;
-
-export const DEBUG_JS_HASH = "fff8496b3a28";
+})();`;
+export const LOGIN_JS_HASH = "41640343a557";
 
 export const ACTIVATE_JS = `// activate.js — classic script (no import/export)
-// Depends on: nfc.js (esc, browserSupportsNfc, createNfcScanner)
+// Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
 // Used by both renderActivatePage() and renderActivateCardPage()
 
 var UID_REGEX = /^[0-9a-f]{14}$/;
@@ -2227,143 +2311,9 @@ function validateUid(uid) {
       result.textContent = 'Error submitting form: ' + error.message;
     });
   });
-})();
-`;
+})();`;
+export const ACTIVATE_JS_HASH = "adca0e73ca94";
 
-export const ACTIVATE_JS_HASH = "e575aa35ab82";
-
-export const WIPE_JS = `// wipe.js \u2014 classic script (no import/export)
-// Depends on: nfc.js (esc, browserSupportsNfc, createNfcScanner)
-
-(function() {
-  var wipeRoot = document.getElementById('wipe-root');
-  var baseUrl = wipeRoot ? wipeRoot.getAttribute('data-base-url') : '';
-  var resetApiUrl = wipeRoot ? wipeRoot.getAttribute('data-reset-api-url') : '';
-  var wipeQrCode = null;
-  var currentResetLink = '';
-
-  var wipeScanner = createNfcScanner({
-    continuous: false,
-    debounceMs: 0,
-    onStatus: function(status) {
-      var autoHint = document.getElementById('scan-auto-hint');
-      var btn = document.getElementById('btn-scan');
-      if (status === 'scanning') {
-        if (autoHint) autoHint.classList.remove('hidden');
-        btn.classList.add('hidden');
-      } else {
-        if (autoHint) autoHint.classList.add('hidden');
-      }
-    },
-    onError: function(err, phase) {
-      var autoHint = document.getElementById('scan-auto-hint');
-      if (autoHint) autoHint.classList.add('hidden');
-      if (phase !== 'permission') {
-        alert("Error reading NFC: " + err.message);
-      }
-    },
-    onTap: function(data) {
-      var autoHint = document.getElementById('scan-auto-hint');
-      if (autoHint) autoHint.classList.add('hidden');
-      var btn = document.getElementById('btn-scan');
-      document.getElementById('scan-uid').innerText = data.serial || "Unknown";
-      var pParam = "Not found";
-      var cParam = "Not found";
-      if (data.url) {
-        try {
-          var url = new URL(data.url);
-          pParam = url.searchParams.get("p") || pParam;
-          cParam = url.searchParams.get("c") || cParam;
-        } catch(e) {}
-      }
-      document.getElementById('scan-p').innerText = pParam;
-      document.getElementById('scan-c').innerText = cParam;
-      document.getElementById('scan-results').classList.remove('hidden');
-      btn.classList.remove('hidden');
-      btn.innerText = "SCAN AGAIN";
-    }
-  });
-
-  if (browserSupportsNfc()) {
-    window.addEventListener('load', function() { wipeScanner.scan(); });
-  }
-
-  document.getElementById('btn-scan').addEventListener('click', function() {
-    wipeScanner.restart();
-  });
-
-  document.getElementById('btn-wipe-scanned').addEventListener('click', function() {
-    var uid = document.getElementById('scan-uid').innerText;
-    if (!uid || uid === "Unknown") {
-      alert("Valid UID required.");
-      return;
-    }
-    fetchWipeKeys(uid);
-  });
-
-  document.getElementById('btn-wipe-manual').addEventListener('click', function() {
-    var uid = document.getElementById('manual-uid').value.trim().toLowerCase();
-    if (!uid || uid.length !== 14) {
-      alert("Please enter a valid 14-character hex UID.");
-      return;
-    }
-    fetchWipeKeys(uid);
-  });
-
-  function fetchWipeKeys(uid) {
-    var wipeApiUrl = baseUrl + '/wipe?uid=' + encodeURIComponent(uid);
-    fetch(wipeApiUrl)
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        displayOutput(uid, data, resetApiUrl);
-      })
-      .catch(function(error) {
-        alert("Error fetching wipe keys: " + error.message);
-      });
-  }
-
-  function displayOutput(uid, data, resetApiUrl) {
-    document.getElementById('output-section').classList.remove('hidden');
-    document.getElementById('output-uid-badge').innerText = 'UID: ' + uid.toUpperCase();
-    document.getElementById('api-response').innerText = JSON.stringify(data, null, 2);
-
-    currentResetLink = 'boltcard://reset?url=' + encodeURIComponent(resetApiUrl);
-    document.getElementById('link-wipe-btn').href = currentResetLink;
-    document.getElementById('link-wipe-text').innerText = currentResetLink;
-
-    var qrContainer = document.getElementById('qr-wipe');
-    qrContainer.innerHTML = '';
-
-    wipeQrCode = new QRCode(qrContainer, {
-      text: currentResetLink,
-      width: 180,
-      height: 180,
-      colorDark : "#000000",
-      colorLight : "#ffffff",
-      correctLevel : QRCode.CorrectLevel.L
-    });
-
-    document.getElementById('output-section').scrollIntoView({ behavior: 'smooth' });
-  }
-
-  document.addEventListener('click', function(e) {
-    var btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    var action = btn.getAttribute('data-action');
-    if (action === 'copy-wipe-link') {
-      navigator.clipboard.writeText(currentResetLink).then(function() {
-        var toast = document.getElementById('toast');
-        toast.classList.remove('translate-y-20', 'opacity-0');
-        setTimeout(function() {
-          toast.classList.add('translate-y-20', 'opacity-0');
-        }, 2000);
-      });
-    }
-  });
-})();
-`;
-
-export const WIPE_JS_HASH = "f6cd57f40997";
 export const ANALYTICS_JS = `// analytics.js — classic script (no import/export)
 // No external dependencies
 
@@ -2449,13 +2399,11 @@ var _analyticsPrefill = _analyticsParams.get('uid');
 if (_analyticsPrefill) {
   document.getElementById('uid-input').value = _analyticsPrefill;
   _loadAnalytics();
-}
-`;
-
-export const ANALYTICS_JS_HASH = "7d657264cd1a";
+}`;
+export const ANALYTICS_JS_HASH = "8531031a09e3";
 
 export const CARD_AUDIT_JS = `// card-audit.js — classic script (no import/export)
-// Depends on: nfc.js (esc, stateLabel, stateColor, provenanceLabel, provenanceColor)
+// Depends on: nfc.js (stateLabel, stateColor, provenanceLabel, provenanceColor)
 
 var currentFilter = "";
 var nextCursor = null;
@@ -2555,25 +2503,59 @@ function _loadCards(append) {
 
 function _renderCards() {
   var list = document.getElementById('cards-list');
-  var html = allCards.map(function(card) {
-    var checked = selectedUids.has(card.uid) ? 'checked' : '';
-    return '<div class="grid grid-cols-7 gap-2 px-4 py-3 text-sm hover:bg-gray-700/30 transition-colors">' +
-      '<div class="w-5"><input type="checkbox" class="card-checkbox rounded" data-uid="' + esc(card.uid) + '" ' + checked + ' /></div>' +
-      '<span class="font-mono text-gray-300 text-xs">' + esc(card.uid) + '</span>' +
-      '<span class="font-mono ' + stateColor(card.state) + '">' + esc(card.state) + '</span>' +
-      '<span class="font-mono text-xs ' + provenanceColor(card.keyProvenance) + '">' + esc(provenanceLabel(card.keyProvenance, true)) + '</span>' +
-      '<span class="font-mono text-xs text-gray-400">' + esc(card.keyLabel || '-') + '</span>' +
-      '<span class="text-xs text-gray-500">' + esc(_auditFormatTime(card.updatedAt)) + '</span>' +
-      '<span class="text-right"><a href="/experimental/analytics?uid=' + encodeURIComponent(card.uid) + '" class="text-emerald-500 hover:text-emerald-400 text-xs">analytics</a></span>' +
-      '</div>';
-  }).join('');
-  list.innerHTML = html;
+  list.replaceChildren.apply(list, allCards.map(function(card) {
+    var row = document.createElement('div');
+    row.className = 'grid grid-cols-7 gap-2 px-4 py-3 text-sm hover:bg-gray-700/30 transition-colors';
 
-  list.querySelectorAll('.card-checkbox').forEach(function(cb) {
+    var checkCell = document.createElement('div');
+    checkCell.className = 'w-5';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'card-checkbox rounded';
+    cb.setAttribute('data-uid', card.uid);
+    cb.checked = selectedUids.has(card.uid);
     cb.addEventListener('change', function() {
       _toggleCard(this.getAttribute('data-uid'));
     });
-  });
+    checkCell.appendChild(cb);
+    row.appendChild(checkCell);
+
+    var uidSpan = document.createElement('span');
+    uidSpan.className = 'font-mono text-gray-300 text-xs';
+    uidSpan.textContent = card.uid;
+    row.appendChild(uidSpan);
+
+    var stateSpan = document.createElement('span');
+    stateSpan.className = 'font-mono ' + stateColor(card.state);
+    stateSpan.textContent = card.state;
+    row.appendChild(stateSpan);
+
+    var provSpan = document.createElement('span');
+    provSpan.className = 'font-mono text-xs ' + provenanceColor(card.keyProvenance);
+    provSpan.textContent = provenanceLabel(card.keyProvenance, true);
+    row.appendChild(provSpan);
+
+    var labelSpan = document.createElement('span');
+    labelSpan.className = 'font-mono text-xs text-gray-400';
+    labelSpan.textContent = card.keyLabel || '-';
+    row.appendChild(labelSpan);
+
+    var timeSpan = document.createElement('span');
+    timeSpan.className = 'text-xs text-gray-500';
+    timeSpan.textContent = _auditFormatTime(card.updatedAt);
+    row.appendChild(timeSpan);
+
+    var linkCell = document.createElement('span');
+    linkCell.className = 'text-right';
+    var link = document.createElement('a');
+    link.href = '/experimental/analytics?uid=' + encodeURIComponent(card.uid);
+    link.className = 'text-emerald-500 hover:text-emerald-400 text-xs';
+    link.textContent = 'analytics';
+    linkCell.appendChild(link);
+    row.appendChild(linkCell);
+
+    return row;
+  }));
 }
 
 function _batchAction(action) {
@@ -2603,22 +2585,39 @@ function _batchAction(action) {
       var skipped = data.results.filter(function(r) { return r.status === 'skipped'; }).length;
       var failed = (data.errors || []).length;
 
-      var html = '<div class="space-y-1">' +
-        '<p class="text-emerald-300 font-semibold">' + succeeded + ' card(s) processed: ' + esc(action) + '</p>';
+      var wrapper = document.createElement('div');
+      wrapper.className = 'space-y-1';
+
+      var successP = document.createElement('p');
+      successP.className = 'text-emerald-300 font-semibold';
+      successP.textContent = succeeded + ' card(s) processed: ' + action;
+      wrapper.appendChild(successP);
+
       if (skipped > 0) {
-        html += '<p class="text-yellow-300">' + skipped + ' card(s) skipped</p>';
+        var skipP = document.createElement('p');
+        skipP.className = 'text-yellow-300';
+        skipP.textContent = skipped + ' card(s) skipped';
+        wrapper.appendChild(skipP);
         data.results.filter(function(r) { return r.status === 'skipped'; }).forEach(function(r) {
-          html += '<p class="text-xs text-gray-500 ml-3">' + esc(r.uid) + ': ' + esc(r.reason) + '</p>';
+          var detail = document.createElement('p');
+          detail.className = 'text-xs text-gray-500 ml-3';
+          detail.textContent = r.uid + ': ' + r.reason;
+          wrapper.appendChild(detail);
         });
       }
       if (failed > 0) {
-        html += '<p class="text-red-300">' + failed + ' card(s) failed</p>';
+        var failP = document.createElement('p');
+        failP.className = 'text-red-300';
+        failP.textContent = failed + ' card(s) failed';
+        wrapper.appendChild(failP);
         data.errors.forEach(function(e) {
-          html += '<p class="text-xs text-gray-500 ml-3">' + esc(e.uid) + ': ' + esc(e.error) + '</p>';
+          var detail = document.createElement('p');
+          detail.className = 'text-xs text-gray-500 ml-3';
+          detail.textContent = e.uid + ': ' + e.error;
+          wrapper.appendChild(detail);
         });
       }
-      html += '</div>';
-      contentDiv.innerHTML = html;
+      contentDiv.replaceChildren(wrapper);
       resultDiv.classList.remove('hidden');
 
       selectedUids.clear();
@@ -2706,19 +2705,43 @@ function _handleRepair(btn) {
       var contentDiv = document.getElementById('repair-result-content');
 
       if (!resp.ok) {
-        contentDiv.innerHTML = '<p class="text-red-300">Repair failed: ' + esc(data.error || 'unknown error') + '</p>';
+        var errP = document.createElement('p');
+        errP.className = 'text-red-300';
+        errP.textContent = 'Repair failed: ' + (data.error || 'unknown error');
+        contentDiv.replaceChildren(errP);
       } else {
-        var html = '<p class="text-amber-300">Scanned <strong>' + data.scanned + '</strong> card(s), repaired <strong>' + data.repaired + '</strong></p>';
+        var wrapper = document.createElement('div');
+        var mainP = document.createElement('p');
+        mainP.className = 'text-amber-300';
+        mainP.textContent = 'Scanned ';
+        var strong1 = document.createElement('strong');
+        strong1.textContent = data.scanned;
+        mainP.appendChild(strong1);
+        mainP.appendChild(document.createTextNode(' card(s), repaired '));
+        var strong2 = document.createElement('strong');
+        strong2.textContent = data.repaired;
+        mainP.appendChild(strong2);
+        wrapper.appendChild(mainP);
+
         if (data.errors && data.errors.length > 0) {
-          html += '<p class="text-red-300 text-xs mt-1">' + data.errors.length + ' error(s):</p>';
+          var errHeader = document.createElement('p');
+          errHeader.className = 'text-red-300 text-xs mt-1';
+          errHeader.textContent = data.errors.length + ' error(s):';
+          wrapper.appendChild(errHeader);
           data.errors.forEach(function(e) {
-            html += '<p class="text-xs text-gray-500 ml-3">' + esc(e.uid) + ': ' + esc(e.error) + '</p>';
+            var detail = document.createElement('p');
+            detail.className = 'text-xs text-gray-500 ml-3';
+            detail.textContent = e.uid + ': ' + e.error;
+            wrapper.appendChild(detail);
           });
         }
         if (data.repaired === 0 && (!data.errors || data.errors.length === 0)) {
-          html += '<p class="text-gray-400 text-xs mt-1">All index entries match DO state.</p>';
+          var noneP = document.createElement('p');
+          noneP.className = 'text-gray-400 text-xs mt-1';
+          noneP.textContent = 'All index entries match DO state.';
+          wrapper.appendChild(noneP);
         }
-        contentDiv.innerHTML = html;
+        contentDiv.replaceChildren(wrapper);
       }
       resultDiv.classList.remove('hidden');
       if (data.repaired > 0) _loadCards(false);
@@ -2732,13 +2755,10 @@ function _handleRepair(btn) {
   });
 }
 
-_loadCards(false);
-`;
-
-export const CARD_AUDIT_JS_HASH = "521eb4b5d91d";
+_loadCards(false);`;
+export const CARD_AUDIT_JS_HASH = "6617b57907ac";
 
 export const MENU_EDITOR_JS = `// menu-editor.js — classic script (no import/export)
-// Depends on: nfc.js (esc)
 
 (function() {
   var configEl = document.getElementById('menu-editor-config');
@@ -2748,27 +2768,50 @@ export const MENU_EDITOR_JS = `// menu-editor.js — classic script (no import/e
   function render() {
     var list = document.getElementById('items-list');
     if (items.length === 0) {
-      list.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">No items. Click "Add Item" to start.</p>';
+      var p = document.createElement('p');
+      p.className = 'text-gray-500 text-sm text-center py-4';
+      p.textContent = 'No items. Click "Add Item" to start.';
+      list.replaceChildren(p);
       return;
     }
-    list.innerHTML = items.map(function(item, i) {
-      return '<div class="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-lg p-3">'
-        + '<input type="text" data-idx="' + i + '" data-field="name" value="' + esc(item.name) + '" placeholder="Item name" '
-        + 'class="flex-1 bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-gray-200 text-sm focus:border-emerald-500 focus:outline-none" />'
-        + '<input type="number" data-idx="' + i + '" data-field="price" value="' + esc(String(item.price)) + '" placeholder="Price" min="0" '
-        + 'class="w-24 bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-gray-200 text-sm text-right focus:border-emerald-500 focus:outline-none" />'
-        + '<button type="button" data-remove="' + i + '" class="text-red-500 hover:text-red-400 text-lg font-bold px-1">&times;</button>'
-        + '</div>';
-    }).join('');
+    list.replaceChildren.apply(list, items.map(function(item, i) {
+      var row = document.createElement('div');
+      row.className = 'flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-lg p-3';
 
-    list.querySelectorAll('input').forEach(function(inp) {
-      inp.addEventListener('input', function() {
-        items[parseInt(this.dataset.idx)][this.dataset.field] = this.dataset.field === 'price' ? parseInt(this.value) || 0 : this.value;
+      var nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.dataset.idx = i;
+      nameInput.dataset.field = 'name';
+      nameInput.value = item.name;
+      nameInput.placeholder = 'Item name';
+      nameInput.className = 'flex-1 bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-gray-200 text-sm focus:border-emerald-500 focus:outline-none';
+      nameInput.addEventListener('input', function() {
+        items[i].name = this.value;
       });
-    });
-    list.querySelectorAll('[data-remove]').forEach(function(btn) {
-      btn.addEventListener('click', function() { items.splice(parseInt(this.dataset.remove), 1); render(); });
-    });
+      row.appendChild(nameInput);
+
+      var priceInput = document.createElement('input');
+      priceInput.type = 'number';
+      priceInput.dataset.idx = i;
+      priceInput.dataset.field = 'price';
+      priceInput.value = String(item.price);
+      priceInput.placeholder = 'Price';
+      priceInput.min = '0';
+      priceInput.className = 'w-24 bg-gray-900 border border-gray-600 rounded px-2 py-1.5 text-gray-200 text-sm text-right focus:border-emerald-500 focus:outline-none';
+      priceInput.addEventListener('input', function() {
+        items[i].price = parseInt(this.value) || 0;
+      });
+      row.appendChild(priceInput);
+
+      var removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.textContent = '\u00D7';
+      removeBtn.className = 'text-red-500 hover:text-red-400 text-lg font-bold px-1';
+      removeBtn.addEventListener('click', function() { items.splice(i, 1); render(); });
+      row.appendChild(removeBtn);
+
+      return row;
+    }));
   }
 
   document.getElementById('add-item-btn').addEventListener('click', function() {
@@ -2811,14 +2854,145 @@ export const MENU_EDITOR_JS = `// menu-editor.js — classic script (no import/e
   });
 
   render();
-})();
-`;
+})();`;
+export const MENU_EDITOR_JS_HASH = "68b7fc8c0fc8";
 
-export const MENU_EDITOR_JS_HASH = "9935255e8893";
+export const WIPE_JS = `// wipe.js — classic script (no import/export)
+// Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
 
+(function() {
+  var wipeRoot = document.getElementById('wipe-root');
+  var baseUrl = wipeRoot ? wipeRoot.getAttribute('data-base-url') : '';
+  var resetApiUrl = wipeRoot ? wipeRoot.getAttribute('data-reset-api-url') : '';
+  var wipeQrCode = null;
+  var currentResetLink = '';
+
+  // Workflow 1: NFC Scanner (auto-starts on load)
+  var wipeScanner = createNfcScanner({
+    continuous: false,
+    debounceMs: 0,
+    onStatus: function(status) {
+      var autoHint = document.getElementById('scan-auto-hint');
+      var btn = document.getElementById('btn-scan');
+      if (status === 'scanning') {
+        if (autoHint) autoHint.classList.remove('hidden');
+        btn.classList.add('hidden');
+      } else {
+        if (autoHint) autoHint.classList.add('hidden');
+      }
+    },
+    onError: function(err, phase) {
+      var autoHint = document.getElementById('scan-auto-hint');
+      if (autoHint) autoHint.classList.add('hidden');
+      if (phase !== 'permission') {
+        alert("Error reading NFC: " + err.message);
+      }
+    },
+    onTap: function(data) {
+      var autoHint = document.getElementById('scan-auto-hint');
+      if (autoHint) autoHint.classList.add('hidden');
+      var btn = document.getElementById('btn-scan');
+      document.getElementById('scan-uid').innerText = data.serial || "Unknown";
+      var pParam = "Not found";
+      var cParam = "Not found";
+      if (data.url) {
+        try {
+          var url = new URL(data.url);
+          pParam = url.searchParams.get("p") || pParam;
+          cParam = url.searchParams.get("c") || cParam;
+        } catch(e) {}
+      }
+      document.getElementById('scan-p').innerText = pParam;
+      document.getElementById('scan-c').innerText = cParam;
+      document.getElementById('scan-results').classList.remove('hidden');
+      btn.classList.remove('hidden');
+      btn.innerText = "SCAN AGAIN";
+    }
+  });
+
+  if (browserSupportsNfc()) {
+    window.addEventListener('load', function() { wipeScanner.scan(); });
+  }
+
+  document.getElementById('btn-scan').addEventListener('click', function() {
+    wipeScanner.restart();
+  });
+
+  // Handlers for Wipe requests
+  document.getElementById('btn-wipe-scanned').addEventListener('click', function() {
+    var uid = document.getElementById('scan-uid').innerText;
+    if (!uid || uid === "Unknown") {
+      alert("Valid UID required.");
+      return;
+    }
+    fetchWipeKeys(uid);
+  });
+
+  document.getElementById('btn-wipe-manual').addEventListener('click', function() {
+    var uid = document.getElementById('manual-uid').value.trim().toLowerCase();
+    if (!uid || uid.length !== 14) {
+      alert("Please enter a valid 14-character hex UID.");
+      return;
+    }
+    fetchWipeKeys(uid);
+  });
+
+  function fetchWipeKeys(uid) {
+    var wipeApiUrl = baseUrl + '/wipe?uid=' + encodeURIComponent(uid);
+    fetch(wipeApiUrl)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        displayOutput(uid, data, resetApiUrl);
+      })
+      .catch(function(error) {
+        alert("Error fetching wipe keys: " + error.message);
+      });
+  }
+
+  function displayOutput(uid, data, resetApiUrl) {
+    document.getElementById('output-section').classList.remove('hidden');
+    document.getElementById('output-uid-badge').innerText = 'UID: ' + uid.toUpperCase();
+    document.getElementById('api-response').innerText = JSON.stringify(data, null, 2);
+
+    currentResetLink = 'boltcard://reset?url=' + encodeURIComponent(resetApiUrl);
+    document.getElementById('link-wipe-btn').href = currentResetLink;
+    document.getElementById('link-wipe-text').innerText = currentResetLink;
+
+    var qrContainer = document.getElementById('qr-wipe');
+    qrContainer.replaceChildren();
+
+    wipeQrCode = new QRCode(qrContainer, {
+      text: currentResetLink,
+      width: 180,
+      height: 180,
+      colorDark : "#000000",
+      colorLight : "#ffffff",
+      correctLevel : QRCode.CorrectLevel.L
+    });
+
+    document.getElementById('output-section').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // Event delegation for data-action buttons
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    var action = btn.getAttribute('data-action');
+    if (action === 'copy-wipe-link') {
+      navigator.clipboard.writeText(currentResetLink).then(function() {
+        var toast = document.getElementById('toast');
+        toast.classList.remove('translate-y-20', 'opacity-0');
+        setTimeout(function() {
+          toast.classList.add('translate-y-20', 'opacity-0');
+        }, 2000);
+      });
+    }
+  });
+})();`;
+export const WIPE_JS_HASH = "305920de266b";
 
 export const BULK_WIPE_JS = `// bulk-wipe.js — classic script (no import/export)
-// Depends on: nfc.js (esc, browserSupportsNfc, createNfcScanner)
+// Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
 
 var UID_REGEX = /^[0-9a-f]{14}$/;
 function validateUid(uid) {
@@ -2830,6 +3004,13 @@ function validateUid(uid) {
 (function() {
   var bulkRoot = document.getElementById('bulk-wipe-root');
   var baseUrl = bulkRoot ? bulkRoot.getAttribute('data-base-url') : '';
+
+  function _el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
 
   // Tap-to-detect
   var detectScanner = null;
@@ -2887,7 +3068,7 @@ function validateUid(uid) {
                 document.getElementById('custom-key').focus();
               }
             } else {
-              document.getElementById('detect-error').textContent = 'Unknown issuer \\u2014 this card was not provisioned with any of our known issuer keys. Switch to Custom key\\u2026 and paste the master secret manually.';
+              document.getElementById('detect-error').textContent = 'Unknown issuer \u2014 this card was not provisioned with any of our known issuer keys. Switch to Custom key\u2026 and paste the master secret manually.';
               document.getElementById('detect-error').classList.remove('hidden');
               document.getElementById('detect-result').classList.add('hidden');
               document.getElementById('key-select').value = 'custom';
@@ -2985,13 +3166,13 @@ function validateUid(uid) {
   document.getElementById('btn-generate').addEventListener('click', function() {
     hideError();
     var results = document.getElementById('results');
-    results.innerHTML = '';
+    results.replaceChildren();
 
     var keySelect = document.getElementById('key-select');
     var key = keySelect.value;
     if (key === 'custom') {
       key = document.getElementById('custom-key').value.trim().toLowerCase();
-      if (!key || !/^[0-9a-f]{32}\$/.test(key)) {
+      if (!key || !/^[0-9a-f]{32}$/.test(key)) {
         showError('Please enter a valid 32-character hex issuer key.');
         return;
       }
@@ -3002,7 +3183,7 @@ function validateUid(uid) {
     }
 
     var raw = document.getElementById('uid-input').value;
-    var uids = raw.split(/[\\n\\r]+/).map(function(u) { return u.trim().toLowerCase(); }).filter(function(u) { return u.length > 0; });
+    var uids = raw.split(/[\n\r]+/).map(function(u) { return u.trim().toLowerCase(); }).filter(function(u) { return u.length > 0; });
     if (uids.length === 0) {
       showError('Please enter at least one card UID.');
       return;
@@ -3053,35 +3234,54 @@ function validateUid(uid) {
 
     var card = document.createElement('div');
     card.className = 'bg-gray-800 border border-gray-700 rounded-lg p-6 shadow-xl';
-    card.innerHTML =
-      '<div class="flex items-center justify-between mb-4 border-b border-gray-700 pb-2">' +
-        '<h3 class="text-lg font-bold text-gray-200">UID: <span class="text-amber-500 font-mono">' + esc(uid) + '</span></h3>' +
-        '<span class="px-2 py-1 bg-green-500/10 text-green-500 text-xs font-mono rounded border border-green-500/20">OK</span>' +
-      '</div>' +
-      '<div class="grid grid-cols-1 md:grid-cols-2 gap-6">' +
-        '<div>' +
-          '<label class="block text-xs font-bold text-gray-500 uppercase mb-2">Wipe JSON</label>' +
-          '<pre class="font-mono text-xs text-green-400 bg-gray-900 p-4 rounded border border-gray-700 overflow-x-auto min-h-[140px] mb-2">' + esc(JSON.stringify(wipeJson, null, 2)) + '</pre>' +
-          '<button data-copy="' + encodeURIComponent(wipeJsonStr) + '" class="copy-btn text-xs text-amber-500 hover:text-amber-400 font-bold">COPY JSON</button>' +
-        '</div>' +
-        '<div class="flex flex-col items-center">' +
-          '<label class="block text-xs font-bold text-gray-500 uppercase mb-2">QR Code</label>' +
-          '<div id="qr-' + esc(data.uid) + '" class="qr-container mb-4"></div>' +
-        '</div>' +
-      '</div>' +
-      '<div class="mt-4 bg-gray-900 rounded p-3 border border-gray-800">' +
-        '<div class="flex justify-between items-center mb-2">' +
-          '<span class="text-xs font-bold text-red-500 uppercase">Reset Deeplink</span>' +
-          '<button data-copy="' + encodeURIComponent(resetLink) + '" class="copy-btn text-xs text-amber-500 hover:text-amber-400 font-bold">COPY LINK</button>' +
-        '</div>' +
-        '<a href="' + esc(resetLink) + '" class="text-blue-400 hover:text-blue-300 text-sm font-mono break-all underline">' + esc(resetLink) + '</a>' +
-      '</div>';
+
+    var header = _el('div', 'flex items-center justify-between mb-4 border-b border-gray-700 pb-2');
+    var h3 = _el('h3', 'text-lg font-bold text-gray-200');
+    h3.appendChild(document.createTextNode('UID: '));
+    var uidSpan = _el('span', 'text-amber-500 font-mono');
+    uidSpan.textContent = uid;
+    h3.appendChild(uidSpan);
+    header.appendChild(h3);
+    header.appendChild(_el('span', 'px-2 py-1 bg-green-500/10 text-green-500 text-xs font-mono rounded border border-green-500/20', 'OK'));
+    card.appendChild(header);
+
+    var grid = _el('div', 'grid grid-cols-1 md:grid-cols-2 gap-6');
+    var jsonCol = _el('div');
+    jsonCol.appendChild(_el('label', 'block text-xs font-bold text-gray-500 uppercase mb-2', 'Wipe JSON'));
+    var pre = _el('pre', 'font-mono text-xs text-green-400 bg-gray-900 p-4 rounded border border-gray-700 overflow-x-auto min-h-[140px] mb-2');
+    pre.textContent = JSON.stringify(wipeJson, null, 2);
+    jsonCol.appendChild(pre);
+    var jsonCopyBtn = _el('button', 'copy-btn text-xs text-amber-500 hover:text-amber-400 font-bold', 'COPY JSON');
+    jsonCopyBtn.dataset.copy = encodeURIComponent(wipeJsonStr);
+    jsonCol.appendChild(jsonCopyBtn);
+    grid.appendChild(jsonCol);
+
+    var qrCol = _el('div', 'flex flex-col items-center');
+    qrCol.appendChild(_el('label', 'block text-xs font-bold text-gray-500 uppercase mb-2', 'QR Code'));
+    var qrDiv = _el('div', 'qr-container mb-4');
+    qrDiv.id = 'qr-' + data.uid;
+    qrCol.appendChild(qrDiv);
+    grid.appendChild(qrCol);
+    card.appendChild(grid);
+
+    var footer = _el('div', 'mt-4 bg-gray-900 rounded p-3 border border-gray-800');
+    var footerRow = _el('div', 'flex justify-between items-center mb-2');
+    footerRow.appendChild(_el('span', 'text-xs font-bold text-red-500 uppercase', 'Reset Deeplink'));
+    var linkCopyBtn = _el('button', 'copy-btn text-xs text-amber-500 hover:text-amber-400 font-bold', 'COPY LINK');
+    linkCopyBtn.dataset.copy = encodeURIComponent(resetLink);
+    footerRow.appendChild(linkCopyBtn);
+    footer.appendChild(footerRow);
+    var resetAnchor = document.createElement('a');
+    resetAnchor.href = resetLink;
+    resetAnchor.className = 'text-blue-400 hover:text-blue-300 text-sm font-mono break-all underline';
+    resetAnchor.textContent = resetLink;
+    footer.appendChild(resetAnchor);
+    card.appendChild(footer);
 
     container.appendChild(card);
 
-    var qrEl = card.querySelector('#qr-' + data.uid);
-    if (qrEl && wipeJsonStr) {
-      new QRCode(qrEl, {
+    if (qrDiv && wipeJsonStr) {
+      new QRCode(qrDiv, {
         text: wipeJsonStr,
         width: 200,
         height: 200,
@@ -3095,12 +3295,19 @@ function validateUid(uid) {
   function renderCardError(container, uid, msg) {
     var card = document.createElement('div');
     card.className = 'bg-gray-800 border border-red-500/30 rounded-lg p-6 shadow-xl';
-    card.innerHTML =
-      '<div class="flex items-center justify-between mb-2">' +
-        '<h3 class="text-lg font-bold text-gray-200">UID: <span class="text-amber-500 font-mono">' + esc(uid.toUpperCase()) + '</span></h3>' +
-        '<span class="px-2 py-1 bg-red-500/10 text-red-500 text-xs font-mono rounded border border-red-500/20">ERROR</span>' +
-      '</div>' +
-      '<p class="text-sm text-red-400 font-mono">' + esc(msg) + '</p>';
+
+    var header = _el('div', 'flex items-center justify-between mb-2');
+    var h3 = _el('h3', 'text-lg font-bold text-gray-200');
+    h3.appendChild(document.createTextNode('UID: '));
+    var uidSpan = _el('span', 'text-amber-500 font-mono');
+    uidSpan.textContent = uid.toUpperCase();
+    h3.appendChild(uidSpan);
+    header.appendChild(h3);
+    header.appendChild(_el('span', 'px-2 py-1 bg-red-500/10 text-red-500 text-xs font-mono rounded border border-red-500/20', 'ERROR'));
+    card.appendChild(header);
+
+    card.appendChild(_el('p', 'text-sm text-red-400 font-mono', msg));
+
     container.appendChild(card);
   }
 
@@ -3111,10 +3318,8 @@ function validateUid(uid) {
       copyText(decodeURIComponent(btn.getAttribute('data-copy')));
     }
   });
-})();
-`;
-
-export const BULK_WIPE_JS_HASH = "d1da68359333";
+})();`;
+export const BULK_WIPE_JS_HASH = "8f945dcccc3d";
 
 export const TWO_FACTOR_JS = `// two-factor.js — classic script (no import/export)
 // Contains both OTP timer (renderTwoFactorPage) and NFC landing scanner (renderTwoFactorLandingPage)
@@ -3155,10 +3360,10 @@ export const TWO_FACTOR_JS = `// two-factor.js — classic script (no import/exp
   function updateIndicator(active) {
     if (active) {
       scanIndicator.className = 'rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20';
-      scanIndicator.textContent = 'NFC active \\u00b7 click to restart';
+      scanIndicator.textContent = 'NFC active \u00b7 click to restart';
     } else {
       scanIndicator.className = 'rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-500/20';
-      scanIndicator.textContent = 'NFC inactive \\u00b7 click to start';
+      scanIndicator.textContent = 'NFC inactive \u00b7 click to start';
     }
   }
 
@@ -3190,7 +3395,7 @@ export const TWO_FACTOR_JS = `// two-factor.js — classic script (no import/exp
       scanAbortController = new AbortController();
       ndef.scan({ signal: scanAbortController.signal }).then(function() {
         updateIndicator(true);
-        scanStatus.textContent = 'Scanning for boltcard payload\\u2026';
+        scanStatus.textContent = 'Scanning for boltcard payload\u2026';
         scanDetail.textContent = 'Tap the card now. We will redirect into the live TOTP/HOTP view.';
 
         ndef.onreadingerror = function() {
@@ -3213,7 +3418,7 @@ export const TWO_FACTOR_JS = `// two-factor.js — classic script (no import/exp
               return;
             }
 
-            scanStatus.textContent = 'Card read. Opening OTP screen\\u2026';
+            scanStatus.textContent = 'Card read. Opening OTP screen\u2026';
             window.location.href = BASE_URL + '/2fa?p=' + encodeURIComponent(p) + '&c=' + encodeURIComponent(c);
           });
         };
@@ -3237,20 +3442,12 @@ export const TWO_FACTOR_JS = `// two-factor.js — classic script (no import/exp
   if (browserSupportsNfc()) {
     window.addEventListener('load', startScan);
   }
-})();
-`;
-
-export const TWO_FACTOR_JS_HASH = "2da99df9fc7c";
+})();`;
+export const TWO_FACTOR_JS_HASH = "b768567c167e";
 
 export const BOLT11_DECODE_JS = `// bolt11-decode.js — classic script (no import/export)
 
 (function() {
-  function esc(s) {
-    var d = document.createElement('div');
-    d.textContent = s;
-    return d.innerHTML;
-  }
-
   function decode() {
     var input = document.getElementById('invoice-input').value.trim();
     var errEl = document.getElementById('decode-error');
@@ -3268,66 +3465,139 @@ export const BOLT11_DECODE_JS = `// bolt11-decode.js — classic script (no impo
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (!data.ok) {
-          errEl.textContent = esc(data.error || 'Decode failed');
+          errEl.textContent = data.error || 'Decode failed';
           errEl.classList.remove('hidden');
           return;
         }
         renderResult(data);
       })
       .catch(function(e) {
-        errEl.textContent = 'Request failed: ' + esc(e.message);
+        errEl.textContent = 'Request failed: ' + e.message;
         errEl.classList.remove('hidden');
       });
+  }
+
+  function makeBadge(text, bgClass, textClass) {
+    var span = document.createElement('span');
+    span.className = 'inline-block px-2 py-0.5 text-xs font-bold rounded ' + bgClass + ' ' + textClass;
+    span.textContent = text;
+    return span;
+  }
+
+  function cardEl(labelEl, valueContent) {
+    var div = document.createElement('div');
+    div.className = 'bg-gray-800 border border-gray-700 rounded-lg p-3';
+    var labelP = document.createElement('p');
+    labelP.className = 'text-xs text-gray-500 uppercase tracking-wider mb-1';
+    labelP.appendChild(labelEl);
+    div.appendChild(labelP);
+    var valueP = document.createElement('p');
+    valueP.className = 'text-sm font-mono text-gray-200';
+    valueP.appendChild(valueContent);
+    div.appendChild(valueP);
+    return div;
+  }
+
+  function textNode(s) {
+    return document.createTextNode(String(s));
   }
 
   function renderResult(d) {
     document.getElementById('decode-result').classList.remove('hidden');
 
     var sigBadge = d.signatureValid
-      ? '<span class="inline-block px-2 py-0.5 text-xs font-bold rounded bg-emerald-900 text-emerald-300">VALID</span>'
-      : '<span class="inline-block px-2 py-0.5 text-xs font-bold rounded bg-red-900 text-red-300">INVALID</span>';
+      ? makeBadge('VALID', 'bg-emerald-900', 'text-emerald-300')
+      : makeBadge('INVALID', 'bg-red-900', 'text-red-300');
 
     var expiryBadge = d.isExpired
-      ? '<span class="inline-block px-2 py-0.5 text-xs font-bold rounded bg-red-900 text-red-300">EXPIRED</span>'
-      : '<span class="inline-block px-2 py-0.5 text-xs font-bold rounded bg-emerald-900 text-emerald-300">ACTIVE</span>';
+      ? makeBadge('EXPIRED', 'bg-red-900', 'text-red-300')
+      : makeBadge('ACTIVE', 'bg-emerald-900', 'text-emerald-300');
 
-    document.getElementById('result-header').innerHTML = [
-      card('Network', esc(d.network)),
-      card('Amount', esc(d.amountDisplay || 'any')),
-      card('Timestamp', esc(d.timestampISO || '')),
-      card('Expiry', esc(d.expiry + 's') + ' ' + expiryBadge),
-      card('Expires At', esc(d.expiresAt || '')),
-      card('Signature', sigBadge),
-    ].join('');
+    var headerCards = [
+      cardEl(textNode('Network'), textNode(d.network)),
+      cardEl(textNode('Amount'), textNode(d.amountDisplay || 'any')),
+      cardEl(textNode('Timestamp'), textNode(d.timestampISO || '')),
+      (function() {
+        var c = cardEl(textNode('Expiry'), textNode(d.expiry + 's '));
+        c.querySelector('p:last-child').appendChild(expiryBadge);
+        return c;
+      })(),
+      cardEl(textNode('Expires At'), textNode(d.expiresAt || '')),
+      cardEl(textNode('Signature'), sigBadge),
+    ];
+    document.getElementById('result-header').replaceChildren.apply(
+      document.getElementById('result-header'), headerCards
+    );
 
-    var tagRows = '';
+    var table = document.createElement('table');
+    table.className = 'w-full';
     var tags = d.rawTags || [];
     for (var i = 0; i < tags.length; i++) {
       var t = tags[i];
-      var val = '';
+      var tr = document.createElement('tr');
+      tr.className = 'border-b border-gray-700/50';
+
+      var td1 = document.createElement('td');
+      td1.className = 'px-4 py-2 text-xs text-gray-500 font-mono whitespace-nowrap';
+      td1.textContent = t.name + ' ';
+      var codeSpan = document.createElement('span');
+      codeSpan.className = 'text-gray-600';
+      codeSpan.textContent = '[' + t.code + ']';
+      td1.appendChild(codeSpan);
+      tr.appendChild(td1);
+
+      var td2 = document.createElement('td');
+      td2.className = 'px-4 py-2 text-sm text-gray-300';
       if (Array.isArray(t.value)) {
-        val = t.value.map(function(v) { return '<span class="inline-block bg-gray-700 rounded px-1.5 py-0.5 text-xs mr-1 mb-1">' + esc(v) + '</span>'; }).join('');
+        t.value.forEach(function(v) {
+          var chip = document.createElement('span');
+          chip.className = 'inline-block bg-gray-700 rounded px-1.5 py-0.5 text-xs mr-1 mb-1';
+          chip.textContent = v;
+          td2.appendChild(chip);
+        });
       } else {
-        val = '<span class="font-mono text-xs break-all">' + esc(String(t.value)) + '</span>';
+        var valSpan = document.createElement('span');
+        valSpan.className = 'font-mono text-xs break-all';
+        valSpan.textContent = String(t.value);
+        td2.appendChild(valSpan);
         if (String(t.value).length === 64) {
-          val += ' <button data-copy-val="' + esc(String(t.value)) + '" class="copy-val-btn ml-1 text-amber-400 hover:text-amber-300 text-xs">copy</button>';
+          var copyBtn = document.createElement('button');
+          copyBtn.setAttribute('data-copy-val', String(t.value));
+          copyBtn.className = 'copy-val-btn ml-1 text-amber-400 hover:text-amber-300 text-xs';
+          copyBtn.textContent = 'copy';
+          td2.appendChild(copyBtn);
         }
       }
       if (t.rawHex) {
-        val += ' <span class="text-gray-500 text-xs">(' + esc(t.rawHex) + ')</span>';
+        var hexNote = document.createElement('span');
+        hexNote.className = 'text-gray-500 text-xs';
+        hexNote.textContent = ' (' + t.rawHex + ')';
+        td2.appendChild(hexNote);
       }
-      tagRows += '<tr class="border-b border-gray-700/50"><td class="px-4 py-2 text-xs text-gray-500 font-mono whitespace-nowrap">' + esc(t.name) + ' <span class="text-gray-600">[' + t.code + ']</span></td><td class="px-4 py-2 text-sm text-gray-300">' + val + '</td></tr>';
+      tr.appendChild(td2);
+      table.appendChild(tr);
     }
 
     if (d.payee) {
-      tagRows += '<tr class="border-b border-gray-700/50"><td class="px-4 py-2 text-xs text-gray-500 font-mono whitespace-nowrap">payee (recovered)</td><td class="px-4 py-2 text-sm font-mono text-purple-300 break-all">' + esc(d.payee) + ' <button data-copy-val="' + esc(d.payee) + '" class="copy-val-btn ml-1 text-amber-400 hover:text-amber-300 text-xs">copy</button></td></tr>';
+      var payeeTr = document.createElement('tr');
+      payeeTr.className = 'border-b border-gray-700/50';
+      var payeeTd1 = document.createElement('td');
+      payeeTd1.className = 'px-4 py-2 text-xs text-gray-500 font-mono whitespace-nowrap';
+      payeeTd1.textContent = 'payee (recovered)';
+      payeeTr.appendChild(payeeTd1);
+      var payeeTd2 = document.createElement('td');
+      payeeTd2.className = 'px-4 py-2 text-sm font-mono text-purple-300 break-all';
+      payeeTd2.textContent = d.payee + ' ';
+      var payeeCopyBtn = document.createElement('button');
+      payeeCopyBtn.setAttribute('data-copy-val', d.payee);
+      payeeCopyBtn.className = 'copy-val-btn ml-1 text-amber-400 hover:text-amber-300 text-xs';
+      payeeCopyBtn.textContent = 'copy';
+      payeeTd2.appendChild(payeeCopyBtn);
+      payeeTr.appendChild(payeeTd2);
+      table.appendChild(payeeTr);
     }
 
-    document.getElementById('result-tags').innerHTML = '<table class="w-full">' + tagRows + '</table>';
-  }
-
-  function card(label, value) {
-    return '<div class="bg-gray-800 border border-gray-700 rounded-lg p-3"><p class="text-xs text-gray-500 uppercase tracking-wider mb-1">' + label + '</p><p class="text-sm font-mono text-gray-200">' + value + '</p></div>';
+    document.getElementById('result-tags').replaceChildren(table);
   }
 
   function clearAll() {
@@ -3353,14 +3623,11 @@ export const BOLT11_DECODE_JS = `// bolt11-decode.js — classic script (no impo
   document.getElementById('invoice-input').addEventListener('keydown', function(e) {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') decode();
   });
-})();
-`;
-
-export const BOLT11_DECODE_JS_HASH = "d1596376fdce";
-
+})();`;
+export const BOLT11_DECODE_JS_HASH = "e5ffce9a0873";
 
 export const POS_JS = `// pos.js — classic script (no import/export)
-// Depends on: nfc.js (esc, browserSupportsNfc, createNfcScanner)
+// Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
 
 (function() {
   var posRoot = document.getElementById('pos-root');
@@ -3378,13 +3645,13 @@ export const POS_JS = `// pos.js — classic script (no import/export)
     resultMessage.textContent = message;
     if (kind === 'success') {
       resultBox.className = 'rounded-xl border p-3 mb-3 border-emerald-500/40 bg-emerald-900/20';
-      resultIcon.textContent = '\\u2713';
+      resultIcon.textContent = '\u2713';
       resultIcon.className = 'text-xl leading-none text-emerald-400';
       resultTitle.className = 'font-bold text-sm text-emerald-300';
       resultMessage.className = 'text-xs mt-0.5 text-emerald-100/90';
     } else {
       resultBox.className = 'rounded-xl border p-3 mb-3 border-red-500/40 bg-red-900/20';
-      resultIcon.textContent = '\\u2717';
+      resultIcon.textContent = '\u2717';
       resultIcon.className = 'text-xl leading-none text-red-400';
       resultTitle.className = 'font-bold text-sm text-red-300';
       resultMessage.className = 'text-xs mt-0.5 text-red-100/90';
@@ -3479,11 +3746,11 @@ export const POS_JS = `// pos.js — classic script (no import/export)
     if (!value || value === '.') return '0';
     var next = String(value).replace(/[^0-9.]/g, '');
     var firstDecimal = next.indexOf('.');
-    if (firstDecimal !== -1) { next = next.slice(0, firstDecimal + 1) + next.slice(firstDecimal + 1).replace(/\\./g, ''); }
+    if (firstDecimal !== -1) { next = next.slice(0, firstDecimal + 1) + next.slice(firstDecimal + 1).replace(/\./g, ''); }
     var parts = next.split('.');
     var whole = parts[0] || '0';
     var fraction = parts[1] || '';
-    whole = whole.replace(/^0+(\\d)/, '$1');
+    whole = whole.replace(/^0+(\d)/, '$1');
     if (whole === '') whole = '0';
     return parts.length > 1 ? whole + '.' + fraction : whole;
   }
@@ -3495,14 +3762,14 @@ export const POS_JS = `// pos.js — classic script (no import/export)
     var parts = normalized.split('.');
     var whole = parts[0] || '0';
     var fraction = parts[1];
-    return (whole.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + (fraction !== undefined ? '.' + fraction : '')) + ' ' + CURRENCY_LABEL;
+    return (whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (fraction !== undefined ? '.' + fraction : '')) + ' ' + CURRENCY_LABEL;
   }
 
   function formatDisplayOnly(value) {
     var normalized = normalizeAmount(value);
     var parts = normalized.split('.');
     var whole = parts[0] || '0';
-    return whole.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + (parts[1] !== undefined ? '.' + parts[1] : '');
+    return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (parts[1] !== undefined ? '.' + parts[1] : '');
   }
 
   function toggleMode() {
@@ -3548,22 +3815,39 @@ export const POS_JS = `// pos.js — classic script (no import/export)
     }
     menuEmpty.classList.add('hidden');
     menuItems.classList.remove('hidden');
-    var html = '';
+    var fragment = document.createDocumentFragment();
     for (var i = 0; i < menuData.items.length; i++) {
-      var item = menuData.items[i];
-      var cartItem = cart.find(function(c) { return c.name === item.name; });
-      var qty = cartItem ? cartItem.qty : 0;
-      var badge = qty > 0 ? '<span class="absolute -top-1 -right-1 bg-emerald-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">' + qty + '</span>' : '';
-      html += '<button type="button" data-item-idx="' + i + '" class="relative bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 rounded-lg p-3 transition-colors text-left">'
-        + badge
-        + '<div class="font-semibold text-sm text-gray-200">' + esc(item.name) + '</div>'
-        + '<div class="text-emerald-400 font-bold text-lg">' + esc(String(item.price)) + '</div>'
-        + '</button>';
+      (function(idx) {
+        var item = menuData.items[idx];
+        var cartItem = cart.find(function(c) { return c.name === item.name; });
+        var qty = cartItem ? cartItem.qty : 0;
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'relative bg-gray-800 hover:bg-gray-700 active:bg-gray-600 border border-gray-700 rounded-lg p-3 transition-colors text-left';
+
+        if (qty > 0) {
+          var badge = document.createElement('span');
+          badge.className = 'absolute -top-1 -right-1 bg-emerald-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center';
+          badge.textContent = qty;
+          btn.appendChild(badge);
+        }
+
+        var nameDiv = document.createElement('div');
+        nameDiv.className = 'font-semibold text-sm text-gray-200';
+        nameDiv.textContent = item.name;
+        btn.appendChild(nameDiv);
+
+        var priceDiv = document.createElement('div');
+        priceDiv.className = 'text-emerald-400 font-bold text-lg';
+        priceDiv.textContent = String(item.price);
+        btn.appendChild(priceDiv);
+
+        btn.addEventListener('click', function() { addToCart(menuData.items[idx]); });
+        fragment.appendChild(btn);
+      })(i);
     }
-    menuItems.innerHTML = html;
-    menuItems.querySelectorAll('[data-item-idx]').forEach(function(btn) {
-      btn.addEventListener('click', function() { addToCart(menuData.items[parseInt(btn.dataset.itemIdx)]); });
-    });
+    menuItems.replaceChildren(fragment);
   }
 
   function addToCart(item) {
@@ -3581,20 +3865,29 @@ export const POS_JS = `// pos.js — classic script (no import/export)
     if (cart.length === 0) {
       cartBar.classList.add('hidden');
       cartCount.textContent = '';
+      cartItemsEl.replaceChildren();
       return;
     }
     cartBar.classList.remove('hidden');
     var total = 0;
     var totalQty = 0;
-    var html = '';
+    var fragment = document.createDocumentFragment();
     for (var i = 0; i < cart.length; i++) {
       var c = cart[i];
       var subtotal = c.price * c.qty;
       total += subtotal;
       totalQty += c.qty;
-      html += '<div class="flex justify-between text-xs text-gray-400"><span>' + esc(c.name) + ' x' + c.qty + '</span><span>' + subtotal + '</span></div>';
+      var row = document.createElement('div');
+      row.className = 'flex justify-between text-xs text-gray-400';
+      var labelSpan = document.createElement('span');
+      labelSpan.textContent = c.name + ' x' + c.qty;
+      row.appendChild(labelSpan);
+      var valSpan = document.createElement('span');
+      valSpan.textContent = String(subtotal);
+      row.appendChild(valSpan);
+      fragment.appendChild(row);
     }
-    cartItemsEl.innerHTML = html;
+    cartItemsEl.replaceChildren(fragment);
     cartTotal.textContent = total + ' ' + CURRENCY_LABEL;
     cartCount.textContent = totalQty + ' item' + (totalQty !== 1 ? 's' : '');
   }
@@ -3689,13 +3982,11 @@ export const POS_JS = `// pos.js — classic script (no import/export)
       if (error.name !== 'AbortError') { stopScanning(); setState('idle'); showResult('error', 'NFC error', error.message); }
     }
   }
-})();
-`;
-
-export const POS_JS_HASH = "bf83caf9ee49";
+})();`;
+export const POS_JS_HASH = "af09975c2f5c";
 
 export const TOPUP_JS = `// topup.js — classic script (no import/export)
-// Depends on: nfc.js (esc, browserSupportsNfc, createNfcScanner)
+// Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
 
 (function() {
   // Result box helpers (inlined)
@@ -3710,13 +4001,13 @@ export const TOPUP_JS = `// topup.js — classic script (no import/export)
     resultMessage.textContent = message;
     if (kind === 'success') {
       resultBox.className = 'w-full max-w-xs rounded-xl border p-4 mb-4 border-emerald-500/40 bg-emerald-900/20';
-      resultIcon.textContent = '\\u2713';
+      resultIcon.textContent = '\u2713';
       resultIcon.className = 'text-2xl leading-none text-emerald-400';
       resultTitle.className = 'font-bold text-sm text-emerald-300';
       resultMessage.className = 'text-xs mt-0.5 text-emerald-100/90';
     } else {
       resultBox.className = 'w-full max-w-xs rounded-xl border p-4 mb-4 border-red-500/40 bg-red-900/20';
-      resultIcon.textContent = '\\u2717';
+      resultIcon.textContent = '\u2717';
       resultIcon.className = 'text-2xl leading-none text-red-400';
       resultTitle.className = 'font-bold text-sm text-red-300';
       resultMessage.className = 'text-xs mt-0.5 text-red-100/90';
@@ -3737,13 +4028,13 @@ export const TOPUP_JS = `// topup.js — classic script (no import/export)
     if (!val || val === '.') return '0';
     var s = String(val).replace(/[^0-9]/g, '');
     if (s === '') s = '0';
-    s = s.replace(/^0+(\\d)/, '$1');
+    s = s.replace(/^0+(\d)/, '$1');
     return s;
   }
 
   function formatDisplay(val) {
     var n = normalizeAmount(val);
-    return n.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');
+    return n.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
 
   var amountInput = '0';
@@ -3893,13 +4184,11 @@ export const TOPUP_JS = `// topup.js — classic script (no import/export)
   }
 
   updateView();
-})();
-`;
-
-export const TOPUP_JS_HASH = "83260d715a52";
+})();`;
+export const TOPUP_JS_HASH = "947e97ea842d";
 
 export const REFUND_JS = `// refund.js — classic script (no import/export)
-// Depends on: nfc.js (esc, browserSupportsNfc, createNfcScanner)
+// Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
 
 (function() {
   // Result box helpers (inlined)
@@ -3914,13 +4203,13 @@ export const REFUND_JS = `// refund.js — classic script (no import/export)
     resultMessage.textContent = message;
     if (kind === 'success') {
       resultBox.className = 'w-full max-w-xs rounded-xl border p-4 mb-4 border-emerald-500/40 bg-emerald-900/20';
-      resultIcon.textContent = '\\u2713';
+      resultIcon.textContent = '\u2713';
       resultIcon.className = 'text-2xl leading-none text-emerald-400';
       resultTitle.className = 'font-bold text-sm text-emerald-300';
       resultMessage.className = 'text-xs mt-0.5 text-emerald-100/90';
     } else {
       resultBox.className = 'w-full max-w-xs rounded-xl border p-4 mb-4 border-red-500/40 bg-red-900/20';
-      resultIcon.textContent = '\\u2717';
+      resultIcon.textContent = '\u2717';
       resultIcon.className = 'text-2xl leading-none text-red-400';
       resultTitle.className = 'font-bold text-sm text-red-300';
       resultMessage.className = 'text-xs mt-0.5 text-red-100/90';
@@ -4037,13 +4326,11 @@ export const REFUND_JS = `// refund.js — classic script (no import/export)
       showResult('error', 'Network error', e.message);
     }
   }
-})();
-`;
-
-export const REFUND_JS_HASH = "0b1ee576ef63";
+})();`;
+export const REFUND_JS_HASH = "adf2fd9b9e21";
 
 export const IDENTITY_JS = `// identity.js — classic script (no import/export)
-// Depends on: nfc.js (esc, browserSupportsNfc, createNfcScanner)
+// Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
 
 (function() {
   var ui = {
@@ -4074,6 +4361,13 @@ export const IDENTITY_JS = `// identity.js — classic script (no import/export)
     emojiButtons: Array.from(document.querySelectorAll('.identity-emoji-btn')),
   };
 
+  function iconSpan(cls, text) {
+    var s = document.createElement('span');
+    s.className = cls;
+    s.textContent = text;
+    return s;
+  }
+
   var appState = 'idle';
   var currentVerification = null;
   var selectedEmoji = null;
@@ -4103,7 +4397,7 @@ export const IDENTITY_JS = `// identity.js — classic script (no import/export)
 
   function hydrateVerifiedProfile(result, verificationParams) {
     var profileData = result.profile || {};
-    profile.avatar.textContent = profileData.emoji || '\\uD83D\\uDC64';
+    profile.avatar.textContent = profileData.emoji || '\uD83D\uDC64';
     profile.name.textContent = profileData.name || 'Operator';
     profile.role.textContent = profileData.role || 'Role';
     profile.dept.textContent = profileData.dept || 'Engineering';
@@ -4158,7 +4452,7 @@ export const IDENTITY_JS = `// identity.js — classic script (no import/export)
 
     ui.panel.className = 'w-full bg-gray-900/80 backdrop-blur-md rounded-2xl border border-gray-800 p-8 shadow-2xl transition-all duration-500 relative overflow-hidden flex flex-col items-center text-center';
     ui.nfcStatus.className = 'w-10 h-10 rounded-full border flex items-center justify-center transition-all duration-300';
-    ui.nfcStatus.innerHTML = '<span class="text-gray-500">\\u26A1</span>';
+    ui.nfcStatus.replaceChildren(iconSpan('text-gray-500', '\u26A1'));
 
     var target = ui[newState];
     target.classList.remove('hidden');
@@ -4172,16 +4466,16 @@ export const IDENTITY_JS = `// identity.js — classic script (no import/export)
       ui.panel.classList.replace('border-gray-800', 'border-emerald-500/50');
       ui.panel.classList.add('shadow-[0_0_30px_rgba(16,185,129,0.15)]');
       ui.nfcStatus.classList.add('bg-emerald-500/20', 'border-emerald-500/50');
-      ui.nfcStatus.innerHTML = '<span class="text-emerald-400">\\u2713</span>';
+      ui.nfcStatus.replaceChildren(iconSpan('text-emerald-400', '\u2713'));
     } else if (newState === 'denied') {
       ui.panel.classList.replace('border-gray-800', 'border-red-500/50');
       ui.panel.classList.add('shadow-[0_0_30px_rgba(239,68,68,0.15)]');
       ui.nfcStatus.classList.add('bg-red-500/20', 'border-red-500/50');
-      ui.nfcStatus.innerHTML = '<span class="text-red-400">\\u2717</span>';
+      ui.nfcStatus.replaceChildren(iconSpan('text-red-400', '\u2717'));
     } else if (newState === 'scanning') {
       ui.panel.classList.replace('border-gray-800', 'border-blue-500/50');
       ui.nfcStatus.classList.add('bg-blue-500/20', 'border-blue-500/50', 'animate-pulse');
-      ui.nfcStatus.innerHTML = '<span class="text-blue-400">\\uD83D\\uDCF3</span>';
+      ui.nfcStatus.replaceChildren(iconSpan('text-blue-400', '\uD83D\uDCF3'));
     } else {
       ui.nfcStatus.classList.add('bg-gray-900', 'border-gray-800');
     }
@@ -4269,7 +4563,5 @@ export const IDENTITY_JS = `// identity.js — classic script (no import/export)
 
   profile.emojiSaveButton.addEventListener('click', saveEmojiSelection);
   profile.emojiSaveButton.disabled = true;
-})();
-`;
-
-export const IDENTITY_JS_HASH = "f5ac048eba05";
+})();`;
+export const IDENTITY_JS_HASH = "217b94f56238";

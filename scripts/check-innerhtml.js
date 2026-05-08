@@ -13,17 +13,17 @@ const STATIC_JS_DIR = join(import.meta.dirname, "..", "static", "js");
 // Baseline: maximum allowed innerHTML occurrences per file.
 // If you intentionally add a new innerHTML, update this map.
 const BASELINE = {
-  "bolt11-decode.js": 3,
-  "menu-editor.js": 2,
-  "card-audit.js": 4,
-  "bulk-wipe.js": 3,
-  "login.js": 11,
-  "card-dashboard.js": 2,
-  "debug.js": 19,
+  "bolt11-decode.js": 0,
+  "menu-editor.js": 0,
+  "card-audit.js": 0,
+  "bulk-wipe.js": 0,
+  "login.js": 0,
+  "card-dashboard.js": 0,
+  "debug.js": 0,
   "helpers.js": 0,
-  "identity.js": 4,
-  "wipe.js": 1,
-  "pos.js": 2,
+  "identity.js": 0,
+  "wipe.js": 0,
+  "pos.js": 0,
 };
 
 const files = readdirSync(STATIC_JS_DIR).filter((f) => f.endsWith(".js"));
