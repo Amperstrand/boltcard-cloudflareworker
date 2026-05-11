@@ -1227,7 +1227,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
     document.getElementById('nfc-not-supported').classList.remove('hidden');
     document.getElementById('nfc-ready').classList.add('hidden');
   } else {
-    window.addEventListener('load', startNfc);
+    startNfc();
   }
 
   function formatDuration(ms) {
@@ -2134,7 +2134,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
     }
   }
 })();`;
-export const LOGIN_JS_HASH = "41640343a557";
+export const LOGIN_JS_HASH = "e8dc4f3f5a5b";
 
 export const ACTIVATE_JS = `// activate.js — classic script (no import/export)
 // Depends on: nfc.js (browserSupportsNfc, createNfcScanner)

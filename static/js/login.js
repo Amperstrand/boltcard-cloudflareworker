@@ -52,7 +52,7 @@
     document.getElementById('nfc-not-supported').classList.remove('hidden');
     document.getElementById('nfc-ready').classList.add('hidden');
   } else {
-    window.addEventListener('load', startNfc);
+    startNfc();
   }
 
   function formatDuration(ms) {
