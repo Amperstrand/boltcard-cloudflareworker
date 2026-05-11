@@ -83,11 +83,13 @@ function validateUid(uid) {
               document.getElementById('custom-key').focus();
             }
           }).catch(function(e) {
+            if (typeof window.reportClientError === 'function') window.reportClientError(e, 'bulk-wipe.js:identify');
             document.getElementById('detect-error').textContent = 'Error: ' + e.message;
             document.getElementById('detect-error').classList.remove('hidden');
             document.getElementById('detect-status').classList.add('hidden');
           });
         } catch (e) {
+          if (typeof window.reportClientError === 'function') window.reportClientError(e, 'bulk-wipe.js:identify');
           document.getElementById('detect-error').textContent = 'Error: ' + e.message;
           document.getElementById('detect-error').classList.remove('hidden');
           document.getElementById('detect-status').classList.add('hidden');
@@ -227,6 +229,7 @@ function validateUid(uid) {
           processUids(index + 1);
         });
       }).catch(function(err) {
+        if (typeof window.reportClientError === 'function') window.reportClientError(err, 'bulk-wipe.js:batch-action');
         renderCardError(results, uid, 'Fetch failed: ' + err.message);
         processUids(index + 1);
       });

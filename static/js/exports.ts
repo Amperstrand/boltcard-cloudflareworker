@@ -527,10 +527,11 @@ async function showCardInfo(p, c) {
     window.history.replaceState(null, '', newUrl);
 
     document.getElementById('card-info').focus();
-  } catch (err) {
-    hideLoading();
-    showError('Failed to load card info. Please try again.');
-  }
+   } catch (err) {
+     if (typeof window.reportClientError === 'function') window.reportClientError(err, 'card-dashboard.js:load-info');
+     hideLoading();
+     showError('Failed to load card info. Please try again.');
+   }
 }
 
 function showError(msg) {
@@ -672,13 +673,14 @@ document.getElementById('btn-lock-confirm').addEventListener('click', async func
       btn.disabled = false;
       btn.textContent = 'Confirm Lock';
     }
-  } catch (err) {
-    document.getElementById('lock-status').classList.remove('hidden');
-    document.getElementById('lock-status').className = 'mt-2 text-center text-sm text-red-400';
-    document.getElementById('lock-status').textContent = 'Network error';
-    btn.disabled = false;
-    btn.textContent = 'Confirm Lock';
-  }
+   } catch (err) {
+     if (typeof window.reportClientError === 'function') window.reportClientError(err, 'card-dashboard.js:lock');
+     document.getElementById('lock-status').classList.remove('hidden');
+     document.getElementById('lock-status').className = 'mt-2 text-center text-sm text-red-400';
+     document.getElementById('lock-status').textContent = 'Network error';
+     btn.disabled = false;
+     btn.textContent = 'Confirm Lock';
+   }
 });
 
 var reactivateScanner = null;
@@ -747,10 +749,11 @@ async function submitReactivate(p, c) {
       document.getElementById('reactivate-scan-error').textContent = data.reason || data.error || 'Re-activation failed';
       document.getElementById('reactivate-scan-error').classList.remove('hidden');
     }
-  } catch (err) {
-    document.getElementById('reactivate-scan-error').textContent = 'Network error';
-    document.getElementById('reactivate-scan-error').classList.remove('hidden');
-  }
+   } catch (err) {
+     if (typeof window.reportClientError === 'function') window.reportClientError(err, 'card-dashboard.js:reactivate');
+     document.getElementById('reactivate-scan-error').textContent = 'Network error';
+     document.getElementById('reactivate-scan-error').classList.remove('hidden');
+   }
 }
 
 (function init() {
@@ -767,7 +770,7 @@ async function submitReactivate(p, c) {
     document.getElementById('nfc-unsupported').classList.remove('hidden');
   }
 })();`;
-export const CARD_DASHBOARD_JS_HASH = "51aefb0201d3";
+export const CARD_DASHBOARD_JS_HASH = "93d85fc50e1b";
 
 export const DEBUG_JS = `// debug.js — classic script (no import/export)
 // Requires: nfc.js (esc, browserSupportsNfc, createNfcScanner)
@@ -964,6 +967,7 @@ export const DEBUG_JS = `// debug.js — classic script (no import/export)
           detailsBox.textContent = 'The card did not return a withdrawRequest payload.';
         }
       }).catch(function(e) {
+        if (typeof window.reportClientError === 'function') window.reportClientError(e, 'debug.js:console-fetch');
         detailsBox.textContent = 'Error fetching LNURLW response: ' + e.message;
       });
     }
@@ -1031,9 +1035,10 @@ export const DEBUG_JS = `// debug.js — classic script (no import/export)
           cmac: 'invalid',
         });
       }
-    }).catch(function(err) {
-      detailsBox.replaceChildren(_el('p', 'text-red-300', 'Error: ' + err.message));
-    });
+      }).catch(function(err) {
+        if (typeof window.reportClientError === 'function') window.reportClientError(err, 'debug.js:identify-fetch');
+        detailsBox.replaceChildren(_el('p', 'text-red-300', 'Error: ' + err.message));
+      });
   }
 
   function handleWipeTab(data) {
@@ -1080,6 +1085,7 @@ export const DEBUG_JS = `// debug.js — classic script (no import/export)
             resultDiv.textContent = json.reason || 'Failed to generate wipe data.';
           }
         }).catch(function(err) {
+          if (typeof window.reportClientError === 'function') window.reportClientError(err, 'debug.js:wipe-fetch');
           var resultDiv = document.getElementById('wipe-result');
           resultDiv.textContent = 'Error: ' + err.message;
         });
@@ -1118,7 +1124,10 @@ export const DEBUG_JS = `// debug.js — classic script (no import/export)
           outputDiv.replaceChildren(_el('div', 'text-center text-red-400 py-4', json.reason || json.error || 'Error'));
         }
       })
-      .catch(function() { outputDiv.replaceChildren(_el('div', 'text-center text-red-400 py-4', 'Error loading 2FA data.')); });
+      .catch(function() {
+        if (typeof window.reportClientError === 'function') window.reportClientError(new Error('2FA data load failed'), 'debug.js:twofa-fetch');
+        outputDiv.replaceChildren(_el('div', 'text-center text-red-400 py-4', 'Error loading 2FA data.'));
+      });
   }
 
   function handleIdentityTab(data) {
@@ -1156,7 +1165,10 @@ export const DEBUG_JS = `// debug.js — classic script (no import/export)
           _denied.appendChild(_el('p', 'text-red-300', json.reason || 'Not verified'));
           outputDiv.replaceChildren(_denied);
         }
-      }).catch(function() { outputDiv.replaceChildren(_el('div', 'text-center text-red-400 py-4', 'Error loading identity data.')); });
+      }).catch(function() {
+        if (typeof window.reportClientError === 'function') window.reportClientError(new Error('Identity data load failed'), 'debug.js:identity-fetch');
+        outputDiv.replaceChildren(_el('div', 'text-center text-red-400 py-4', 'Error loading identity data.'));
+      });
   }
 
   function handlePosTab(data) {
@@ -1244,7 +1256,10 @@ export const DEBUG_JS = `// debug.js — classic script (no import/export)
       body: JSON.stringify({ p: lastP, c: lastC, amount: amount }),
     }).then(function(r) { return r.json(); }).then(function(json) {
       showPosStatus(json.reason || (json.status === 'OK' ? 'Charged ' + amount + ' credits' : 'Charge failed'), json.status === 'OK');
-    }).catch(function(err) { showPosStatus('Error: ' + err.message, false); });
+     }).catch(function(err) {
+        if (typeof window.reportClientError === 'function') window.reportClientError(err, 'debug.js:pos-charge-fetch');
+        showPosStatus('Error: ' + err.message, false);
+      });
     chargeBtn.disabled = false;
   });
 
@@ -1278,7 +1293,7 @@ export const DEBUG_JS = `// debug.js — classic script (no import/export)
     nfcScanner.scan();
   }
 })();`;
-export const DEBUG_JS_HASH = "460689587e94";
+export const DEBUG_JS_HASH = "bf0c88d19b49";
 
 export const LOGIN_JS = `// login.js — classic script (no import/export)
 // Depends on: nfc.js (browserSupportsNfc, extractNdefUrl, normalizeBrowserNfcUrl, normalizeNfcSerial)
@@ -1608,6 +1623,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
         throw new Error(result.data.error || 'Provisioning failed');
       }
     }).catch(function(e) {
+      if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:provision');
       status.className = 'mt-3 text-center text-sm text-red-400';
       if (e.message.includes('active') || e.message.includes('Terminate')) {
         status.textContent = 'This card is already active and working. Wipe it first if you want to re-provision.';
@@ -1853,6 +1869,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
         throw new Error(result.data.error || 'Termination failed');
       }
     }).catch(function(e) {
+      if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:terminate');
       status.className = 'mt-3 text-center text-sm text-red-400';
       status.textContent = 'Error: ' + e.message;
       btn.disabled = false;
@@ -1895,6 +1912,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
         throw new Error(result.data.error || 'Failed to fetch wipe keys');
       }
     }).catch(function(e) {
+      if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:fetch-wipe-keys');
       status.className = 'mt-3 text-center text-sm text-red-400';
       status.textContent = 'Error: ' + e.message;
       btn.disabled = false;
@@ -1933,6 +1951,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
         statusEl.className = 'text-xs mt-2 text-red-400';
       }
     }).catch(function(e) {
+      if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:topup');
       statusEl.textContent = 'Error: ' + e.message;
       statusEl.className = 'text-xs mt-2 text-red-400';
     });
@@ -1959,6 +1978,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
         showPersistentError('Failed to confirm wipe: ' + (data.error || 'unknown'));
       }
     }).catch(function(e) {
+      if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:confirm-wipe');
       showPersistentError('Wipe confirmation error: ' + e.message);
     });
   }
@@ -1998,6 +2018,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
         throw new Error(result.data.error || 'Provisioning failed');
       }
     }).catch(function(e) {
+      if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:reprovision');
       status.className = 'mt-3 text-center text-sm text-red-400';
       status.textContent = 'Error: ' + e.message;
       btn.disabled = false;
@@ -2042,6 +2063,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
         throw new Error(result.data.error || 'Provisioning failed');
       }
     }).catch(function(e) {
+      if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:reprovision-private');
       status.className = 'mt-3 text-center text-sm text-red-400';
       status.textContent = 'Error: ' + e.message;
       btn.disabled = false;
@@ -2139,6 +2161,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
                         statusEl.textContent = 'Failed. Tap card to retry.';
                       }
                     }).catch(function(e) {
+                      if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:validate-server');
                       showPersistentError('Validation error: ' + e.message);
                       statusEl.textContent = 'Error. Tap to retry.';
                     });
@@ -2147,6 +2170,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
                     statusEl.textContent = 'Invalid card. Tap to retry.';
                   }
                 } catch(e) {
+                  if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:parse-url');
                   showPersistentError('Could not parse card URL: ' + e.message + '. Raw: ' + rawUrl);
                   statusEl.textContent = 'Parse error. Tap to retry.';
                 }
@@ -2177,6 +2201,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
                       statusEl.textContent = 'Failed. Tap card to retry.';
                     }
                   }).catch(function(e) {
+                    if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:uid-lookup');
                     showPersistentError('UID lookup error: ' + e.message);
                     statusEl.textContent = 'Error. Tap to retry.';
                   });
@@ -2204,6 +2229,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
           scheduleNfcRestart();
         };
       }).catch(function(error) {
+        if (typeof window.reportClientError === 'function') window.reportClientError(error, 'login.js:nfc-onreadingerror');
         if (nfcAbortController === abortController) {
           nfcAbortController = null;
           indicatorEl.classList.add('hidden');
@@ -2223,6 +2249,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
         }
       });
     } catch (error) {
+      if (typeof window.reportClientError === 'function') window.reportClientError(error, 'login.js:nfc-scan');
       if (nfcAbortController === abortController) {
         nfcAbortController = null;
         indicatorEl.classList.add('hidden');
@@ -2243,7 +2270,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
     }
   }
 })();`;
-export const LOGIN_JS_HASH = "060fdad65dbc";
+export const LOGIN_JS_HASH = "5705d998d494";
 
 export const ACTIVATE_JS = `// activate.js — classic script (no import/export)
 // Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
@@ -2415,13 +2442,14 @@ function validateUid(uid) {
         result.className = 'mt-4 text-sm text-red-300';
         result.textContent = 'Error: ' + (json.reason || 'Unknown error');
       }
-    }).catch(function(error) {
-      result.className = 'mt-4 text-sm text-red-300';
-      result.textContent = 'Error submitting form: ' + error.message;
-    });
+     }).catch(function(error) {
+       if (typeof window.reportClientError === 'function') window.reportClientError(error, 'activate.js:submit');
+       result.className = 'mt-4 text-sm text-red-300';
+       result.textContent = 'Error submitting form: ' + error.message;
+     });
   });
 })();`;
-export const ACTIVATE_JS_HASH = "adca0e73ca94";
+export const ACTIVATE_JS_HASH = "5d4333367688";
 
 export const ANALYTICS_JS = `// analytics.js — classic script (no import/export)
 // No external dependencies
@@ -2464,16 +2492,18 @@ function _loadAnalytics() {
       }
       return resp.json().then(function(data) {
         _renderAnalytics(normalizedUid, data);
-      });
-    }).catch(function(e) {
-      errEl.textContent = 'Error: ' + e.message;
-      errEl.classList.remove('hidden');
-    });
-  } catch (e) {
-    errEl.textContent = 'Error: ' + e.message;
-    errEl.classList.remove('hidden');
-  }
-}
+       });
+     }).catch(function(e) {
+       if (typeof window.reportClientError === 'function') window.reportClientError(e, 'analytics.js:load-data');
+       errEl.textContent = 'Error: ' + e.message;
+       errEl.classList.remove('hidden');
+     });
+   } catch (e) {
+     if (typeof window.reportClientError === 'function') window.reportClientError(e, 'analytics.js:load-data');
+     errEl.textContent = 'Error: ' + e.message;
+     errEl.classList.remove('hidden');
+   }
+ }
 
 function _renderAnalytics(uid, d) {
   document.getElementById('display-uid').textContent = uid.toUpperCase();
@@ -2509,7 +2539,7 @@ if (_analyticsPrefill) {
   document.getElementById('uid-input').value = _analyticsPrefill;
   _loadAnalytics();
 }`;
-export const ANALYTICS_JS_HASH = "8531031a09e3";
+export const ANALYTICS_JS_HASH = "acb7eb5d907f";
 
 export const CARD_AUDIT_JS = `// card-audit.js — classic script (no import/export)
 // Depends on: nfc.js (stateLabel, stateColor, provenanceLabel, provenanceColor)
@@ -2600,15 +2630,17 @@ function _loadCards(append) {
           document.getElementById('load-more-container').classList.add('hidden');
         }
       });
-    }).catch(function(err) {
-      document.getElementById('loading').classList.add('hidden');
-      _showAuditError('Failed to load card registry');
-    });
-  } catch (err) {
-    document.getElementById('loading').classList.add('hidden');
-    _showAuditError('Failed to load card registry');
-  }
-}
+     }).catch(function(err) {
+       if (typeof window.reportClientError === 'function') window.reportClientError(err, 'card-audit.js:load-cards');
+       document.getElementById('loading').classList.add('hidden');
+       _showAuditError('Failed to load card registry');
+     });
+   } catch (err) {
+     if (typeof window.reportClientError === 'function') window.reportClientError(err, 'card-audit.js:load-cards');
+     document.getElementById('loading').classList.add('hidden');
+     _showAuditError('Failed to load card registry');
+   }
+ }
 
 function _renderCards() {
   var list = document.getElementById('cards-list');
@@ -2735,12 +2767,13 @@ function _batchAction(action) {
       btn.textContent = origText;
       btn.disabled = selectedUids.size === 0;
     });
-  }).catch(function(err) {
-    _showAuditError('Batch action failed: ' + err.message);
-    btn.textContent = origText;
-    btn.disabled = selectedUids.size === 0;
-  });
-}
+   }).catch(function(err) {
+     if (typeof window.reportClientError === 'function') window.reportClientError(err, 'card-audit.js:batch-action');
+     _showAuditError('Batch action failed: ' + err.message);
+     btn.textContent = origText;
+     btn.disabled = selectedUids.size === 0;
+   });
+ }
 
 function _showAuditError(msg) {
   document.getElementById('error-display').classList.remove('hidden');
@@ -2857,15 +2890,16 @@ function _handleRepair(btn) {
       btn.textContent = origText;
       btn.disabled = false;
     });
-  }).catch(function(err) {
-    _showAuditError('Index repair failed: ' + err.message);
-    btn.textContent = origText;
-    btn.disabled = false;
-  });
-}
+   }).catch(function(err) {
+     if (typeof window.reportClientError === 'function') window.reportClientError(err, 'card-audit.js:repair-action');
+     _showAuditError('Index repair failed: ' + err.message);
+     btn.textContent = origText;
+     btn.disabled = false;
+   });
+ }
 
 _loadCards(false);`;
-export const CARD_AUDIT_JS_HASH = "6617b57907ac";
+export const CARD_AUDIT_JS_HASH = "7e3c240e9247";
 
 export const MENU_EDITOR_JS = `// menu-editor.js — classic script (no import/export)
 
@@ -2957,6 +2991,7 @@ export const MENU_EDITOR_JS = `// menu-editor.js — classic script (no import/e
         }
       });
     }).catch(function(e) {
+      if (typeof window.reportClientError === 'function') window.reportClientError(e, 'menu-editor.js:save');
       status.className = 'mt-4 text-center text-sm text-red-400';
       status.textContent = 'Network error: ' + e.message;
     });
@@ -2964,7 +2999,7 @@ export const MENU_EDITOR_JS = `// menu-editor.js — classic script (no import/e
 
   render();
 })();`;
-export const MENU_EDITOR_JS_HASH = "68b7fc8c0fc8";
+export const MENU_EDITOR_JS_HASH = "789d4ae511f1";
 
 export const WIPE_JS = `// wipe.js — classic script (no import/export)
 // Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
@@ -3053,9 +3088,10 @@ export const WIPE_JS = `// wipe.js — classic script (no import/export)
       .then(function(data) {
         displayOutput(uid, data, resetApiUrl);
       })
-      .catch(function(error) {
-        alert("Error fetching wipe keys: " + error.message);
-      });
+       .catch(function(error) {
+         if (typeof window.reportClientError === 'function') window.reportClientError(error, 'wipe.js:fetch-keys');
+         alert("Error fetching wipe keys: " + error.message);
+       });
   }
 
   function displayOutput(uid, data, resetApiUrl) {
@@ -3098,7 +3134,7 @@ export const WIPE_JS = `// wipe.js — classic script (no import/export)
     }
   });
 })();`;
-export const WIPE_JS_HASH = "305920de266b";
+export const WIPE_JS_HASH = "c4adfe7191d0";
 
 export const BULK_WIPE_JS = `// bulk-wipe.js — classic script (no import/export)
 // Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
@@ -3185,11 +3221,13 @@ function validateUid(uid) {
               document.getElementById('custom-key').focus();
             }
           }).catch(function(e) {
+            if (typeof window.reportClientError === 'function') window.reportClientError(e, 'bulk-wipe.js:identify');
             document.getElementById('detect-error').textContent = 'Error: ' + e.message;
             document.getElementById('detect-error').classList.remove('hidden');
             document.getElementById('detect-status').classList.add('hidden');
           });
         } catch (e) {
+          if (typeof window.reportClientError === 'function') window.reportClientError(e, 'bulk-wipe.js:identify');
           document.getElementById('detect-error').textContent = 'Error: ' + e.message;
           document.getElementById('detect-error').classList.remove('hidden');
           document.getElementById('detect-status').classList.add('hidden');
@@ -3329,6 +3367,7 @@ function validateUid(uid) {
           processUids(index + 1);
         });
       }).catch(function(err) {
+        if (typeof window.reportClientError === 'function') window.reportClientError(err, 'bulk-wipe.js:batch-action');
         renderCardError(results, uid, 'Fetch failed: ' + err.message);
         processUids(index + 1);
       });
@@ -3428,7 +3467,7 @@ function validateUid(uid) {
     }
   });
 })();`;
-export const BULK_WIPE_JS_HASH = "8f945dcccc3d";
+export const BULK_WIPE_JS_HASH = "d2823720a078";
 
 export const TWO_FACTOR_JS = `// two-factor.js — classic script (no import/export)
 // Contains both OTP timer (renderTwoFactorPage) and NFC landing scanner (renderTwoFactorLandingPage)
@@ -3531,18 +3570,20 @@ export const TWO_FACTOR_JS = `// two-factor.js — classic script (no import/exp
             window.location.href = BASE_URL + '/2fa?p=' + encodeURIComponent(p) + '&c=' + encodeURIComponent(c);
           });
         };
-      }).catch(function(error) {
-        updateIndicator(false);
-        if (error.name !== 'AbortError') {
-          showError(error.message || 'Unable to start NFC scan.');
-          scanStatus.textContent = 'Unable to start NFC scan';
-        }
-      });
-    } catch (error) {
-      updateIndicator(false);
-      showError(error.message || 'Unable to start NFC scan.');
-      scanStatus.textContent = 'Unable to start NFC scan';
-    }
+       }).catch(function(error) {
+         updateIndicator(false);
+         if (error.name !== 'AbortError') {
+           if (typeof window.reportClientError === 'function') window.reportClientError(error, 'two-factor.js:scan');
+           showError(error.message || 'Unable to start NFC scan.');
+           scanStatus.textContent = 'Unable to start NFC scan';
+         }
+       });
+     } catch (error) {
+       if (typeof window.reportClientError === 'function') window.reportClientError(error, 'two-factor.js:scan');
+       updateIndicator(false);
+       showError(error.message || 'Unable to start NFC scan.');
+       scanStatus.textContent = 'Unable to start NFC scan';
+     }
   }
 
   scanButton.addEventListener('click', startScan);
@@ -3552,7 +3593,7 @@ export const TWO_FACTOR_JS = `// two-factor.js — classic script (no import/exp
     window.addEventListener('load', startScan);
   }
 })();`;
-export const TWO_FACTOR_JS_HASH = "b768567c167e";
+export const TWO_FACTOR_JS_HASH = "b5c22e50eb30";
 
 export const BOLT11_DECODE_JS = `// bolt11-decode.js — classic script (no import/export)
 
@@ -3580,11 +3621,12 @@ export const BOLT11_DECODE_JS = `// bolt11-decode.js — classic script (no impo
         }
         renderResult(data);
       })
-      .catch(function(e) {
-        errEl.textContent = 'Request failed: ' + e.message;
-        errEl.classList.remove('hidden');
-      });
-  }
+       .catch(function(e) {
+         if (typeof window.reportClientError === 'function') window.reportClientError(e, 'bolt11-decode.js:decode');
+         errEl.textContent = 'Request failed: ' + e.message;
+         errEl.classList.remove('hidden');
+       });
+   }
 
   function makeBadge(text, bgClass, textClass) {
     var span = document.createElement('span');
@@ -3733,7 +3775,7 @@ export const BOLT11_DECODE_JS = `// bolt11-decode.js — classic script (no impo
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') decode();
   });
 })();`;
-export const BOLT11_DECODE_JS_HASH = "e5ffce9a0873";
+export const BOLT11_DECODE_JS_HASH = "f8b81a160586";
 
 export const POS_JS = `// pos.js — classic script (no import/export)
 // Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
@@ -3803,11 +3845,12 @@ export const POS_JS = `// pos.js — classic script (no import/export)
         stopScanning();
         setState('processing');
         await directCharge(p, c);
-      } catch (error) {
-        stopScanning();
-        setState('failed');
-        showResult('error', 'Payment failed', error.message);
-      }
+       } catch (error) {
+         if (typeof window.reportClientError === 'function') window.reportClientError(error, 'pos.js:nfc-tap');
+         stopScanning();
+         setState('failed');
+         showResult('error', 'Payment failed', error.message);
+       }
     }
   });
 
@@ -4087,12 +4130,17 @@ export const POS_JS = `// pos.js — classic script (no import/export)
     try {
       await posScanner.scan();
       setState('scanning');
-    } catch (error) {
-      if (error.name !== 'AbortError') { stopScanning(); setState('idle'); showResult('error', 'NFC error', error.message); }
-    }
+       } catch (error) {
+         if (error.name !== 'AbortError') {
+           if (typeof window.reportClientError === 'function') window.reportClientError(error, 'pos.js:nfc-scan');
+           stopScanning();
+           setState('idle');
+           showResult('error', 'NFC error', error.message);
+         }
+       }
   }
 })();`;
-export const POS_JS_HASH = "af09975c2f5c";
+export const POS_JS_HASH = "a3fcdd460afe";
 
 export const TOPUP_JS = `// topup.js — classic script (no import/export)
 // Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
@@ -4179,7 +4227,12 @@ export const TOPUP_JS = `// topup.js — classic script (no import/export)
         var c = parsed.searchParams.get('c');
         if (p && c) { await submitTopup(p, c); }
         else { appState = 'idle'; updateView(); showResult('error', 'Invalid card data', 'Card URL missing p or c parameters'); }
-      } catch(e) { appState = 'idle'; updateView(); showResult('error', 'Card read error', e.message); }
+       } catch(e) {
+        if (typeof window.reportClientError === 'function') window.reportClientError(e, 'topup.js:card-read');
+        appState = 'idle';
+        updateView();
+        showResult('error', 'Card read error', e.message);
+      }
     }
   });
 
@@ -4285,16 +4338,17 @@ export const TOPUP_JS = `// topup.js — classic script (no import/export)
       } else {
         showResult('error', 'Top-up failed', data.error || data.reason || 'Unknown error');
       }
-    } catch(e) {
-      showResult('error', 'Network error', e.message || 'Could not reach server');
-    }
+     } catch(e) {
+       if (typeof window.reportClientError === 'function') window.reportClientError(e, 'topup.js:network');
+       showResult('error', 'Network error', e.message || 'Could not reach server');
+     }
     appState = 'idle';
     updateView();
   }
 
   updateView();
 })();`;
-export const TOPUP_JS_HASH = "947e97ea842d";
+export const TOPUP_JS_HASH = "86faac35c73a";
 
 export const REFUND_JS = `// refund.js — classic script (no import/export)
 // Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
@@ -4367,7 +4421,11 @@ export const REFUND_JS = `// refund.js — classic script (no import/export)
         var c = parsed.searchParams.get('c');
         if (p && c) { lastP = p; lastC = c; await fetchBalance(p, c); }
         else { appState = 'idle'; showResult('error', 'Invalid card', 'Missing p/c parameters'); }
-      } catch(e) { appState = 'idle'; showResult('error', 'Error', e.message); }
+       } catch(e) {
+        if (typeof window.reportClientError === 'function') window.reportClientError(e, 'refund.js:card-read');
+        appState = 'idle';
+        showResult('error', 'Error', e.message);
+      }
     }
   });
 
@@ -4407,9 +4465,10 @@ export const REFUND_JS = `// refund.js — classic script (no import/export)
       } else {
         showResult('error', 'Refund failed', data.error || data.reason || 'Unknown error');
       }
-    } catch(e) {
-      showResult('error', 'Network error', e.message);
-    }
+     } catch(e) {
+       if (typeof window.reportClientError === 'function') window.reportClientError(e, 'refund.js:network');
+       showResult('error', 'Network error', e.message);
+     }
     appState = 'idle';
   }
 
@@ -4430,13 +4489,14 @@ export const REFUND_JS = `// refund.js — classic script (no import/export)
         appState = 'idle';
         showResult('error', 'Read failed', data.error || data.reason || 'Could not read card');
       }
-    } catch(e) {
-      appState = 'idle';
-      showResult('error', 'Network error', e.message);
-    }
+     } catch(e) {
+       if (typeof window.reportClientError === 'function') window.reportClientError(e, 'refund.js:network');
+       appState = 'idle';
+       showResult('error', 'Network error', e.message);
+     }
   }
 })();`;
-export const REFUND_JS_HASH = "adf2fd9b9e21";
+export const REFUND_JS_HASH = "d5223fbda65d";
 
 export const IDENTITY_JS = `// identity.js — classic script (no import/export)
 // Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
@@ -4543,9 +4603,10 @@ export const IDENTITY_JS = `// identity.js — classic script (no import/export)
       }
       hydrateVerifiedProfile(Object.assign({}, data, { maskedUid: data.maskedUid || profile.uid.textContent }), currentVerification);
       setSaveStatus('Saved. This emoji will show the next time this card is verified.', 'success');
-    } catch (error) {
-      setSaveStatus(error.message || 'Unable to save avatar.', 'error');
-    } finally {
+     } catch (error) {
+       if (typeof window.reportClientError === 'function') window.reportClientError(error, 'identity.js:save-profile');
+       setSaveStatus(error.message || 'Unable to save avatar.', 'error');
+     } finally {
       profile.emojiSaveButton.disabled = !selectedEmoji;
     }
   }
@@ -4611,10 +4672,11 @@ export const IDENTITY_JS = `// identity.js — classic script (no import/export)
         profile.reason.textContent = data.reason || 'Verification failed';
         setState('denied');
       }
-    } catch (err) {
-      profile.reason.textContent = err.message || 'Network error';
-      setState('denied');
-    }
+     } catch (err) {
+       if (typeof window.reportClientError === 'function') window.reportClientError(err, 'identity.js:verify');
+       profile.reason.textContent = err.message || 'Network error';
+       setState('denied');
+     }
   }
 
   function initNfc() {
@@ -4673,4 +4735,4 @@ export const IDENTITY_JS = `// identity.js — classic script (no import/export)
   profile.emojiSaveButton.addEventListener('click', saveEmojiSelection);
   profile.emojiSaveButton.disabled = true;
 })();`;
-export const IDENTITY_JS_HASH = "217b94f56238";
+export const IDENTITY_JS_HASH = "7eeadb9299ed";

@@ -216,10 +216,11 @@ async function showCardInfo(p, c) {
     window.history.replaceState(null, '', newUrl);
 
     document.getElementById('card-info').focus();
-  } catch (err) {
-    hideLoading();
-    showError('Failed to load card info. Please try again.');
-  }
+   } catch (err) {
+     if (typeof window.reportClientError === 'function') window.reportClientError(err, 'card-dashboard.js:load-info');
+     hideLoading();
+     showError('Failed to load card info. Please try again.');
+   }
 }
 
 function showError(msg) {
@@ -361,13 +362,14 @@ document.getElementById('btn-lock-confirm').addEventListener('click', async func
       btn.disabled = false;
       btn.textContent = 'Confirm Lock';
     }
-  } catch (err) {
-    document.getElementById('lock-status').classList.remove('hidden');
-    document.getElementById('lock-status').className = 'mt-2 text-center text-sm text-red-400';
-    document.getElementById('lock-status').textContent = 'Network error';
-    btn.disabled = false;
-    btn.textContent = 'Confirm Lock';
-  }
+   } catch (err) {
+     if (typeof window.reportClientError === 'function') window.reportClientError(err, 'card-dashboard.js:lock');
+     document.getElementById('lock-status').classList.remove('hidden');
+     document.getElementById('lock-status').className = 'mt-2 text-center text-sm text-red-400';
+     document.getElementById('lock-status').textContent = 'Network error';
+     btn.disabled = false;
+     btn.textContent = 'Confirm Lock';
+   }
 });
 
 var reactivateScanner = null;
@@ -436,10 +438,11 @@ async function submitReactivate(p, c) {
       document.getElementById('reactivate-scan-error').textContent = data.reason || data.error || 'Re-activation failed';
       document.getElementById('reactivate-scan-error').classList.remove('hidden');
     }
-  } catch (err) {
-    document.getElementById('reactivate-scan-error').textContent = 'Network error';
-    document.getElementById('reactivate-scan-error').classList.remove('hidden');
-  }
+   } catch (err) {
+     if (typeof window.reportClientError === 'function') window.reportClientError(err, 'card-dashboard.js:reactivate');
+     document.getElementById('reactivate-scan-error').textContent = 'Network error';
+     document.getElementById('reactivate-scan-error').classList.remove('hidden');
+   }
 }
 
 (function init() {

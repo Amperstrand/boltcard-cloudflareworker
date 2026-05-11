@@ -83,7 +83,12 @@
         var c = parsed.searchParams.get('c');
         if (p && c) { await submitTopup(p, c); }
         else { appState = 'idle'; updateView(); showResult('error', 'Invalid card data', 'Card URL missing p or c parameters'); }
-      } catch(e) { appState = 'idle'; updateView(); showResult('error', 'Card read error', e.message); }
+       } catch(e) {
+        if (typeof window.reportClientError === 'function') window.reportClientError(e, 'topup.js:card-read');
+        appState = 'idle';
+        updateView();
+        showResult('error', 'Card read error', e.message);
+      }
     }
   });
 
@@ -189,9 +194,10 @@
       } else {
         showResult('error', 'Top-up failed', data.error || data.reason || 'Unknown error');
       }
-    } catch(e) {
-      showResult('error', 'Network error', e.message || 'Could not reach server');
-    }
+     } catch(e) {
+       if (typeof window.reportClientError === 'function') window.reportClientError(e, 'topup.js:network');
+       showResult('error', 'Network error', e.message || 'Could not reach server');
+     }
     appState = 'idle';
     updateView();
   }

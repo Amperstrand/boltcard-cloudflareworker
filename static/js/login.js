@@ -326,6 +326,7 @@
         throw new Error(result.data.error || 'Provisioning failed');
       }
     }).catch(function(e) {
+      if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:provision');
       status.className = 'mt-3 text-center text-sm text-red-400';
       if (e.message.includes('active') || e.message.includes('Terminate')) {
         status.textContent = 'This card is already active and working. Wipe it first if you want to re-provision.';
@@ -571,6 +572,7 @@
         throw new Error(result.data.error || 'Termination failed');
       }
     }).catch(function(e) {
+      if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:terminate');
       status.className = 'mt-3 text-center text-sm text-red-400';
       status.textContent = 'Error: ' + e.message;
       btn.disabled = false;
@@ -613,6 +615,7 @@
         throw new Error(result.data.error || 'Failed to fetch wipe keys');
       }
     }).catch(function(e) {
+      if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:fetch-wipe-keys');
       status.className = 'mt-3 text-center text-sm text-red-400';
       status.textContent = 'Error: ' + e.message;
       btn.disabled = false;
@@ -651,6 +654,7 @@
         statusEl.className = 'text-xs mt-2 text-red-400';
       }
     }).catch(function(e) {
+      if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:topup');
       statusEl.textContent = 'Error: ' + e.message;
       statusEl.className = 'text-xs mt-2 text-red-400';
     });
@@ -677,6 +681,7 @@
         showPersistentError('Failed to confirm wipe: ' + (data.error || 'unknown'));
       }
     }).catch(function(e) {
+      if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:confirm-wipe');
       showPersistentError('Wipe confirmation error: ' + e.message);
     });
   }
@@ -716,6 +721,7 @@
         throw new Error(result.data.error || 'Provisioning failed');
       }
     }).catch(function(e) {
+      if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:reprovision');
       status.className = 'mt-3 text-center text-sm text-red-400';
       status.textContent = 'Error: ' + e.message;
       btn.disabled = false;
@@ -760,6 +766,7 @@
         throw new Error(result.data.error || 'Provisioning failed');
       }
     }).catch(function(e) {
+      if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:reprovision-private');
       status.className = 'mt-3 text-center text-sm text-red-400';
       status.textContent = 'Error: ' + e.message;
       btn.disabled = false;
@@ -857,6 +864,7 @@
                         statusEl.textContent = 'Failed. Tap card to retry.';
                       }
                     }).catch(function(e) {
+                      if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:validate-server');
                       showPersistentError('Validation error: ' + e.message);
                       statusEl.textContent = 'Error. Tap to retry.';
                     });
@@ -865,6 +873,7 @@
                     statusEl.textContent = 'Invalid card. Tap to retry.';
                   }
                 } catch(e) {
+                  if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:parse-url');
                   showPersistentError('Could not parse card URL: ' + e.message + '. Raw: ' + rawUrl);
                   statusEl.textContent = 'Parse error. Tap to retry.';
                 }
@@ -895,6 +904,7 @@
                       statusEl.textContent = 'Failed. Tap card to retry.';
                     }
                   }).catch(function(e) {
+                    if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:uid-lookup');
                     showPersistentError('UID lookup error: ' + e.message);
                     statusEl.textContent = 'Error. Tap to retry.';
                   });
@@ -922,6 +932,7 @@
           scheduleNfcRestart();
         };
       }).catch(function(error) {
+        if (typeof window.reportClientError === 'function') window.reportClientError(error, 'login.js:nfc-onreadingerror');
         if (nfcAbortController === abortController) {
           nfcAbortController = null;
           indicatorEl.classList.add('hidden');
@@ -941,6 +952,7 @@
         }
       });
     } catch (error) {
+      if (typeof window.reportClientError === 'function') window.reportClientError(error, 'login.js:nfc-scan');
       if (nfcAbortController === abortController) {
         nfcAbortController = null;
         indicatorEl.classList.add('hidden');

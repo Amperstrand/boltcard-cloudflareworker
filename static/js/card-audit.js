@@ -87,15 +87,17 @@ function _loadCards(append) {
           document.getElementById('load-more-container').classList.add('hidden');
         }
       });
-    }).catch(function(err) {
-      document.getElementById('loading').classList.add('hidden');
-      _showAuditError('Failed to load card registry');
-    });
-  } catch (err) {
-    document.getElementById('loading').classList.add('hidden');
-    _showAuditError('Failed to load card registry');
-  }
-}
+     }).catch(function(err) {
+       if (typeof window.reportClientError === 'function') window.reportClientError(err, 'card-audit.js:load-cards');
+       document.getElementById('loading').classList.add('hidden');
+       _showAuditError('Failed to load card registry');
+     });
+   } catch (err) {
+     if (typeof window.reportClientError === 'function') window.reportClientError(err, 'card-audit.js:load-cards');
+     document.getElementById('loading').classList.add('hidden');
+     _showAuditError('Failed to load card registry');
+   }
+ }
 
 function _renderCards() {
   var list = document.getElementById('cards-list');
@@ -222,12 +224,13 @@ function _batchAction(action) {
       btn.textContent = origText;
       btn.disabled = selectedUids.size === 0;
     });
-  }).catch(function(err) {
-    _showAuditError('Batch action failed: ' + err.message);
-    btn.textContent = origText;
-    btn.disabled = selectedUids.size === 0;
-  });
-}
+   }).catch(function(err) {
+     if (typeof window.reportClientError === 'function') window.reportClientError(err, 'card-audit.js:batch-action');
+     _showAuditError('Batch action failed: ' + err.message);
+     btn.textContent = origText;
+     btn.disabled = selectedUids.size === 0;
+   });
+ }
 
 function _showAuditError(msg) {
   document.getElementById('error-display').classList.remove('hidden');
@@ -344,11 +347,12 @@ function _handleRepair(btn) {
       btn.textContent = origText;
       btn.disabled = false;
     });
-  }).catch(function(err) {
-    _showAuditError('Index repair failed: ' + err.message);
-    btn.textContent = origText;
-    btn.disabled = false;
-  });
-}
+   }).catch(function(err) {
+     if (typeof window.reportClientError === 'function') window.reportClientError(err, 'card-audit.js:repair-action');
+     _showAuditError('Index repair failed: ' + err.message);
+     btn.textContent = origText;
+     btn.disabled = false;
+   });
+ }
 
 _loadCards(false);

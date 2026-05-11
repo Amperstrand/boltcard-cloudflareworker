@@ -99,18 +99,20 @@
             window.location.href = BASE_URL + '/2fa?p=' + encodeURIComponent(p) + '&c=' + encodeURIComponent(c);
           });
         };
-      }).catch(function(error) {
-        updateIndicator(false);
-        if (error.name !== 'AbortError') {
-          showError(error.message || 'Unable to start NFC scan.');
-          scanStatus.textContent = 'Unable to start NFC scan';
-        }
-      });
-    } catch (error) {
-      updateIndicator(false);
-      showError(error.message || 'Unable to start NFC scan.');
-      scanStatus.textContent = 'Unable to start NFC scan';
-    }
+       }).catch(function(error) {
+         updateIndicator(false);
+         if (error.name !== 'AbortError') {
+           if (typeof window.reportClientError === 'function') window.reportClientError(error, 'two-factor.js:scan');
+           showError(error.message || 'Unable to start NFC scan.');
+           scanStatus.textContent = 'Unable to start NFC scan';
+         }
+       });
+     } catch (error) {
+       if (typeof window.reportClientError === 'function') window.reportClientError(error, 'two-factor.js:scan');
+       updateIndicator(false);
+       showError(error.message || 'Unable to start NFC scan.');
+       scanStatus.textContent = 'Unable to start NFC scan';
+     }
   }
 
   scanButton.addEventListener('click', startScan);

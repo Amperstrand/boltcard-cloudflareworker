@@ -193,6 +193,7 @@
           detailsBox.textContent = 'The card did not return a withdrawRequest payload.';
         }
       }).catch(function(e) {
+        if (typeof window.reportClientError === 'function') window.reportClientError(e, 'debug.js:console-fetch');
         detailsBox.textContent = 'Error fetching LNURLW response: ' + e.message;
       });
     }
@@ -260,9 +261,10 @@
           cmac: 'invalid',
         });
       }
-    }).catch(function(err) {
-      detailsBox.replaceChildren(_el('p', 'text-red-300', 'Error: ' + err.message));
-    });
+      }).catch(function(err) {
+        if (typeof window.reportClientError === 'function') window.reportClientError(err, 'debug.js:identify-fetch');
+        detailsBox.replaceChildren(_el('p', 'text-red-300', 'Error: ' + err.message));
+      });
   }
 
   function handleWipeTab(data) {
@@ -309,6 +311,7 @@
             resultDiv.textContent = json.reason || 'Failed to generate wipe data.';
           }
         }).catch(function(err) {
+          if (typeof window.reportClientError === 'function') window.reportClientError(err, 'debug.js:wipe-fetch');
           var resultDiv = document.getElementById('wipe-result');
           resultDiv.textContent = 'Error: ' + err.message;
         });
@@ -347,7 +350,10 @@
           outputDiv.replaceChildren(_el('div', 'text-center text-red-400 py-4', json.reason || json.error || 'Error'));
         }
       })
-      .catch(function() { outputDiv.replaceChildren(_el('div', 'text-center text-red-400 py-4', 'Error loading 2FA data.')); });
+      .catch(function() {
+        if (typeof window.reportClientError === 'function') window.reportClientError(new Error('2FA data load failed'), 'debug.js:twofa-fetch');
+        outputDiv.replaceChildren(_el('div', 'text-center text-red-400 py-4', 'Error loading 2FA data.'));
+      });
   }
 
   function handleIdentityTab(data) {
@@ -385,7 +391,10 @@
           _denied.appendChild(_el('p', 'text-red-300', json.reason || 'Not verified'));
           outputDiv.replaceChildren(_denied);
         }
-      }).catch(function() { outputDiv.replaceChildren(_el('div', 'text-center text-red-400 py-4', 'Error loading identity data.')); });
+      }).catch(function() {
+        if (typeof window.reportClientError === 'function') window.reportClientError(new Error('Identity data load failed'), 'debug.js:identity-fetch');
+        outputDiv.replaceChildren(_el('div', 'text-center text-red-400 py-4', 'Error loading identity data.'));
+      });
   }
 
   function handlePosTab(data) {
@@ -473,7 +482,10 @@
       body: JSON.stringify({ p: lastP, c: lastC, amount: amount }),
     }).then(function(r) { return r.json(); }).then(function(json) {
       showPosStatus(json.reason || (json.status === 'OK' ? 'Charged ' + amount + ' credits' : 'Charge failed'), json.status === 'OK');
-    }).catch(function(err) { showPosStatus('Error: ' + err.message, false); });
+     }).catch(function(err) {
+        if (typeof window.reportClientError === 'function') window.reportClientError(err, 'debug.js:pos-charge-fetch');
+        showPosStatus('Error: ' + err.message, false);
+      });
     chargeBtn.disabled = false;
   });
 

@@ -66,11 +66,12 @@
         stopScanning();
         setState('processing');
         await directCharge(p, c);
-      } catch (error) {
-        stopScanning();
-        setState('failed');
-        showResult('error', 'Payment failed', error.message);
-      }
+       } catch (error) {
+         if (typeof window.reportClientError === 'function') window.reportClientError(error, 'pos.js:nfc-tap');
+         stopScanning();
+         setState('failed');
+         showResult('error', 'Payment failed', error.message);
+       }
     }
   });
 
@@ -350,8 +351,13 @@
     try {
       await posScanner.scan();
       setState('scanning');
-    } catch (error) {
-      if (error.name !== 'AbortError') { stopScanning(); setState('idle'); showResult('error', 'NFC error', error.message); }
-    }
+       } catch (error) {
+         if (error.name !== 'AbortError') {
+           if (typeof window.reportClientError === 'function') window.reportClientError(error, 'pos.js:nfc-scan');
+           stopScanning();
+           setState('idle');
+           showResult('error', 'NFC error', error.message);
+         }
+       }
   }
 })();

@@ -69,7 +69,11 @@
         var c = parsed.searchParams.get('c');
         if (p && c) { lastP = p; lastC = c; await fetchBalance(p, c); }
         else { appState = 'idle'; showResult('error', 'Invalid card', 'Missing p/c parameters'); }
-      } catch(e) { appState = 'idle'; showResult('error', 'Error', e.message); }
+       } catch(e) {
+        if (typeof window.reportClientError === 'function') window.reportClientError(e, 'refund.js:card-read');
+        appState = 'idle';
+        showResult('error', 'Error', e.message);
+      }
     }
   });
 
@@ -109,9 +113,10 @@
       } else {
         showResult('error', 'Refund failed', data.error || data.reason || 'Unknown error');
       }
-    } catch(e) {
-      showResult('error', 'Network error', e.message);
-    }
+     } catch(e) {
+       if (typeof window.reportClientError === 'function') window.reportClientError(e, 'refund.js:network');
+       showResult('error', 'Network error', e.message);
+     }
     appState = 'idle';
   }
 
@@ -132,9 +137,10 @@
         appState = 'idle';
         showResult('error', 'Read failed', data.error || data.reason || 'Could not read card');
       }
-    } catch(e) {
-      appState = 'idle';
-      showResult('error', 'Network error', e.message);
-    }
+     } catch(e) {
+       if (typeof window.reportClientError === 'function') window.reportClientError(e, 'refund.js:network');
+       appState = 'idle';
+       showResult('error', 'Network error', e.message);
+     }
   }
 })();

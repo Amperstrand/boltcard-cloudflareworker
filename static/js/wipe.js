@@ -85,9 +85,10 @@
       .then(function(data) {
         displayOutput(uid, data, resetApiUrl);
       })
-      .catch(function(error) {
-        alert("Error fetching wipe keys: " + error.message);
-      });
+       .catch(function(error) {
+         if (typeof window.reportClientError === 'function') window.reportClientError(error, 'wipe.js:fetch-keys');
+         alert("Error fetching wipe keys: " + error.message);
+       });
   }
 
   function displayOutput(uid, data, resetApiUrl) {

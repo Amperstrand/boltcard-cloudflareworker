@@ -103,9 +103,10 @@
       }
       hydrateVerifiedProfile(Object.assign({}, data, { maskedUid: data.maskedUid || profile.uid.textContent }), currentVerification);
       setSaveStatus('Saved. This emoji will show the next time this card is verified.', 'success');
-    } catch (error) {
-      setSaveStatus(error.message || 'Unable to save avatar.', 'error');
-    } finally {
+     } catch (error) {
+       if (typeof window.reportClientError === 'function') window.reportClientError(error, 'identity.js:save-profile');
+       setSaveStatus(error.message || 'Unable to save avatar.', 'error');
+     } finally {
       profile.emojiSaveButton.disabled = !selectedEmoji;
     }
   }
@@ -171,10 +172,11 @@
         profile.reason.textContent = data.reason || 'Verification failed';
         setState('denied');
       }
-    } catch (err) {
-      profile.reason.textContent = err.message || 'Network error';
-      setState('denied');
-    }
+     } catch (err) {
+       if (typeof window.reportClientError === 'function') window.reportClientError(err, 'identity.js:verify');
+       profile.reason.textContent = err.message || 'Network error';
+       setState('denied');
+     }
   }
 
   function initNfc() {

@@ -39,16 +39,18 @@ function _loadAnalytics() {
       }
       return resp.json().then(function(data) {
         _renderAnalytics(normalizedUid, data);
-      });
-    }).catch(function(e) {
-      errEl.textContent = 'Error: ' + e.message;
-      errEl.classList.remove('hidden');
-    });
-  } catch (e) {
-    errEl.textContent = 'Error: ' + e.message;
-    errEl.classList.remove('hidden');
-  }
-}
+       });
+     }).catch(function(e) {
+       if (typeof window.reportClientError === 'function') window.reportClientError(e, 'analytics.js:load-data');
+       errEl.textContent = 'Error: ' + e.message;
+       errEl.classList.remove('hidden');
+     });
+   } catch (e) {
+     if (typeof window.reportClientError === 'function') window.reportClientError(e, 'analytics.js:load-data');
+     errEl.textContent = 'Error: ' + e.message;
+     errEl.classList.remove('hidden');
+   }
+ }
 
 function _renderAnalytics(uid, d) {
   document.getElementById('display-uid').textContent = uid.toUpperCase();

@@ -88,6 +88,7 @@
         }
       });
     }).catch(function(e) {
+      if (typeof window.reportClientError === 'function') window.reportClientError(e, 'menu-editor.js:save');
       status.className = 'mt-4 text-center text-sm text-red-400';
       status.textContent = 'Network error: ' + e.message;
     });

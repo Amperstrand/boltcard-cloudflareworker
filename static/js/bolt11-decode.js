@@ -24,11 +24,12 @@
         }
         renderResult(data);
       })
-      .catch(function(e) {
-        errEl.textContent = 'Request failed: ' + e.message;
-        errEl.classList.remove('hidden');
-      });
-  }
+       .catch(function(e) {
+         if (typeof window.reportClientError === 'function') window.reportClientError(e, 'bolt11-decode.js:decode');
+         errEl.textContent = 'Request failed: ' + e.message;
+         errEl.classList.remove('hidden');
+       });
+   }
 
   function makeBadge(text, bgClass, textClass) {
     var span = document.createElement('span');

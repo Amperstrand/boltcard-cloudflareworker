@@ -168,9 +168,10 @@ function validateUid(uid) {
         result.className = 'mt-4 text-sm text-red-300';
         result.textContent = 'Error: ' + (json.reason || 'Unknown error');
       }
-    }).catch(function(error) {
-      result.className = 'mt-4 text-sm text-red-300';
-      result.textContent = 'Error submitting form: ' + error.message;
-    });
+     }).catch(function(error) {
+       if (typeof window.reportClientError === 'function') window.reportClientError(error, 'activate.js:submit');
+       result.className = 'mt-4 text-sm text-red-300';
+       result.textContent = 'Error submitting form: ' + error.message;
+     });
   });
 })();
