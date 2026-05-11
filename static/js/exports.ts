@@ -34,7 +34,7 @@ function normalizeBrowserNfcUrl(rawUrl) {
   if (rawUrl.startsWith('lnurlw://') || rawUrl.startsWith('lnurlp://')) {
     return 'https://' + rawUrl.substring(rawUrl.indexOf('://') + 3);
   }
-  return rawUrl.replace(/^http:\/\//i, 'https://');
+  return rawUrl.replace(/^http:\\/\\//i, 'https://');
 }
 
 function createNfcScanner(opts) {
@@ -186,7 +186,7 @@ export const HELPERS_JS_HASH = "35e24f38ee2c";
 export const CSRF_JS = `// csrf.js — classic script (no import/export)
 
 function getCsrfToken() {
-  var match = document.cookie.match(/(?:^|;\s*)op_csrf=([^;]*)/);
+  var match = document.cookie.match(/(?:^|;\\s*)op_csrf=([^;]*)/);
   return match ? match[1] : '';
 }
 var _origFetch = window.fetch;
@@ -235,11 +235,11 @@ function renderHistory(items) {
   el.replaceChildren.apply(el, items.slice(0, 15).map(function(item) {
     var status = item.status || 'unknown';
     var icon, color;
-    if (status === 'completed') { icon = '\u2713'; color = 'text-emerald-400'; }
-    else if (status === 'failed') { icon = '\u2717'; color = 'text-red-400'; }
+    if (status === 'completed') { icon = '\\u2713'; color = 'text-emerald-400'; }
+    else if (status === 'failed') { icon = '\\u2717'; color = 'text-red-400'; }
     else if (status === 'topup') { icon = '+'; color = 'text-cyan-400'; }
-    else if (status === 'payment') { icon = '\u2192'; color = 'text-amber-400'; }
-    else if (status === 'read') { icon = '\u2022'; color = 'text-gray-500'; }
+    else if (status === 'payment') { icon = '\\u2192'; color = 'text-amber-400'; }
+    else if (status === 'read') { icon = '\\u2022'; color = 'text-gray-500'; }
     else { icon = '?'; color = 'text-gray-500'; }
     var amt = item.amount_msat || item.amountMsat;
     var time = formatTime(item.created_at || item.createdAt);
@@ -456,7 +456,7 @@ var cardScanner = createNfcScanner({
   debounceMs: 0,
   onStatus: function(status) {
     if (status === 'scanning') {
-      document.getElementById('scan-status').textContent = 'Ready \u2014 tap your card now...';
+      document.getElementById('scan-status').textContent = 'Ready \\u2014 tap your card now...';
     } else if (status === 'stopped') {
       document.getElementById('scan-status').textContent = 'Hold your card to the back of your phone';
     }
@@ -710,7 +710,7 @@ export const DEBUG_JS = `// debug.js — classic script (no import/export)
 
   function updateScanBtn(state) {
     if (state === 'scanning') {
-      scanBtn.textContent = 'Scanning\u2026';
+      scanBtn.textContent = 'Scanning\\u2026';
       scanBtn.className = 'ml-auto rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition hover:border-emerald-500/50';
     } else if (state === 'error') {
       scanBtn.textContent = 'Restart NFC scan';
@@ -872,7 +872,7 @@ export const DEBUG_JS = `// debug.js — classic script (no import/export)
       return;
     }
 
-    detailsBox.replaceChildren(_el('p', 'text-gray-500 animate-pulse', 'Identifying\u2026'));
+    detailsBox.replaceChildren(_el('p', 'text-gray-500 animate-pulse', 'Identifying\\u2026'));
     fetch('/api/identify-card', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -951,7 +951,7 @@ export const DEBUG_JS = `// debug.js — classic script (no import/export)
 
     generateBtn.onclick = function() {
       generateBtn.disabled = true;
-      generateBtn.textContent = 'Generating\u2026';
+      generateBtn.textContent = 'Generating\\u2026';
       fetch(BASE_URL + '/wipe?uid=' + encodeURIComponent(data.uid))
         .then(function(r) { return r.json(); })
         .then(function(json) {
@@ -987,7 +987,7 @@ export const DEBUG_JS = `// debug.js — classic script (no import/export)
       outputDiv.replaceChildren(_el('div', 'text-center text-gray-500 py-4', 'Tap a card to load 2FA codes.'));
       return;
     }
-    outputDiv.replaceChildren(_el('div', 'text-center text-gray-500 py-4 animate-pulse', 'Loading\u2026'));
+    outputDiv.replaceChildren(_el('div', 'text-center text-gray-500 py-4 animate-pulse', 'Loading\\u2026'));
     fetch(BASE_URL + '/2fa?p=' + encodeURIComponent(data.p) + '&c=' + encodeURIComponent(data.c), {
       headers: { 'Accept': 'application/json' }
     })
@@ -1020,7 +1020,7 @@ export const DEBUG_JS = `// debug.js — classic script (no import/export)
       outputDiv.replaceChildren(_el('div', 'text-center text-gray-500 py-4', 'Tap a card to verify identity.'));
       return;
     }
-    outputDiv.replaceChildren(_el('div', 'text-center text-gray-500 py-4 animate-pulse', 'Verifying\u2026'));
+    outputDiv.replaceChildren(_el('div', 'text-center text-gray-500 py-4 animate-pulse', 'Verifying\\u2026'));
     fetch(BASE_URL + '/api/verify-identity?p=' + encodeURIComponent(data.p) + '&c=' + encodeURIComponent(data.c))
       .then(function(r) { return r.json(); })
       .then(function(json) {
@@ -1035,7 +1035,7 @@ export const DEBUG_JS = `// debug.js — classic script (no import/export)
           _name.textContent = (json.profile && json.profile.name) || 'Unknown';
           _info.appendChild(_name);
           var _role = _el('div', 'text-xs text-gray-400');
-          _role.textContent = (json.profile && json.profile.role || '') + ' \u00b7 ' + (json.profile && json.profile.department || '');
+          _role.textContent = (json.profile && json.profile.role || '') + ' \\u00b7 ' + (json.profile && json.profile.department || '');
           _info.appendChild(_role);
           _flex.appendChild(_info);
           _outer.appendChild(_flex);
@@ -1333,7 +1333,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
       if (detailParts.length > 0) {
         var detailDiv = document.createElement('div');
         detailDiv.className = 'text-gray-500 text-[11px] mt-0.5 pl-1';
-        detailDiv.textContent = detailParts.join(' \u00B7 ');
+        detailDiv.textContent = detailParts.join(' \\u00B7 ');
         outer.appendChild(detailDiv);
       }
       elements.push(outer);
@@ -2805,7 +2805,7 @@ export const MENU_EDITOR_JS = `// menu-editor.js — classic script (no import/e
 
       var removeBtn = document.createElement('button');
       removeBtn.type = 'button';
-      removeBtn.textContent = '\u00D7';
+      removeBtn.textContent = '\\u00D7';
       removeBtn.className = 'text-red-500 hover:text-red-400 text-lg font-bold px-1';
       removeBtn.addEventListener('click', function() { items.splice(i, 1); render(); });
       row.appendChild(removeBtn);
@@ -3068,7 +3068,7 @@ function validateUid(uid) {
                 document.getElementById('custom-key').focus();
               }
             } else {
-              document.getElementById('detect-error').textContent = 'Unknown issuer \u2014 this card was not provisioned with any of our known issuer keys. Switch to Custom key\u2026 and paste the master secret manually.';
+              document.getElementById('detect-error').textContent = 'Unknown issuer \\u2014 this card was not provisioned with any of our known issuer keys. Switch to Custom key\\u2026 and paste the master secret manually.';
               document.getElementById('detect-error').classList.remove('hidden');
               document.getElementById('detect-result').classList.add('hidden');
               document.getElementById('key-select').value = 'custom';
@@ -3183,7 +3183,7 @@ function validateUid(uid) {
     }
 
     var raw = document.getElementById('uid-input').value;
-    var uids = raw.split(/[\n\r]+/).map(function(u) { return u.trim().toLowerCase(); }).filter(function(u) { return u.length > 0; });
+    var uids = raw.split(/[\\n\\r]+/).map(function(u) { return u.trim().toLowerCase(); }).filter(function(u) { return u.length > 0; });
     if (uids.length === 0) {
       showError('Please enter at least one card UID.');
       return;
@@ -3360,10 +3360,10 @@ export const TWO_FACTOR_JS = `// two-factor.js — classic script (no import/exp
   function updateIndicator(active) {
     if (active) {
       scanIndicator.className = 'rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20';
-      scanIndicator.textContent = 'NFC active \u00b7 click to restart';
+      scanIndicator.textContent = 'NFC active \\u00b7 click to restart';
     } else {
       scanIndicator.className = 'rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-500/20';
-      scanIndicator.textContent = 'NFC inactive \u00b7 click to start';
+      scanIndicator.textContent = 'NFC inactive \\u00b7 click to start';
     }
   }
 
@@ -3395,7 +3395,7 @@ export const TWO_FACTOR_JS = `// two-factor.js — classic script (no import/exp
       scanAbortController = new AbortController();
       ndef.scan({ signal: scanAbortController.signal }).then(function() {
         updateIndicator(true);
-        scanStatus.textContent = 'Scanning for boltcard payload\u2026';
+        scanStatus.textContent = 'Scanning for boltcard payload\\u2026';
         scanDetail.textContent = 'Tap the card now. We will redirect into the live TOTP/HOTP view.';
 
         ndef.onreadingerror = function() {
@@ -3418,7 +3418,7 @@ export const TWO_FACTOR_JS = `// two-factor.js — classic script (no import/exp
               return;
             }
 
-            scanStatus.textContent = 'Card read. Opening OTP screen\u2026';
+            scanStatus.textContent = 'Card read. Opening OTP screen\\u2026';
             window.location.href = BASE_URL + '/2fa?p=' + encodeURIComponent(p) + '&c=' + encodeURIComponent(c);
           });
         };
@@ -3645,13 +3645,13 @@ export const POS_JS = `// pos.js — classic script (no import/export)
     resultMessage.textContent = message;
     if (kind === 'success') {
       resultBox.className = 'rounded-xl border p-3 mb-3 border-emerald-500/40 bg-emerald-900/20';
-      resultIcon.textContent = '\u2713';
+      resultIcon.textContent = '\\u2713';
       resultIcon.className = 'text-xl leading-none text-emerald-400';
       resultTitle.className = 'font-bold text-sm text-emerald-300';
       resultMessage.className = 'text-xs mt-0.5 text-emerald-100/90';
     } else {
       resultBox.className = 'rounded-xl border p-3 mb-3 border-red-500/40 bg-red-900/20';
-      resultIcon.textContent = '\u2717';
+      resultIcon.textContent = '\\u2717';
       resultIcon.className = 'text-xl leading-none text-red-400';
       resultTitle.className = 'font-bold text-sm text-red-300';
       resultMessage.className = 'text-xs mt-0.5 text-red-100/90';
@@ -3746,11 +3746,11 @@ export const POS_JS = `// pos.js — classic script (no import/export)
     if (!value || value === '.') return '0';
     var next = String(value).replace(/[^0-9.]/g, '');
     var firstDecimal = next.indexOf('.');
-    if (firstDecimal !== -1) { next = next.slice(0, firstDecimal + 1) + next.slice(firstDecimal + 1).replace(/\./g, ''); }
+    if (firstDecimal !== -1) { next = next.slice(0, firstDecimal + 1) + next.slice(firstDecimal + 1).replace(/\\./g, ''); }
     var parts = next.split('.');
     var whole = parts[0] || '0';
     var fraction = parts[1] || '';
-    whole = whole.replace(/^0+(\d)/, '$1');
+    whole = whole.replace(/^0+(\\d)/, '$1');
     if (whole === '') whole = '0';
     return parts.length > 1 ? whole + '.' + fraction : whole;
   }
@@ -3762,14 +3762,14 @@ export const POS_JS = `// pos.js — classic script (no import/export)
     var parts = normalized.split('.');
     var whole = parts[0] || '0';
     var fraction = parts[1];
-    return (whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (fraction !== undefined ? '.' + fraction : '')) + ' ' + CURRENCY_LABEL;
+    return (whole.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + (fraction !== undefined ? '.' + fraction : '')) + ' ' + CURRENCY_LABEL;
   }
 
   function formatDisplayOnly(value) {
     var normalized = normalizeAmount(value);
     var parts = normalized.split('.');
     var whole = parts[0] || '0';
-    return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (parts[1] !== undefined ? '.' + parts[1] : '');
+    return whole.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',') + (parts[1] !== undefined ? '.' + parts[1] : '');
   }
 
   function toggleMode() {
@@ -4001,13 +4001,13 @@ export const TOPUP_JS = `// topup.js — classic script (no import/export)
     resultMessage.textContent = message;
     if (kind === 'success') {
       resultBox.className = 'w-full max-w-xs rounded-xl border p-4 mb-4 border-emerald-500/40 bg-emerald-900/20';
-      resultIcon.textContent = '\u2713';
+      resultIcon.textContent = '\\u2713';
       resultIcon.className = 'text-2xl leading-none text-emerald-400';
       resultTitle.className = 'font-bold text-sm text-emerald-300';
       resultMessage.className = 'text-xs mt-0.5 text-emerald-100/90';
     } else {
       resultBox.className = 'w-full max-w-xs rounded-xl border p-4 mb-4 border-red-500/40 bg-red-900/20';
-      resultIcon.textContent = '\u2717';
+      resultIcon.textContent = '\\u2717';
       resultIcon.className = 'text-2xl leading-none text-red-400';
       resultTitle.className = 'font-bold text-sm text-red-300';
       resultMessage.className = 'text-xs mt-0.5 text-red-100/90';
@@ -4028,13 +4028,13 @@ export const TOPUP_JS = `// topup.js — classic script (no import/export)
     if (!val || val === '.') return '0';
     var s = String(val).replace(/[^0-9]/g, '');
     if (s === '') s = '0';
-    s = s.replace(/^0+(\d)/, '$1');
+    s = s.replace(/^0+(\\d)/, '$1');
     return s;
   }
 
   function formatDisplay(val) {
     var n = normalizeAmount(val);
-    return n.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return n.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');
   }
 
   var amountInput = '0';
@@ -4203,13 +4203,13 @@ export const REFUND_JS = `// refund.js — classic script (no import/export)
     resultMessage.textContent = message;
     if (kind === 'success') {
       resultBox.className = 'w-full max-w-xs rounded-xl border p-4 mb-4 border-emerald-500/40 bg-emerald-900/20';
-      resultIcon.textContent = '\u2713';
+      resultIcon.textContent = '\\u2713';
       resultIcon.className = 'text-2xl leading-none text-emerald-400';
       resultTitle.className = 'font-bold text-sm text-emerald-300';
       resultMessage.className = 'text-xs mt-0.5 text-emerald-100/90';
     } else {
       resultBox.className = 'w-full max-w-xs rounded-xl border p-4 mb-4 border-red-500/40 bg-red-900/20';
-      resultIcon.textContent = '\u2717';
+      resultIcon.textContent = '\\u2717';
       resultIcon.className = 'text-2xl leading-none text-red-400';
       resultTitle.className = 'font-bold text-sm text-red-300';
       resultMessage.className = 'text-xs mt-0.5 text-red-100/90';
@@ -4397,7 +4397,7 @@ export const IDENTITY_JS = `// identity.js — classic script (no import/export)
 
   function hydrateVerifiedProfile(result, verificationParams) {
     var profileData = result.profile || {};
-    profile.avatar.textContent = profileData.emoji || '\uD83D\uDC64';
+    profile.avatar.textContent = profileData.emoji || '\\uD83D\\uDC64';
     profile.name.textContent = profileData.name || 'Operator';
     profile.role.textContent = profileData.role || 'Role';
     profile.dept.textContent = profileData.dept || 'Engineering';
@@ -4452,7 +4452,7 @@ export const IDENTITY_JS = `// identity.js — classic script (no import/export)
 
     ui.panel.className = 'w-full bg-gray-900/80 backdrop-blur-md rounded-2xl border border-gray-800 p-8 shadow-2xl transition-all duration-500 relative overflow-hidden flex flex-col items-center text-center';
     ui.nfcStatus.className = 'w-10 h-10 rounded-full border flex items-center justify-center transition-all duration-300';
-    ui.nfcStatus.replaceChildren(iconSpan('text-gray-500', '\u26A1'));
+    ui.nfcStatus.replaceChildren(iconSpan('text-gray-500', '\\u26A1'));
 
     var target = ui[newState];
     target.classList.remove('hidden');
@@ -4466,16 +4466,16 @@ export const IDENTITY_JS = `// identity.js — classic script (no import/export)
       ui.panel.classList.replace('border-gray-800', 'border-emerald-500/50');
       ui.panel.classList.add('shadow-[0_0_30px_rgba(16,185,129,0.15)]');
       ui.nfcStatus.classList.add('bg-emerald-500/20', 'border-emerald-500/50');
-      ui.nfcStatus.replaceChildren(iconSpan('text-emerald-400', '\u2713'));
+      ui.nfcStatus.replaceChildren(iconSpan('text-emerald-400', '\\u2713'));
     } else if (newState === 'denied') {
       ui.panel.classList.replace('border-gray-800', 'border-red-500/50');
       ui.panel.classList.add('shadow-[0_0_30px_rgba(239,68,68,0.15)]');
       ui.nfcStatus.classList.add('bg-red-500/20', 'border-red-500/50');
-      ui.nfcStatus.replaceChildren(iconSpan('text-red-400', '\u2717'));
+      ui.nfcStatus.replaceChildren(iconSpan('text-red-400', '\\u2717'));
     } else if (newState === 'scanning') {
       ui.panel.classList.replace('border-gray-800', 'border-blue-500/50');
       ui.nfcStatus.classList.add('bg-blue-500/20', 'border-blue-500/50', 'animate-pulse');
-      ui.nfcStatus.replaceChildren(iconSpan('text-blue-400', '\uD83D\uDCF3'));
+      ui.nfcStatus.replaceChildren(iconSpan('text-blue-400', '\\uD83D\\uDCF3'));
     } else {
       ui.nfcStatus.classList.add('bg-gray-900', 'border-gray-800');
     }

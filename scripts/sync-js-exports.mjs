@@ -46,8 +46,11 @@ function computeHash(content) {
 }
 
 function escapeForTemplateLiteral(content) {
-  // Escape backticks and ${ that would interfere with JS template literals
-  return content.replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
+  // Escape backslashes FIRST (so \/ stays as \/), then backticks and ${
+  return content
+    .replace(/\\/g, "\\\\")
+    .replace(/`/g, "\\`")
+    .replace(/\$\{/g, "\\${");
 }
 
 // Read all JS files
