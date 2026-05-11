@@ -116,7 +116,7 @@ router.get("/operator/refund", withOperatorAuth((request, env) => handleRefundPa
 router.post("/operator/refund/apply", withOperatorAuth((request, env, session) => handleRefundApply(request, env, session)));
 router.post("/api/balance-check", (request, env) => handleBalanceCheck(request, env));
 router.post("/api/client-error", (request, env) => handleClientError(request, env));
-router.get("/test-error", (request, env) => handleTestErrorPage(request, env));
+router.get("/test-error", withOperatorAuth((request, env) => handleTestErrorPage(request, env)));
 
 router.get("/decode", (request) => handleDecodePage(request));
 router.get("/api/decode", (request) => handleDecodeApi(request));
