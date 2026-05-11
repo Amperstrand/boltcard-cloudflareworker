@@ -38,6 +38,8 @@ function normalizeBrowserNfcUrl(rawUrl) {
 }
 
 function createNfcScanner(opts) {
+  window._nfcPageHandler = true;
+  if (window._nfcGateAbort) { window._nfcGateAbort.abort(); window._nfcGateAbort = null; }
   var abortCtrl = null;
   var _active = false;
   var lastReadTime = 0;

@@ -209,25 +209,33 @@ describe("Logging and Observability", () => {
   });
 
   describe("catch-all route log level", () => {
-    it("should log unknown routes at warn level (not error)", async () => {
-      const warns: string[] = [];
-      const errors: string[] = [];
-      const originalWarn = console.warn;
-      const originalError = console.error;
-      console.warn = (...args: unknown[]) => warns.push(args.join(" "));
-      console.error = (...args: unknown[]) => errors.push(args.join(" "));
+    it("should log unknown page routes at info level", async () => {
+      const infos: string[] = [];
+      const originalLog = console.log;
+      console.log = (...args: unknown[]) => infos.push(args.join(" "));
 
       try {
         await makeRequest("/some-unknown-path", "GET", null, makeEnv());
 
-        const routeWarn = warns.find((l: string) => l.includes("Route not found"));
-        const routeError = errors.find((l: string) => l.includes("Route not found"));
+        const redirectLog = infos.find((l: string) => l.includes("Unknown page redirect"));
+        expect(redirectLog).toBeDefined();
+      } finally {
+        console.log = originalLog;
+      }
+    });
 
-        expect(routeWarn).toBeDefined();
-        expect(routeError).toBeUndefined();
+    it("should log unknown API routes at warn level", async () => {
+      const warns: string[] = [];
+      const originalWarn = console.warn;
+      console.warn = (...args: unknown[]) => warns.push(args.join(" "));
+
+      try {
+        await makeRequest("/api/nonexistent", "GET", null, makeEnv());
+
+        const apiWarn = warns.find((l: string) => l.includes("API route not found"));
+        expect(apiWarn).toBeDefined();
       } finally {
         console.warn = originalWarn;
-        console.error = originalError;
       }
     });
   });

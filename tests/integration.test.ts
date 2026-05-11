@@ -186,8 +186,17 @@ describe('End-to-End Payment Flow Integration Tests', () => {
       expect(response.headers.get('Content-Type')).toContain('text/html');
     });
 
-    it('should handle unknown routes', async () => {
+    it('should redirect unknown page routes to /', async () => {
       const request = new Request('https://test.local/unknown-route');
+      
+      const response = await handleRequest(request, mockEnv);
+      
+      expect(response.status).toBe(302);
+      expect(response.headers.get('Location')).toBe('https://test.local/');
+    });
+
+    it('should return 404 for unknown API routes', async () => {
+      const request = new Request('https://test.local/api/nonexistent');
       
       const response = await handleRequest(request, mockEnv);
       

@@ -799,6 +799,8 @@
   }
 
   function startNfc() {
+    window._nfcPageHandler = true;
+    if (window._nfcGateAbort) { window._nfcGateAbort.abort(); window._nfcGateAbort = null; }
     var statusEl = document.getElementById('scan-status');
     var indicatorEl = document.getElementById('nfc-indicator');
 

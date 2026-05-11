@@ -40,7 +40,9 @@ import { handleIdentifyIssuerKey } from "./handlers/identifyIssuerKeyHandler.js"
 import { handleCardAuditPage, handleCardAuditData, handleIndexRepair } from "./handlers/cardAuditHandler.js";
 import { handleCardBatchAction } from "./handlers/cardBatchHandler.js";
 import { handleDecodePage, handleDecodeApi } from "./handlers/bolt11DecodeHandler.js";
+import { handleClientError } from "./handlers/clientErrorHandler.js";
 import { serveStaticJs } from "./static/js/registry.js";
+import { initDeployInfo } from "./utils/deployInfo.js";
 
 const router = Router<IRequest, [env: Env]>();
 
@@ -112,6 +114,7 @@ router.post("/operator/topup/apply", withOperatorAuth((request, env, session) =>
 router.get("/operator/refund", withOperatorAuth((request, env) => handleRefundPage(request, env)));
 router.post("/operator/refund/apply", withOperatorAuth((request, env, session) => handleRefundApply(request, env, session)));
 router.post("/api/balance-check", (request, env) => handleBalanceCheck(request, env));
+router.post("/api/client-error", (request, env) => handleClientError(request, env));
 
 router.get("/decode", (request) => handleDecodePage(request));
 router.get("/api/decode", (request) => handleDecodeApi(request));
@@ -178,15 +181,21 @@ router.get("/static/js/:file", (request) => {
   return serveStaticJs(request.params.file, request.headers.get("If-None-Match"));
 });
 router.all("*", (request) => {
-  const pathname = new URL(request.url).pathname;
+  const url = new URL(request.url);
+  const pathname = url.pathname;
   const noisePaths = ["/favicon.ico", "/robots.txt", "/.well-known/", "/apple-touch-icon"];
-  const isNoise = noisePaths.some(p => pathname.startsWith(p));
-  if (isNoise) {
+  if (noisePaths.some(p => pathname.startsWith(p))) {
     logger.debug("Request for well-known static path", { pathname, method: request.method });
-  } else {
-    logger.warn("Route not found", { pathname, method: request.method });
+    return new Response(null, { status: 204 });
   }
-  return errorResponse("Not found", 404);
+  // API and static file paths should still 404
+  if (pathname.startsWith("/api/") || pathname.startsWith("/static/") || pathname.startsWith("/boltcards/")) {
+    logger.warn("API route not found", { pathname, method: request.method });
+    return errorResponse("Not found", 404);
+  }
+  // Page-like paths redirect to /
+  logger.info("Unknown page redirect", { pathname, method: request.method });
+  return redirect(url.origin + "/", 302);
 });
 
 const SECURITY_HEADERS: Record<string, string> = {

@@ -1,4 +1,5 @@
 import { rawHtml, safe } from "../utils/rawTemplate.js";
+import { getDeployRevision, getJsFingerprint } from "../utils/deployInfo.js";
 
 interface RenderTailwindPageOptions {
   title: string;
@@ -21,6 +22,8 @@ export function renderTailwindPage({
   metaRobots = "",
   csrf = false,
 }: RenderTailwindPageOptions): string {
+  const deployRevision = getDeployRevision();
+  const jsFingerprint = getJsFingerprint();
   return rawHtml`<!DOCTYPE html>
 <html lang="en" class="${htmlClass}">
   <head>
@@ -28,6 +31,9 @@ export function renderTailwindPage({
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     ${metaRobots ? safe(rawHtml`<meta name="robots" content="${metaRobots}" />`) : ""}
     <title>${title}</title>
+    <meta name="deploy-revision" content="${deployRevision}" />
+    <meta name="js-fingerprint" content="${jsFingerprint}" />
+    <script src="/static/js/client-error.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     ${safe(headScripts)}
     ${styles ? safe(rawHtml`<style>${styles}</style>`) : ""}
@@ -35,6 +41,7 @@ export function renderTailwindPage({
   </head>
   <body class="${bodyClass}">
 ${safe(content)}
+    <script src="/static/js/nfc-gate.js"></script>
   </body>
 </html>`;
 }

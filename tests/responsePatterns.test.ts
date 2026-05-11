@@ -484,8 +484,15 @@ describe("response patterns", () => {
     expect(body2.reason).toContain("Method Not Allowed");
   });
 
-  test("unknown route returns 404 text response", async () => {
+  test("unknown page route redirects to /", async () => {
     const response = await makeRequest("/nope");
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe("https://test.local/");
+  });
+
+  test("unknown API route returns 404 JSON response", async () => {
+    const response = await makeRequest("/api/nonexistent");
 
     expect(response.status).toBe(404);
     expect(response.headers.get("Content-Type")).toContain("application/json");

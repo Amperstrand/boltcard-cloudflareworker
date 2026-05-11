@@ -1,5 +1,7 @@
 import {
   NFC_JS, NFC_JS_HASH,
+  NFC_GATE_JS, NFC_GATE_JS_HASH,
+  CLIENT_ERROR_JS, CLIENT_ERROR_JS_HASH,
   HELPERS_JS, HELPERS_JS_HASH,
   CSRF_JS, CSRF_JS_HASH,
   CARD_DASHBOARD_JS, CARD_DASHBOARD_JS_HASH,
@@ -27,6 +29,8 @@ interface StaticFileEntry {
 
 const STATIC_JS_FILES: Record<string, StaticFileEntry> = {
   "nfc.js": { content: NFC_JS, hash: NFC_JS_HASH },
+  "nfc-gate.js": { content: NFC_GATE_JS, hash: NFC_GATE_JS_HASH },
+  "client-error.js": { content: CLIENT_ERROR_JS, hash: CLIENT_ERROR_JS_HASH },
   "helpers.js": { content: HELPERS_JS, hash: HELPERS_JS_HASH },
   "csrf.js": { content: CSRF_JS, hash: CSRF_JS_HASH },
   "debug.js": { content: DEBUG_JS, hash: DEBUG_JS_HASH },

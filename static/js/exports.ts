@@ -38,6 +38,8 @@ function normalizeBrowserNfcUrl(rawUrl) {
 }
 
 function createNfcScanner(opts) {
+  window._nfcPageHandler = true;
+  if (window._nfcGateAbort) { window._nfcGateAbort.abort(); window._nfcGateAbort = null; }
   var abortCtrl = null;
   var _active = false;
   var lastReadTime = 0;
@@ -158,7 +160,112 @@ function provenanceColor(p) {
   if (p === 'env_issuer') return 'text-emerald-400';
   return 'text-gray-300';
 }`;
-export const NFC_JS_HASH = "59dac754d09c";
+export const NFC_JS_HASH = "114ffcaaf3ff";
+
+export const NFC_GATE_JS = `// nfc-gate.js — passive NFC capture to prevent Android OS from intercepting taps
+(function() {
+  if (!('NDEFReader' in window)) return;
+  window._nfcGateAbort = null;
+  window._nfcPageHandler = false;
+  function startGate() {
+    if (window._nfcPageHandler) return;
+    if (window._nfcGateAbort) window._nfcGateAbort.abort();
+    var ctrl = new AbortController();
+    window._nfcGateAbort = ctrl;
+    var ndef = new NDEFReader();
+    ndef.scan({ signal: ctrl.signal }).then(function() {
+      if (ctrl.signal.aborted) return;
+      ndef.onreading = function(event) {
+        if (window._nfcPageHandler) return;
+        var decoder = new TextDecoder();
+        var records = event.message.records;
+        for (var i = 0; i < records.length; i++) {
+          var r = records[i];
+          var text = null;
+          if (r.recordType === 'url') {
+            text = new Response(r.data).text();
+            break;
+          }
+          if (r.recordType === 'text') {
+            text = decoder.decode(r.data);
+            break;
+          }
+        }
+        if (!text) return;
+        var resolved = text;
+        if (typeof text === 'object' && text && typeof text.then === 'function') {
+          text.then(function(url) { navigateToCardUrl(url); });
+        } else {
+          navigateToCardUrl(text);
+        }
+      };
+    }).catch(function() {});
+  }
+  function navigateToCardUrl(rawUrl) {
+    if (!rawUrl) return;
+    var url = rawUrl;
+    if (url.toLowerCase().startsWith('lnurlw://') || url.toLowerCase().startsWith('lnurlp://')) {
+      url = 'https://' + url.substring(url.indexOf('://') + 3);
+    } else if (url.toLowerCase().startsWith('http://')) {
+      url = url.replace(/^http:\\/\\//i, 'https://');
+    }
+    try {
+      var u = new URL(url, location.origin);
+      if (u.origin === location.origin && u.pathname === '/' && u.searchParams.has('p') && u.searchParams.has('c')) {
+        location.href = u.href;
+      }
+    } catch(e) {}
+  }
+  startGate();
+})();`;
+export const NFC_GATE_JS_HASH = "19c662710d1d";
+
+export const CLIENT_ERROR_JS = `// client-error.js — reports uncaught JS errors to the server with page version info
+(function() {
+  function getVersion() {
+    var meta = document.querySelector('meta[name="deploy-revision"]');
+    return meta ? meta.getAttribute('content') : 'unknown';
+  }
+
+  function getJsFingerprint() {
+    var meta = document.querySelector('meta[name="js-fingerprint"]');
+    return meta ? meta.getAttribute('content') : 'unknown';
+  }
+
+  function getPageUrl() {
+    try { return location.pathname + location.search; } catch(e) { return ''; }
+  }
+
+  function report(error, context) {
+    if (!error) return;
+    var payload = {
+      message: (error && error.message) ? error.message : String(error),
+      stack: (error && error.stack) ? String(error.stack).substring(0, 2000) : '',
+      source: context || '',
+      url: getPageUrl(),
+      deploy: getVersion(),
+      js: getJsFingerprint(),
+      ts: Date.now()
+    };
+    try {
+      navigator.sendBeacon('/api/client-error', JSON.stringify(payload));
+    } catch(e) {
+      fetch('/api/client-error', { method: 'POST', body: JSON.stringify(payload), headers: { 'Content-Type': 'application/json' }, keepalive: true }).catch(function() {});
+    }
+  }
+
+  window.reportClientError = report;
+
+  window.onerror = function(message, source, lineno, colno, error) {
+    report(error || message, 'onerror:' + (source || '') + ':' + lineno + ':' + colno);
+  };
+
+  window.addEventListener('unhandledrejection', function(event) {
+    var reason = event.reason;
+    report(reason instanceof Error ? reason : new Error(String(reason)), 'unhandledrejection');
+  });
+})();`;
+export const CLIENT_ERROR_JS_HASH = "65664854a4c3";
 
 export const HELPERS_JS = `// helpers.js — classic script (no import/export)
 
@@ -1974,6 +2081,8 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
   }
 
   function startNfc() {
+    window._nfcPageHandler = true;
+    if (window._nfcGateAbort) { window._nfcGateAbort.abort(); window._nfcGateAbort = null; }
     var statusEl = document.getElementById('scan-status');
     var indicatorEl = document.getElementById('nfc-indicator');
 
@@ -2134,7 +2243,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
     }
   }
 })();`;
-export const LOGIN_JS_HASH = "e8dc4f3f5a5b";
+export const LOGIN_JS_HASH = "060fdad65dbc";
 
 export const ACTIVATE_JS = `// activate.js — classic script (no import/export)
 // Depends on: nfc.js (browserSupportsNfc, createNfcScanner)

@@ -82,13 +82,24 @@ describe("Security headers", () => {
     expect(csp).toContain("frame-ancestors 'none'");
   });
 
-  it("sets security headers on 404 responses", async () => {
+  it("sets security headers on 404 API responses", async () => {
+    const res = await defaultExport.fetch(
+      new Request("https://test.local/api/nonexistent"),
+      makeEnv(),
+      {} as ExecutionContext,
+    );
+    expect(res.status).toBe(404);
+    expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(res.headers.get("X-Frame-Options")).toBe("DENY");
+  });
+
+  it("sets security headers on redirect responses", async () => {
     const res = await defaultExport.fetch(
       new Request("https://test.local/nonexistent-path"),
       makeEnv(),
       {} as ExecutionContext,
     );
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(302);
     expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(res.headers.get("X-Frame-Options")).toBe("DENY");
   });
