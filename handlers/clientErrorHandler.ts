@@ -2,8 +2,20 @@ import type { IRequest } from "itty-router";
 import type { Env } from "../types/core.js";
 import { parseJsonBody } from "../utils/responses.js";
 import { logger } from "../utils/logger.js";
+import { checkRateLimit } from "../rateLimiter.js";
 
-export async function handleClientError(request: IRequest, _env: Env): Promise<Response> {
+const CLIENT_ERROR_RATE_LIMIT = 30;
+const CLIENT_ERROR_RATE_WINDOW = 60;
+
+export async function handleClientError(request: IRequest, env: Env): Promise<Response> {
+  const rateLimit = await checkRateLimit(request, env, {
+    maxRequests: CLIENT_ERROR_RATE_LIMIT,
+    windowSeconds: CLIENT_ERROR_RATE_WINDOW,
+  });
+  if (!rateLimit.allowed) {
+    return new Response(null, { status: 429 });
+  }
+
   const body = await parseJsonBody(request);
   if (!body || typeof body !== "object") {
     return new Response(null, { status: 204 });
