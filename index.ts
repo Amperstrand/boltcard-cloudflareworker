@@ -41,6 +41,7 @@ import { handleCardAuditPage, handleCardAuditData, handleIndexRepair } from "./h
 import { handleCardBatchAction } from "./handlers/cardBatchHandler.js";
 import { handleDecodePage, handleDecodeApi } from "./handlers/bolt11DecodeHandler.js";
 import { handleClientError } from "./handlers/clientErrorHandler.js";
+import { handleTestErrorPage } from "./handlers/testErrorHandler.js";
 import { serveStaticJs } from "./static/js/registry.js";
 import { initDeployInfo } from "./utils/deployInfo.js";
 
@@ -115,6 +116,7 @@ router.get("/operator/refund", withOperatorAuth((request, env) => handleRefundPa
 router.post("/operator/refund/apply", withOperatorAuth((request, env, session) => handleRefundApply(request, env, session)));
 router.post("/api/balance-check", (request, env) => handleBalanceCheck(request, env));
 router.post("/api/client-error", (request, env) => handleClientError(request, env));
+router.get("/test-error", (request, env) => handleTestErrorPage(request, env));
 
 router.get("/decode", (request) => handleDecodePage(request));
 router.get("/api/decode", (request) => handleDecodeApi(request));
