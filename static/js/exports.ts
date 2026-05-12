@@ -287,8 +287,350 @@ function hideEl(id) {
 function toggleEl(id) {
   var el = document.getElementById(id);
   if (el) el.classList.toggle('hidden');
+}
+
+function formatDuration(ms) {
+  var totalSec = Math.floor(ms / 1000);
+  var h = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+  var m = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+  var s = String(totalSec % 60).padStart(2, '0');
+  return h + ':' + m + ':' + s;
+}
+
+function relativeTime(unixSeconds) {
+  var diff = Math.floor(Date.now() / 1000) - unixSeconds;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + ' min ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+  return new Date(unixSeconds * 1000).toLocaleDateString();
+}
+
+function formatUnits(value) {
+  if (!value || value === 0) return '';
+  return Number(value).toLocaleString();
+}
+
+function statusBadge(status) {
+  var map = {
+    read:        'bg-sky-500/10 text-sky-400 border-sky-500/30',
+    provisioned: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+    activated:   'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+    wipe_requested: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+    terminated:  'bg-red-500/10 text-red-400 border-red-500/30',
+    completed:   'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+    failed:      'bg-red-500/10 text-red-400 border-red-500/30',
+    pending:     'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
+    paying:      'bg-blue-500/10 text-blue-400 border-blue-500/30',
+    expired:     'bg-gray-600/10 text-gray-400 border-gray-500/30',
+    topup:       'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+    payment:     'bg-orange-500/10 text-orange-400 border-orange-500/30',
+  };
+  var labels = { topup: 'TOP UP', payment: 'PAYMENT' };
+  var cls = map[status] || map.pending;
+  var label = labels[status] || status;
+  var span = document.createElement('span');
+  span.className = 'px-1.5 py-0.5 rounded text-[10px] font-bold border ' + cls;
+  span.textContent = label;
+  return span;
 }`;
-export const HELPERS_JS_HASH = "35e24f38ee2c";
+export const HELPERS_JS_HASH = "84e8b5eb92ca";
+
+export const CARD_INFO_JS = `// card-info.js — classic script (no import/export)
+// Depends on: helpers.js (relativeTime, formatUnits, statusBadge)
+
+/**
+ * Render tap history into prefixed DOM elements.
+ * @param {Array} taps - Array of tap objects with created_at, status, amount_msat, counter, note, balance_after
+ * @param {string} prefix - Element ID prefix (e.g., 'priv', 'pub')
+ */
+function renderTapHistory(taps, prefix) {
+  var section = document.getElementById(prefix + '-tap-history');
+  var list = document.getElementById(prefix + '-tap-list');
+  var countEl = document.getElementById(prefix + '-tap-count');
+  if (!taps || taps.length === 0) {
+    section.classList.remove('hidden');
+    list.replaceChildren();
+    countEl.textContent = '';
+    document.getElementById(prefix + '-tap-empty').classList.remove('hidden');
+    return;
+  }
+  document.getElementById(prefix + '-tap-empty').classList.add('hidden');
+  countEl.textContent = taps.length + ' entries';
+  var elements = [];
+  for (var i = 0; i < taps.length; i++) {
+    var t = taps[i];
+    var time = relativeTime(t.created_at);
+    var isTopup = t.status === 'topup';
+    var isPayment = t.status === 'payment';
+
+    var amountEl = null;
+    if (isTopup && t.amount_msat) {
+      amountEl = document.createElement('span');
+      amountEl.className = 'font-mono text-emerald-400 font-bold';
+      amountEl.textContent = '+' + formatUnits(t.amount_msat);
+    } else if (isPayment && t.amount_msat) {
+      amountEl = document.createElement('span');
+      amountEl.className = 'font-mono text-orange-400 font-bold';
+      amountEl.textContent = '-' + formatUnits(t.amount_msat);
+    } else if (t.amount_msat) {
+      amountEl = document.createElement('span');
+      amountEl.className = 'font-mono text-gray-400';
+      amountEl.textContent = formatUnits(t.amount_msat);
+    }
+
+    var detailParts = [];
+    if (t.counter != null) detailParts.push('#' + String(t.counter));
+    if (t.note) detailParts.push(t.note);
+    if (t.balance_after != null && (isTopup || isPayment)) detailParts.push('bal: ' + String(t.balance_after));
+
+    var outer = document.createElement('div');
+    outer.className = 'py-2 border-b border-gray-700/50 last:border-0';
+    var row = document.createElement('div');
+    row.className = 'flex items-center justify-between';
+    var left = document.createElement('div');
+    left.className = 'flex items-center gap-2';
+    var timeSpan = document.createElement('span');
+    timeSpan.className = 'text-gray-500 text-xs shrink-0';
+    timeSpan.textContent = time;
+    left.appendChild(timeSpan);
+    left.appendChild(statusBadge(t.status));
+    row.appendChild(left);
+    if (amountEl) row.appendChild(amountEl);
+    outer.appendChild(row);
+    if (detailParts.length > 0) {
+      var detailDiv = document.createElement('div');
+      detailDiv.className = 'text-gray-500 text-[11px] mt-0.5 pl-1';
+      detailDiv.textContent = detailParts.join(' \\u00B7 ');
+      outer.appendChild(detailDiv);
+    }
+    elements.push(outer);
+  }
+  list.replaceChildren.apply(list, elements);
+  section.classList.remove('hidden');
+}
+
+/**
+ * Build K0-K4 key rows as a DocumentFragment for appending to a tbody.
+ * @param {string} k0-k4 - Hex key values
+ * @returns {DocumentFragment}
+ */
+function buildKeysRows(k0, k1, k2, k3, k4) {
+  var keys = [
+    { label: 'K0', value: k0 },
+    { label: 'K1', value: k1 },
+    { label: 'K2', value: k2 },
+    { label: 'K3', value: k3 },
+    { label: 'K4', value: k4 }
+  ];
+  var fragment = document.createDocumentFragment();
+  for (var i = 0; i < keys.length; i++) {
+    var tr = document.createElement('tr');
+    var td1 = document.createElement('td');
+    td1.className = 'pr-3 text-gray-500';
+    td1.textContent = keys[i].label;
+    var td2 = document.createElement('td');
+    td2.className = 'font-mono text-xs text-gray-400';
+    td2.textContent = keys[i].value || '-';
+    tr.appendChild(td1);
+    tr.appendChild(td2);
+    fragment.appendChild(tr);
+  }
+  return fragment;
+}`;
+export const CARD_INFO_JS_HASH = "41e1cbc054f8";
+
+export const CARD_ACTIONS_JS = `// card-actions.js — classic script (no import/export)
+// Depends on: helpers.js (reportClientError via window)
+
+/**
+ * Request wipe keys for a card via /login endpoint.
+ * @param {string} apiHost - API base URL
+ * @param {string} uid - Card UID hex
+ * @param {Object} opts - { btnId, statusId, qrId, deeplinkId, jsonId, resultId }
+ * @returns {Promise}
+ */
+function requestWipeKeys(apiHost, uid, opts) {
+  if (!uid) return Promise.resolve();
+  var btn = document.getElementById(opts.btnId);
+  var status = document.getElementById(opts.statusId);
+  btn.disabled = true;
+  btn.textContent = 'FETCHING...';
+  btn.classList.add('opacity-50');
+  status.classList.remove('hidden');
+  status.className = 'mt-3 text-center text-sm text-gray-400';
+  status.textContent = 'Retrieving wipe keys...';
+
+  return fetch(apiHost + '/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ uid: uid, action: 'request-wipe' }),
+  }).then(function(resp) { return resp.json().then(function(data) { return { ok: resp.ok, data: data }; }); })
+  .then(function(result) {
+    if (result.ok && result.data.success) {
+      btn.textContent = 'WIPE KEYS RETRIEVED';
+      btn.classList.remove('bg-red-600', 'hover:bg-red-500');
+      btn.classList.add('bg-gray-600');
+      status.className = 'mt-3 text-center text-sm text-emerald-400';
+      status.textContent = 'Card is now pending wipe (v' + result.data.keyVersion + ')';
+      if (opts.qrId && typeof QRCode !== 'undefined') {
+        var qrEl = document.getElementById(opts.qrId);
+        qrEl.replaceChildren();
+        new QRCode(qrEl, { text: result.data.wipeJson, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
+      }
+      if (opts.deeplinkId) document.getElementById(opts.deeplinkId).href = result.data.wipeDeeplink;
+      if (opts.jsonId) document.getElementById(opts.jsonId).textContent = result.data.wipeJson;
+      if (opts.resultId) document.getElementById(opts.resultId).classList.remove('hidden');
+      return result.data;
+    } else {
+      throw new Error(result.data.error || 'Failed to fetch wipe keys');
+    }
+  }).catch(function(e) {
+    if (typeof window.reportClientError === 'function') window.reportClientError(e, 'card-actions:request-wipe');
+    status.className = 'mt-3 text-center text-sm text-red-400';
+    status.textContent = 'Error: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = 'GET WIPE KEYS';
+    btn.classList.remove('opacity-50');
+    throw e;
+  });
+}
+
+/**
+ * Confirm a card has been physically wiped (terminate via /login).
+ * @param {string} apiHost - API base URL
+ * @param {string} uid - Card UID hex
+ * @param {Object} opts - { btnId, statusId }
+ * @returns {Promise<Object>} Termination result data
+ */
+function confirmWipedCard(apiHost, uid, opts) {
+  if (!uid) return Promise.reject(new Error('No UID'));
+  var btn = document.getElementById(opts.btnId);
+  var status = document.getElementById(opts.statusId);
+  btn.disabled = true;
+  btn.textContent = 'TERMINATING...';
+  btn.classList.add('opacity-50');
+  status.classList.remove('hidden');
+  status.className = 'mt-3 text-center text-sm text-gray-400';
+  status.textContent = 'Terminating card...';
+
+  return fetch(apiHost + '/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ uid: uid, action: 'terminate' }),
+  }).then(function(resp) { return resp.json().then(function(data) { return { ok: resp.ok, data: data }; }); })
+  .then(function(result) {
+    if (result.ok && result.data.success) {
+      status.className = 'mt-3 text-center text-sm text-emerald-400';
+      status.textContent = 'Card terminated. Ready for re-provision at version ' + (result.data.keyVersion || 2) + '.';
+      btn.textContent = 'TERMINATED';
+      btn.classList.remove('bg-red-600', 'hover:bg-red-500');
+      btn.classList.add('bg-gray-600');
+      return result.data;
+    } else {
+      throw new Error(result.data.error || 'Termination failed');
+    }
+  }).catch(function(e) {
+    if (typeof window.reportClientError === 'function') window.reportClientError(e, 'card-actions:confirm-wiped');
+    status.className = 'mt-3 text-center text-sm text-red-400';
+    status.textContent = 'Error: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = 'YES, THIS CARD HAS BEEN WIPED';
+    btn.classList.remove('opacity-50');
+    throw e;
+  });
+}
+
+/**
+ * Provision a card by posting to a programming endpoint.
+ * @param {string} endpointUrl - The pull payment / boltcards endpoint URL
+ * @param {string} uid - Card UID hex
+ * @param {Object} opts - { btnId, statusId, successText }
+ * @returns {Promise<Object>} Provisioning result
+ */
+function provisionCard(endpointUrl, uid, opts) {
+  if (!uid) return Promise.reject(new Error('No UID'));
+  var btn = document.getElementById(opts.btnId);
+  var status = document.getElementById(opts.statusId);
+  btn.disabled = true;
+  btn.textContent = 'PROVISIONING...';
+  btn.classList.add('opacity-50');
+  status.classList.remove('hidden');
+  status.className = 'mt-3 text-center text-sm text-gray-400';
+  status.textContent = 'Writing keys to card...';
+
+  return fetch(endpointUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ UID: uid }),
+  }).then(function(resp) { return resp.json().then(function(data) { return { ok: resp.ok, data: data }; }); })
+  .then(function(result) {
+    if (result.ok) {
+      status.className = 'mt-3 text-center text-sm text-emerald-400';
+      status.textContent = (opts.successText || 'Card provisioned!') + ' Version ' + (result.data.Version || 1) + '.';
+      btn.textContent = 'PROVISIONED';
+      btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
+      btn.classList.add('bg-gray-600');
+      return result.data;
+    } else {
+      throw new Error(result.data.error || 'Provisioning failed');
+    }
+  }).catch(function(e) {
+    if (typeof window.reportClientError === 'function') window.reportClientError(e, 'card-actions:provision');
+    status.className = 'mt-3 text-center text-sm text-red-400';
+    if (e.message.includes('active') || e.message.includes('Terminate')) {
+      status.textContent = 'This card is already active and working. Wipe it first if you want to re-provision.';
+    } else {
+      status.textContent = 'Error: ' + e.message;
+    }
+    btn.disabled = false;
+    btn.textContent = opts.btnText || 'PROVISION AS WITHDRAW CARD';
+    btn.classList.remove('opacity-50');
+    throw e;
+  });
+}`;
+export const CARD_ACTIONS_JS_HASH = "9a43a89754b4";
+
+export const PROGRAMMING_JS = `// programming.js — classic script (no import/export)
+// Depends on: helpers.js (relativeTime)
+
+/**
+ * Build a boltcard programming deeplink URL.
+ * @param {string} endpointUrl - The programming endpoint URL
+ * @returns {string} boltcard://program?url=... deeplink
+ */
+function buildProgrammingDeeplink(endpointUrl) {
+  return 'boltcard://program?url=' + encodeURIComponent(endpointUrl);
+}
+
+/**
+ * Render a QR code into a container element, replacing any existing content.
+ * @param {string} containerId - Element ID to render QR into
+ * @param {string} text - QR code content
+ */
+function renderQrCode(containerId, text) {
+  if (typeof QRCode === 'undefined') return;
+  var el = document.getElementById(containerId);
+  if (!el) return;
+  el.replaceChildren();
+  new QRCode(el, { text: text, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
+}
+
+/**
+ * Build wipe JSON from key cells in a table.
+ * @param {string} tableId - tbody element ID containing key rows
+ * @returns {string} JSON string of wipe data
+ */
+function buildWipeJson(tableId) {
+  var cells = document.querySelectorAll('#' + tableId + ' td:last-child');
+  var vals = Array.from(cells).map(function(t) { return t.textContent.trim(); });
+  return JSON.stringify({
+    k0: vals[0] || '', k1: vals[1] || '', k2: vals[2] || '',
+    k3: vals[3] || '', k4: vals[4] || '',
+    action: 'wipe', version: '1'
+  }, null, 2);
+}`;
+export const PROGRAMMING_JS_HASH = "9c1970f908eb";
 
 export const CSRF_JS = `// csrf.js — classic script (no import/export)
 
@@ -1296,7 +1638,7 @@ export const DEBUG_JS = `// debug.js — classic script (no import/export)
 export const DEBUG_JS_HASH = "bf0c88d19b49";
 
 export const LOGIN_JS = `// login.js — classic script (no import/export)
-// Depends on: nfc.js (browserSupportsNfc, extractNdefUrl, normalizeBrowserNfcUrl, normalizeNfcSerial)
+// Depends on: nfc.js, helpers.js, card-info.js, card-actions.js, programming.js
 
 (function() {
   // Read server config from data attributes
@@ -1307,8 +1649,117 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
   // State
   var loginTime = null;
   var timerInterval = null;
-  var nfcAbortController = null;
-  var lastNfcReadTime = 0;
+  var scanner = createNfcScanner({
+    continuous: true,
+    debounceMs: 3000,
+    prefixes: ['lnurlw://', 'lnurlp://', 'https://'],
+    onTap: function(tap) {
+      clearErrors();
+      var statusEl = document.getElementById('scan-status');
+      if (tap.url) {
+        showNdef(tap.url);
+        statusEl.textContent = 'Card detected! Verifying...';
+        try {
+          var urlObj = new URL(tap.url);
+          var p = urlObj.searchParams.get('p');
+          var c = urlObj.searchParams.get('c');
+          if (p && c) {
+            validateWithServer(p, c).then(function(result) {
+              if (result.success) {
+                if (!result.deployed && !result.public) {
+                  showUndeployedCard(result);
+                } else if (result.public) {
+                  showPublicCard(result);
+                } else {
+                  showPrivateCard(result);
+                }
+                scanner.stop();
+              } else {
+                showPersistentError(result.error || result.reason || 'Authentication failed');
+                statusEl.textContent = 'Failed. Tap card to retry.';
+              }
+            }).catch(function(e) {
+              if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:validate-server');
+              showPersistentError('Validation error: ' + e.message);
+              statusEl.textContent = 'Error. Tap to retry.';
+            });
+          } else {
+            showPersistentError('Card URL missing p/c parameters. Raw: ' + tap.url);
+            statusEl.textContent = 'Invalid card. Tap to retry.';
+          }
+        } catch(e) {
+          if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:parse-url');
+          showPersistentError('Could not parse card URL: ' + e.message + '. Raw: ' + tap.url);
+          statusEl.textContent = 'Parse error. Tap to retry.';
+        }
+      }
+      if (!tap.url && tap.serial) {
+        var uid = tap.serial;
+        if (/^[0-9a-f]{14}$/.test(uid)) {
+          showNdef('No NDEF record found. UID: ' + uid.toUpperCase());
+          statusEl.textContent = 'Card detected! Reading UID...';
+          validateUid(uid).then(function(result) {
+            if (result.success) {
+              if (result.deployed) {
+                if (result.cardState === 'terminated') {
+                  showTerminatedCard(result);
+                } else if (result.cardState === 'wipe_requested') {
+                  autoConfirmWipe(result);
+                } else if (result.cardState === 'active') {
+                  showWipedCard(result);
+                } else {
+                  showPrivateCard(result);
+                }
+              } else {
+                showUndeployedCard(result);
+              }
+              scanner.stop();
+            } else {
+              showPersistentError(result.error || result.reason || 'UID lookup failed');
+              statusEl.textContent = 'Failed. Tap card to retry.';
+            }
+          }).catch(function(e) {
+            if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:uid-lookup');
+            showPersistentError('UID lookup error: ' + e.message);
+            statusEl.textContent = 'Error. Tap to retry.';
+          });
+        }
+      }
+    },
+    onError: function(error, phase) {
+      if (typeof window.reportClientError === 'function') window.reportClientError(error, 'login.js:nfc-' + phase);
+      var statusEl = document.getElementById('scan-status');
+      if (phase === 'permission') {
+        if (error.name === 'NotAllowedError') {
+          statusEl.textContent = 'NFC permission denied';
+          showPersistentError('NFC permission was denied. Refresh the page and allow NFC access.');
+        } else if (error.name === 'NotSupportedError') {
+          statusEl.textContent = 'NFC not available';
+          showPersistentError('NFC is not available on this device. Use Chrome 89+ on Android.');
+        } else {
+          statusEl.textContent = 'NFC error';
+          showPersistentError('NFC error: ' + error.message);
+        }
+      } else if (phase === 'scan') {
+        if (scanner.isActive()) {
+          statusEl.textContent = 'Read error. Tap card again.';
+        } else {
+          statusEl.textContent = 'NFC error';
+          showPersistentError('NFC error: ' + error.message);
+        }
+      }
+    },
+    onStatus: function(status) {
+      var statusEl = document.getElementById('scan-status');
+      var indicatorEl = document.getElementById('nfc-indicator');
+      if (status === 'scanning') {
+        statusEl.textContent = 'Scanning... tap your card';
+        indicatorEl.classList.remove('hidden');
+      } else if (status === 'stopped') {
+        indicatorEl.classList.add('hidden');
+      }
+    }
+  });
   var currentUid = null;
   var currentProgrammingEndpoint = DEFAULT_PROGRAMMING_ENDPOINT;
   var currentUndeployedUid = null;
@@ -1349,119 +1800,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
     document.getElementById('nfc-not-supported').classList.remove('hidden');
     document.getElementById('nfc-ready').classList.add('hidden');
   } else {
-    startNfc();
-  }
-
-  function formatDuration(ms) {
-    var totalSec = Math.floor(ms / 1000);
-    var h = String(Math.floor(totalSec / 3600)).padStart(2, '0');
-    var m = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
-    var s = String(totalSec % 60).padStart(2, '0');
-    return h + ':' + m + ':' + s;
-  }
-
-  function relativeTime(unixSeconds) {
-    var diff = Math.floor(Date.now() / 1000) - unixSeconds;
-    if (diff < 60) return 'just now';
-    if (diff < 3600) return Math.floor(diff / 60) + ' min ago';
-    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
-    if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
-    return new Date(unixSeconds * 1000).toLocaleDateString();
-  }
-
-  function formatUnits(value) {
-    if (!value || value === 0) return '';
-    return Number(value).toLocaleString();
-  }
-
-  function statusBadge(status) {
-    var map = {
-      read:        'bg-sky-500/10 text-sky-400 border-sky-500/30',
-      provisioned: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
-      activated:   'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-      wipe_requested: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-      terminated:  'bg-red-500/10 text-red-400 border-red-500/30',
-      completed:   'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-      failed:      'bg-red-500/10 text-red-400 border-red-500/30',
-      pending:     'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
-      paying:      'bg-blue-500/10 text-blue-400 border-blue-500/30',
-      expired:     'bg-gray-600/10 text-gray-400 border-gray-500/30',
-      topup:       'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-      payment:     'bg-orange-500/10 text-orange-400 border-orange-500/30',
-    };
-    var labels = { topup: 'TOP UP', payment: 'PAYMENT' };
-    var cls = map[status] || map.pending;
-    var label = labels[status] || status;
-    var span = document.createElement('span');
-    span.className = 'px-1.5 py-0.5 rounded text-[10px] font-bold border ' + cls;
-    span.textContent = label;
-    return span;
-  }
-
-  function renderTapHistory(taps, prefix) {
-    var section = document.getElementById(prefix + '-tap-history');
-    var list = document.getElementById(prefix + '-tap-list');
-    var countEl = document.getElementById(prefix + '-tap-count');
-    if (!taps || taps.length === 0) {
-      section.classList.remove('hidden');
-      list.replaceChildren();
-      countEl.textContent = '';
-      document.getElementById(prefix + '-tap-empty').classList.remove('hidden');
-      return;
-    }
-    document.getElementById(prefix + '-tap-empty').classList.add('hidden');
-    countEl.textContent = taps.length + ' entries';
-    var elements = [];
-    for (var i = 0; i < taps.length; i++) {
-      var t = taps[i];
-      var time = relativeTime(t.created_at);
-      var isTopup = t.status === 'topup';
-      var isPayment = t.status === 'payment';
-
-      var amountEl = null;
-      if (isTopup && t.amount_msat) {
-        amountEl = document.createElement('span');
-        amountEl.className = 'font-mono text-emerald-400 font-bold';
-        amountEl.textContent = '+' + formatUnits(t.amount_msat);
-      } else if (isPayment && t.amount_msat) {
-        amountEl = document.createElement('span');
-        amountEl.className = 'font-mono text-orange-400 font-bold';
-        amountEl.textContent = '-' + formatUnits(t.amount_msat);
-      } else if (t.amount_msat) {
-        amountEl = document.createElement('span');
-        amountEl.className = 'font-mono text-gray-400';
-        amountEl.textContent = formatUnits(t.amount_msat);
-      }
-
-      var detailParts = [];
-      if (t.counter != null) detailParts.push('#' + String(t.counter));
-      if (t.note) detailParts.push(t.note);
-      if (t.balance_after != null && (isTopup || isPayment)) detailParts.push('bal: ' + String(t.balance_after));
-
-      var outer = document.createElement('div');
-      outer.className = 'py-2 border-b border-gray-700/50 last:border-0';
-      var row = document.createElement('div');
-      row.className = 'flex items-center justify-between';
-      var left = document.createElement('div');
-      left.className = 'flex items-center gap-2';
-      var timeSpan = document.createElement('span');
-      timeSpan.className = 'text-gray-500 text-xs shrink-0';
-      timeSpan.textContent = time;
-      left.appendChild(timeSpan);
-      left.appendChild(statusBadge(t.status));
-      row.appendChild(left);
-      if (amountEl) row.appendChild(amountEl);
-      outer.appendChild(row);
-      if (detailParts.length > 0) {
-        var detailDiv = document.createElement('div');
-        detailDiv.className = 'text-gray-500 text-[11px] mt-0.5 pl-1';
-        detailDiv.textContent = detailParts.join(' \\u00B7 ');
-        outer.appendChild(detailDiv);
-      }
-      elements.push(outer);
-    }
-    list.replaceChildren.apply(list, elements);
-    section.classList.remove('hidden');
+    scanner.scan();
   }
 
   function startTimer() {
@@ -1515,18 +1854,8 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
        'bg-amber-500/10 text-amber-400 border-amber-500/30');
   }
 
-  function wipeJson(prefix) {
-    var cells = document.querySelectorAll('#' + prefix + '-keys td:last-child');
-    var vals = Array.from(cells).map(function(t) { return t.textContent.trim(); });
-    return JSON.stringify({
-      k0: vals[0] || '', k1: vals[1] || '', k2: vals[2] || '',
-      k3: vals[3] || '', k4: vals[4] || '',
-      action: 'wipe', version: '1'
-    }, null, 2);
-  }
-
   function copyWipeJson(prefix) {
-    navigator.clipboard.writeText(wipeJson(prefix));
+    navigator.clipboard.writeText(buildWipeJson(prefix + '-keys'));
   }
 
   function copyAllKeys(target) {
@@ -1538,30 +1867,6 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
     navigator.clipboard.writeText(JSON.stringify(obj, null, 2));
   }
 
-  function buildKeysRows(k0, k1, k2, k3, k4) {
-    var keys = [
-      { label: 'K0', value: k0 },
-      { label: 'K1', value: k1 },
-      { label: 'K2', value: k2 },
-      { label: 'K3', value: k3 },
-      { label: 'K4', value: k4 }
-    ];
-    var fragment = document.createDocumentFragment();
-    for (var i = 0; i < keys.length; i++) {
-      var tr = document.createElement('tr');
-      var td1 = document.createElement('td');
-      td1.className = 'pr-3 text-gray-500';
-      td1.textContent = keys[i].label;
-      var td2 = document.createElement('td');
-      td2.className = 'font-mono text-xs text-gray-400';
-      td2.textContent = keys[i].value || '-';
-      tr.appendChild(td1);
-      tr.appendChild(td2);
-      fragment.appendChild(tr);
-    }
-    return fragment;
-  }
-
   function setCurrentProgrammingEndpoint(endpointUrl) {
     currentProgrammingEndpoint = endpointUrl || DEFAULT_PROGRAMMING_ENDPOINT;
   }
@@ -1570,15 +1875,9 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
     return currentProgrammingEndpoint || DEFAULT_PROGRAMMING_ENDPOINT;
   }
 
-  function buildProgrammingDeeplink(endpointUrl) {
-    return 'boltcard://program?url=' + encodeURIComponent(endpointUrl);
-  }
-
   function showUndeployedProgrammingInstructions(endpointUrl, deliveredAt) {
     var deeplink = buildProgrammingDeeplink(endpointUrl || buildProgrammingEndpointUrl());
-    var qrEl = document.getElementById('qr-undep-program');
-    qrEl.replaceChildren();
-    new QRCode(qrEl, { text: deeplink, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
+    renderQrCode('qr-undep-program', deeplink);
     document.getElementById('undep-program-deeplink').href = deeplink;
     if (deliveredAt) {
       document.getElementById('undep-keys-delivered-time').textContent = 'Keys generated ' + relativeTime(Math.floor(deliveredAt / 1000)) + '.';
@@ -1686,7 +1985,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
       document.getElementById('pub-wipe-deeplink').href = 'boltcard://reset?url=' + encodeURIComponent(endpointUrl);
       var qrEl = document.getElementById('qr-pub-wipe');
       qrEl.replaceChildren();
-      new QRCode(qrEl, { text: wipeJson('pub'), width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
+      renderQrCode('qr-pub-wipe', buildWipeJson('pub-keys'));
     }
   }
 
@@ -1740,9 +2039,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
     if (result.cardState === 'keys_delivered' && result.programmingEndpoint) {
       var privProgramEndpoint = result.programmingEndpoint;
       var privDeeplink = 'boltcard://program?url=' + encodeURIComponent(privProgramEndpoint);
-      var privQrEl = document.getElementById('qr-priv-program');
-      privQrEl.replaceChildren();
-      new QRCode(privQrEl, { text: privDeeplink, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
+      renderQrCode('qr-priv-program', privDeeplink);
       document.getElementById('priv-program-deeplink').href = privDeeplink;
       if (result.keysDeliveredAt) {
         document.getElementById('priv-keys-delivered-time').textContent = 'Keys generated ' + relativeTime(Math.floor(result.keysDeliveredAt / 1000)) + '.';
@@ -1902,9 +2199,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
         btn.classList.add('bg-gray-600');
         status.className = 'mt-3 text-center text-sm text-emerald-400';
         status.textContent = 'Card is now pending wipe (v' + result.data.keyVersion + ')';
-        var qrEl = document.getElementById('qr-priv-wipe');
-        qrEl.replaceChildren();
-        new QRCode(qrEl, { text: result.data.wipeJson, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
+        renderQrCode('qr-priv-wipe', result.data.wipeJson);
         document.getElementById('priv-wipe-link').href = result.data.wipeDeeplink;
         document.getElementById('priv-wipe-json').textContent = result.data.wipeJson;
         document.getElementById('priv-wipe-result').classList.remove('hidden');
@@ -2008,9 +2303,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
         btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
         btn.classList.add('bg-gray-600');
         var deeplink = buildProgrammingDeeplink(endpoint);
-        var qrEl = document.getElementById('qr-term-program');
-        qrEl.replaceChildren();
-        new QRCode(qrEl, { text: deeplink, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
+        renderQrCode('qr-term-program', deeplink);
         document.getElementById('term-program-deeplink').href = deeplink;
         document.getElementById('term-keys-delivered-time').textContent = 'Keys generated just now.';
         document.getElementById('term-program-section').classList.remove('hidden');
@@ -2054,9 +2347,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
         btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
         btn.classList.add('bg-gray-600');
         var deeplink = buildProgrammingDeeplink(endpoint);
-        var qrEl = document.getElementById('qr-priv-reprovision');
-        qrEl.replaceChildren();
-        new QRCode(qrEl, { text: deeplink, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.L });
+        renderQrCode('qr-priv-reprovision', deeplink);
         document.getElementById('priv-reprovision-deeplink').href = deeplink;
         document.getElementById('priv-reprovision-program').classList.remove('hidden');
       } else {
@@ -2092,185 +2383,10 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
     hideAllViews();
     document.getElementById('login-view').classList.remove('hidden');
     document.getElementById('scan-status').textContent = 'Scanning... tap your card';
-    lastNfcReadTime = 0;
-    startNfc();
-  }
-
-  function scheduleNfcRestart() {
-    setTimeout(function() {
-      startNfc();
-    }, 0);
-  }
-
-  function startNfc() {
-    window._nfcPageHandler = true;
-    if (window._nfcGateAbort) { window._nfcGateAbort.abort(); window._nfcGateAbort = null; }
-    var statusEl = document.getElementById('scan-status');
-    var indicatorEl = document.getElementById('nfc-indicator');
-
-    if (nfcAbortController) {
-      nfcAbortController.abort();
-    }
-
-    var abortController = new AbortController();
-    nfcAbortController = abortController;
-
-    try {
-      var ndef = new NDEFReader();
-      ndef.scan({ signal: abortController.signal }).then(function() {
-        if (nfcAbortController !== abortController || abortController.signal.aborted) {
-          return;
-        }
-
-        statusEl.textContent = 'Scanning... tap your card';
-        indicatorEl.classList.remove('hidden');
-
-        ndef.onreading = function(event) {
-          try {
-            var now = Date.now();
-            if (now - lastNfcReadTime < 3000) return;
-            lastNfcReadTime = now;
-
-            clearErrors();
-
-            var rawUrlP = extractNdefUrl(event.message.records, ['lnurlw://', 'lnurlp://', 'https://']);
-            rawUrlP.then(function(rawUrl) {
-              var foundUrl = Boolean(rawUrl);
-              if (foundUrl) {
-                var url = normalizeBrowserNfcUrl(rawUrl);
-
-                showNdef(rawUrl);
-                statusEl.textContent = 'Card detected! Verifying...';
-
-                try {
-                  var urlObj = new URL(url);
-                  var p = urlObj.searchParams.get('p');
-                  var c = urlObj.searchParams.get('c');
-                  if (p && c) {
-                    validateWithServer(p, c).then(function(result) {
-                      if (result.success) {
-                        if (!result.deployed && !result.public) {
-                          showUndeployedCard(result);
-                        } else if (result.public) {
-                          showPublicCard(result);
-                        } else {
-                          showPrivateCard(result);
-                        }
-                      } else {
-                        showPersistentError(result.error || result.reason || 'Authentication failed');
-                        statusEl.textContent = 'Failed. Tap card to retry.';
-                      }
-                    }).catch(function(e) {
-                      if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:validate-server');
-                      showPersistentError('Validation error: ' + e.message);
-                      statusEl.textContent = 'Error. Tap to retry.';
-                    });
-                  } else {
-                    showPersistentError('Card URL missing p/c parameters. Raw: ' + rawUrl);
-                    statusEl.textContent = 'Invalid card. Tap to retry.';
-                  }
-                } catch(e) {
-                  if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:parse-url');
-                  showPersistentError('Could not parse card URL: ' + e.message + '. Raw: ' + rawUrl);
-                  statusEl.textContent = 'Parse error. Tap to retry.';
-                }
-              }
-
-              if (!foundUrl && event.serialNumber) {
-                var uid = normalizeNfcSerial(event.serialNumber);
-                if (/^[0-9a-f]{14}$/.test(uid)) {
-                  showNdef('No NDEF record found. UID: ' + uid.toUpperCase());
-                  statusEl.textContent = 'Card detected! Reading UID...';
-                  validateUid(uid).then(function(result) {
-                    if (result.success) {
-                      if (result.deployed) {
-                        if (result.cardState === 'terminated') {
-                          showTerminatedCard(result);
-                        } else if (result.cardState === 'wipe_requested') {
-                          autoConfirmWipe(result);
-                        } else if (result.cardState === 'active') {
-                          showWipedCard(result);
-                        } else {
-                          showPrivateCard(result);
-                        }
-                      } else {
-                        showUndeployedCard(result);
-                      }
-                    } else {
-                      showPersistentError(result.error || result.reason || 'UID lookup failed');
-                      statusEl.textContent = 'Failed. Tap card to retry.';
-                    }
-                  }).catch(function(e) {
-                    if (typeof window.reportClientError === 'function') window.reportClientError(e, 'login.js:uid-lookup');
-                    showPersistentError('UID lookup error: ' + e.message);
-                    statusEl.textContent = 'Error. Tap to retry.';
-                  });
-                }
-              }
-            });
-          } finally {
-            if (!abortController.signal.aborted) {
-              var cardShown = document.getElementById('login-view').classList.contains('hidden');
-              if (cardShown) {
-                abortController.abort();
-                nfcAbortController = null;
-              } else {
-                scheduleNfcRestart();
-              }
-            }
-          }
-        };
-
-        ndef.onreadingerror = function() {
-          if (abortController.signal.aborted) {
-            return;
-          }
-          statusEl.textContent = 'Read error. Tap card again.';
-          scheduleNfcRestart();
-        };
-      }).catch(function(error) {
-        if (typeof window.reportClientError === 'function') window.reportClientError(error, 'login.js:nfc-onreadingerror');
-        if (nfcAbortController === abortController) {
-          nfcAbortController = null;
-          indicatorEl.classList.add('hidden');
-        }
-        if (error.name === 'AbortError') {
-          return;
-        }
-        if (error.name === 'NotAllowedError') {
-          statusEl.textContent = 'NFC permission denied';
-          showPersistentError('NFC permission was denied. Refresh the page and allow NFC access.');
-        } else if (error.name === 'NotSupportedError') {
-          statusEl.textContent = 'NFC not available';
-          showPersistentError('NFC is not available on this device. Use Chrome 89+ on Android.');
-        } else {
-          statusEl.textContent = 'NFC error';
-          showPersistentError('NFC error: ' + error.message);
-        }
-      });
-    } catch (error) {
-      if (typeof window.reportClientError === 'function') window.reportClientError(error, 'login.js:nfc-scan');
-      if (nfcAbortController === abortController) {
-        nfcAbortController = null;
-        indicatorEl.classList.add('hidden');
-      }
-      if (error.name === 'AbortError') {
-        return;
-      }
-      if (error.name === 'NotAllowedError') {
-        statusEl.textContent = 'NFC permission denied';
-        showPersistentError('NFC permission was denied. Refresh the page and allow NFC access.');
-      } else if (error.name === 'NotSupportedError') {
-        statusEl.textContent = 'NFC not available';
-        showPersistentError('NFC is not available on this device. Use Chrome 89+ on Android.');
-      } else {
-        statusEl.textContent = 'NFC error';
-        showPersistentError('NFC error: ' + error.message);
-      }
-    }
+    scanner.scan();
   }
 })();`;
-export const LOGIN_JS_HASH = "5705d998d494";
+export const LOGIN_JS_HASH = "3c91b8660592";
 
 export const ACTIVATE_JS = `// activate.js — classic script (no import/export)
 // Depends on: nfc.js (browserSupportsNfc, createNfcScanner)

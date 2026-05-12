@@ -445,6 +445,9 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }: LoginPageO
 
     ${safe('<script src="/static/js/nfc.js"></script>')}
     ${safe('<script src="/static/js/helpers.js"></script>')}
+    ${safe('<script src="/static/js/card-info.js"></script>')}
+    ${safe('<script src="/static/js/card-actions.js"></script>')}
+    ${safe('<script src="/static/js/programming.js"></script>')}
     ${safe('<script src="/static/js/login.js"></script>')}
 `,
   });

@@ -195,6 +195,8 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
         </div>
 
         ${safe('<script src="/static/js/nfc.js"></script>')}
+        ${safe('<script src="/static/js/helpers.js"></script>')}
+        ${safe('<script src="/static/js/programming.js"></script>')}
         ${safe('<script src="/static/js/activate.js"></script>')}
 `,
   });
@@ -234,6 +236,8 @@ export function renderActivateCardPage(): string {
       </div>
 
     ${safe('<script src="/static/js/nfc.js"></script>')}
+    ${safe('<script src="/static/js/helpers.js"></script>')}
+    ${safe('<script src="/static/js/programming.js"></script>')}
     ${safe('<script src="/static/js/activate.js"></script>')}
   `;
 
