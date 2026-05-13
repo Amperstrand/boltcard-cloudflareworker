@@ -218,77 +218,9 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 - Deploy: `npm run deploy` (unit tests → DO tests → build_keys → wrangler deploy → live smoke test)
 - Lint: `npm run lint:innerhtml` (zero innerHTML tolerance, enforced by `scripts/check-innerhtml.js`)
 - Sync JS exports: `node scripts/sync-js-exports.mjs` (auto-regenerates `static/js/exports.ts` with SHA-256 hashes)
-- **1344 unit tests** across 74 test suites + **52 DO integration tests** = 1396 total (as of 2026-05-08)
+- **1377 unit tests** across 76 test suites + **52 DO integration tests** = 1429 total
 - TypeScript: `tsc --noEmit` passes with `strict: true`, 0 errors (source + tests)
-- Source `: any` count: 105 (down from 318); source `as any` count: 0; `// @ts-nocheck` only in `tests/do/cardReplayDO.real.test.ts` and `tests/testHelpers.ts`; test `: any` count: being reduced from 67
-
-## Test Inventory
-
-| File | Tests | Coverage |
-|------|-------|----------|
-| `tests/cryptoutils.test.ts` | AES-CMAC, hex utils, XOR, subkey generation | |
-| `tests/keygenerator.test.ts` | Deterministic key derivation | |
-| `tests/bolt11.test.ts` | Fake bolt11 invoice generation | |
-| `tests/bolt11Decode.test.ts` | BOLT11 full decoder: round-trip, signature recovery, tag parsing, page/API routes | |
-| `tests/otp.test.ts` | HOTP/TOTP generation (RFC 4226 vectors) | |
-| `tests/responses.test.ts` | All `utils/responses.ts` exports | |
-| `tests/validation.test.ts` | `validateUid`, `getRequestOrigin` | |
-| `tests/rateLimiter.test.ts` | IP-based rate limiting with KV mock | |
-| `tests/boltCardHelper.test.ts` | `decodeAndValidate` with virtual tap helper | |
-| `tests/currency.test.ts` | `formatAmount`, `parseAmount`, `getCurrencyDecimals` | |
-| `tests/lightningAddress.test.ts` | `resolveLightningAddress` with mocked fetch | |
-| `tests/cmacScan.test.ts` | `cmacScanVersions` multi-version scan | |
-| `tests/keyLookup.test.ts` | `fingerprintHex`, `getPerCardDomains`, `getIssuerKeysForDomain`, `classifyIssuerKey` | |
-| `tests/operatorAuth.test.ts` | Session create/verify, PIN check, CSRF | |
-| `tests/logging.test.ts` | Structured JSON logger | |
-| `tests/loginHandler.test.ts` | NFC login, wipe, terminate, top-up via `/login` | |
-| `tests/getUidConfig.test.ts` | Config lookup with DO mock | |
-| `tests/getKeysHandler.test.ts` | Key listing handler | |
-| `tests/history.test.ts` | Tap/payment history merge and unified history | |
-| `tests/identifyIssuerKey.test.ts` | Tap-to-detect issuer key | |
-| `tests/twoFactorHandler.test.ts` | TOTP/HOTP code generation | |
-| `tests/validateCardTap.test.ts` | Card tap validation (replay, CMAC, state, auto-activate) | |
-| `tests/balanceCheckHandler.test.ts` | Balance query with valid/invalid taps | |
-| `tests/analyticsHandler.test.ts` | Analytics page + data endpoint | |
-| `tests/menuEditorHandler.test.ts` | Menu GET/PUT/Editor with auth | |
-| `tests/receiptHandler.test.ts` | Plain-text transaction receipts | |
-| `tests/identifyCardHandler.test.ts` | Card identification (config + deterministic match) | |
-| `tests/operatorLoginHandler.test.ts` | PIN login, rate limiting, session, logout | |
-| `tests/securityHeaders.test.ts` | X-Content-Type-Options, X-Frame-Options, etc. | |
-| `tests/bulkWipe.test.ts` | Bulk wipe key candidates | |
-| `tests/operatorFlows.test.ts` | Top-up, refund, POS charge (full lifecycle) | |
-| `tests/pos.test.ts` | POS page rendering | |
-| `tests/smoke.test.ts` | Basic route smoke tests | |
-| `tests/integration.test.ts` | LNURLW flow, status, 404 handling | |
-| `tests/templateHelpers.test.ts` | Template rendering, error payloads | |
-| `tests/templateIntegrity.test.ts` | Page shell consistency | |
-| `tests/responsePatterns.test.ts` | Response format consistency | |
-| `tests/debugIdentity.test.ts` | Identity verification via debug console | |
-| `tests/lnurlPay.test.ts` | LNURL-pay flow with Lightning address | |
-| `tests/lnurlwHandler.test.ts` | LNURLW tap processing: fakewallet, clnrest, proxy, lnurlpay, replay, CMAC, card lifecycle, auto-discovery | |
-| `tests/lnurlHandler.test.ts` | LNURL callback: fakewallet debit, clnrest (success/error/network), replay, tap status | |
-| `tests/replayProtection.test.ts` | All replayProtection.ts exports: counter checks, tap recording, card state, config, balance, analytics, markPending, discoverCard | |
-| `tests/proxyHandler.test.ts` | Proxy relay: headers, CMAC validation/deferred, POST body, error handling | |
-| `tests/refundTopupPos.test.ts` | Refund (full/partial/zero), top-up (amount/MAX), POS charge (balance/items) | |
-| `tests/wipeResetHandler.test.ts` | Wipe page, card reset (active/terminated/new/keys_delivered) | |
-| `tests/fetchBoltCardKeys.test.ts` | Card provisioning, POS/2FA programming, reset flow | |
-| `tests/activateCardHandler.test.ts` | Quick-activate UID, validation, key consistency | |
-| `tests/tapTracking.test.ts` | Two-step tap flow: read → callback → completed, tap history | |
-| `tests/e2e/virtual-card.test.ts` | Full E2E lifecycle: provision → tap → pay → replay | |
-| `tests/identityHandler.test.ts` | Identity verification, profile update, CMAC, enrollment, provenance | |
-| `tests/bulkWipePageHandler.test.ts` | Bulk wipe page rendering with key fingerprints | |
-| `tests/withdrawHandler.test.ts` | Withdraw response: CMAC-failed, fakewallet/clnrest amounts | |
-| `tests/cardReplayDO.test.ts` | DO SQL logic via better-sqlite3 (counter, taps, state, config, balance, analytics, provenance, discovery, set-k2, list-taps merge, record-read, transactions, discover branching) | |
-| `tests/do/cardReplayDO.real.test.ts` | DO integration via `@cloudflare/vitest-pool-workers` with real SQLite — full lifecycle, counter, claim-tap, balance, config, provenance, analytics, reset (52 tests) | |
-| `tests/cardDashboardHandler.test.ts` | Cardholder dashboard: page rendering, info API (unified history, analytics, payment method), provenance, state handling, self-service lock, NFC/manual input | |
-| `tests/cardIndex.test.ts` | KV card registry: indexCard, deindexCard, getIndexedCard, listIndexedCards, edge cases | |
-| `tests/cardAuditHandler.test.ts` | Operator audit page: auth redirect, data endpoint, state filtering | |
-| `tests/auditLog.test.ts` | Audit log: record events, list sorted, corrupted entries, KV errors | |
-| `tests/cardBatchHandler.test.ts` | Batch terminate/wipe/activate: validation, state checks, mixed results | |
-| `tests/e2e/pages.test.ts` | Page rendering, security headers, auth flows, redirects, /card/info API | |
-| `tests/statusAndDebugHandler.test.ts` | Status handler (KV health, redirect, error), debug page rendering | |
-| `tests/adversarial.test.ts` | 42 adversarial tests: open redirect, XSS, query injection, balance overflow, counter replay, state violation | |
-| `tests/worker.test.ts` | Worker-level integration: LNURLW flow, proxy, counter, CLN REST | |
+- Source `: any` count: 0; source `as any` count: 0; `// @ts-nocheck` only in `tests/do/cardReplayDO.real.test.ts` and `tests/testHelpers.ts`
 
 ## Next Steps
 
@@ -307,7 +239,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 | Card state predicates extracted | Done | `isCardUsable`, `isCardTerminated`, etc. in `utils/constants.ts` |
 | `parsePositiveInt()` extracted | Done | Shared positive int validator in `utils/validation.ts` |
 | `resolveCardIdentity()` shared pipeline | Done | `utils/cardAuth.ts` — decrypt→state→config→CMAC across 5 handlers |
-| TypeScript type tightening | Done | Source `: any` 318→105; `// @ts-nocheck` removed from all test files except `testHelpers.ts` and `do/cardReplayDO.real.test.ts`; `types/core.ts` centralizes shared types; `catch(e: unknown)` + `getErrorMessage()` throughout |
+| TypeScript type tightening | Done | Source `: any` 318→0; source `as any` count: 0; `// @ts-nocheck` only in `tests/do/cardReplayDO.real.test.ts` and `tests/testHelpers.ts`; `types/core.ts` centralizes shared types; `catch(e: unknown)` + `getErrorMessage()` throughout |
 | Shared `Env` type | Done | `types/core.ts` → `worker-configuration.d.ts` — eliminated 9 duplicate `EnvLike` interfaces |
 | Inline JS → static files | Done | 17 static JS files in `static/js/`, zero inline `<script>` blocks, `serveStaticJs()` in `static/js/registry.ts` |
 | Dead code cleanup | Done | Deleted `templates/browserNfc.ts` (all 9 exports unused after static JS extraction) |

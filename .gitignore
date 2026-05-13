@@ -16,3 +16,6 @@ guide.md
 
 # Cloudflare Worker logs
 log.txt
+
+# Playwright MCP state
+.playwright-mcp/
