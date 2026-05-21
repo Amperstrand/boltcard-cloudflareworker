@@ -64,7 +64,7 @@ describe("Virtual Card — Full Lifecycle Scenarios", () => {
       expect(await card.getBalance()).toBe(100000 - 7000);
     });
 
-    test("replay attack is rejected at both tap and callback level", async () => {
+    test("replay attack continues while replay enforcement is disabled", async () => {
       const { pHex, cHex } = card.tap(1);
       const tap1 = await card.request(`/?p=${pHex}&c=${cHex}`);
       expect(tap1.status).toBe(200);
@@ -73,10 +73,10 @@ describe("Virtual Card — Full Lifecycle Scenarios", () => {
       expect(cb1.status).toBe(200);
 
       const tapReplay = await card.request(`/?p=${pHex}&c=${cHex}`);
-      expect(tapReplay.status).toBe(409);
+      expect(tapReplay.status).toBe(200);
 
       const cbReplay = await card.callback(pHex, cHex, "lnbc10n1test", "10000");
-      expect(cbReplay.status).toBe(409);
+      expect(cbReplay.status).toBe(200);
     });
 
     test("rapid sequential payments", async () => {
@@ -115,7 +115,7 @@ describe("Virtual Card — Full Lifecycle Scenarios", () => {
       expect(tap2.status).toBe(200);
 
       const { response: replay } = await card.tapRequest(1);
-      expect(replay.status).toBe(409);
+      expect(replay.status).toBe(200);
     });
   });
 
@@ -169,13 +169,13 @@ describe("Virtual Card — Full Lifecycle Scenarios", () => {
       expect(cbJson.pr).toBe("lnbc10n1posinvoice");
     });
 
-    test("POS replay protection in callback", async () => {
+    test("POS replay callback continues while replay enforcement is disabled", async () => {
       const { pHex, cHex } = card.tap(1);
       const cb1 = await card.lnurlPayCallback(pHex, cHex, 1000);
       expect(cb1.status).toBe(200);
 
       const cb2 = await card.lnurlPayCallback(pHex, cHex, 1000);
-      expect(cb2.status).toBe(409);
+      expect(cb2.status).toBe(200);
     });
   });
 

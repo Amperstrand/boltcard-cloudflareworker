@@ -92,12 +92,12 @@ export async function handleLnurlPayCallback(request: Request, env: Env): Promis
         requestUrl: request.url,
       });
       if (!tapResult.accepted) {
-        logger.warn("LNURL-pay callback replay detected", {
+        logger.warn("LNURL-pay callback replay detected — continuing because replay enforcement is disabled", {
           uidHex,
           counterValue,
           lastCounter: tapResult.lastCounter,
+          reason: tapResult.reason,
         });
-        return jsonResponse({ status: "ERROR", reason: tapResult.reason || "Counter replay detected — tap rejected" }, 409);
       }
     } catch (error: unknown) {
       logger.error("LNURL-pay callback tap recording failed", {

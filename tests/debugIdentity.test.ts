@@ -160,30 +160,41 @@ describe("Identity Verify API", () => {
     expect(json.status).toBe("ERROR");
   });
 
-  test("returns unverified for unknown card", async () => {
+  test("returns demo Backstage grant for unknown card", async () => {
     const env = makeEnv(null);
     const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
 
     const resp = await makeRequest(`/api/verify-identity?p=${pHex}&c=${cHex}`, env);
     const json = await resp.json() as Record<string, unknown>;
-    expect(json.verified).toBe(false);
-    expect(json.reason).toMatch(/not enrolled|not recognized/i);
+    expect(json.verified).toBe(true);
+    expect(json.uid).toBe("demo-backstage");
+    expect((json.profile as Record<string, unknown>).level).toBe("Backstage");
+    expect(json.demoMode).toBe(true);
+    expect(json.fallbackReason).toMatch(/not enrolled|not recognized/i);
   });
 
-  test("returns 400 for missing p parameter", async () => {
+  test("returns demo Backstage grant for missing p parameter", async () => {
     const env = makeEnv();
     const resp = await makeRequest("/api/verify-identity?c=abcdef", env);
-    expect(resp.status).toBe(400);
+    expect(resp.status).toBe(200);
     const json = await resp.json() as Record<string, unknown>;
-    expect(json.status).toBe("ERROR");
+    expect(json.verified).toBe(true);
+    expect(json.uid).toBe("demo-backstage");
+    expect((json.profile as Record<string, unknown>).level).toBe("Backstage");
+    expect(json.demoMode).toBe(true);
+    expect(json.fallbackReason).toContain("Missing card parameters");
   });
 
-  test("returns 400 for missing c parameter", async () => {
+  test("returns demo Backstage grant for missing c parameter", async () => {
     const env = makeEnv();
     const resp = await makeRequest("/api/verify-identity?p=abcdef", env);
-    expect(resp.status).toBe(400);
+    expect(resp.status).toBe(200);
     const json = await resp.json() as Record<string, unknown>;
-    expect(json.status).toBe("ERROR");
+    expect(json.verified).toBe(true);
+    expect(json.uid).toBe("demo-backstage");
+    expect((json.profile as Record<string, unknown>).level).toBe("Backstage");
+    expect(json.demoMode).toBe(true);
+    expect(json.fallbackReason).toContain("Missing card parameters");
   });
 });

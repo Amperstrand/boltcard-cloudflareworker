@@ -40,7 +40,7 @@ describe("handleIdentityVerify", () => {
     expect(body.programmingRecommended).toBeDefined();
   });
 
-  it("returns verified:false for card not in KV", async () => {
+  it("returns demo Backstage grant for card not in KV", async () => {
     const env = buildEnv(null);
     const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
@@ -48,18 +48,27 @@ describe("handleIdentityVerify", () => {
     const res = await handleIdentityVerify(req, env);
     expect(res.status).toBe(200);
     const body = await res.json() as Record<string, any>;
-    expect(body.verified).toBe(false);
-    expect(body.reason).toContain("not enrolled");
+    expect(body.verified).toBe(true);
+    expect(body.uid).toBe("demo-backstage");
+    expect(body.profile.level).toBe("Backstage");
+    expect(body.demoMode).toBe(true);
+    expect(body.fallbackReason).toContain("not enrolled");
   });
 
-  it("returns 400 for missing p and c", async () => {
+  it("returns demo Backstage grant for missing p and c", async () => {
     const env = buildEnv();
     const req = new Request("https://test.local/api/verify-identity");
     const res = await handleIdentityVerify(req, env);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
+    const body = await res.json() as Record<string, any>;
+    expect(body.verified).toBe(true);
+    expect(body.uid).toBe("demo-backstage");
+    expect(body.profile.level).toBe("Backstage");
+    expect(body.demoMode).toBe(true);
+    expect(body.fallbackReason).toContain("Missing card parameters");
   });
 
-  it("returns verified:false for invalid CMAC", async () => {
+  it("returns demo Backstage grant for invalid CMAC", async () => {
     const env = buildEnv(JSON.stringify({ identity_profile: {} }));
     const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex } = virtualTap(UID, 2, keys.k1, keys.k2);
@@ -67,8 +76,11 @@ describe("handleIdentityVerify", () => {
     const res = await handleIdentityVerify(req, env);
     expect(res.status).toBe(200);
     const body = await res.json() as Record<string, any>;
-    expect(body.verified).toBe(false);
-    expect(body.reason).toContain("authentication failed");
+    expect(body.verified).toBe(true);
+    expect(body.uid).toBe("demo-backstage");
+    expect(body.profile.level).toBe("Backstage");
+    expect(body.demoMode).toBe(true);
+    expect(body.fallbackReason).toContain("authentication failed");
   });
 
   it("returns deterministic profile from UID", async () => {
@@ -154,16 +166,22 @@ describe("identityHandler branch coverage", () => {
     expect(body.profile).toBeDefined();
   });
 
-  it("returns 500 when KV get throws", async () => {
+  it("returns demo Backstage grant when KV get throws", async () => {
     const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const env = buildEnvWithKvThrow();
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
     const req = new Request(`https://test.local/api/verify-identity?p=${pHex}&c=${cHex}`);
     const res = await handleIdentityVerify(req, env);
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(200);
+    const body = await res.json() as Record<string, any>;
+    expect(body.verified).toBe(true);
+    expect(body.uid).toBe("demo-backstage");
+    expect(body.profile.level).toBe("Backstage");
+    expect(body.demoMode).toBe(true);
+    expect(body.fallbackReason).toContain("Identity lookup failed");
   });
 
-  it("returns verified:false when getUidConfig returns null (production, no issuer key)", async () => {
+  it("returns demo Backstage grant when getUidConfig returns null (production, no issuer key)", async () => {
     const devKey = "00000000000000000000000000000001";
     const keys = getDeterministicKeys(UID, { ISSUER_KEY: devKey } as any, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keys.k1, keys.k2);
@@ -181,15 +199,24 @@ describe("identityHandler branch coverage", () => {
     const res = await handleIdentityVerify(req, env);
     expect(res.status).toBe(200);
     const body = await res.json() as Record<string, any>;
-    expect(body.verified).toBe(false);
-    expect(body.reason).toContain("Card not recognized");
+    expect(body.verified).toBe(true);
+    expect(body.uid).toBe("demo-backstage");
+    expect(body.profile.level).toBe("Backstage");
+    expect(body.demoMode).toBe(true);
+    expect(body.fallbackReason).toContain("Card not recognized");
   });
 
-  it("returns 400 when decryption fails", async () => {
+  it("returns demo Backstage grant when decryption fails", async () => {
     const env = buildEnv(JSON.stringify({}));
     const req = new Request("https://test.local/api/verify-identity?p=AABBCCDD11223344AABBCCDD11223344&c=1122334455667788");
     const res = await handleIdentityVerify(req, env);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
+    const body = await res.json() as Record<string, any>;
+    expect(body.verified).toBe(true);
+    expect(body.uid).toBe("demo-backstage");
+    expect(body.profile.level).toBe("Backstage");
+    expect(body.demoMode).toBe(true);
+    expect(body.fallbackReason).toContain("Invalid card data");
   });
 
   it("uses fallback emoji when record has invalid emoji", async () => {

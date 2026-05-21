@@ -96,7 +96,7 @@ describe("handleLnurlpPayment", () => {
     expect(body.balance).toBe(9000);
   });
 
-  it("rejects replay with same counter and bolt11", async () => {
+  it("allows replay with same counter and bolt11 while replay enforcement is disabled", async () => {
     const env = buildEnv(10000);
     const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex, cHex } = virtualTap(UID, 4, keys.k1, keys.k2);
@@ -105,9 +105,9 @@ describe("handleLnurlpPayment", () => {
     expect(res1.status).toBe(200);
 
     const res2 = await handleLnurlpPayment(new Request(url), env);
-    expect(res2.status).toBe(409);
+    expect(res2.status).toBe(200);
     const body = await res2.json() as Record<string, any>;
-    expect(body.reason).toContain("replay");
+    expect(body.status).toBe("OK");
   });
 
   it("accepts k1 with embedded p and c", async () => {

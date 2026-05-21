@@ -381,7 +381,7 @@ class CheckCounterCommand implements fc.AsyncCommand<CardModel, ReplayNamespace>
       assert.strictEqual(resp.status, 200, `Check ${this.counter} should be accepted`);
       m.lastCounter = this.counter;
     } else {
-      // Invariant 6: Counter replay rejected with 409
+      // Temporary testing mode: replay is reported by the DO but no longer blocks handlers.
       assert.strictEqual(
         resp.status,
         409,

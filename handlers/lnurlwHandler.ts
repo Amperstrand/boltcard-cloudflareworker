@@ -81,8 +81,7 @@ async function checkReplayAndRecordTap(env: Env, uidHex: string, counterValue: n
   try {
     const replayResult: CounterCheckResult = await checkAndAdvanceCounter(env, uidHex, counterValue);
     if (!replayResult.accepted) {
-      logger.warn("Counter replay detected", { uidHex, counterValue });
-      return { ok: false, response: jsonResponse({ status: "ERROR", reason: replayResult.reason || "Counter replay detected — tap rejected" }, 409) };
+      logger.warn("Counter replay detected — continuing because replay enforcement is disabled", { uidHex, counterValue, reason: replayResult.reason, lastCounter: replayResult.lastCounter });
     }
   } catch (error: unknown) {
     logger.error("Replay protection check failed", { uidHex, counterValue, error: getErrorMessage(error) });

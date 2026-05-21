@@ -91,7 +91,7 @@ describe("validateCardTap", () => {
     }
   });
 
-  it("rejects replay (second tap with same counter)", async () => {
+  it("allows replay while replay enforcement is disabled", async () => {
     const env = makeTestEnv();
     const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex, cHex } = virtualTap(UID, 1, keys.k1, keys.k2);
@@ -100,11 +100,7 @@ describe("validateCardTap", () => {
     expect(first.ok).toBe(true);
 
     const second = await validateCardTap(makeTestRequest(), asEnv(env), { pHex, cHex });
-    expect(second.ok).toBe(false);
-    if (!second.ok) {
-      expect(second.status).toBe(400);
-      expect(second.error).toContain("already used");
-    }
+    expect(second.ok).toBe(true);
   });
 
   it("rejects terminated card", async () => {

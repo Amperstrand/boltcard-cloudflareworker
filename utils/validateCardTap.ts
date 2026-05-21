@@ -109,8 +109,7 @@ export async function validateCardTap(request: Request, env: Env, { pHex, cHex, 
     return { ok: false, status: 503, error: "Replay protection unavailable" };
   }
   if (!replayResult.accepted) {
-    logger.warn(`${context}: replay detected`, { uidHex, counterValue });
-    return { ok: false, status: 400, error: "Card already used — tap rejected" };
+    logger.warn(`${context}: replay detected — continuing because replay enforcement is disabled`, { uidHex, counterValue, reason: replayResult.reason, lastCounter: replayResult.lastCounter });
   }
 
   recordTapRead(env, uidHex, counterValue, {

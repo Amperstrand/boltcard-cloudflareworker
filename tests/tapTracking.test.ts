@@ -108,7 +108,7 @@ describe("Tap tracking — Step 1 (initial tap)", () => {
     expect(tap.amount_msat).toBeNull();
   });
 
-  test("repeated GET / with same counter is rejected (atomic advance)", async () => {
+  test("repeated GET / with same counter is allowed while replay enforcement is disabled", async () => {
     const env = makeEnv();
     replay(env).__cardConfigs.set(TEST_UID, TEST_UID_CONFIG_OBJECT);
 
@@ -116,7 +116,7 @@ describe("Tap tracking — Step 1 (initial tap)", () => {
     expect(response1.status).toBe(200);
 
     const response2 = await makeRequest(`/?p=${WITHDRAW_P_COUNTER3}&c=${WITHDRAW_C_COUNTER3}`, "GET", null, env);
-    expect(response2.status).toBe(409);
+    expect(response2.status).toBe(200);
   });
 });
 

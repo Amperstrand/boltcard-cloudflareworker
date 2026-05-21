@@ -4831,10 +4831,7 @@ export const IDENTITY_JS = `// identity.js — classic script (no import/export)
 
   function initNfc() {
     var params = new URLSearchParams(window.location.search);
-    if (params.get('p') && params.get('c')) {
-      processNdefUrl(window.location.href);
-      return;
-    }
+    var hasUrlCardParams = params.get('p') && params.get('c');
 
     nfcScanner = createNfcScanner({
       continuous: false,
@@ -4860,6 +4857,10 @@ export const IDENTITY_JS = `// identity.js — classic script (no import/export)
         }
       }
     });
+    if (hasUrlCardParams) {
+      processNdefUrl(window.location.href);
+      return;
+    }
     if (browserSupportsNfc()) {
       window.addEventListener('load', function() { nfcScanner.scan(); });
     } else {
@@ -4891,4 +4892,4 @@ export const IDENTITY_JS = `// identity.js — classic script (no import/export)
   profile.emojiSaveButton.addEventListener('click', saveEmojiSelection);
   profile.emojiSaveButton.disabled = true;
 })();`;
-export const IDENTITY_JS_HASH = "26ce3d1d9a26";
+export const IDENTITY_JS_HASH = "5117270eeb63";

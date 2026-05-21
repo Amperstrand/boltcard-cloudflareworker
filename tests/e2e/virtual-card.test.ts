@@ -142,7 +142,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     expect(loginJson.tapHistory[1].status).toBe("payment");
   });
 
-  test("replay protection: stale counter rejected in callback", async () => {
+  test("stale counter callback continues while replay enforcement is disabled", async () => {
     const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
@@ -157,14 +157,14 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     expect([200, 400]).toContain(first.status);
     expect(env.CARD_REPLAY.__counters.get(UID)).toBe(1);
 
-    // Second callback with same counter rejected regardless
+    // Second callback with same counter continues in temporary testing mode.
     const replay = await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}&pr=lnbc10n1test`,
       "GET",
       null,
       env
     );
-    expect(replay.status).toBe(409);
+    expect(replay.status).toBe(200);
   });
 
   test("incrementing counter works after previous callback", async () => {
@@ -199,7 +199,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     expect(env.CARD_REPLAY.__counters.get(UID)).toBe(2);
   });
 
-  test("Step 1 atomically advances counter — repeated taps with same counter are rejected", async () => {
+  test("Step 1 repeated taps with same counter continue while replay enforcement is disabled", async () => {
     const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
@@ -207,7 +207,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     expect(first.status).toBe(200);
 
     const second = await makeRequest(`/?p=${pHex}&c=${cHex}`, "GET", null, env);
-    expect(second.status).toBe(409);
+    expect(second.status).toBe(200);
   });
 
   test("wipe resets replay state, allows re-provisioning", async () => {
@@ -317,18 +317,18 @@ describe("E2E: Virtual card — LNURL-pay (POS)", () => {
     expect(env.CARD_REPLAY.__counters.get(UID)).toBe(1);
   });
 
-  test("POS replay protection in callback", async () => {
+  test("POS replay callback continues while replay enforcement is disabled", async () => {
     const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
     // First callback succeeds
     await makeRequest(`/lnurlp/cb?p=${pHex}&c=${cHex}&amount=1000`, "GET", null, env);
 
-    // Replay rejected
+    // Replay continues in temporary testing mode.
     const replay = await makeRequest(`/lnurlp/cb?p=${pHex}&c=${cHex}&amount=1000`, "GET", null, env);
-    expect(replay.status).toBe(409);
+    expect(replay.status).toBe(200);
     const json = await replay.json() as Record<string, any>;
-    expect(json.reason).toMatch(/replay|counter/i);
+    expect(json.pr).toBeDefined();
   });
 });
 
@@ -483,8 +483,8 @@ describe("E2E: Virtual card — auto-discovery lifecycle", () => {
     const state2 = env.CARD_REPLAY.__cardStates.get(UID)!;
     expect(state2.state).toBe("discovered");
 
-    // Step 4: Replay is rejected
+    // Step 4: Replay continues in temporary testing mode.
     const res3 = await makeRequest(`/?p=${tap1.pHex}&c=${tap1.cHex}`, "GET", null, env);
-    expect(res3.status).toBe(409);
+    expect(res3.status).toBe(200);
   });
 });

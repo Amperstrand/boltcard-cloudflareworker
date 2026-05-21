@@ -291,24 +291,24 @@ describe("Cloudflare Worker Tests", () => {
       expect((kvEnv.__replayStore as Map<string, number>).get("04996c6a926980")).toBe(3);
     });
 
-    test("replay is rejected only if counter was previously recorded", async () => {
+    test("replay is allowed when counter was previously recorded while replay enforcement is disabled", async () => {
       const kvEnv = makeKvEnv() as Record<string, unknown>;
       kvEnv.CARD_REPLAY = seedDoConfigs(makeReplayNamespace({ "04996c6a926980": 3 }));
       kvEnv.__replayStore = (kvEnv.CARD_REPLAY as any).__counters;
 
       const replayResponse = await makeRequest(counterThreePath, "GET", null, kvEnv);
-      expect(replayResponse.status).toBe(409);
+      expect(replayResponse.status).toBe(200);
       const json = await replayResponse.json() as Record<string, unknown>;
-      expect(json.reason || json.error).toMatch(/replay|counter/i);
+      expect(json.tag).toBe("withdrawRequest");
     });
 
-    test("replayed Step 1 with same counter is rejected (atomic advance)", async () => {
+    test("replayed Step 1 with same counter is allowed while replay enforcement is disabled", async () => {
       const kvEnv = makeKvEnv();
       const first = await makeRequest(counterThreePath, "GET", null, kvEnv);
       expect(first.status).toBe(200);
 
       const second = await makeRequest(counterThreePath, "GET", null, kvEnv);
-      expect(second.status).toBe(409);
+      expect(second.status).toBe(200);
     });
 
     test("incrementing counter succeeds", async () => {

@@ -148,19 +148,31 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
     }
   });
 
-  test("Phase 3: replayed callback is rejected", async () => {
+  test("Phase 3: replayed callback continues while replay enforcement is disabled", async () => {
     const env = makeEnv({ [POS_UID]: 1 });
     const { pHex, ctrHex } = generateRealPandC(POS_UID, 1, BOLT_CARD_K1.split(",")[0]!);
     const cHex = computeRealC(POS_UID, ctrHex, keys.k2);
 
-    const response = await handleRequest(
-      new Request(`https://boltcardpoc.psbt.me/lnurlp/cb?p=${pHex}&c=${cHex}&amount=1000`),
-      env
-    );
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn(async (url) => {
+      const urlStr = url.toString();
+      if (urlStr.includes(".well-known/lnurlp")) {
+        return new Response(JSON.stringify({ callback: "https://getalby.com/lnurlp/test/callback", tag: "payRequest", minSendable: 1000, maxSendable: 1000 }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ pr: "lnbc10n1replay", routes: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }) as any;
 
-    expect(response.status).toBe(409);
-    const json = await response.json() as Record<string, unknown>;
-    expect(json.reason).toMatch(/replay/i);
+    try {
+      const response = await handleRequest(
+        new Request(`https://boltcardpoc.psbt.me/lnurlp/cb?p=${pHex}&c=${cHex}&amount=1000`),
+        env
+      );
+      expect(response.status).toBe(200);
+      const json = await response.json() as Record<string, unknown>;
+      expect(json.pr).toBe("lnbc10n1replay");
+    } finally {
+      global.fetch = originalFetch;
+    }
   });
 
   test("Phase 4: incrementing counter works", async () => {
@@ -283,7 +295,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
         new Request(`${payReq.callback}&amount=1000`),
         env
       );
-      expect(replay.status).toBe(409);
+      expect(replay.status).toBe(200);
     } finally {
       global.fetch = originalFetch;
     }

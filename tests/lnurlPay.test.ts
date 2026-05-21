@@ -198,7 +198,7 @@ describe("LNURL-pay POS card flow", () => {
       expect((env.CARD_REPLAY as any).__counters.get("04d070fa967380")).toBe(1);
     });
 
-    test("rejects replayed counter on callback", async () => {
+    test("allows replayed counter on callback while replay enforcement is disabled", async () => {
       const env = makePayEnv();
 
       const first = await makeRequest(
@@ -211,9 +211,9 @@ describe("LNURL-pay POS card flow", () => {
         `/lnurlp/cb?p=${PAY_COUNTER_1}&c=${PAY_CMAC_1}&amount=1000`,
         "GET", null, env
       );
-      expect(replay.status).toBe(409);
+      expect(replay.status).toBe(200);
       const json = await replay.json() as Record<string, unknown>;
-      expect(json.reason).toMatch(/replay|counter/i);
+      expect(json.pr).toBeDefined();
     });
 
     test("accepts incrementing counter on callback", async () => {

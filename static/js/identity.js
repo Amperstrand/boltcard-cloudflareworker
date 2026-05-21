@@ -181,10 +181,7 @@
 
   function initNfc() {
     var params = new URLSearchParams(window.location.search);
-    if (params.get('p') && params.get('c')) {
-      processNdefUrl(window.location.href);
-      return;
-    }
+    var hasUrlCardParams = params.get('p') && params.get('c');
 
     nfcScanner = createNfcScanner({
       continuous: false,
@@ -210,6 +207,10 @@
         }
       }
     });
+    if (hasUrlCardParams) {
+      processNdefUrl(window.location.href);
+      return;
+    }
     if (browserSupportsNfc()) {
       window.addEventListener('load', function() { nfcScanner.scan(); });
     } else {

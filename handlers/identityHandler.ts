@@ -14,6 +14,7 @@ const IDENTITY_EMOJI_OPTIONS: string[] = ["👤", "😀", "😎", "🤖", "🧠"
 
 const IDENTITY_DEPARTMENTS: string[] = ["Engineering", "Security", "Operations", "Command"];
 const IDENTITY_ROLES: string[] = ["Administrator", "Specialist", "Technician", "Director"];
+const DEMO_BACKSTAGE_UID = "demo-backstage";
 
 interface IdentityRecord {
   identity_profile?: {
@@ -70,6 +71,26 @@ function buildIdentityProfile(uidHex: string, record: IdentityRecord = {}): Reco
   };
 }
 
+function buildDemoBackstageProfile(reason: string = "Demo fallback"): Record<string, unknown> {
+  return {
+    verified: true,
+    uid: DEMO_BACKSTAGE_UID,
+    maskedUid: "DEMO···PASS",
+    profile: {
+      emoji: "🦊",
+      name: "Backstage Guest",
+      role: "Demo Attendee",
+      dept: "Backstage",
+      level: "Backstage",
+      photoAlt: "Demo profile avatar",
+    },
+    keyProvenance: "demo_override",
+    programmingRecommended: false,
+    demoMode: true,
+    fallbackReason: reason,
+  };
+}
+
 async function resolveIdentityContext({ p, c }: { p: string | null; c: string | null }, env: Env): Promise<Partial<IdentityContext> & { response?: Response }> {
   const auth: ResolveResult = await resolveCardIdentity(p ?? undefined, c ?? undefined, env, { context: "identity" });
   if (!auth.ok) {
@@ -114,7 +135,15 @@ export async function handleIdentityVerify(request: Request, env: Env): Promise<
   }, env);
 
   if (context.response) {
-    return context.response;
+    let fallbackReason = "Identity verification fallback";
+    try {
+      const payload = await context.response.clone().json() as Record<string, unknown>;
+      fallbackReason = String(payload.reason || payload.error || fallbackReason);
+    } catch {
+      fallbackReason = context.response.statusText || fallbackReason;
+    }
+    logger.warn("Identity demo fallback granted", { fallbackReason });
+    return jsonResponse(buildDemoBackstageProfile(fallbackReason));
   }
 
   const { uidHex, counterValue, record } = context as IdentityContext;

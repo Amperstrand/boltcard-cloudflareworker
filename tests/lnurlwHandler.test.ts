@@ -75,7 +75,7 @@ describe("handleLnurlw", () => {
     expect(body.maxWithdrawable).toBe(1000);
   });
 
-  it("rejects replay with same counter", async () => {
+  it("allows replay with same counter while replay enforcement is disabled", async () => {
     const env = buildEnv("fakewallet");
     const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req1 = tapRequest(UID, 3, keys.k1, keys.k2);
@@ -84,12 +84,12 @@ describe("handleLnurlw", () => {
 
     const req2 = tapRequest(UID, 3, keys.k1, keys.k2);
     const res2 = await handleLnurlw(req2, env);
-    expect(res2.status).toBe(409);
+    expect(res2.status).toBe(200);
     const body = (await res2.json()) as Record<string, any>;
-    expect(body.reason).toContain("replay");
+    expect(body.tag).toBe("withdrawRequest");
   });
 
-  it("rejects replay with lower counter", async () => {
+  it("allows replay with lower counter while replay enforcement is disabled", async () => {
     const env = buildEnv("fakewallet");
     const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const req1 = tapRequest(UID, 5, keys.k1, keys.k2);
@@ -98,7 +98,7 @@ describe("handleLnurlw", () => {
 
     const req2 = tapRequest(UID, 3, keys.k1, keys.k2);
     const res2 = await handleLnurlw(req2, env);
-    expect(res2.status).toBe(409);
+    expect(res2.status).toBe(200);
   });
 
   it("rejects terminated card", async () => {
@@ -297,7 +297,7 @@ describe("handleLnurlw", () => {
     expect(body.maxWithdrawable).toBe(1000);
   });
 
-  it("proxy mode rejects replayed counter", async () => {
+  it("proxy mode allows replayed counter while replay enforcement is disabled", async () => {
     const env = buildEnv("proxy", {
       proxy: { baseurl: "https://backend.example.com/tap" },
     });
@@ -313,11 +313,13 @@ describe("handleLnurlw", () => {
     expect(res1.status).toBe(200);
     globalThis.fetch = originalFetch;
 
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: "OK" }), { status: 200 })
+    );
     const req2 = tapRequest(UID, 2, keys.k1, keys.k2);
     const res2 = await handleLnurlw(req2, env);
-    expect(res2.status).toBe(409);
-    const body = (await res2.json()) as Record<string, any>;
-    expect(body.reason).toMatch(/replay/i);
+    expect(res2.status).toBe(200);
+    globalThis.fetch = originalFetch;
   });
 
   it("lnurlpay card does not advance counter on initial tap", async () => {

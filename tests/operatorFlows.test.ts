@@ -123,7 +123,7 @@ describe("Top-up flow", () => {
     expect(response.status).toBe(400);
   });
 
-  it("rejects replayed card tap", async () => {
+  it("allows replayed card tap while replay enforcement is disabled", async () => {
     const tap = await tapCard(keys, counter);
     const resp1 = await handleRequest(
       new Request("https://test.local/operator/topup/apply", {
@@ -142,7 +142,7 @@ describe("Top-up flow", () => {
       }),
       env,
     );
-    expect(resp2.status).toBe(400);
+    expect(resp2.status).toBe(200);
   });
 
   it("respects MAX_TOPUP_AMOUNT", async () => {

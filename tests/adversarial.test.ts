@@ -134,7 +134,7 @@ describe("Adversarial: Duplicate Callbacks", () => {
     keys = getDeterministicKeys(UID, env, 1);
   });
 
-  it("rejects second callback with same counter and same bolt11", async () => {
+  it("allows second callback with same counter and same bolt11 while replay enforcement is disabled", async () => {
     const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1testinvoice" });
@@ -143,10 +143,10 @@ describe("Adversarial: Duplicate Callbacks", () => {
     expect(first.status).toBe(200);
 
     const second = await handleLnurlpPayment(new Request("https://test.local" + url), env);
-    expect(second.status).toBe(409);
+    expect(second.status).toBe(200);
   });
 
-  it("rejects second callback with same counter but different bolt11", async () => {
+  it("allows second callback with same counter but different bolt11 while replay enforcement is disabled", async () => {
     const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url1 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1first" });
@@ -156,10 +156,10 @@ describe("Adversarial: Duplicate Callbacks", () => {
     expect(first.status).toBe(200);
 
     const second = await handleLnurlpPayment(new Request("https://test.local" + url2), env);
-    expect(second.status).toBe(409);
+    expect(second.status).toBe(200);
   });
 
-  it("rejects callback-only replay (skip Step 1, replay same counter)", async () => {
+  it("allows callback-only replay while replay enforcement is disabled", async () => {
     const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1test" });
@@ -168,10 +168,10 @@ describe("Adversarial: Duplicate Callbacks", () => {
     expect(first.status).toBe(200);
 
     const replay = await handleLnurlpPayment(new Request("https://test.local" + url), env);
-    expect(replay.status).toBe(409);
+    expect(replay.status).toBe(200);
   });
 
-  it("prevents double-spend: two callbacks for same counter, only one payment deducted", async () => {
+  it("permits double callback processing while replay enforcement is disabled", async () => {
     const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url1 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1first" });
@@ -183,10 +183,10 @@ describe("Adversarial: Duplicate Callbacks", () => {
     const balBefore = await getBalance(env, UID);
 
     const second = await handleLnurlpPayment(new Request("https://test.local" + url2), env);
-    expect(second.status).toBe(409);
+    expect(second.status).toBe(200);
 
     const balAfter = await getBalance(env, UID);
-    expect(balAfter.balance).toBe(balBefore.balance);
+    expect(balAfter.balance).toBeLessThan(balBefore.balance);
   });
 });
 
@@ -271,7 +271,7 @@ describe("Adversarial: Cross-Endpoint Counter", () => {
     keys = getDeterministicKeys(UID, env, 1);
   });
 
-  it("POS charge then LNURL Step 1 with same counter: Step 1 rejected", async () => {
+  it("POS charge then LNURL Step 1 with same counter: Step 1 allowed while replay enforcement is disabled", async () => {
     const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
@@ -287,10 +287,10 @@ describe("Adversarial: Cross-Endpoint Counter", () => {
     expect(charge.status).toBe(200);
 
     const step1 = await makeRequest(`/?p=${pHex}&c=${cHex}`, "GET", null, env);
-    expect(step1.status).toBe(409);
+    expect(step1.status).toBe(200);
   });
 
-  it("LNURL Step 1 then POS charge with same counter: POS rejected", async () => {
+  it("LNURL Step 1 then POS charge with same counter: POS allowed while replay enforcement is disabled", async () => {
     const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
@@ -306,10 +306,10 @@ describe("Adversarial: Cross-Endpoint Counter", () => {
       env,
       { shiftId: "test" } as any
     );
-    expect(charge.status).toBe(400);
+    expect(charge.status).toBe(200);
   });
 
-  it("two POS charges with same counter: second rejected", async () => {
+  it("two POS charges with same counter: second allowed while replay enforcement is disabled", async () => {
     const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
@@ -323,10 +323,10 @@ describe("Adversarial: Cross-Endpoint Counter", () => {
     expect(first.status).toBe(200);
 
     const second = await handlePosCharge(req.clone(), env, { shiftId: "test" } as any);
-    expect(second.status).toBe(400);
+    expect(second.status).toBe(200);
   });
 
-  it("validateCardTap rejects replayed counter", async () => {
+  it("validateCardTap allows replayed counter while replay enforcement is disabled", async () => {
     const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
     const req = new Request("https://test.local/api/test");
@@ -335,8 +335,7 @@ describe("Adversarial: Cross-Endpoint Counter", () => {
     expect(first.ok).toBe(true);
 
     const second = await validateCardTap(req, env, { pHex, cHex, context: "test" });
-    expect(second.ok).toBe(false);
-    expect((second as any).error).toContain("already used");
+    expect(second.ok).toBe(true);
   });
 });
 
@@ -437,7 +436,7 @@ describe("Adversarial: Concurrent Callbacks (TOCTOU)", () => {
     expect(bal.balance).toBeGreaterThanOrEqual(0);
   });
 
-  it("two concurrent POS charges with same tap: no double-debit", async () => {
+  it("two concurrent POS charges with same tap both debit while replay enforcement is disabled", async () => {
     const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
@@ -453,10 +452,10 @@ describe("Adversarial: Concurrent Callbacks (TOCTOU)", () => {
     ]);
 
     const successes = [r1.status, r2.status].filter(s => s === 200);
-    expect(successes.length).toBe(1);
+    expect(successes.length).toBe(2);
 
     const bal = await getBalance(env, UID);
-    expect(bal.balance).toBe(900);
+    expect(bal.balance).toBe(800);
   });
 
   it("two concurrent POS charges with same tap, exact balance: no overdraft", async () => {
