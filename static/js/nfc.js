@@ -11,14 +11,48 @@ function normalizeNfcSerial(serialNumber) {
 async function extractNdefUrl(records, prefixes) {
   var acceptedPrefixes = prefixes || ['lnurlw://', 'lnurlp://', 'https://'];
   var decoder = new TextDecoder();
+
+  function bytesFromRecordData(data) {
+    if (!data) return new Uint8Array();
+    if (data instanceof DataView) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    if (data instanceof ArrayBuffer) return new Uint8Array(data);
+    if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    return new Uint8Array();
+  }
+
+  function decodeUriRecord(data) {
+    var bytes = bytesFromRecordData(data);
+    if (!bytes.length) return '';
+    var uriPrefixes = ['', 'http://www.', 'https://www.', 'http://', 'https://', 'tel:', 'mailto:', 'ftp://anonymous:anonymous@', 'ftp://ftp.', 'ftps://', 'sftp://', 'smb://', 'nfs://', 'ftp://', 'dav://', 'news:', 'telnet://', 'imap:', 'rtsp://', 'urn:', 'pop:', 'sip:', 'sips:', 'tftp:', 'btspp://', 'btl2cap://', 'btgoep://', 'tcpobex://', 'irdaobex://', 'file://', 'urn:epc:id:', 'urn:epc:tag:', 'urn:epc:pat:', 'urn:epc:raw:', 'urn:epc:', 'urn:nfc:'];
+    var prefix = uriPrefixes[bytes[0]];
+    if (prefix !== undefined) {
+      return prefix + decoder.decode(bytes.slice(1));
+    }
+    return decoder.decode(bytes);
+  }
+
+  function decodeTextRecord(data) {
+    var bytes = bytesFromRecordData(data);
+    if (!bytes.length) return '';
+    var direct = decoder.decode(bytes);
+    var langLength = bytes[0] & 0x3f;
+    if (bytes.length > langLength + 1) {
+      var payload = decoder.decode(bytes.slice(langLength + 1));
+      if (payload.indexOf('://') !== -1) return payload;
+    }
+    return direct;
+  }
+
   for (var i = 0; i < records.length; i++) {
     var record = records[i];
-    if (record.recordType !== 'url' && record.recordType !== 'text') {
+    if (record.recordType !== 'url' && record.recordType !== 'absolute-url' && record.recordType !== 'text') {
       continue;
     }
-    var text = record.recordType === 'url'
-      ? await new Response(record.data).text()
-      : decoder.decode(record.data);
+    var text = record.recordType === 'absolute-url'
+      ? record.id || await new Response(record.data).text()
+      : record.recordType === 'url'
+        ? decodeUriRecord(record.data)
+        : decodeTextRecord(record.data);
     var lower = text.toLowerCase();
     for (var j = 0; j < acceptedPrefixes.length; j++) {
       if (lower.startsWith(acceptedPrefixes[j])) {

@@ -180,6 +180,12 @@
   }
 
   function initNfc() {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('p') && params.get('c')) {
+      processNdefUrl(window.location.href);
+      return;
+    }
+
     nfcScanner = createNfcScanner({
       continuous: false,
       debounceMs: 0,

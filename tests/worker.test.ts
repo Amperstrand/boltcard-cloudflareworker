@@ -105,6 +105,19 @@ describe("Cloudflare Worker Tests", () => {
     });
   });
 
+  test("browser navigation to card URL renders identity demo instead of withdraw JSON", async () => {
+    const response = await handleRequest(new Request(
+      "https://test.local/?p=4E2E289D945A66BB13377A728884E867&c=E19CCB1FED8892CE",
+      { headers: { Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" } }
+    ), env as unknown as Env);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("text/html");
+    const html = await response.text();
+    expect(html).toContain("NFC Access Control + Profile Demo");
+    expect(html).toContain('/static/js/identity.js');
+  });
+
   test("should return valid withdraw request for different UID", async () => {
     const response = await makeRequest(
       "/?p=00F48C4F8E386DED06BCDC78FA92E2FE&c=66B4826EA4C155B4"

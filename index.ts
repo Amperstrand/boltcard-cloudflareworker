@@ -175,6 +175,10 @@ router.get("/favicon.ico", () => new Response(null, { status: 204 }));
 router.get("/", (request, env) => {
   const { searchParams } = new URL(request.url);
   if (searchParams.has("p") && searchParams.has("c")) {
+    const accept = request.headers.get("Accept") || "";
+    if (accept.includes("text/html")) {
+      return handleIdentityPage(request);
+    }
     return handleLnurlw(request, env);
   }
   return handleLoginPage(request);
