@@ -49,9 +49,9 @@ describe("constructWithdrawResponse", () => {
     expect(result.callback).toBe("https://test.local/boltcards/api/v1/lnurl/cb/testp");
   });
 
-  it("includes defaultDescription with UID and counter", () => {
+  it("includes defaultDescription with counter (no raw UID)", () => {
     const result = constructWithdrawResponse("04a39493cc8680", "p", "c", "000005", true, "https://test.local", "fakewallet");
-    expect(result.defaultDescription).toContain("04a39493cc8680");
-    expect(result.defaultDescription).toContain("5");
+    expect(result.defaultDescription).toContain("#5");
+    expect(result.defaultDescription).not.toContain("04a39493cc8680");
   });
 });

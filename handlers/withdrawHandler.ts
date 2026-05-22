@@ -44,6 +44,6 @@ export const constructWithdrawResponse = (
     k1: cHex,
     minWithdrawable,
     maxWithdrawable,
-    defaultDescription: `Boltcard payment from UID ${uidHex}, counter ${counterValue}`,
+    defaultDescription: `Boltcard payment #${counterValue}`,
   };
 };

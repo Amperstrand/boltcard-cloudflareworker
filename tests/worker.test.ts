@@ -101,7 +101,7 @@ describe("Cloudflare Worker Tests", () => {
       k1: "E19CCB1FED8892CE",
       minWithdrawable: 1000,
       maxWithdrawable: 1000,
-      defaultDescription: expect.stringContaining("Boltcard payment from UID"),
+      defaultDescription: expect.stringContaining("Boltcard payment"),
     });
   });
 
@@ -132,7 +132,7 @@ describe("Cloudflare Worker Tests", () => {
       k1: "66B4826EA4C155B4",
       minWithdrawable: 1000,
       maxWithdrawable: 1000,
-      defaultDescription: expect.stringContaining("Boltcard payment from UID"),
+      defaultDescription: expect.stringContaining("Boltcard payment"),
     });
   });
 

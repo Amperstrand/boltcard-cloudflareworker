@@ -116,14 +116,14 @@ export function renderCardDashboardPage(): string {
         </div>
       </div>
 
-       <div id="lock-section" class="hidden mb-4">
-         <button id="btn-lock" type="button" class="w-full bg-red-900/50 hover:bg-red-800/50 border border-red-600/50 text-red-300 font-bold py-3 px-4 rounded-lg text-sm transition-colors">
-           Lock Card
-         </button>
-         <div id="lock-confirm" class="hidden bg-red-900/30 border border-red-600/50 rounded-lg p-4 mt-2">
-           <p class="text-red-200 text-sm mb-3">This will permanently lock your card. You will not be able to use it again. You can re-activate it later by tapping your card again.</p>
-           <div class="flex gap-3">
-             <button id="btn-lock-confirm" type="button" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded text-sm transition-colors">Confirm Lock</button>
+  <div id="lock-section" class="hidden mb-4">
+  <button id="btn-lock" type="button" class="w-full bg-red-900/50 hover:bg-red-800/50 border border-red-600/50 text-red-300 font-bold py-3 px-4 rounded-lg text-sm transition-colors">
+  Terminate Card
+  </button>
+  <div id="lock-confirm" class="hidden bg-red-900/30 border border-red-600/50 rounded-lg p-4 mt-2">
+  <p class="text-red-200 text-sm mb-3">This will permanently terminate your card. You will not be able to use it again. An operator can re-activate it later.</p>
+  <div class="flex gap-2">
+  <button id="btn-lock-confirm" type="button" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded text-sm transition-colors">Confirm Terminate</button>
              <button id="btn-lock-cancel" type="button" class="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-200 font-bold py-2 px-4 rounded text-sm transition-colors">Cancel</button>
            </div>
          </div>
@@ -132,7 +132,7 @@ export function renderCardDashboardPage(): string {
 
        <div id="reactivate-section" class="hidden mb-4">
          <div class="bg-amber-900/30 border border-amber-600/50 rounded-lg p-4 mb-3">
-           <p class="text-amber-200 text-sm mb-1">This card is locked.</p>
+           <p class="text-amber-200 text-sm mb-1">This card is terminated.</p>
            <p class="text-amber-300/80 text-xs">Re-activating will generate new keys and advance to version <span id="reactivate-version">N+1</span>. You will need to write the new keys to your card via NFC.</p>
          </div>
          <div id="reactivate-scan" class="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center">

@@ -147,20 +147,20 @@ export async function handleCardLock(request: Request, env: Env): Promise<Respon
   const cardState = auth.cardState!;
 
   if (cardState.state === CARD_STATE.TERMINATED) {
-    return errorResponse("Card is already locked", 400);
+    return errorResponse("Card is already terminated", 400);
   }
 
   if (cardState.state !== CARD_STATE.ACTIVE && cardState.state !== CARD_STATE.DISCOVERED) {
-    return errorResponse(`Card in '${cardState.state}' state cannot be locked`, 400);
+    return errorResponse(`Card in '${cardState.state}' state cannot be terminated`, 400);
   }
 
   try {
     await terminateCard(env, uidHex);
-    logger.info("Card locked by cardholder", { uidHex });
+    logger.info("Card terminated by cardholder", { uidHex });
     return jsonResponse({ success: true, state: "terminated" });
   } catch (err: unknown) {
-    logger.error("Card lock failed", { uidHex, error: getErrorMessage(err) });
-    return errorResponse("Failed to lock card", 500);
+    logger.error("Card termination failed", { uidHex, error: getErrorMessage(err) });
+    return errorResponse("Failed to terminate card", 500);
   }
 }
 

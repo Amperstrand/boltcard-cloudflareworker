@@ -395,7 +395,7 @@ describe("handleCardLock", () => {
     expect(res.status).toBe(400);
 
     const body = (await res.json()) as Record<string, any>;
-    expect(body.reason).toBe("Card is already locked");
+    expect(body.reason).toBe("Card is already terminated");
   });
 
   it("rejects pending card", async () => {

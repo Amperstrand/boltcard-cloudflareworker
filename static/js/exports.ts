@@ -1043,7 +1043,7 @@ document.getElementById('btn-lock-confirm').addEventListener('click', async func
   if (!lastP || !lastC) return;
   var btn = document.getElementById('btn-lock-confirm');
   btn.disabled = true;
-  btn.textContent = 'Locking...';
+  btn.textContent = 'Terminating...';
   try {
     var resp = await fetch('/api/card/lock', {
       method: 'POST',
@@ -1054,28 +1054,28 @@ document.getElementById('btn-lock-confirm').addEventListener('click', async func
     if (resp.ok && data.success) {
       document.getElementById('lock-confirm').classList.add('hidden');
       document.getElementById('btn-lock').disabled = true;
-      document.getElementById('btn-lock').textContent = 'Card Locked';
+      document.getElementById('btn-lock').textContent = 'Card Terminated';
       document.getElementById('btn-lock').classList.remove('hover:bg-red-800/50');
       document.getElementById('lock-status').classList.remove('hidden');
       document.getElementById('lock-status').className = 'mt-2 text-center text-sm text-red-400';
-      document.getElementById('lock-status').textContent = 'Your card has been locked.';
+      document.getElementById('lock-status').textContent = 'Your card has been terminated.';
       var stateEl = document.getElementById('card-state');
       stateEl.textContent = stateLabel('terminated');
       stateEl.className = 'font-mono ' + stateColor('terminated');
     } else {
       document.getElementById('lock-status').classList.remove('hidden');
       document.getElementById('lock-status').className = 'mt-2 text-center text-sm text-red-400';
-      document.getElementById('lock-status').textContent = data.reason || data.error || 'Lock failed';
+      document.getElementById('lock-status').textContent = data.reason || data.error || 'Terminate failed';
       btn.disabled = false;
-      btn.textContent = 'Confirm Lock';
+  btn.textContent = 'Confirm Terminate';
     }
    } catch (err) {
-     if (typeof window.reportClientError === 'function') window.reportClientError(err, 'card-dashboard.js:lock');
+     if (typeof window.reportClientError === 'function') window.reportClientError(err, 'card-dashboard.js:terminate');
      document.getElementById('lock-status').classList.remove('hidden');
      document.getElementById('lock-status').className = 'mt-2 text-center text-sm text-red-400';
      document.getElementById('lock-status').textContent = 'Network error';
      btn.disabled = false;
-     btn.textContent = 'Confirm Lock';
+     btn.textContent = 'Confirm Terminate';
    }
 });
 
@@ -1166,7 +1166,7 @@ async function submitReactivate(p, c) {
     document.getElementById('nfc-unsupported').classList.remove('hidden');
   }
 })();`;
-export const CARD_DASHBOARD_JS_HASH = "93d85fc50e1b";
+export const CARD_DASHBOARD_JS_HASH = "7e8eda7a6d94";
 
 export const DEBUG_JS = `// debug.js — classic script (no import/export)
 // Requires: nfc.js (esc, browserSupportsNfc, createNfcScanner)
