@@ -63,7 +63,7 @@ export function renderRefundPage({ host, currencyLabel }: { host: string; curren
       <button id="logout-btn" type="button" class="text-xs text-gray-600 hover:text-gray-400 transition-colors">LOGOUT</button>
     </div>
 
-    ${safe('<script src="/static/js/nfc.js"></script>')}${safe('<script src="/static/js/refund.js"></script>')}
+    ${safe('<script src="/static/js/refund.js"></script>')}
   `,
   });
 }

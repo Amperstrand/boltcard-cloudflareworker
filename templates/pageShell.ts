@@ -35,6 +35,7 @@ export function renderTailwindPage({
     <meta name="deploy-revision" content="${deployRevision}" />
     <meta name="js-fingerprint" content="${jsFingerprint}" />
     <script src="/static/js/client-error.js"></script>
+    <script src="/static/js/nfc.js?v=${deployVersion}"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     ${safe(headScripts)}
     ${styles ? safe(rawHtml`<style>${styles}</style>`) : ""}

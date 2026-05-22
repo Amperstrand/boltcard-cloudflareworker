@@ -107,9 +107,7 @@ export function renderBulkWipePage({ baseUrl, keyOptionsHtml }: { baseUrl: strin
           </div>
 
         </div>
-        ${safe('<script src="/static/js/nfc.js"></script>')}
 ${safe('<script src="/static/js/bulk-wipe.js"></script>')}
-        <script src="/static/js/nfc.js"></script>
         <script src="/static/js/bulk-wipe.js"></script>
 `,
   });

@@ -83,7 +83,7 @@ export function renderCardAuditPage(): string {
     </div>
   </div>
 
-  ${safe('<script src="/static/js/nfc.js"></script>')}
+
   ${safe('<script src="/static/js/card-audit.js"></script>')}
   `;
 

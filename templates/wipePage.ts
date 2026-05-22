@@ -115,7 +115,7 @@ export function renderWipePage({ baseUrl, resetApiUrl }: { baseUrl: string; rese
         </div>
 
         </div>
-        <script src="/static/js/nfc.js"></script>
+
         <script src="/static/js/wipe.js"></script>
 `,
   });

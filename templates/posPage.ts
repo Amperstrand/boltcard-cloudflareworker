@@ -106,7 +106,7 @@ export function renderPosPage({ host, currencyLabel }: { host: string; currencyL
       </div>
     </div>
 
-    ${safe('<script src="/static/js/nfc.js"></script>')}${safe('<script src="/static/js/pos.js"></script>')}
+    ${safe('<script src="/static/js/pos.js"></script>')}
   `,
   });
 }

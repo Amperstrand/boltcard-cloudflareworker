@@ -19,6 +19,7 @@ export const CLN_REST_PAY_PATH = "/v1/pay";
 
 export const WITHDRAW_MIN_MSAT = 1000;
 export const WITHDRAW_MAX_MSAT_FAKWALLET = 1000000;
+export const MAX_BALANCE = 2147483647; // 2^31 - 1, prevents Number precision loss
 
 export const LOGIN_RATE_LIMIT_REQUESTS = 5;
 export const LOGIN_RATE_LIMIT_WINDOW = 900;

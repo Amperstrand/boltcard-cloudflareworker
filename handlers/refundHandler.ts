@@ -47,18 +47,6 @@ export async function handleRefundApply(request: Request, env: Env, session: Ses
     }
   } else {
     refundAmount = parseInt(String(amount), 10);
-    let balanceData: BalanceResult;
-    try {
-      balanceData = await getBalance(env, tap.uidHex);
-    } catch (err: unknown) {
-      logger.error("Refund: balance check failed", { uidHex: tap.uidHex, error: getErrorMessage(err) });
-      return errorResponse("Balance check failed", 500);
-    }
-    if (refundAmount > balanceData.balance) {
-      return errorResponse(`Refund amount (${refundAmount}) exceeds balance (${balanceData.balance})`, 400, {
-        currentBalance: balanceData.balance,
-      });
-    }
   }
 
   const shiftId: string = session?.shiftId || "unknown";
@@ -67,8 +55,11 @@ export async function handleRefundApply(request: Request, env: Env, session: Ses
   try {
     const result: OpResult = await debitCard(env, tap.uidHex, tap.counterValue, refundAmount, note);
     if (!result.ok) {
+      const isInsufficient = !!result.reason && result.reason.toLowerCase().includes("insufficient");
+      const status = isInsufficient ? 400 : 500;
+      const extra = result.balance != null ? { currentBalance: result.balance } : {};
       logger.error("Refund: debit failed", { uidHex: tap.uidHex, amount: refundAmount, reason: result.reason });
-      return errorResponse(result.reason || "Refund failed", 500);
+      return errorResponse(result.reason || "Refund failed", status, extra);
     }
 
     const newBalance: number = result.balance ?? 0;

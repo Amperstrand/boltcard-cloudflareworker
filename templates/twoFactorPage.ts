@@ -145,7 +145,7 @@ export function renderTwoFactorLandingPage(baseUrl: string): string {
     </div>
 
     <div id="twofa-landing-root" data-base-url="${safe(baseUrl)}"></div>
-    <script src="/static/js/nfc.js"></script>
+
     <script src="/static/js/two-factor.js"></script>
   `;
 

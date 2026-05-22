@@ -46,7 +46,7 @@ describe("Virtual Card — Full Lifecycle Scenarios", () => {
 
       // Next payment attempt should fail (insufficient balance)
       const { cbResp: over } = await card.fullPayment(1);
-      expect([400, 500]).toContain(over.status);
+      expect([400, 402, 500]).toContain(over.status);
     });
 
     test("incrementing counters across multiple sessions", async () => {

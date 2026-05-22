@@ -174,12 +174,17 @@ router.get("/analytics/data", withOperatorAuth((request, env) => handleAnalytics
 router.get("/favicon.ico", () => new Response(null, { status: 204 }));
 router.get("/", (request, env) => {
   const { searchParams } = new URL(request.url);
-  if (searchParams.has("p") && searchParams.has("c")) {
+  const hasP = searchParams.has("p");
+  const hasC = searchParams.has("c");
+  if (hasP && hasC) {
     const accept = request.headers.get("Accept") || "";
     if (accept.includes("text/html")) {
       return handleIdentityPage(request);
     }
     return handleLnurlw(request, env);
+  }
+  if (hasP || hasC) {
+    return errorResponse("Missing card parameters — both p and c are required", 400);
   }
   return handleLoginPage(request);
 });

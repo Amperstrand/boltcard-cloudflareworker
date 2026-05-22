@@ -443,7 +443,7 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }: LoginPageO
       </button>
     </div>
 
-    ${safe('<script src="/static/js/nfc.js"></script>')}
+
     ${safe('<script src="/static/js/helpers.js"></script>')}
     ${safe('<script src="/static/js/card-info.js"></script>')}
     ${safe('<script src="/static/js/card-actions.js"></script>')}

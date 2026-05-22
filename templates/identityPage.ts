@@ -175,7 +175,7 @@ export function renderIdentityPage({ host }: { host: string }): string {
       </div>
     </div>
 
-    ${safe(rawHtml`<script src="/static/js/nfc.js?v=${deployVersion}"></script>`)}${safe(rawHtml`<script src="/static/js/identity.js?v=${deployVersion}"></script>`)}
+    ${safe(rawHtml`<script src="/static/js/identity.js?v=${deployVersion}"></script>`)}
   `;
   
   return renderTailwindPage({ title: pageTitle, content, csrf: true });

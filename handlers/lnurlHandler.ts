@@ -140,8 +140,10 @@ async function processWithdrawalPayment(rawUid: string, pr: string | null, env: 
       logger.info("Fakewallet payment processed", { uid: normalizedUid, amount, balance: result.balance });
       return jsonResponse({ status: "OK", message: "Payment processed", balance: result.balance }, 200);
     }
+    const isInsufficient = !!result.reason && result.reason.toLowerCase().includes("insufficient");
+    const status = isInsufficient ? 402 : 500;
     logger.error("Fakewallet debit failed", { uid: normalizedUid, amount, reason: result.reason });
-    return jsonResponse({ status: "ERROR", reason: result.reason || "Debit failed" }, 500);
+    return jsonResponse({ status: "ERROR", reason: result.reason || "Debit failed" }, status);
   }
 
   if (config.payment_method === PAYMENT_METHOD.CLNREST) {

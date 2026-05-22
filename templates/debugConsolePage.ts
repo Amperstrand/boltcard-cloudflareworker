@@ -177,7 +177,7 @@ export function renderDebugConsolePage({ host, baseUrl }: { host: string; baseUr
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-    ${safe('<script src="/static/js/nfc.js"></script>')}
+  
     ${safe('<script src="/static/js/helpers.js"></script>')}
     ${safe('<script src="/static/js/card-info.js"></script>')}
     ${safe('<script src="/static/js/card-actions.js"></script>')}

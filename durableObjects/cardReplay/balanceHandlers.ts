@@ -1,6 +1,8 @@
 import type { CreditPayload, DebitPayload } from "./types.js";
 import { nowSec } from "./types.js";
 
+const MAX_BALANCE = 2147483647;
+
 export async function handleDebit(sql: SqlStorage, request: Request): Promise<Response> {
   const { counter, amount, note } = await request.json() as DebitPayload;
   if (!Number.isInteger(amount) || amount <= 0) {
@@ -42,26 +44,34 @@ export async function handleCredit(sql: SqlStorage, request: Request): Promise<R
   }
 
   const currentBalance: number = getCurrentBalance(sql);
+  if (currentBalance + amount > MAX_BALANCE) {
+    return Response.json({ ok: false, reason: "Balance would exceed maximum", balance: currentBalance }, { status: 400 });
+  }
   const newBalance = currentBalance + amount;
   const createdAt = nowSec();
 
   ensureCardStateRow(sql, currentBalance);
   sql.exec(
-    `UPDATE card_state SET balance = ? WHERE singleton = 1`,
-    newBalance
+    `UPDATE card_state SET balance = balance + ? WHERE singleton = 1`,
+    amount
   );
 
-  const rows = sql.exec(
+  const balanceRows = sql.exec(
+    `SELECT balance FROM card_state WHERE singleton = 1`
+  ).toArray();
+  const actualBalance = (balanceRows[0]?.balance as number) ?? newBalance;
+
+  const txnRows = sql.exec(
     `INSERT INTO transactions (counter, amount, balance_after, created_at, note)
      VALUES (NULL, ?, ?, ?, ?)
      RETURNING id, amount, balance_after, created_at`,
     amount,
-    newBalance,
+    actualBalance,
     createdAt,
     note || null
   ).toArray();
 
-  return Response.json({ ok: true, balance: newBalance, transaction: rows[0] });
+  return Response.json({ ok: true, balance: actualBalance, transaction: txnRows[0] });
 }
 
 export function handleGetBalance(sql: SqlStorage): Response {

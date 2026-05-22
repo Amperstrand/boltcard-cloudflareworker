@@ -43,7 +43,7 @@ export function renderMenuEditorPage({ host, terminalId, menu }: { host: string;
       <div id="status" class="hidden mt-4 text-center text-sm"></div>
     </div>
 
-    ${safe('<script src="/static/js/nfc.js"></script>')}
+    
     ${safe('<script src="/static/js/menu-editor.js"></script>')}
   `,
   });

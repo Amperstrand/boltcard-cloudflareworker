@@ -182,8 +182,7 @@ describe('End-to-End Payment Flow Integration Tests', () => {
       
       const response = await handleRequest(request, mockEnv);
       
-      expect(response.status).toBe(200);
-      expect(response.headers.get('Content-Type')).toContain('text/html');
+      expect(response.status).toBe(400);
     });
 
     it('should redirect unknown page routes to /', async () => {

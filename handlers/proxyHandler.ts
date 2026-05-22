@@ -28,7 +28,15 @@ function filterHeaders(headers: Headers, allowList: string[]): Headers {
 }
 
 export async function handleProxy(request: Request, uidHex: string, pHex: string, cHex: string, baseurl: string, verification: { cmacValidated?: boolean; validationDeferred?: boolean } = {}): Promise<Response> {
-  const targetUrl = new URL(baseurl);
+  let targetUrl: URL;
+  try {
+    targetUrl = new URL(baseurl);
+  } catch {
+    return errorResponse("Invalid proxy baseurl", 400);
+  }
+  if (targetUrl.protocol !== "https:") {
+    return errorResponse("Proxy baseurl must use HTTPS", 400);
+  }
   targetUrl.searchParams.append('p', pHex);
   targetUrl.searchParams.append('c', cHex);
 
