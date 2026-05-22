@@ -98,6 +98,10 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 4. POS calls callback: `GET /boltcards/api/v1/lnurl/cb/PVALUE?k1=K1VALUE&pr=lnbc...&amount=XXXX`
 5. Handler: decrypt p, validate CMAC, record tap, `processWithdrawalPayment()` → `debitCard()`
 
+### k1=c Convention
+
+The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), not a random challenge. This is a boltcard convention: the callback includes `k1` which the server matches against the original `c` to verify the callback is for the correct card tap. See `constructWithdrawResponse()` in `handlers/withdrawHandler.ts`.
+
 ## Identity / Access Control Demo
 
 1. User taps card on `/identity` page → Web NFC reads NDEF URL → extracts p and c params
