@@ -200,7 +200,7 @@ export const NFC_GATE_JS = `// nfc-gate.js — passive NFC capture to prevent An
 (function() {
   if (!('NDEFReader' in window)) return;
   window._nfcGateAbort = null;
-  window._nfcPageHandler = false;
+  window._nfcPageHandler = !!window._nfcPageHandler;
   function startGate() {
     if (window._nfcPageHandler) return;
     if (window._nfcGateAbort) window._nfcGateAbort.abort();
@@ -211,29 +211,45 @@ export const NFC_GATE_JS = `// nfc-gate.js — passive NFC capture to prevent An
       if (ctrl.signal.aborted) return;
       ndef.onreading = function(event) {
         if (window._nfcPageHandler) return;
-        var decoder = new TextDecoder();
-        var records = event.message.records;
-        for (var i = 0; i < records.length; i++) {
-          var r = records[i];
-          var text = null;
-          if (r.recordType === 'url') {
-            text = new Response(r.data).text();
-            break;
-          }
-          if (r.recordType === 'text') {
-            text = decoder.decode(r.data);
-            break;
-          }
-        }
-        if (!text) return;
-        var resolved = text;
-        if (typeof text === 'object' && text && typeof text.then === 'function') {
-          text.then(function(url) { navigateToCardUrl(url); });
+        if (typeof extractNdefUrl === 'function') {
+          extractNdefUrl(event.message.records, ['lnurlw://', 'lnurlp://', 'https://']).then(function(url) {
+            navigateToCardUrl(url);
+          }).catch(function() {});
         } else {
-          navigateToCardUrl(text);
+          navigateToCardUrl(extractFallbackUrl(event.message.records));
         }
       };
     }).catch(function() {});
+  }
+  function bytesFromRecordData(data) {
+    if (!data) return new Uint8Array();
+    if (data instanceof DataView) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    if (data instanceof ArrayBuffer) return new Uint8Array(data);
+    if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    return new Uint8Array();
+  }
+  function decodeUriRecord(data) {
+    var bytes = bytesFromRecordData(data);
+    if (!bytes.length) return '';
+    var prefixes = ['', 'http://www.', 'https://www.', 'http://', 'https://', 'tel:', 'mailto:', 'ftp://anonymous:anonymous@', 'ftp://ftp.', 'ftps://', 'sftp://', 'smb://', 'nfs://', 'ftp://', 'dav://', 'news:', 'telnet://', 'imap:', 'rtsp://', 'urn:', 'pop:', 'sip:', 'sips:', 'tftp:', 'btspp://', 'btl2cap://', 'btgoep://', 'tcpobex://', 'irdaobex://', 'file://', 'urn:epc:id:', 'urn:epc:tag:', 'urn:epc:pat:', 'urn:epc:raw:', 'urn:epc:', 'urn:nfc:'];
+    var prefix = prefixes[bytes[0]];
+    var decoder = new TextDecoder();
+    return (prefix === undefined ? '' : prefix) + decoder.decode(bytes.slice(prefix === undefined ? 0 : 1));
+  }
+  function extractFallbackUrl(records) {
+    var decoder = new TextDecoder();
+    for (var i = 0; i < records.length; i++) {
+      var r = records[i];
+      if (r.recordType === 'url') return decodeUriRecord(r.data);
+      if (r.recordType === 'absolute-url') return r.id || decoder.decode(bytesFromRecordData(r.data));
+      if (r.recordType === 'text') {
+        var bytes = bytesFromRecordData(r.data);
+        var langLength = bytes.length ? bytes[0] & 0x3f : 0;
+        var text = bytes.length > langLength + 1 ? decoder.decode(bytes.slice(langLength + 1)) : decoder.decode(bytes);
+        if (text.indexOf('://') !== -1) return text;
+      }
+    }
+    return '';
   }
   function navigateToCardUrl(rawUrl) {
     if (!rawUrl) return;
@@ -252,7 +268,7 @@ export const NFC_GATE_JS = `// nfc-gate.js — passive NFC capture to prevent An
   }
   startGate();
 })();`;
-export const NFC_GATE_JS_HASH = "19c662710d1d";
+export const NFC_GATE_JS_HASH = "79dfa4f2cda9";
 
 export const CLIENT_ERROR_JS = `// client-error.js — reports uncaught JS errors to the server with page version info
 (function() {

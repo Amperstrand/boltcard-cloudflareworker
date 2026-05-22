@@ -1,8 +1,10 @@
 import { rawHtml, safe } from "../utils/rawTemplate.js";
+import { getDeployRevision } from "../utils/deployInfo.js";
 import { renderTailwindPage } from "./pageShell.js";
 
 export function renderIdentityPage({ host }: { host: string }): string {
   const pageTitle: string = "Boltcard Identity";
+  const deployVersion: string = encodeURIComponent(getDeployRevision());
   const emojiOptions: string[] = ["👤", "😀", "😎", "🤖", "🧠", "🚀", "🦊", "🦄", "🐸", "🦉", "⚡", "🔥"];
   const emojiButtons: string = emojiOptions.map((emoji) => `
     <button type="button" data-emoji="${emoji}" class="identity-emoji-btn h-11 w-11 rounded-xl border border-gray-700 bg-gray-950/80 text-2xl transition hover:border-pink-400/60 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-pink-500/30">
@@ -173,7 +175,7 @@ export function renderIdentityPage({ host }: { host: string }): string {
       </div>
     </div>
 
-    ${safe('<script src="/static/js/nfc.js"></script>')}${safe('<script src="/static/js/identity.js"></script>')}
+    ${safe(rawHtml`<script src="/static/js/nfc.js?v=${deployVersion}"></script>`)}${safe(rawHtml`<script src="/static/js/identity.js?v=${deployVersion}"></script>`)}
   `;
   
   return renderTailwindPage({ title: pageTitle, content, csrf: true });

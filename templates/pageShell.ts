@@ -24,6 +24,7 @@ export function renderTailwindPage({
 }: RenderTailwindPageOptions): string {
   const deployRevision = getDeployRevision();
   const jsFingerprint = getJsFingerprint();
+  const deployVersion = encodeURIComponent(deployRevision);
   return rawHtml`<!DOCTYPE html>
 <html lang="en" class="${htmlClass}">
   <head>
@@ -41,7 +42,7 @@ export function renderTailwindPage({
   </head>
   <body class="${bodyClass}">
 ${safe(content)}
-    <script src="/static/js/nfc-gate.js"></script>
+    <script src="/static/js/nfc-gate.js?v=${deployVersion}"></script>
   </body>
 </html>`;
 }
