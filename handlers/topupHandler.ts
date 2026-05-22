@@ -7,7 +7,7 @@ import { creditCard } from "../replayProtection.js";
 import { validateCardTap, type ValidateCardTapResult } from "../utils/validateCardTap.js";
 import { logger } from "../utils/logger.js";
 import { renderTopupPage } from "../templates/topupPage.js";
-import { getRequestOrigin } from "../utils/validation.js";
+import { getRequestOrigin, parsePositiveInt } from "../utils/validation.js";
 import { recordAuditEvent } from "../utils/auditLog.js";
 import { parseValidatedBody, topupBodySchema, type TopupBody } from "../utils/schemas.js";
 
@@ -23,14 +23,14 @@ export async function handleTopupApply(request: Request, env: Env, session: Sess
   if (!result.ok) return errorResponse(result.error, 400);
   const { p: pHex, c: cHex, amount } = result.data;
 
-  const parsedAmount: number = parseInt(String(amount), 10);
-  if (!Number.isInteger(parsedAmount) || parsedAmount <= 0) {
+  const parsedAmount: number | null = parsePositiveInt(amount);
+  if (!parsedAmount) {
     return errorResponse("Amount must be a positive integer", 400);
   }
 
   if (env.MAX_TOPUP_AMOUNT) {
-    const maxAmount: number = parseInt(env.MAX_TOPUP_AMOUNT, 10);
-    if (Number.isInteger(maxAmount) && parsedAmount > maxAmount) {
+    const maxAmount: number | null = parsePositiveInt(env.MAX_TOPUP_AMOUNT);
+    if (maxAmount !== null && parsedAmount > maxAmount) {
       return errorResponse(`Amount exceeds maximum of ${maxAmount}`, 400);
     }
   }

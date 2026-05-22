@@ -7,6 +7,7 @@ import { CLN_REST_PAY_PATH, PAYMENT_METHOD, UID_VALIDATION_MSG } from "../utils/
 import { recordTap, updateTapStatus, debitCard, claimTap } from "../replayProtection.js";
 import { decodeBolt11Amount } from "../utils/bolt11.js";
 import { resolveCardIdentity } from "../utils/cardAuth.js";
+import { parsePositiveInt } from "../utils/validation.js";
 
 export async function handleLnurlpPayment(request: Request, env: Env): Promise<Response> {
   try {
@@ -61,8 +62,8 @@ export async function handleLnurlpPayment(request: Request, env: Env): Promise<R
       const normalizedUidHex: string = auth.uidHex.toLowerCase();
       const counterValue: number = auth.counterValue;
 
-      const amountMsat: number | null = explicitAmount !== null ? parseInt(explicitAmount, 10) : decodeBolt11Amount(invoice!);
-      if (amountMsat !== null && amountMsat !== undefined && (isNaN(amountMsat) || amountMsat <= 0)) {
+      const amountMsat: number | null = explicitAmount !== null ? parsePositiveInt(explicitAmount) : decodeBolt11Amount(invoice!);
+      if (explicitAmount !== null && !amountMsat) {
         return jsonResponse({ status: "ERROR", reason: "Invalid amount" }, 400);
       }
 
@@ -91,7 +92,7 @@ export async function handleLnurlpPayment(request: Request, env: Env): Promise<R
         return errorResponse("Replay protection unavailable", 500);
       }
 
-      const withdrawalResponse: Response = await processWithdrawalPayment(normalizedUidHex, invoice || null, env, counterValue, explicitAmount ? parseInt(explicitAmount, 10) : undefined, auth.config);
+      const withdrawalResponse: Response = await processWithdrawalPayment(normalizedUidHex, invoice || null, env, counterValue, explicitAmount ? (parsePositiveInt(explicitAmount) ?? undefined) : undefined, auth.config);
 
       if (withdrawalResponse.status === 200 || withdrawalResponse.status === 201) {
         await updateTapStatus(env, normalizedUidHex, counterValue, "completed").catch((e: unknown) => logger.warn("Failed to update tap status to completed", { uidHex: normalizedUidHex, error: getErrorMessage(e) }));

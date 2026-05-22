@@ -7,7 +7,7 @@ import { htmlResponse, jsonResponse, errorResponse } from "../utils/responses.js
 import { debitCard, getBalance } from "../replayProtection.js";
 import { validateCardTap, type ValidateCardTapResult } from "../utils/validateCardTap.js";
 import { logger } from "../utils/logger.js";
-import { getRequestOrigin } from "../utils/validation.js";
+import { getRequestOrigin, parsePositiveInt } from "../utils/validation.js";
 import { recordAuditEvent } from "../utils/auditLog.js";
 import { parseValidatedBody, refundBodySchema, type RefundBody } from "../utils/schemas.js";
 
@@ -25,7 +25,7 @@ export async function handleRefundApply(request: Request, env: Env, session: Ses
 
   const isFullRefund: boolean = fullRefund === true;
 
-  if (!isFullRefund && (!amount || parseInt(String(amount), 10) <= 0)) {
+  if (!isFullRefund && !parsePositiveInt(amount)) {
     return errorResponse("Amount must be a positive integer for partial refund", 400);
   }
 
@@ -46,7 +46,10 @@ export async function handleRefundApply(request: Request, env: Env, session: Ses
       return jsonResponse({ success: true, amount: 0, balance: 0, note: "refund:zero" });
     }
   } else {
-    refundAmount = parseInt(String(amount), 10);
+    refundAmount = parsePositiveInt(amount) ?? 0;
+    if (refundAmount <= 0) {
+      return errorResponse("Amount must be a positive integer", 400);
+    }
   }
 
   const shiftId: string = session?.shiftId || "unknown";

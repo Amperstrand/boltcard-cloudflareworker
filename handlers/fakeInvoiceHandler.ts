@@ -7,11 +7,12 @@ import { encodeSpayd } from "../utils/fiat-rails/spayd.js";
 import { convertSatsToCurrency } from "../utils/fiat-rails/currency.js";
 import { logger, getErrorMessage } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
+import { parsePositiveInt } from "../utils/validation.js";
 
 export async function handleFakeInvoice(request: IRequest, env: Env): Promise<Response> {
   const url = new URL(request.url);
-  const amountMsat = parseInt(url.searchParams.get("amount") ?? "", 10);
-  if (!Number.isInteger(amountMsat) || amountMsat <= 0) {
+  const amountMsat: number | null = parsePositiveInt(url.searchParams.get("amount"));
+  if (!amountMsat) {
     return errorResponse("amount must be a positive integer (millisatoshis)", 400);
   }
   try {

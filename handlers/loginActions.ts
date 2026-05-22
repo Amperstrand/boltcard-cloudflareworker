@@ -3,6 +3,7 @@ import type { CardStateRow, CardConfig, OpResult } from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
 import type { Env } from "../types/core.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
+import { parsePositiveInt } from "../utils/validation.js";
 import { deriveKeysFromHex } from "../keygenerator.js";
 import { getCardState, getCardConfig, terminateCard, requestWipe, creditCard, resolveActiveVersion, resolveLatestVersion } from "../replayProtection.js";
 import { validateUid, getRequestOrigin } from "../utils/validation.js";
@@ -117,8 +118,8 @@ export async function handleTopUpAction(rawUid: string, rawAmount: unknown, env:
   const uidHex: string | null = normalizeSubmittedUid(rawUid);
   if (!uidHex) return errorResponse(UID_VALIDATION_MSG, 400);
 
-  const amount: number = parseInt(String(rawAmount), 10);
-  if (!Number.isInteger(amount) || amount <= 0) {
+  const amount: number | null = parsePositiveInt(rawAmount);
+  if (!amount) {
     return errorResponse("Amount must be a positive integer", 400);
   }
 

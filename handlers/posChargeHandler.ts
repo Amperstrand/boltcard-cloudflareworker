@@ -8,6 +8,8 @@ import { logger } from "../utils/logger.js";
 import { recordAuditEvent } from "../utils/auditLog.js";
 import { parseValidatedBody, posChargeBodySchema, type PosChargeBody } from "../utils/schemas.js";
 
+import { parsePositiveInt } from "../utils/validation.js";
+
 export async function handlePosCharge(request: Request, env: Env, session: SessionPayload): Promise<Response> {
   if (request.method !== "POST") return errorResponse("Method not allowed", 405);
   const result = await parseValidatedBody<PosChargeBody>(request, posChargeBodySchema);
@@ -16,8 +18,8 @@ export async function handlePosCharge(request: Request, env: Env, session: Sessi
 
   const terminalId: string = rawTerminalId || "unknown";
 
-  const parsedAmount: number = parseInt(String(amount), 10);
-  if (!Number.isInteger(parsedAmount) || parsedAmount <= 0) {
+  const parsedAmount: number | null = parsePositiveInt(amount);
+  if (!parsedAmount) {
     return errorResponse("Amount must be a positive integer", 400);
   }
 
