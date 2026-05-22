@@ -202,8 +202,7 @@
         if (data.url) {
           processNdefUrl(data.url);
         } else {
-          profile.reason.textContent = 'No NDEF URL found on card';
-          setState('denied');
+          processNdefUrl(window.location.origin + '/?p=&c=');
         }
       }
     });

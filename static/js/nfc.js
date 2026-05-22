@@ -60,6 +60,10 @@ async function extractNdefUrl(records, prefixes) {
       }
     }
   }
+  if (typeof window.reportClientError === 'function') {
+    var summary = records.map(function(r) { return r.recordType + ':' + (r.mediaType || ''); }).join(', ');
+    window.reportClientError(new Error('NDEF URL extraction failed: ' + summary + ' (prefixes: ' + acceptedPrefixes.join(',') + ')'), 'nfc.js:extractNdefUrl');
+  }
   return '';
 }
 

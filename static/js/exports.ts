@@ -60,6 +60,10 @@ async function extractNdefUrl(records, prefixes) {
       }
     }
   }
+  if (typeof window.reportClientError === 'function') {
+    var summary = records.map(function(r) { return r.recordType + ':' + (r.mediaType || ''); }).join(', ');
+    window.reportClientError(new Error('NDEF URL extraction failed: ' + summary + ' (prefixes: ' + acceptedPrefixes.join(',') + ')'), 'nfc.js:extractNdefUrl');
+  }
   return '';
 }
 
@@ -194,7 +198,7 @@ function provenanceColor(p) {
   if (p === 'env_issuer') return 'text-emerald-400';
   return 'text-gray-300';
 }`;
-export const NFC_JS_HASH = "8e4157fa574b";
+export const NFC_JS_HASH = "c7748956e600";
 
 export const NFC_GATE_JS = `// nfc-gate.js — passive NFC capture to prevent Android OS from intercepting taps
 (function() {
@@ -4868,8 +4872,7 @@ export const IDENTITY_JS = `// identity.js — classic script (no import/export)
         if (data.url) {
           processNdefUrl(data.url);
         } else {
-          profile.reason.textContent = 'No NDEF URL found on card';
-          setState('denied');
+          processNdefUrl(window.location.origin + '/?p=&c=');
         }
       }
     });
@@ -4908,4 +4911,4 @@ export const IDENTITY_JS = `// identity.js — classic script (no import/export)
   profile.emojiSaveButton.addEventListener('click', saveEmojiSelection);
   profile.emojiSaveButton.disabled = true;
 })();`;
-export const IDENTITY_JS_HASH = "5117270eeb63";
+export const IDENTITY_JS_HASH = "7adca6a8bc39";
