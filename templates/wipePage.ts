@@ -1,4 +1,4 @@
-import { rawHtml, safe } from "../utils/rawTemplate.js";
+import { rawHtml, safe, staticScript } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 
 export function renderWipePage({ baseUrl, resetApiUrl }: { baseUrl: string; resetApiUrl: string }): string {
@@ -116,7 +116,7 @@ export function renderWipePage({ baseUrl, resetApiUrl }: { baseUrl: string; rese
 
         </div>
 
-        <script src="/static/js/wipe.js"></script>
+        ${staticScript("wipe.js")}
 `,
   });
 }

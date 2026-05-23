@@ -1,4 +1,4 @@
-import { rawHtml, safe } from "../utils/rawTemplate.js";
+import { rawHtml, staticScript } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 
 export function renderPosPage({ host, currencyLabel }: { host: string; currencyLabel?: string }): string {
@@ -106,7 +106,7 @@ export function renderPosPage({ host, currencyLabel }: { host: string; currencyL
       </div>
     </div>
 
-    ${safe('<script src="/static/js/pos.js"></script>')}
+    ${staticScript("pos.js")}
   `,
   });
 }

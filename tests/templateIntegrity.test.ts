@@ -34,7 +34,7 @@ describe("template integrity", () => {
     for (const { name, render } of CSRF_REQUIRED) {
       test(`${name}: renders external CSRF script tag`, () => {
         const html = render();
-        expect(html).toContain('<script src="/static/js/csrf.js"></script>');
+        expect(html).toContain('/static/js/csrf.js');
       });
     }
   });

@@ -1,4 +1,4 @@
-import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
+import { rawHtml, safe, jsString, staticScript } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import type { MenuData } from "../handlers/menuHandler.js";
 
@@ -44,7 +44,7 @@ export function renderMenuEditorPage({ host, terminalId, menu }: { host: string;
     </div>
 
     
-    ${safe('<script src="/static/js/menu-editor.js"></script>')}
+    ${staticScript("menu-editor.js")}
   `,
   });
 }

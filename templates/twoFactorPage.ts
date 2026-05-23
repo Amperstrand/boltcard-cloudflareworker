@@ -1,4 +1,4 @@
-import { rawHtml, safe } from "../utils/rawTemplate.js";
+import { rawHtml, safe, staticScript } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 import { buildMaskedUid } from "../utils/validation.js";
 
@@ -68,7 +68,7 @@ export function renderTwoFactorPage({ uidHex, totp, hotp, counterValue, pHex, cH
     </div>
     </div>
 
-    <script src="/static/js/two-factor.js"></script>
+    ${staticScript("two-factor.js")}
   `;
 
   return renderTailwindPage({
@@ -146,7 +146,7 @@ export function renderTwoFactorLandingPage(baseUrl: string): string {
 
     <div id="twofa-landing-root" data-base-url="${safe(baseUrl)}"></div>
 
-    <script src="/static/js/two-factor.js"></script>
+    ${staticScript("two-factor.js")}
   `;
 
   return renderTailwindPage({

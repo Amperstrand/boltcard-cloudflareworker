@@ -1,4 +1,4 @@
-import { rawHtml, safe } from "../utils/rawTemplate.js";
+import { rawHtml, safe, staticScript } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 
 export function renderBulkWipePage({ baseUrl, keyOptionsHtml }: { baseUrl: string; keyOptionsHtml: string }): string {
@@ -107,8 +107,8 @@ export function renderBulkWipePage({ baseUrl, keyOptionsHtml }: { baseUrl: strin
           </div>
 
         </div>
-${safe('<script src="/static/js/bulk-wipe.js"></script>')}
-        <script src="/static/js/bulk-wipe.js"></script>
+${staticScript("bulk-wipe.js")}
+        ${staticScript("bulk-wipe.js")}
 `,
   });
 }

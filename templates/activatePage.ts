@@ -1,4 +1,4 @@
-import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
+import { rawHtml, safe, jsString, staticScript } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 
 export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, programUrl, resetUrl }: { apiUrl: string; programDeepLink: string; resetDeepLink: string; programUrl: string; resetUrl: string }): string {
@@ -195,9 +195,9 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
         </div>
 
         
-        ${safe('<script src="/static/js/helpers.js"></script>')}
-        ${safe('<script src="/static/js/programming.js"></script>')}
-        ${safe('<script src="/static/js/activate.js"></script>')}
+        ${staticScript("helpers.js")}
+        ${staticScript("programming.js")}
+        ${staticScript("activate.js")}
 `,
   });
 }
@@ -235,10 +235,10 @@ export function renderActivateCardPage(): string {
         </div>
       </div>
 
-    ${safe('<script src="/static/js/nfc.js"></script>')}
-    ${safe('<script src="/static/js/helpers.js"></script>')}
-    ${safe('<script src="/static/js/programming.js"></script>')}
-    ${safe('<script src="/static/js/activate.js"></script>')}
+    ${staticScript("nfc.js")}
+    ${staticScript("helpers.js")}
+    ${staticScript("programming.js")}
+    ${staticScript("activate.js")}
   `;
 
   return renderTailwindPage({ title: "BoltCard Activation", content, csrf: true });

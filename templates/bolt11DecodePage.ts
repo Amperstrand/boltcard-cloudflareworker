@@ -1,4 +1,4 @@
-import { rawHtml } from "../utils/rawTemplate.js";
+import { rawHtml, staticScript } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 
 export function renderBolt11DecodePage(): string {
@@ -28,7 +28,7 @@ export function renderBolt11DecodePage(): string {
     </div>
   </div>
 
-  <script src="/static/js/bolt11-decode.js"></script>
+  ${staticScript("bolt11-decode.js")}
   `,
   });
 }

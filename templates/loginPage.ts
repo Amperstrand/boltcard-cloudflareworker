@@ -1,4 +1,4 @@
-import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
+import { rawHtml, safe, jsString, staticScript } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 
 interface LoginPageOptions {
@@ -444,11 +444,11 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }: LoginPageO
     </div>
 
 
-    ${safe('<script src="/static/js/helpers.js"></script>')}
-    ${safe('<script src="/static/js/card-info.js"></script>')}
-    ${safe('<script src="/static/js/card-actions.js"></script>')}
-    ${safe('<script src="/static/js/programming.js"></script>')}
-    ${safe('<script src="/static/js/login.js"></script>')}
+    ${staticScript("helpers.js")}
+    ${staticScript("card-info.js")}
+    ${staticScript("card-actions.js")}
+    ${staticScript("programming.js")}
+    ${staticScript("login.js")}
 `,
   });
 }

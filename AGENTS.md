@@ -182,7 +182,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 - `redirect()` from `utils/responses.ts` for all HTTP redirects
 - `renderTailwindPage()` + `rawHtml` tagged template for all HTML pages (auto-escapes interpolations; use `safe()` for known-safe HTML, `jsString()` for JS contexts)
 - `validateCardTap()` from `utils/validateCardTap.ts` for card-tap validation in operator handlers
-- Static JS files served from `/static/js/:file` via `serveStaticJs()` from `static/js/registry.ts` — shared browser helpers (`nfc.js`, `helpers.js`, `csrf.js`) + per-page JS files; all templates load via `<script src>` tags (see `static/js/exports.ts` for content)
+- **Cache busting**: `staticScript("file.js")` from `utils/rawTemplate.ts` — all templates use it; enforced by `lint:static-script` CI check
 - `replayProtection.ts` uses generic DO facade helpers (`doCounterPost`, `doRequiredPost`, `doOptionalGet`, `doOptionalPost`, `doSafeGet`, `doOptionalVoidPost`) — avoids repetitive getStub→doPost→parseJSON
 - All NFC pages auto-start scanning on page load; `/operator/pos` auto-starts after amount is entered (debounced 1s)
 - CSRF: double-submit cookie (`op_csrf`) on operator pages; `withOperatorAuth` validates on mutating methods; test bypass via `__TEST_OPERATOR_SESSION`
@@ -234,14 +234,16 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 - Suites: `lifecycle.test.ts`, `adversarial.test.ts`, `load.test.ts`, `csrf.test.ts`, `nfc-flow.test.ts`
 
 ### Tier 3: Smoke Tests
-- Run: `npm run live:smoke` (post-deploy, ~10 HTTP requests to live worker)
-- Minimal health check — verifies deploy is alive, not a full regression suite
-- Will NOT trigger Cloudflare rate limits
+- Run: `npm run live:smoke` (post-deploy, 5 HTTP requests to live worker)
+- Minimal health check — verifies deploy is alive + cache busting on script tags
+- Checks login page and card dashboard for `?v=` on all `/static/js/` script tags
 
 ### Commands
 - Run all: `npm run test:all` (unit → DO → integration)
 - Deploy: `npm run deploy` (all tests → build_keys → wrangler deploy → live smoke test)
-- Lint: `npm run lint:innerhtml` (zero innerHTML tolerance, enforced by `scripts/check-innerhtml.js`)
+- Lint: `npm run lint` (innerHTML zero-tolerance + staticScript enforcement)
+  - `npm run lint:innerhtml` — zero innerHTML tolerance, enforced by `scripts/check-innerhtml.js`
+  - `npm run lint:static-script` — all `/static/js/` script tags must use `staticScript()`, enforced by `scripts/check-static-script.js`
 - Sync JS exports: `node scripts/sync-js-exports.mjs` (auto-regenerates `static/js/exports.ts` with SHA-256 hashes)
 
 ### Totals
@@ -256,6 +258,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 | Task | Priority | Notes |
 |------|----------|-------|
 | Dead exports cleanup | Done | Prefixed with `_`: `_deindexCard`, `_getIndexedCard`, `_listAuditEvents`, `_mergeHistory` |
+| MAX_BALANCE dedup | Done | Imported from `utils/constants.ts` in `durableObjects/cardReplay/balanceHandlers.ts` |
 | Missing handler tests | Medium | `debugHandler.ts`, `statusHandler.ts`, `posHandler.ts` lack dedicated test files (partially covered by `smoke.test.ts`, `pos.test.ts`, `e2e/pages.test.ts`) |
 | Deduplicate `VERSION_SCAN_RANGE` | Done | Already imported from `utils/constants.ts` in all consumers |
 | Extract `MAX_CANDIDATES` to constants | Done | Already `MAX_ISSUER_CANDIDATES` in `utils/constants.ts` |

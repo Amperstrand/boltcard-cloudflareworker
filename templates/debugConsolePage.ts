@@ -1,4 +1,4 @@
-import { rawHtml, safe, jsString } from "../utils/rawTemplate.js";
+import { rawHtml, safe, jsString, staticScript } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 
 export function renderDebugConsolePage({ host, baseUrl }: { host: string; baseUrl: string }): string {
@@ -178,11 +178,11 @@ export function renderDebugConsolePage({ host, baseUrl }: { host: string; baseUr
 
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   
-    ${safe('<script src="/static/js/helpers.js"></script>')}
-    ${safe('<script src="/static/js/card-info.js"></script>')}
-    ${safe('<script src="/static/js/card-actions.js"></script>')}
-    ${safe('<script src="/static/js/programming.js"></script>')}
-    ${safe('<script src="/static/js/debug.js"></script>')}
+    ${staticScript("helpers.js")}
+    ${staticScript("card-info.js")}
+    ${staticScript("card-actions.js")}
+    ${staticScript("programming.js")}
+    ${staticScript("debug.js")}
   `;
 
   return renderTailwindPage({ title: "Debug Console", content, csrf: true });

@@ -1,4 +1,5 @@
-import { SafeHtml, escapeHtml } from "./escapeHtml.js";
+import { SafeHtml, escapeHtml, safe } from "./escapeHtml.js";
+import { getDeployRevision } from "./deployInfo.js";
 
 export function rawHtml(strings: TemplateStringsArray, ...values: unknown[]): string {
   let result = "";
@@ -12,6 +13,15 @@ export function rawHtml(strings: TemplateStringsArray, ...values: unknown[]): st
     }
   }
   return result;
+}
+
+/**
+ * Generate a cache-busted `<script>` tag for a static JS asset.
+ * Usage: staticScript("helpers.js") → `<script src="/static/js/helpers.js?v=abc1234"></script>`
+ */
+export function staticScript(filename: string): SafeHtml {
+  const v = encodeURIComponent(getDeployRevision());
+  return safe(rawHtml`<script src="/static/js/${filename}?v=${v}"></script>`);
 }
 
 export { escapeHtml, SafeHtml, safe, jsString } from "./escapeHtml.js";

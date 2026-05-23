@@ -4,6 +4,9 @@
 //
 // Purpose: prevent new XSS-unsafe innerHTML assignments from creeping into
 // browser JS files. The current count is the baseline; any increase fails CI.
+//
+// Auto-discovers ALL .js files in static/js/ — no manual enumeration needed.
+// New files are automatically audited with a baseline of 0.
 
 import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
@@ -12,6 +15,7 @@ const STATIC_JS_DIR = join(import.meta.dirname, "..", "static", "js");
 
 // Baseline: maximum allowed innerHTML occurrences per file.
 // If you intentionally add a new innerHTML, update this map.
+// Files NOT listed here default to baseline 0 (auto-caught).
 const BASELINE = {
   "bolt11-decode.js": 0,
   "menu-editor.js": 0,
@@ -24,6 +28,18 @@ const BASELINE = {
   "identity.js": 0,
   "wipe.js": 0,
   "pos.js": 0,
+  "activate.js": 0,
+  "analytics.js": 0,
+  "card-actions.js": 0,
+  "card-info.js": 0,
+  "client-error.js": 0,
+  "csrf.js": 0,
+  "nfc.js": 0,
+  "nfc-gate.js": 0,
+  "programming.js": 0,
+  "refund.js": 0,
+  "topup.js": 0,
+  "two-factor.js": 0,
 };
 
 const files = readdirSync(STATIC_JS_DIR).filter((f) => f.endsWith(".js"));

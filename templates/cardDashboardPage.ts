@@ -1,4 +1,4 @@
-import { rawHtml, safe } from "../utils/rawTemplate.js";
+import { rawHtml, staticScript } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 
 export function renderCardDashboardPage(): string {
@@ -163,9 +163,9 @@ export function renderCardDashboardPage(): string {
   </main>
 
 
-  ${safe('<script src="/static/js/helpers.js"></script>')}
-  ${safe('<script src="/static/js/card-info.js"></script>')}
-  ${safe('<script src="/static/js/card-dashboard.js"></script>')}
+  ${staticScript("helpers.js")}
+  ${staticScript("card-info.js")}
+  ${staticScript("card-dashboard.js")}
   `;
 
   return renderTailwindPage({

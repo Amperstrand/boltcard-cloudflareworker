@@ -1,4 +1,4 @@
-import { rawHtml, safe } from "../utils/rawTemplate.js";
+import { rawHtml, staticScript } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 
 export function renderTopupPage({ host, currencyLabel }: { host: string; currencyLabel?: string }): string {
@@ -73,7 +73,7 @@ export function renderTopupPage({ host, currencyLabel }: { host: string; currenc
       <button id="logout-btn" type="button" class="text-xs text-gray-600 hover:text-gray-400 transition-colors">LOGOUT</button>
     </div>
 
-    ${safe('<script src="/static/js/topup.js"></script>')}
+    ${staticScript("topup.js")}
   `,
   });
 }

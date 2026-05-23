@@ -1,4 +1,4 @@
-import { rawHtml, safe } from "../utils/rawTemplate.js";
+import { rawHtml, staticScript } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
 
 export function renderAnalyticsPage(): string {
@@ -96,7 +96,7 @@ export function renderAnalyticsPage(): string {
     </p>
   </div>
 
-  ${safe('<script src="/static/js/analytics.js"></script>')}
+  ${staticScript("analytics.js")}
 </div>`,
   });
 }

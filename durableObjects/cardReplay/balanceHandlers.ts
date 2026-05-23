@@ -1,7 +1,6 @@
 import type { CreditPayload, DebitPayload } from "./types.js";
 import { nowSec } from "./types.js";
-
-const MAX_BALANCE = 2147483647;
+import { MAX_BALANCE } from "../../utils/constants.js";
 
 export async function handleDebit(sql: SqlStorage, request: Request): Promise<Response> {
   const { counter, amount, note } = await request.json() as DebitPayload;

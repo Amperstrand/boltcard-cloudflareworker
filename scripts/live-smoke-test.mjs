@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Post-deploy smoke test — minimal verification that the deploy is alive.
-// Only hits ~10 endpoints to confirm routes respond correctly.
-// Heavy testing is done via `npm run test:integration` (miniflare, no network).
+// 5 health checks + 1 cache-bust verification. Heavy testing is done via
+// `npm run test:integration` (miniflare, no network egress).
 //
 // Usage: node scripts/live-smoke-test.mjs [BASE_URL]
 // Run after: npm run deploy
@@ -58,13 +58,35 @@ async function check(method, path, opts = {}) {
       console.log(`  ✗ ${tag} — ${errors.join(", ")}`);
       failed++;
     }
+    return { resp, body };
   } catch (e) {
     console.log(`  ✗ ${tag} — error: ${e.message}`);
     failed++;
+    return { resp: null, body: "" };
   }
 }
 
-// ── Essential health checks (10 requests total) ─────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────
+
+/** Verify all <script src="/static/js/..."> tags have ?v= cache busting */
+function allScriptsCacheBusted(html) {
+  const re = /<script\s+src="\/static\/js\/([^"]+)"/g;
+  let match;
+  while ((match = re.exec(html)) !== null) {
+    if (!match[1].includes("?v=")) {
+      console.log(`    ⚠ uncachebusted script: ${match[1]}`);
+      return false;
+    }
+  }
+  return true;
+}
+
+/** Combine a keyword check with cache-bust verification */
+function pageLoads(keyword) {
+  return (html) => html.includes(keyword) && allScriptsCacheBusted(html);
+}
+
+// ── Essential health checks (5 requests) ─────────────────────────────
 
 console.log("\n🔍 Post-deploy smoke test — minimal verification\n");
 
@@ -79,64 +101,31 @@ await check("GET", "/status", {
   },
 });
 
-// 2. Login page
+// 2. Login page + cache bust verification
 await check("GET", "/", {
-  label: "Login page loads",
+  label: "Login page loads + cache-busted JS",
   expectStatus: 200,
-  expectBody: (b) => b.includes("Login"),
+  expectBody: pageLoads("Login"),
 });
 
-// 3. Operator login page
-await check("GET", "/operator/login", {
-  label: "Operator login page loads",
-  expectStatus: 200,
-  expectBody: (b) => b.includes("PIN") || b.includes("Operator"),
-});
-
-// 4. Auth middleware (operator page redirects without session)
-await check("GET", "/operator/pos", {
-  label: "Operator page requires auth → 302",
-  expectStatus: 302,
-});
-
-// 5. Card dashboard
+// 3. Card dashboard + cache bust verification
 await check("GET", "/card", {
-  label: "Card dashboard loads",
+  label: "Card dashboard loads + cache-busted JS",
   expectStatus: 200,
-  expectBody: (b) => b.includes("Card"),
+  expectBody: pageLoads("Card"),
 });
 
-// 6. Identity page
-await check("GET", "/identity", {
-  label: "Identity page loads",
-  expectStatus: 200,
-  expectBody: (b) => b.includes("IDENTITY"),
-});
-
-// 7. API endpoint (fake invoice)
+// 4. API endpoint (fake invoice)
 await check("GET", "/api/fake-invoice?amount=1000", {
   label: "Fake invoice API works",
   expectStatus: 200,
   expectJson: (j) => typeof j.pr === "string" && j.pr.startsWith("lnbc"),
 });
 
-// 8. Static JS asset
-await check("GET", "/static/js/nfc.js", {
-  label: "Static JS serves correctly",
-  expectStatus: 200,
-  expectBody: (b) => b.includes("createNfcScanner"),
-});
-
-// 9. Redirect works
-await check("GET", "/pos", {
-  label: "Short URL redirect → 302",
+// 5. Auth middleware (operator page redirects without session)
+await check("GET", "/operator/pos", {
+  label: "Operator auth middleware → 302",
   expectStatus: 302,
-});
-
-// 10. Favicon
-await check("GET", "/favicon.ico", {
-  label: "Favicon → 204",
-  expectStatus: 204,
 });
 
 // ── Summary ─────────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import type { IRequest } from "itty-router";
 import type { Env } from "../types/core.js";
 import { getDeployRevision, getJsFingerprint } from "../utils/deployInfo.js";
-import { rawHtml, safe } from "../utils/rawTemplate.js";
+import { rawHtml, safe, staticScript } from "../utils/rawTemplate.js";
 
 export function handleTestErrorPage(request: IRequest, _env: Env): Response {
   const url = new URL(request.url);
@@ -56,7 +56,7 @@ function renderTailwindTestErrorPage(origin: string, revision: string, jsFingerp
   <meta name="deploy-revision" content="${revision}" />
   <meta name="js-fingerprint" content="${jsFingerprint}" />
   <title>Error Reporting Smoke Test</title>
-  <script src="/static/js/client-error.js"></script>
+  ${staticScript("client-error.js")}
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>

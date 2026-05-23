@@ -61,7 +61,7 @@ describe("E2E: Page rendering", () => {
       const env = makePageEnv();
       const resp = await req("/debug", "GET", null, env);
       const html = await resp.text();
-      expect(html).toContain('<script src="/static/js/debug.js"></script>');
+      expect(html).toContain('/static/js/debug.js');
     });
   });
 
