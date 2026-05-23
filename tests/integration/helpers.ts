@@ -92,7 +92,7 @@ export async function apiFetch(path: string, options: FetchOptions = {}): Promis
     const m = sc.match(/op_session=([^;]+)/);
     if (m) sessionCookie = `op_session=${m[1]}`;
     const cs = sc.match(/op_csrf=([^;]+)/);
-    if (cs) csrfToken = cs[1];
+    if (cs && cs[1]) csrfToken = cs[1];
   }
 
   return resp;
