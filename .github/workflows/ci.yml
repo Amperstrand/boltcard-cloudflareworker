@@ -20,6 +20,7 @@ jobs:
       - run: npm run lint:innerhtml
       - run: npm test
       - run: npm run test:do
+      - run: npm run test:integration
 
   smoke:
     needs: test
