@@ -25,13 +25,13 @@
     "prebuild": "node scripts/build_keys.js",
     "test": "vitest run",
     "test:do": "vitest run --config vitest.do.config.js",
-    "test:all": "npm test && npm run test:do",
+    "test:integration": "vitest run --config vitest.integration.config.js",
+    "test:all": "npm test && npm run test:do && npm run test:integration",
     "typecheck": "tsc --noEmit",
     "typecheck:src": "tsc --noEmit --project tsconfig.build.json",
     "lint:innerhtml": "node scripts/check-innerhtml.js",
-    "live:test": "node scripts/live-adversarial-test.mjs",
     "live:smoke": "node scripts/live-smoke-test.mjs",
     "cf-typegen": "wrangler types",
-    "deploy": "npm test && npm run test:do && npm run typecheck && npm run lint:innerhtml && node scripts/build_keys.js && wrangler deploy && npm run live:smoke"
+    "deploy": "npm test && npm run test:do && npm run test:integration && npm run typecheck && npm run lint:innerhtml && node scripts/build_keys.js && wrangler deploy && npm run live:smoke"
   }
 }
