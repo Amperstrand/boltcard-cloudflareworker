@@ -215,15 +215,37 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 - Never commit without explicit user request
 - Keep `aes-js` — do not switch to `node:crypto`-dependent libraries
 
-## Test Baseline
+## Test Baseline — 3-Tier Architecture
 
-- Run: `npm test` (Vitest, node environment)
-- Run DO tests: `npm run test:do` (Vitest, `@cloudflare/vitest-pool-workers` with real SQLite)
-- Run all: `npm run test:all`
-- Deploy: `npm run deploy` (unit tests → DO tests → build_keys → wrangler deploy → live smoke test)
+### Tier 1: Unit Tests
+- Run: `npm test` (Vitest, node environment, mock DO)
+- Fast, isolated, no network — tests individual functions and handlers with mocked storage
+
+### Tier 2a: DO Integration Tests
+- Run: `npm run test:do` (Vitest, `@cloudflare/vitest-pool-workers` with real SQLite)
+- Tests Durable Object logic directly with real SQLite storage
+
+### Tier 2b: Integration Tests (NEW)
+- Run: `npm run test:integration` (Vitest, `@cloudflare/vitest-pool-workers`, full Worker pipeline)
+- Config: `vitest.integration.config.js` with `cloudflareTest` plugin
+- Uses `exports.default.fetch()` from `cloudflare:workers` — runs full router → handlers → DO → KV pipeline in-process via miniflare
+- Zero network egress — all storage is in-memory KV + real SQLite DO
+- Helpers: `tests/integration/helpers.ts` — `apiFetch()`, `operatorLogin()`, `provisionCard()`, `topUp()`, `posCharge()`, `cardTap()`, `virtualTap()`, `fakeInvoice()`, etc.
+- Suites: `lifecycle.test.ts`, `adversarial.test.ts`, `load.test.ts`, `csrf.test.ts`, `nfc-flow.test.ts`
+
+### Tier 3: Smoke Tests
+- Run: `npm run live:smoke` (post-deploy, ~10 HTTP requests to live worker)
+- Minimal health check — verifies deploy is alive, not a full regression suite
+- Will NOT trigger Cloudflare rate limits
+
+### Commands
+- Run all: `npm run test:all` (unit → DO → integration)
+- Deploy: `npm run deploy` (all tests → build_keys → wrangler deploy → live smoke test)
 - Lint: `npm run lint:innerhtml` (zero innerHTML tolerance, enforced by `scripts/check-innerhtml.js`)
 - Sync JS exports: `node scripts/sync-js-exports.mjs` (auto-regenerates `static/js/exports.ts` with SHA-256 hashes)
-- **1377 unit tests** across 76 test suites + **52 DO integration tests** = 1429 total
+
+### Totals
+- **1378 unit tests** across 76 test suites + **52 DO integration tests** + **72 integration tests** across 5 suites = **1502 total**
 - TypeScript: `tsc --noEmit` passes with `strict: true`, 0 errors (source + tests)
 - Source `: any` count: 0; source `as any` count: 0; `// @ts-nocheck` only in `tests/do/cardReplayDO.real.test.ts` and `tests/testHelpers.ts`
 

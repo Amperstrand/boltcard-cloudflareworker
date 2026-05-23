@@ -292,7 +292,7 @@ To submit keys for a service, add a CSV file to `keys/` and run `node scripts/bu
 ```bash
 git clone <repository-url> && cd boltcard-cloudflareworker
 npm install
-npm test          # Run 1343 unit tests
+npm test          # Run 1378 unit tests
 npm run test:all  # Run all tests (unit + DO integration)
 npm run deploy    # tests → build_keys → wrangler deploy
 ```
@@ -311,15 +311,15 @@ See [docs/VENUE-DEPLOYMENT.md](docs/VENUE-DEPLOYMENT.md) for the full guide.
 ## Testing
 
 ```bash
-npm test                              # 1343 unit tests (Vitest, node env)
+npm test                              # 1378 unit tests (Vitest, node env)
 npm run test:do                       # 52 DO integration tests (real SQLite)
-npm run test:all                      # Both
+npm run test:integration              # 72 integration tests (full Worker pipeline)
+npm run test:all                      # All three tiers
 npm test -- --testNamePattern="pos"   # Run specific tests
 npm test -- --watch                   # Watch mode
 npm run deploy                        # tests → build_keys → wrangler deploy
-```
 
-**1395 tests** across 73 suites (1343 unit + 52 DO integration).
+**1502 tests** across 82 suites (1378 unit + 52 DO integration + 72 integration).
 
 ### Test Infrastructure
 
@@ -436,13 +436,20 @@ npm run deploy                        # tests → build_keys → wrangler deploy
 │       ├── configHandlers.ts    # K2/payment method config
 │       ├── balanceHandlers.ts   # Balance + transaction ledger
 │       └── types.ts             # DO payload/row types
-├── tests/                       # 1395 tests across 73 suites
+├── tests/                       # 1502 tests across 82 suites
 │   ├── testHelpers.ts           # virtualTap, buildCardTestEnv, TEST_OPERATOR_AUTH
 │   ├── replayNamespace.ts       # In-memory DO mock with balance enforcement
 │   ├── adversarial.test.ts      # 42 adversarial tests
 │   ├── e2e/                     # End-to-end tests
 │   │   ├── virtual-card.test.ts # Full NFC lifecycle
 │   │   └── pages.test.ts        # Page rendering + security headers
+│   ├── integration/             # Integration tests (full Worker pipeline, miniflare)
+│   │   ├── helpers.ts           # apiFetch, operatorLogin, provisionCard, etc.
+│   │   ├── lifecycle.test.ts    # Card state machine transitions
+│   │   ├── adversarial.test.ts  # Replay, double-spend, overdraft, wrong CMAC
+│   │   ├── load.test.ts         # Concurrent POS charges, LNURL callbacks
+│   │   ├── csrf.test.ts         # CSRF protection, auth, batch operations
+│   │   └── nfc-flow.test.ts     # Full NFC flow simulation, card discovery
 │   └── do/                      # DO integration tests (real SQLite)
 │       └── cardReplayDO.real.test.ts # 52 tests via @cloudflare/vitest-pool-workers
 ├── keys/                        # Key recovery CSV files
