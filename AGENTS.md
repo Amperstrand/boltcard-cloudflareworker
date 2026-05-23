@@ -5,6 +5,7 @@
 - **Runtime**: Cloudflare Workers (no Node.js APIs)
 - **Routing**: itty-router v5
 - **Storage**: KV for UID config; Durable Objects (SQLite-backed) for replay protection + balance + card state
+- **DO concurrency**: Each card maps to a unique Durable Object instance (keyed by UID). DOs are **single-threaded** — requests to the same card are processed sequentially. There are NO race conditions within a single card DO. Do not flag "concurrent callback" issues — they cannot happen in production.
 - **Crypto**: `aes-js` for AES-ECB/CMAC, `@noble/secp256k1` + `@scure/base` + `@noble/hashes` for bolt11
 - **Key derivation**: deterministic from UID + ISSUER_KEY via `keygenerator.ts`
 
@@ -272,6 +273,7 @@ The following exports are prefixed with `_` and only used in tests:
 
 ## Security
 
+- **TypeScript strict mode**: `strict: true` enforced; source `: any` = 0; source `as any` = 0; `@ts-ignore`/`@ts-expect-error` = 0. Maximum compile-time type safety achieved.
 - Security headers applied to all responses via `withSecurityHeaders()` in `index.ts`: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Content-Security-Policy`
 - All error responses sanitized — internal error details logged server-side, generic `"Internal error"` returned to client
 - `POST /login` privileged actions (top-up, terminate, request-wipe) require operator session auth

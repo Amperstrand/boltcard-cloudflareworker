@@ -19,3 +19,4 @@ log.txt
 
 # Playwright MCP state
 .playwright-mcp/
+test-results/

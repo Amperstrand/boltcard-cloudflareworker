@@ -142,7 +142,7 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     expect(loginJson.tapHistory[1].status).toBe("payment");
   });
 
-  test("stale counter callback continues while replay enforcement is disabled", async () => {
+  test("stale counter callback is rejected with 409 to prevent double-debit", async () => {
     const k1Hex = env.BOLT_CARD_K1!.split(",")[0]!;
     const { pHex, cHex } = virtualTap(UID, 1, k1Hex, keys.k2);
 
@@ -157,14 +157,14 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     expect([200, 400]).toContain(first.status);
     expect(env.CARD_REPLAY.__counters.get(UID)).toBe(1);
 
-    // Second callback with same counter continues in temporary testing mode.
+    // Second callback with same counter is rejected to prevent double-debit.
     const replay = await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}&pr=lnbc10n1test`,
       "GET",
       null,
       env
     );
-    expect(replay.status).toBe(200);
+    expect(replay.status).toBe(409);
   });
 
   test("incrementing counter works after previous callback", async () => {

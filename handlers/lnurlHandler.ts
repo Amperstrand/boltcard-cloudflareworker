@@ -80,11 +80,12 @@ export async function handleLnurlpPayment(request: Request, env: Env): Promise<R
             amountMsat: amountMsat ?? undefined,
           });
           if (!claim.claimed) {
-            logger.warn("Callback replay detected — continuing because replay enforcement is disabled", {
+            logger.warn("Callback replay detected — rejecting duplicate callback", {
               uidHex: normalizedUidHex,
               counterValue,
               reason: claim.reason,
             });
+            return jsonResponse({ status: "ERROR", reason: claim.reason || "Tap already claimed" }, 409);
           }
         }
       } catch (error: unknown) {

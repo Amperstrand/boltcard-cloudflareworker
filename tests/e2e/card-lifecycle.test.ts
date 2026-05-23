@@ -64,7 +64,7 @@ describe("Virtual Card — Full Lifecycle Scenarios", () => {
       expect(await card.getBalance()).toBe(100000 - 7000);
     });
 
-    test("replay attack continues while replay enforcement is disabled", async () => {
+    test("replay attack is rejected with 409 to prevent double-debit", async () => {
       const { pHex, cHex } = card.tap(1);
       const tap1 = await card.request(`/?p=${pHex}&c=${cHex}`);
       expect(tap1.status).toBe(200);
@@ -76,7 +76,7 @@ describe("Virtual Card — Full Lifecycle Scenarios", () => {
       expect(tapReplay.status).toBe(200);
 
       const cbReplay = await card.callback(pHex, cHex, "lnbc10n1test", "10000");
-      expect(cbReplay.status).toBe(200);
+      expect(cbReplay.status).toBe(409);
     });
 
     test("rapid sequential payments", async () => {

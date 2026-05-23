@@ -5,6 +5,7 @@
   "private": true,
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.15.0",
+    "@playwright/test": "^1.60.0",
     "better-sqlite3": "12.9.0",
     "fast-check": "^4.7.0",
     "miniflare": "4.20260116.0",

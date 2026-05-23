@@ -134,7 +134,7 @@ describe("Adversarial: Duplicate Callbacks", () => {
     keys = getDeterministicKeys(UID, env, 1);
   });
 
-  it("allows second callback with same counter and same bolt11 while replay enforcement is disabled", async () => {
+  it("rejects second callback with same counter and same bolt11 to prevent double-debit", async () => {
     const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1testinvoice" });
@@ -143,10 +143,10 @@ describe("Adversarial: Duplicate Callbacks", () => {
     expect(first.status).toBe(200);
 
     const second = await handleLnurlpPayment(new Request("https://test.local" + url), env);
-    expect(second.status).toBe(200);
+    expect(second.status).toBe(409);
   });
 
-  it("allows second callback with same counter but different bolt11 while replay enforcement is disabled", async () => {
+  it("rejects second callback with same counter but different bolt11 to prevent double-debit", async () => {
     const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url1 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1first" });
@@ -156,10 +156,10 @@ describe("Adversarial: Duplicate Callbacks", () => {
     expect(first.status).toBe(200);
 
     const second = await handleLnurlpPayment(new Request("https://test.local" + url2), env);
-    expect(second.status).toBe(200);
+    expect(second.status).toBe(409);
   });
 
-  it("allows callback-only replay while replay enforcement is disabled", async () => {
+  it("rejects callback-only replay to prevent double-debit", async () => {
     const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1test" });
@@ -168,10 +168,10 @@ describe("Adversarial: Duplicate Callbacks", () => {
     expect(first.status).toBe(200);
 
     const replay = await handleLnurlpPayment(new Request("https://test.local" + url), env);
-    expect(replay.status).toBe(200);
+    expect(replay.status).toBe(409);
   });
 
-  it("permits double callback processing while replay enforcement is disabled", async () => {
+  it("prevents double callback processing — second callback rejected with 409", async () => {
     const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
     const cHex = computeRealC(UID, ctrHex, keys.k2);
     const url1 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1first" });
@@ -183,10 +183,10 @@ describe("Adversarial: Duplicate Callbacks", () => {
     const balBefore = await getBalance(env, UID);
 
     const second = await handleLnurlpPayment(new Request("https://test.local" + url2), env);
-    expect(second.status).toBe(200);
+    expect(second.status).toBe(409);
 
     const balAfter = await getBalance(env, UID);
-    expect(balAfter.balance).toBeLessThan(balBefore.balance);
+    expect(balAfter.balance).toBe(balBefore.balance);
   });
 });
 
