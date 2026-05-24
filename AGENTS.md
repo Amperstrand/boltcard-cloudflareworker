@@ -247,7 +247,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 - Sync JS exports: `node scripts/sync-js-exports.mjs` (auto-regenerates `static/js/exports.ts` with SHA-256 hashes)
 
 ### Totals
-- **1378 unit tests** across 76 test suites + **52 DO integration tests** + **72 integration tests** across 5 suites = **1502 total**
+- **1471 unit tests** across 80 test suites + **52 DO integration tests** + **72 integration tests** across 5 suites = **1595 total**
 - TypeScript: `tsc --noEmit` passes with `strict: true`, 0 errors (source + tests)
 - Source `: any` count: 0; source `as any` count: 0; `// @ts-nocheck` only in `tests/do/cardReplayDO.real.test.ts` and `tests/testHelpers.ts`
 

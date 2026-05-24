@@ -16,6 +16,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: node scripts/sync-js-exports.mjs
       - run: npm run typecheck
       - run: npm run lint
       - run: npm audit --audit-level=high
