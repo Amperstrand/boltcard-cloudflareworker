@@ -1,6 +1,6 @@
 import { logger } from "./utils/logger.js";
 import { getErrorMessage } from "./utils/logger.js";
-import type { Env, CardStateRow, CardConfig, CounterCheckResult, TapRecordResult, ListTapsResult, ClaimTapResult, AnalyticsResult, BalanceResult, ListTransactionsResult, DiscoverResult, MarkPendingResult, OpResult } from "./types/core.js";
+import type { Env, CardStateRow, CardConfig, CounterCheckResult, TapRecordResult, ListTapsResult, ClaimTapResult, AnalyticsResult, BalanceResult, ListTransactionsResult, DiscoverResult, MarkPendingResult, OpResult, VoidResult } from "./types/core.js";
 import type { DoPostRoutes, DoGetRoutes, DoRequestBody, DoResponseBody, PathWithOptionalQuery } from "./durableObjects/cardReplay/routes.js";
 import { DEFAULT_TAP_LIMIT, DEFAULT_TXN_LIMIT, CARD_STATE } from "./utils/constants.js";
 import { indexCard } from "./utils/cardIndex.js";
@@ -203,6 +203,10 @@ export async function debitCard(env: Env, uidHex: string, counter: number, amoun
 
 export async function creditCard(env: Env, uidHex: string, amount: number, note: string): Promise<OpResult> {
   return doOptionalPost(env, uidHex, "/credit", { amount, note }, { ok: false, reason: "DO not available" });
+}
+
+export async function voidTransaction(env: Env, uidHex: string, transactionId: number): Promise<VoidResult> {
+  return doOptionalPost(env, uidHex, "/void", { transactionId }, { ok: false, reason: "DO not available" });
 }
 
 export async function getBalance(env: Env, uidHex: string): Promise<BalanceResult> {

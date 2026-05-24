@@ -160,6 +160,11 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 | POST | `/operator/topup/apply` | `handleTopupApply()` | Top-up submit |
 | GET | `/operator/refund` | `handleRefundPage()` | Card refund page |
 | POST | `/operator/refund/apply` | `handleRefundApply()` | Refund submit |
+| GET | `/operator/reconciliation` | `handleReconciliationPage()` | Reconciliation dashboard |
+| GET | `/operator/reconciliation/data` | `handleReconciliationData()` | Reconciliation data (JSON) |
+| GET | `/operator/void` | `handleVoidPage()` | Void transaction page |
+| POST | `/operator/void/apply` | `handleVoidApply()` | Void transaction submit |
+| GET | `/operator/void/transactions` | `handleVoidTransactions()` | Card charge transactions (JSON) |
 | GET | `/experimental/nfc` | redirect → `/debug#console` | Redirects to unified console |
 | GET | `/experimental/activate` | `handleActivatePage()` | Card programming + activation |
 | GET | `/experimental/activate/form` | `handleActivateForm()` | Activation form page |
@@ -204,7 +209,9 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 - DO `/set-k2` endpoint for targeted K2-only update (preserves existing `payment_method` and `config_json`); called via `setCardK2()` during card discovery
 - `indexCard()`, `deindexCard()`, `getIndexedCard()`, `listIndexedCards()`, `repairCardIndex()` from `utils/cardIndex.ts` for KV-backed card registry (prefix `card_idx:`, TTL 7 days)
 - `replayProtection.ts` calls `await indexCard()` on all 6 state transitions: `markPending`, `discoverCard`, `deliverKeys`, `activateCard`, `terminateCard`, `requestWipe`
-- `recordAuditEvent()` from `utils/auditLog.ts` for persistent operator action log (prefix `audit_log:`, TTL 90 days). Called from topup, refund, POS charge, batch operations.
+- `recordAuditEvent()` from `utils/auditLog.ts` for persistent operator action log (prefix `audit_log:`, TTL 90 days). Called from topup, refund, POS charge, void, batch operations. Also updates shift summaries via `updateShiftSummary()`.
+- `updateShiftSummary()` / `getShiftSummary()` / `listShiftSummaries()` from `utils/shiftSummary.ts` for KV-backed per-shift financial totals (prefix `shift:`, TTL 90 days). Aggregated by reconciliation dashboard.
+- `voidTransaction()` from `replayProtection.ts` for voiding POS charges (credits back debit amount, marks original `voided_at`).
 - `getCardProgrammingEndpoint()` from `handlers/loginActions.ts` for card config → pull payment → programming endpoint lookup (shared by 4 call sites)
 - `safeGetBalance()` exported from `replayProtection.ts` — graceful balance fetch fallback (used by `loginHandler.ts` and `cardDashboardHandler.ts`)
 - `durableObjects/CardReplayDO.ts` is a thin Durable Object shell/dispatcher; SQL schema and route handlers live under `durableObjects/cardReplay/` grouped by responsibility (schema, tap/replay, card state, config, balance/transactions)

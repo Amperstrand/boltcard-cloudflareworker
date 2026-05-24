@@ -2,6 +2,7 @@ import { logger } from "./logger.js";
 import { getErrorMessage } from "../utils/logger.js";
 import type { Env } from "../types/core.js";
 import { AUDIT_LOG_TTL, AUDIT_LIST_DEFAULT_LIMIT } from "./constants.js";
+import { updateShiftSummary } from "./shiftSummary.js";
 
 const AUDIT_PREFIX = "audit_log:";
 
@@ -33,6 +34,11 @@ export async function recordAuditEvent(env: Env | undefined, { action, uidHex, o
       JSON.stringify(entry),
       { expirationTtl: AUDIT_LOG_TTL }
     );
+
+    const amount = typeof details.amount === 'number' ? details.amount : 0;
+    if (amount > 0 && operatorShiftId) {
+      await updateShiftSummary(env, operatorShiftId, action, amount);
+    }
   } catch (e: unknown) {
     logger.warn("Failed to record audit event", { action, uidHex, error: getErrorMessage(e) });
   }

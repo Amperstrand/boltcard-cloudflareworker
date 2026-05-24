@@ -22,6 +22,7 @@ import type {
   DiscoverResult,
   MarkPendingResult,
   OpResult,
+  VoidResult,
 } from "../../types/core.js";
 
 // ---------------------------------------------------------------------------
@@ -102,6 +103,11 @@ export interface CreditReq {
   note: string;
 }
 
+/** POST /void */
+export interface VoidReq {
+  transactionId: number;
+}
+
 /** No body expected (e.g. /deliver-keys, /terminate, /request-wipe, /reset) */
 export type EmptyReq = Record<string, never>;
 
@@ -151,6 +157,7 @@ export interface DoRouteMap {
   "/set-k2":            { method: "POST"; req: SetK2Req;         res: SimpleOkRes };
   "/debit":             { method: "POST"; req: DebitReq;         res: OpResult };
   "/credit":            { method: "POST"; req: CreditReq;        res: OpResult };
+  "/void":              { method: "POST"; req: VoidReq;          res: VoidResult };
   "/balance":           { method: "GET";  req: void;             res: BalanceResult };
   "/transactions":      { method: "GET";  req: void;             res: ListTransactionsResult };
   "/reset":             { method: "POST"; req: EmptyReq;         res: ResetRes };

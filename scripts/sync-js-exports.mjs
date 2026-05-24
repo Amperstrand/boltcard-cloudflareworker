@@ -37,6 +37,7 @@ const FILE_ORDER = [
   "pos.js",
   "topup.js",
   "refund.js",
+  "void.js",
   "identity.js",
 ];
 

@@ -76,6 +76,7 @@ export interface Transaction {
   balance_after: number;
   created_at: number;
   note: string | null;
+  voided_at?: number | null;
 }
 
 export interface OpResult {
@@ -85,6 +86,14 @@ export interface OpResult {
   transaction?: Transaction;
   counter?: number;
   state?: CardStateValue;
+}
+
+export interface VoidResult {
+  ok: boolean;
+  reason?: string;
+  balance?: number;
+  voidedTransaction?: { id: number; amount: number; balance_after: number; note: string | null };
+  newTransaction?: { id: number; amount: number; balance_after: number; created_at: number };
 }
 
 export interface CounterCheckResult {

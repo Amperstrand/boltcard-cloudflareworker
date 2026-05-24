@@ -10,6 +10,7 @@ export const MAX_ISSUER_CANDIDATES = 50;
 export const KV_LIST_LIMIT = 100;
 export const CARD_INDEX_TTL = 7 * 24 * 60 * 60;
 export const AUDIT_LOG_TTL = 90 * 24 * 60 * 60;
+export const SHIFT_SUMMARY_TTL = 90 * 24 * 60 * 60; // 90 days
 export const CARD_AUDIT_DEFAULT_LIMIT = 50;
 export const CARD_AUDIT_MAX_LIMIT = 500;
 export const AUDIT_LIST_DEFAULT_LIMIT = 50;

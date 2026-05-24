@@ -34,6 +34,12 @@ export const refundBodySchema = v.object({
   fullRefund: v.optional(v.boolean()),
 });
 
+export const voidBodySchema = v.object({
+  p: v.string(),
+  c: v.string(),
+  transactionId: v.union([v.string(), v.number()]),
+});
+
 export const cardLockBodySchema = v.object({
   p: v.string(),
   c: v.string(),
@@ -94,6 +100,7 @@ export type CardTapBody = v.InferOutput<typeof cardTapBodySchema>;
 export type PosChargeBody = v.InferOutput<typeof posChargeBodySchema>;
 export type TopupBody = v.InferOutput<typeof topupBodySchema>;
 export type RefundBody = v.InferOutput<typeof refundBodySchema>;
+export type VoidBody = v.InferOutput<typeof voidBodySchema>;
 export type BatchActionBody = v.InferOutput<typeof batchActionSchema>;
 export type MenuUpdateBody = v.InferOutput<typeof menuUpdateSchema>;
 export type ActivateCardBody = v.InferOutput<typeof activateCardBodySchema>;

@@ -73,6 +73,58 @@ export async function handleCredit(sql: SqlStorage, request: Request): Promise<R
   return Response.json({ ok: true, balance: actualBalance, transaction: txnRows[0] });
 }
 
+export async function handleVoid(sql: SqlStorage, request: Request): Promise<Response> {
+  const { transactionId } = await request.json() as { transactionId: number };
+
+  const rows = sql.exec(
+    `SELECT id, amount, balance_after, voided_at, note FROM transactions WHERE id = ?`,
+    transactionId
+  ).toArray();
+
+  if (rows.length === 0) {
+    return Response.json({ ok: false, reason: "Transaction not found" }, { status: 404 });
+  }
+
+  const txn = rows[0]!;
+
+  if (txn.voided_at) {
+    return Response.json({ ok: false, reason: "Transaction already voided" }, { status: 400 });
+  }
+
+  // Only debits (negative amounts) represent charges that can be voided
+  const amount = txn.amount as number;
+  if (amount >= 0) {
+    return Response.json({ ok: false, reason: "Can only void charges (debits)" }, { status: 400 });
+  }
+
+  const voidAmount = Math.abs(amount);
+  const currentBalance: number = getCurrentBalance(sql);
+  const newBalance = currentBalance + voidAmount;
+  const createdAt = nowSec();
+
+  sql.exec(`UPDATE transactions SET voided_at = ? WHERE id = ?`, createdAt, transactionId);
+
+  ensureCardStateRow(sql, currentBalance);
+  sql.exec(`UPDATE card_state SET balance = ? WHERE singleton = 1`, newBalance);
+
+  const voidRows = sql.exec(
+    `INSERT INTO transactions (counter, amount, balance_after, created_at, note)
+     VALUES (NULL, ?, ?, ?, ?)
+     RETURNING id, amount, balance_after, created_at`,
+    voidAmount,
+    newBalance,
+    createdAt,
+    `void:${transactionId}`
+  ).toArray();
+
+  return Response.json({
+    ok: true,
+    balance: newBalance,
+    voidedTransaction: { id: txn.id, amount: txn.amount, balance_after: txn.balance_after, note: txn.note },
+    newTransaction: voidRows[0],
+  });
+}
+
 export function handleGetBalance(sql: SqlStorage): Response {
   return Response.json({ balance: getCurrentBalance(sql) });
 }

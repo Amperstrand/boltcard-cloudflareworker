@@ -21,6 +21,7 @@ import {
   POS_JS, POS_JS_HASH,
   TOPUP_JS, TOPUP_JS_HASH,
   REFUND_JS, REFUND_JS_HASH,
+  VOID_JS, VOID_JS_HASH,
   IDENTITY_JS, IDENTITY_JS_HASH,
 } from "./exports.js";
 import { errorResponse } from "../../utils/responses.js";
@@ -53,6 +54,7 @@ const STATIC_JS_FILES: Record<string, StaticFileEntry> = {
   "pos.js": { content: POS_JS, hash: POS_JS_HASH },
   "topup.js": { content: TOPUP_JS, hash: TOPUP_JS_HASH },
   "refund.js": { content: REFUND_JS, hash: REFUND_JS_HASH },
+  "void.js": { content: VOID_JS, hash: VOID_JS_HASH },
   "identity.js": { content: IDENTITY_JS, hash: IDENTITY_JS_HASH },
 };
 

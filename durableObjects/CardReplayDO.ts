@@ -4,7 +4,7 @@ import { initCardReplaySchema } from "./cardReplay/schema.js";
 import { handleActivate, handleDeliverKeys, handleDiscover, handleGetCardState, handleMarkPending, handleRequestWipe, handleTerminate } from "./cardReplay/cardStateHandlers.js";
 import { handleGetConfig, handleSetConfig, handleSetK2 } from "./cardReplay/configHandlers.js";
 import { handleAnalytics, handleCheck, handleClaimTap, handleListTaps, handleRecordRead, handleRecordTap, handleUpdateTapStatus } from "./cardReplay/tapHandlers.js";
-import { handleCredit, handleDebit, handleGetBalance, handleListTransactions, handleReset } from "./cardReplay/balanceHandlers.js";
+import { handleCredit, handleDebit, handleGetBalance, handleListTransactions, handleReset, handleVoid } from "./cardReplay/balanceHandlers.js";
 
 export class CardReplayDO extends DurableObject<Env> {
   declare state: DurableObjectState;
@@ -92,6 +92,10 @@ export class CardReplayDO extends DurableObject<Env> {
 
       if (request.method === "POST" && url.pathname === "/credit") {
         return handleCredit(this.sql, request);
+      }
+
+      if (request.method === "POST" && url.pathname === "/void") {
+        return handleVoid(this.sql, request);
       }
 
       if (request.method === "GET" && url.pathname === "/balance") {
