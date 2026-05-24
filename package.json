@@ -35,6 +35,6 @@
     "lint": "npm run lint:innerhtml && npm run lint:static-script && npm run lint:build-info",
     "live:smoke": "node scripts/live-smoke-test.mjs",
     "cf-typegen": "wrangler types",
-    "deploy": "npm test && npm run test:do && npm run test:integration && npm run typecheck && npm run lint && node scripts/sync-js-exports.mjs && node scripts/build_keys.js && wrangler deploy && npm run live:smoke"
+    "deploy": "node scripts/sync-js-exports.mjs && npm test && npm run test:do && npm run test:integration && npm run typecheck && npm run lint && node scripts/build_keys.js && wrangler deploy && npm run live:smoke"
   }
 }
