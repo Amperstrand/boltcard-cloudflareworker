@@ -164,7 +164,7 @@ describe("validateUid properties", () => {
           const chars = s.split("");
           for (let i = 0; i < chars.length; i++) {
             if (Math.random() < 0.5) {
-              chars[i] = chars[i].toUpperCase();
+              chars[i] = chars[i]!.toUpperCase();
             }
           }
           return chars.join("");
