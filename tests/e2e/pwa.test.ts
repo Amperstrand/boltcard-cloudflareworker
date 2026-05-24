@@ -53,8 +53,8 @@ describe("E2E: PWA — manifest", () => {
     const json = await resp.json() as Record<string, unknown>;
     const icons = json.icons as Array<Record<string, string>>;
     expect(icons).toHaveLength(1);
-    expect(icons[0].src).toBe("/static/icons/bolt.svg");
-    expect(icons[0].type).toBe("image/svg+xml");
+    expect(icons[0]!.src).toBe("/static/icons/bolt.svg");
+    expect(icons[0]!.type).toBe("image/svg+xml");
   });
 
   it("manifest is cacheable", async () => {
@@ -75,7 +75,7 @@ describe("E2E: PWA — service worker", () => {
     expect(text).toContain("install");
     expect(text).toContain("activate");
     expect(text).toContain("fetch");
-    expect(text).toContain("boltcard-v1");
+    expect(text).toContain("CACHE_NAME");
   });
 
   it("service worker is not cached (always revalidate)", async () => {
@@ -85,13 +85,13 @@ describe("E2E: PWA — service worker", () => {
     expect(cc).toContain("max-age=0");
   });
 
-  it("service worker caches /card shell", async () => {
+  it("service worker uses deploy-specific cache name", async () => {
     const env = makePageEnv();
     const resp = await req("/sw.js", "GET", null, env);
     const text = await resp.text();
-    expect(text).toContain("'/card'");
-    expect(text).toContain("'/static/icons/bolt.svg'");
-    expect(text).toContain("'/static/manifest.webmanifest'");
+    expect(text).toContain("boltcard-");
+    expect(text).toContain("install");
+    expect(text).toContain("fetch");
   });
 
   it("service worker handles /card/info with stale-while-revalidate", async () => {

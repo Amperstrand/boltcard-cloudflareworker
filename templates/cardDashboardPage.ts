@@ -3,7 +3,7 @@ import { renderTailwindPage } from "./pageShell.js";
 
 export function renderCardDashboardPage(): string {
   const content: string = rawHtml`
-  <main class="max-w-lg mx-auto" id="pull-container">
+  <main class="max-w-lg mx-auto" id="pull-container" style="overscroll-behavior-y:contain">
     <div class="text-center mb-8">
       <h1 class="text-3xl font-bold text-emerald-500 tracking-tight mb-2">MY CARD</h1>
       <p class="text-gray-400 text-sm">Tap your bolt card or paste your card URL</p>

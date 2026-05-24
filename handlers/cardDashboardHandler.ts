@@ -10,6 +10,7 @@ import { getCardState, getCardConfig, safeGetBalance, getAnalytics, terminateCar
 import { buildMaskedUid } from "../utils/validation.js";
 import { renderCardDashboardPage } from "../templates/cardDashboardPage.js";
 import { CARD_STATE, KEY_PROVENANCE, PAYMENT_METHOD } from "../utils/constants.js";
+import { getCurrencyLabel, getCurrencyDecimals } from "../utils/currency.js";
 import { getUnifiedHistory, type HistoryEntry } from "../utils/history.js";
 import { resolveCardIdentity, type ResolveResult } from "../utils/cardAuth.js";
 
@@ -71,6 +72,8 @@ export async function handleCardInfo(request: Request, env: Env): Promise<Respon
       terminatedAt: state.terminated_at || null,
       currentVersion,
       reactivationAvailable: cmac_validated,
+      currencyLabel: getCurrencyLabel(env),
+      currencyDecimals: getCurrencyDecimals(env),
     });
   }
 
@@ -109,6 +112,9 @@ export async function handleCardInfo(request: Request, env: Env): Promise<Respon
 
   const programmingRecommended: boolean = state.key_provenance === KEY_PROVENANCE.PUBLIC_ISSUER;
 
+  const currencyLabel = getCurrencyLabel(env);
+  const currencyDecimals = getCurrencyDecimals(env);
+
   logger.info("Card info requested", { uidHex, state: state.state, provenance: state.key_provenance });
 
   return jsonResponse({
@@ -127,6 +133,8 @@ export async function handleCardInfo(request: Request, env: Env): Promise<Respon
     analytics,
     paymentMethod,
     paymentMethodLabel,
+    currencyLabel,
+    currencyDecimals,
   });
 }
 

@@ -1,6 +1,8 @@
 // PWA asset content served from index.ts routes.
 // Cloudflare Workers have no filesystem — all static content is in JS string constants.
 
+import { BUILD_REVISION } from "../utils/buildInfo.js";
+
 export const MANIFEST_JSON = JSON.stringify({
   name: "My Bolt Card",
   short_name: "Bolt Card",
@@ -20,8 +22,11 @@ export const MANIFEST_JSON = JSON.stringify({
   ],
 }, null, 2);
 
+const CACHE_NAME = "boltcard-" + BUILD_REVISION;
+
 export const SW_JS = `// sw.js — service worker for boltcard PWA
-var CACHE_NAME = 'boltcard-v1';
+var CACHE_NAME = '${CACHE_NAME}';
+var MAX_CARD_INFO_AGE = 3600000;
 var SHELL_ASSETS = ['/card', '/static/icons/bolt.svg', '/static/manifest.webmanifest'];
 self.addEventListener('install', function(e) {
   e.waitUntil(caches.open(CACHE_NAME).then(function(c) { return c.addAll(SHELL_ASSETS); }));
@@ -36,7 +41,22 @@ self.addEventListener('fetch', function(e) {
   if (u.pathname === '/card/info') {
     e.respondWith(caches.open(CACHE_NAME).then(function(cache) {
       return cache.match(e.request).then(function(cached) {
-        var p = fetch(e.request).then(function(r) { if (r.ok) cache.put(e.request, r.clone()); return r; }).catch(function() { return cached || new Response(JSON.stringify({ error: 'offline' }), { status: 503, headers: { 'Content-Type': 'application/json' } }); });
+        if (cached) {
+          var cachedTime = cached.headers.get('sw-cached-at');
+          if (cachedTime && (Date.now() - Number(cachedTime)) > MAX_CARD_INFO_AGE) {
+            cache.delete(e.request);
+            cached = null;
+          }
+        }
+        var p = fetch(e.request).then(function(r) {
+          if (r.ok) {
+            var stamped = new Response(r.body, { status: r.status, statusText: r.statusText, headers: r.headers });
+            stamped.headers.set('sw-cached-at', String(Date.now()));
+            cache.put(e.request, stamped.clone());
+            return r;
+          }
+          return r;
+        }).catch(function() { return cached || new Response(JSON.stringify({ error: 'offline' }), { status: 503, headers: { 'Content-Type': 'application/json' } }); });
         return cached || p;
       });
     }));

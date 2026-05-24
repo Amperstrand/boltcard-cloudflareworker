@@ -713,8 +713,26 @@ var lastC = null;
 var cardLoaded = false;
 var lastLoadTime = null;
 var deferredPrompt = null;
+var staleTimer = null;
 
 var STORAGE_KEY = 'boltcard_params';
+
+// ─── Currency formatting ───
+
+var currencyLabel = 'credits';
+var currencyDecimals = 0;
+
+function formatBalance(raw) {
+  if (!raw && raw !== 0) return '0 ' + currencyLabel;
+  var value = typeof raw === 'number' ? raw : parseInt(raw, 10);
+  if (!Number.isFinite(value)) return '0 ' + currencyLabel;
+  var divisor = Math.pow(10, currencyDecimals);
+  var display = (value / divisor).toFixed(currencyDecimals);
+  var parts = display.split('.');
+  var whole = parts[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');
+  var formatted = currencyDecimals > 0 ? whole + '.' + parts[1] : whole;
+  return formatted + ' ' + currencyLabel;
+}
 
 // ─── localStorage persistence ───
 
@@ -789,7 +807,7 @@ function updateStaleIndicator() {
   }
 }
 
-setInterval(updateStaleIndicator, 10000);
+staleTimer = setInterval(updateStaleIndicator, 10000);
 
 document.getElementById('btn-refresh-stale').addEventListener('click', function() {
   if (lastP && lastC) showCardInfo(lastP, lastC);
@@ -844,13 +862,6 @@ document.getElementById('btn-scan-different').addEventListener('click', function
 });
 
 // ─── Formatters ───
-
-function formatBalance(msat) {
-  if (!msat || msat === 0) return '0 msat';
-  if (msat >= 1000000) return (msat / 1000000).toFixed(3) + ' BTC';
-  if (msat >= 1000) return (msat / 1000).toFixed(0) + ' sats';
-  return msat + ' msat';
-}
 
 function formatTime(iso) {
   if (!iso) return null;
@@ -953,6 +964,9 @@ async function showCardInfo(p, c) {
     cardLoaded = true;
     lastLoadTime = Date.now();
     document.getElementById('stale-banner').classList.add('hidden');
+
+    if (data.currencyLabel) currencyLabel = data.currencyLabel;
+    if (data.currencyDecimals !== undefined) currencyDecimals = data.currencyDecimals;
 
     // Save params to localStorage for auto-load next time
     saveCardParams(p, c);
@@ -1090,6 +1104,8 @@ function resetView() {
   document.getElementById('saved-card').classList.add('hidden');
   lastP = null;
   lastC = null;
+  lastLoadTime = null;
+  if (staleTimer) { clearInterval(staleTimer); staleTimer = null; }
 }
 
 function extractParams(url) {
@@ -1323,7 +1339,7 @@ async function submitReactivate(p, c) {
     document.getElementById('nfc-unsupported').classList.remove('hidden');
   }
 })();`;
-export const CARD_DASHBOARD_JS_HASH = "f8c74ae2edae";
+export const CARD_DASHBOARD_JS_HASH = "213f76cb3dfc";
 
 export const DEBUG_JS = `// debug.js — classic script (no import/export)
 // Requires: nfc.js (esc, browserSupportsNfc, createNfcScanner)

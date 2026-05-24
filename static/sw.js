@@ -1,7 +1,10 @@
 // sw.js — service worker for boltcard PWA
 // No ES modules, no dependencies. Route-based caching strategy.
+// NOTE: The actual served SW is generated from static/pwa-assets.ts with BUILD_REVISION in cache name.
+// This file is the source template used by scripts/sync-js-exports.mjs.
 
 var CACHE_NAME = 'boltcard-v1';
+var MAX_CARD_INFO_AGE = 3600000;
 
 var SHELL_ASSETS = [
   '/card',
@@ -9,7 +12,6 @@ var SHELL_ASSETS = [
   '/static/manifest.webmanifest',
 ];
 
-// Install: pre-cache shell resources
 self.addEventListener('install', function(event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function(cache) {
@@ -19,7 +21,6 @@ self.addEventListener('install', function(event) {
   self.skipWaiting();
 });
 
-// Activate: purge old caches
 self.addEventListener('activate', function(event) {
   event.waitUntil(
     caches.keys().then(function(keys) {
@@ -31,18 +32,30 @@ self.addEventListener('activate', function(event) {
   self.clients.claim();
 });
 
-// Fetch: route-based strategy
 self.addEventListener('fetch', function(event) {
   var url = new URL(event.request.url);
 
-  // API card info: stale-while-revalidate
   if (url.pathname === '/card/info') {
     event.respondWith(
       caches.open(CACHE_NAME).then(function(cache) {
         return cache.match(event.request).then(function(cached) {
+          if (cached) {
+            var cachedTime = cached.headers.get('sw-cached-at');
+            if (cachedTime && (Date.now() - Number(cachedTime)) > MAX_CARD_INFO_AGE) {
+              cache.delete(event.request);
+              cached = null;
+            }
+          }
           var fetchPromise = fetch(event.request).then(function(response) {
             if (response.ok) {
-              cache.put(event.request, response.clone());
+              var stamped = new Response(response.body, {
+                status: response.status,
+                statusText: response.statusText,
+                headers: response.headers
+              });
+              stamped.headers.set('sw-cached-at', String(Date.now()));
+              cache.put(event.request, stamped.clone());
+              return response;
             }
             return response;
           }).catch(function() {
@@ -58,7 +71,6 @@ self.addEventListener('fetch', function(event) {
     return;
   }
 
-  // Static assets: cache-first
   if (url.pathname.startsWith('/static/')) {
     event.respondWith(
       caches.match(event.request).then(function(cached) {
@@ -76,7 +88,6 @@ self.addEventListener('fetch', function(event) {
     return;
   }
 
-  // Tailwind CDN: cache-first
   if (url.hostname === 'cdn.tailwindcss.com') {
     event.respondWith(
       caches.match(event.request).then(function(cached) {
@@ -92,7 +103,6 @@ self.addEventListener('fetch', function(event) {
     return;
   }
 
-  // HTML navigation: network-first with cache fallback
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).catch(function() {
@@ -101,6 +111,4 @@ self.addEventListener('fetch', function(event) {
     );
     return;
   }
-
-  // Everything else: network only (no cache)
 });
