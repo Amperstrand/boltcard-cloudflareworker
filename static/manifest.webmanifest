@@ -1,0 +1,18 @@
+{
+  "name": "My Bolt Card",
+  "short_name": "Bolt Card",
+  "description": "Your festival payment card — balance, history, and card management",
+  "start_url": "/card",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#10b981",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/static/icons/bolt.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

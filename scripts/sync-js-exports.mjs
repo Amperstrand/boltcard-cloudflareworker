@@ -39,6 +39,7 @@ const FILE_ORDER = [
   "refund.js",
   "void.js",
   "identity.js",
+  "sw-register.js",
 ];
 
 function jsName(filename) {

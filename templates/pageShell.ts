@@ -31,6 +31,8 @@ export function renderTailwindPage({
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     ${metaRobots ? safe(rawHtml`<meta name="robots" content="${metaRobots}" />`) : ""}
+    <link rel="manifest" href="/static/manifest.webmanifest" />
+    <meta name="theme-color" content="#10b981" />
     <title>${title}</title>
     <meta name="deploy-revision" content="${deployRevision}" />
     <meta name="js-fingerprint" content="${jsFingerprint}" />

@@ -23,6 +23,7 @@ import {
   REFUND_JS, REFUND_JS_HASH,
   VOID_JS, VOID_JS_HASH,
   IDENTITY_JS, IDENTITY_JS_HASH,
+  SW_REGISTER_JS, SW_REGISTER_JS_HASH,
 } from "./exports.js";
 import { errorResponse } from "../../utils/responses.js";
 
@@ -56,6 +57,7 @@ const STATIC_JS_FILES: Record<string, StaticFileEntry> = {
   "refund.js": { content: REFUND_JS, hash: REFUND_JS_HASH },
   "void.js": { content: VOID_JS, hash: VOID_JS_HASH },
   "identity.js": { content: IDENTITY_JS, hash: IDENTITY_JS_HASH },
+  "sw-register.js": { content: SW_REGISTER_JS, hash: SW_REGISTER_JS_HASH },
 };
 
 export function serveStaticJs(file: string | undefined, ifNoneMatch: string | null): Response {

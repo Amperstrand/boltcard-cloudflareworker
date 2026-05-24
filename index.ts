@@ -45,6 +45,7 @@ import { handleDecodePage, handleDecodeApi } from "./handlers/bolt11DecodeHandle
 import { handleClientError } from "./handlers/clientErrorHandler.js";
 import { handleTestErrorPage } from "./handlers/testErrorHandler.js";
 import { serveStaticJs } from "./static/js/registry.js";
+import { MANIFEST_JSON, SW_JS, BOLT_ICON_SVG } from "./static/pwa-assets.js";
 import { initDeployInfo } from "./utils/deployInfo.js";
 
 const router = Router<IRequest, [env: Env]>();
@@ -197,6 +198,34 @@ router.get("/", (request, env) => {
 });
 router.get("/static/js/:file", (request) => {
   return serveStaticJs(request.params.file, request.headers.get("If-None-Match"));
+});
+
+router.get("/sw.js", () => {
+  return new Response(SW_JS, {
+    headers: {
+      "Content-Type": "application/javascript; charset=utf-8",
+      "Cache-Control": "public, max-age=0",
+      "Service-Worker-Allowed": "/",
+    },
+  });
+});
+
+router.get("/static/manifest.webmanifest", () => {
+  return new Response(MANIFEST_JSON, {
+    headers: {
+      "Content-Type": "application/manifest+json",
+      "Cache-Control": "public, max-age=3600",
+    },
+  });
+});
+
+router.get("/static/icons/bolt.svg", () => {
+  return new Response(BOLT_ICON_SVG, {
+    headers: {
+      "Content-Type": "image/svg+xml",
+      "Cache-Control": "public, max-age=86400",
+    },
+  });
 });
 router.all("*", (request) => {
   const url = new URL(request.url);

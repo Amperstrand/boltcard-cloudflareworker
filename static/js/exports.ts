@@ -710,6 +710,140 @@ export const CARD_DASHBOARD_JS = `// card-dashboard.js — classic script (no im
 
 var lastP = null;
 var lastC = null;
+var cardLoaded = false;
+var lastLoadTime = null;
+var deferredPrompt = null;
+
+var STORAGE_KEY = 'boltcard_params';
+
+// ─── localStorage persistence ───
+
+function saveCardParams(p, c) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ p: p, c: c, savedAt: Date.now() }));
+  } catch (e) {}
+}
+
+function loadSavedParams() {
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    var data = JSON.parse(raw);
+    if (data && data.p && data.c) return data;
+  } catch (e) {}
+  return null;
+}
+
+function clearSavedParams() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch (e) {}
+}
+
+// ─── Install prompt ───
+
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  deferredPrompt = e;
+  if (cardLoaded) {
+    document.getElementById('install-banner').classList.remove('hidden');
+  }
+});
+
+document.getElementById('btn-install').addEventListener('click', function() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(function() {
+      deferredPrompt = null;
+      document.getElementById('install-banner').classList.add('hidden');
+    });
+  }
+});
+
+// ─── Offline detection ───
+
+function updateOnlineStatus() {
+  var offline = document.getElementById('offline-banner');
+  if (!navigator.onLine) {
+    offline.classList.remove('hidden');
+  } else {
+    offline.classList.add('hidden');
+  }
+}
+
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus();
+
+// ─── Stale data tracking ───
+
+function updateStaleIndicator() {
+  if (!lastLoadTime) return;
+  var elapsed = Math.floor((Date.now() - lastLoadTime) / 1000);
+  if (elapsed > 30) {
+    var staleEl = document.getElementById('stale-time');
+    if (elapsed < 60) staleEl.textContent = elapsed + 's ago';
+    else if (elapsed < 3600) staleEl.textContent = Math.floor(elapsed / 60) + 'min ago';
+    else staleEl.textContent = Math.floor(elapsed / 3600) + 'h ago';
+    document.getElementById('stale-banner').classList.remove('hidden');
+  }
+}
+
+setInterval(updateStaleIndicator, 10000);
+
+document.getElementById('btn-refresh-stale').addEventListener('click', function() {
+  if (lastP && lastC) showCardInfo(lastP, lastC);
+});
+
+// ─── Pull-to-refresh ───
+
+(function() {
+  var startY = 0;
+  var pulling = false;
+  var container = document.getElementById('pull-container');
+  if (!container) return;
+
+  container.addEventListener('touchstart', function(e) {
+    if (window.scrollY === 0 && e.touches.length === 1) {
+      startY = e.touches[0].clientY;
+      pulling = true;
+    }
+  }, { passive: true });
+
+  container.addEventListener('touchmove', function(e) {
+    if (!pulling) return;
+    var diff = e.touches[0].clientY - startY;
+    if (diff > 60) {
+      container.style.opacity = '0.7';
+      container.style.transform = 'translateY(8px)';
+    }
+  }, { passive: true });
+
+  container.addEventListener('touchend', function(e) {
+    if (!pulling) return;
+    pulling = false;
+    var diff = e.changedTouches[0].clientY - startY;
+    container.style.opacity = '';
+    container.style.transform = '';
+    if (diff > 60 && lastP && lastC) {
+      showCardInfo(lastP, lastC);
+    }
+  }, { passive: true });
+})();
+
+// ─── Forget / Scan different card ───
+
+document.getElementById('btn-forget').addEventListener('click', function() {
+  clearSavedParams();
+  window.location.href = '/card';
+});
+
+document.getElementById('btn-scan-different').addEventListener('click', function() {
+  resetView();
+  cardScanner.restart();
+});
+
+// ─── Formatters ───
 
 function formatBalance(msat) {
   if (!msat || msat === 0) return '0 msat';
@@ -815,6 +949,13 @@ async function showCardInfo(p, c) {
       showError(data.reason || data.error || 'Failed to load card info');
       return;
     }
+
+    cardLoaded = true;
+    lastLoadTime = Date.now();
+    document.getElementById('stale-banner').classList.add('hidden');
+
+    // Save params to localStorage for auto-load next time
+    saveCardParams(p, c);
 
     document.getElementById('scan-section').classList.add('hidden');
     document.getElementById('card-info').classList.remove('hidden');
@@ -922,6 +1063,11 @@ async function showCardInfo(p, c) {
     var newUrl = window.location.pathname + '?p=' + encodeURIComponent(p) + '&c=' + encodeURIComponent(c);
     window.history.replaceState(null, '', newUrl);
 
+    // Show install banner if prompt is available
+    if (deferredPrompt) {
+      document.getElementById('install-banner').classList.remove('hidden');
+    }
+
     document.getElementById('card-info').focus();
    } catch (err) {
      if (typeof window.reportClientError === 'function') window.reportClientError(err, 'card-dashboard.js:load-info');
@@ -941,6 +1087,7 @@ function resetView() {
   document.getElementById('error-display').classList.add('hidden');
   document.getElementById('loading').classList.add('hidden');
   document.getElementById('scan-error').classList.add('hidden');
+  document.getElementById('saved-card').classList.add('hidden');
   lastP = null;
   lastC = null;
 }
@@ -1153,6 +1300,7 @@ async function submitReactivate(p, c) {
 }
 
 (function init() {
+  // Check URL params first
   var currentUrl = window.location.href;
   var params = extractParams(currentUrl);
   if (params) {
@@ -1160,13 +1308,22 @@ async function submitReactivate(p, c) {
     return;
   }
 
+  // Check localStorage for saved card
+  var saved = loadSavedParams();
+  if (saved) {
+    document.getElementById('saved-card').classList.remove('hidden');
+    showCardInfo(saved.p, saved.c);
+    return;
+  }
+
+  // Start NFC scan
   if (browserSupportsNfc()) {
     cardScanner.scan();
   } else {
     document.getElementById('nfc-unsupported').classList.remove('hidden');
   }
 })();`;
-export const CARD_DASHBOARD_JS_HASH = "7e8eda7a6d94";
+export const CARD_DASHBOARD_JS_HASH = "f8c74ae2edae";
 
 export const DEBUG_JS = `// debug.js — classic script (no import/export)
 // Requires: nfc.js (esc, browserSupportsNfc, createNfcScanner)
@@ -5096,3 +5253,13 @@ export const IDENTITY_JS = `// identity.js — classic script (no import/export)
   profile.emojiSaveButton.disabled = true;
 })();`;
 export const IDENTITY_JS_HASH = "7adca6a8bc39";
+
+export const SW_REGISTER_JS = `// sw-register.js — classic script (no import/export)
+// Registers the PWA service worker for offline support
+
+(function() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function() {});
+  }
+})();`;
+export const SW_REGISTER_JS_HASH = "1da706e9bede";

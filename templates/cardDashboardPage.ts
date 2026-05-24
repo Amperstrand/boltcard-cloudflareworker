@@ -3,10 +3,27 @@ import { renderTailwindPage } from "./pageShell.js";
 
 export function renderCardDashboardPage(): string {
   const content: string = rawHtml`
-  <main class="max-w-lg mx-auto">
+  <main class="max-w-lg mx-auto" id="pull-container">
     <div class="text-center mb-8">
       <h1 class="text-3xl font-bold text-emerald-500 tracking-tight mb-2">MY CARD</h1>
       <p class="text-gray-400 text-sm">Tap your bolt card or paste your card URL</p>
+    </div>
+
+    <div id="install-banner" class="hidden mb-4 bg-emerald-900/30 border border-emerald-500/30 rounded-lg p-3 flex items-center justify-between">
+      <span class="text-emerald-200 text-sm">Install this app for quick access</span>
+      <button id="btn-install" type="button" class="bg-emerald-600 text-white px-3 py-1 rounded text-sm font-bold">Install</button>
+    </div>
+
+    <div id="offline-banner" class="hidden mb-3 bg-amber-900/30 border border-amber-500/30 rounded-lg p-2 text-center">
+      <span class="text-amber-300 text-xs">Offline — showing last known balance</span>
+    </div>
+
+    <div id="saved-card" class="hidden mb-4 bg-gray-800 border border-gray-700 rounded-lg p-3 flex items-center justify-between">
+      <span class="text-gray-300 text-xs">Card saved — auto-loaded</span>
+      <div class="flex items-center gap-3">
+        <button id="btn-scan-different" type="button" class="text-emerald-400 text-xs hover:text-emerald-300">Scan different card</button>
+        <button id="btn-forget" type="button" class="text-gray-500 text-xs hover:text-gray-300">Remove</button>
+      </div>
     </div>
 
     <div id="scan-section" class="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-6 text-center">
@@ -39,6 +56,11 @@ export function renderCardDashboardPage(): string {
     </div>
 
     <div id="card-info" class="hidden" aria-live="polite">
+      <div id="stale-banner" class="hidden mb-3 bg-gray-700/50 border border-gray-600 rounded-lg p-2 text-center">
+        <span class="text-gray-400 text-xs">Last updated <span id="stale-time"></span></span>
+        <button id="btn-refresh-stale" type="button" class="text-emerald-400 text-xs ml-2 underline">Refresh</button>
+      </div>
+
       <div id="provenance-banner" class="hidden mb-4 bg-yellow-900/50 border border-yellow-600 rounded-lg p-4">
         <div class="flex items-start gap-3">
           <span class="text-yellow-400 text-xl" aria-hidden="true">&#9888;&#65039;</span>
@@ -79,9 +101,9 @@ export function renderCardDashboardPage(): string {
             <span class="text-gray-400">Key Version</span>
             <span id="card-version" class="text-gray-200 font-mono"></span>
           </div>
-          <div class="flex justify-between">
+          <div class="flex justify-between items-center py-2 border-t border-gray-700/50">
             <span class="text-gray-400">Balance</span>
-            <span id="card-balance" class="text-emerald-400 font-bold"></span>
+            <span id="card-balance" class="text-emerald-400 text-lg font-bold"></span>
           </div>
           <div id="activated-row" class="flex justify-between hidden">
             <span class="text-gray-400">Activated</span>
@@ -130,43 +152,44 @@ export function renderCardDashboardPage(): string {
          <div id="lock-status" class="hidden mt-2 text-center text-sm"></div>
        </div>
 
-       <div id="reactivate-section" class="hidden mb-4">
-         <div class="bg-amber-900/30 border border-amber-600/50 rounded-lg p-4 mb-3">
-           <p class="text-amber-200 text-sm mb-1">This card is terminated.</p>
-           <p class="text-amber-300/80 text-xs">Re-activating will generate new keys and advance to version <span id="reactivate-version">N+1</span>. You will need to write the new keys to your card via NFC.</p>
-         </div>
-         <div id="reactivate-scan" class="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center">
-           <p class="text-gray-400 text-sm mb-3">Tap your card to verify ownership</p>
-           <div id="reactivate-scan-status" class="text-gray-500 text-xs"></div>
-           <div id="reactivate-scan-error" class="hidden text-red-400 text-xs mt-2"></div>
-         </div>
-         <div id="reactivate-status" class="hidden mt-2 text-center text-sm"></div>
-         <div id="reactivate-success" class="hidden bg-emerald-900/30 border border-emerald-600/50 rounded-lg p-4 mt-3">
-           <p class="text-emerald-200 text-sm mb-2">New keys generated (version <span id="reactivate-new-version"></span>)</p>
-           <a id="reactivate-program-link" href="/experimental/activate" class="inline-block bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded text-sm transition-colors">
-             Program Card
-           </a>
-         </div>
+        <div id="reactivate-section" class="hidden mb-4">
+          <div class="bg-amber-900/30 border border-amber-600/50 rounded-lg p-4 mb-3">
+            <p class="text-amber-200 text-sm mb-1">This card is terminated.</p>
+            <p class="text-amber-300/80 text-xs">Re-activating will generate new keys and advance to version <span id="reactivate-version">N+1</span>. You will need to write the new keys to your card via NFC.</p>
+          </div>
+          <div id="reactivate-scan" class="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center">
+            <p class="text-gray-400 text-sm mb-3">Tap your card to verify ownership</p>
+            <div id="reactivate-scan-status" class="text-gray-500 text-xs"></div>
+            <div id="reactivate-scan-error" class="hidden text-red-400 text-xs mt-2"></div>
+          </div>
+          <div id="reactivate-status" class="hidden mt-2 text-center text-sm"></div>
+          <div id="reactivate-success" class="hidden bg-emerald-900/30 border border-emerald-600/50 rounded-lg p-4 mt-3">
+            <p class="text-emerald-200 text-sm mb-2">New keys generated (version <span id="reactivate-new-version"></span>)</p>
+            <a id="reactivate-program-link" href="/experimental/activate" class="inline-block bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded text-sm transition-colors">
+              Program Card
+            </a>
+          </div>
+        </div>
+
+       <div class="mt-4 text-center">
+         <button id="btn-refresh" type="button" class="text-gray-500 hover:text-gray-300 text-xs transition-colors">
+           Refresh
+         </button>
        </div>
+     </div>
 
-      <div class="mt-4 text-center">
-        <button id="btn-refresh" type="button" class="text-gray-500 hover:text-gray-300 text-xs transition-colors">
-          Refresh
-        </button>
-      </div>
-    </div>
-
-    <div id="error-display" class="hidden bg-red-900/50 border border-red-600 rounded-lg p-4 mt-4" role="alert">
-      <p id="error-message" class="text-red-300 text-sm"></p>
-      <button id="btn-retry" type="button" class="mt-2 text-red-400 hover:text-red-300 text-xs underline">Try again</button>
-    </div>
-  </main>
+     <div id="error-display" class="hidden bg-red-900/50 border border-red-600 rounded-lg p-4 mt-4" role="alert">
+       <p id="error-message" class="text-red-300 text-sm"></p>
+       <button id="btn-retry" type="button" class="mt-2 text-red-400 hover:text-red-300 text-xs underline">Try again</button>
+     </div>
+   </main>
 
 
-  ${staticScript("helpers.js")}
-  ${staticScript("card-info.js")}
-  ${staticScript("card-dashboard.js")}
-  `;
+   ${staticScript("helpers.js")}
+   ${staticScript("card-info.js")}
+   ${staticScript("card-dashboard.js")}
+   ${staticScript("sw-register.js")}
+   `;
 
   return renderTailwindPage({
     title: "My Bolt Card",
