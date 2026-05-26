@@ -292,8 +292,8 @@ To submit keys for a service, add a CSV file to `keys/` and run `node scripts/bu
 ```bash
 git clone <repository-url> && cd boltcard-cloudflareworker
 npm install
-npm test          # Run 1378 unit tests
-npm run test:all  # Run all tests (unit + DO integration)
+npm test          # Run unit tests
+npm run test:all  # Run all tests (unit + DO + integration)
 npm run deploy    # tests → build_keys → wrangler deploy
 ```
 
@@ -311,15 +311,15 @@ See [docs/VENUE-DEPLOYMENT.md](docs/VENUE-DEPLOYMENT.md) for the full guide.
 ## Testing
 
 ```bash
-npm test                              # 1378 unit tests (Vitest, node env)
-npm run test:do                       # 52 DO integration tests (real SQLite)
-npm run test:integration              # 72 integration tests (full Worker pipeline)
+npm test                              # Unit tests (Vitest, node env)
+npm run test:do                       # DO integration tests (real SQLite)
+npm run test:integration              # Integration tests (full Worker pipeline)
 npm run test:all                      # All three tiers
 npm test -- --testNamePattern="pos"   # Run specific tests
 npm test -- --watch                   # Watch mode
 npm run deploy                        # tests → build_keys → wrangler deploy
 
-**1502 tests** across 82 suites (1378 unit + 52 DO integration + 72 integration).
+Run `npm run test:all` for current test counts across all tiers.
 
 ### Test Infrastructure
 
@@ -327,8 +327,8 @@ npm run deploy                        # tests → build_keys → wrangler deploy
 - **`tests/replayNamespace.ts`**: In-memory Durable Object mock with balance enforcement
 - **`tests/e2e/virtual-card.test.ts`**: Full E2E lifecycle: provision → tap → pay → replay
 - **`tests/e2e/pages.test.ts`**: Page rendering, security headers, auth flows
-- **`tests/do/cardReplayDO.real.test.ts`**: 52 DO integration tests with real SQLite via `@cloudflare/vitest-pool-workers`
-- **`tests/adversarial.test.ts`**: 42 adversarial tests: open redirect, XSS, balance overflow, counter replay
+- **`tests/do/cardReplayDO.real.test.ts`**: DO integration tests with real SQLite via `@cloudflare/vitest-pool-workers`
+- **`tests/adversarial.test.ts`**: Adversarial tests: open redirect, XSS, balance overflow, counter replay
 
 ## Project Structure
 
@@ -436,7 +436,7 @@ npm run deploy                        # tests → build_keys → wrangler deploy
 │       ├── configHandlers.ts    # K2/payment method config
 │       ├── balanceHandlers.ts   # Balance + transaction ledger
 │       └── types.ts             # DO payload/row types
-├── tests/                       # 1502 tests across 82 suites
+├── tests/                       # Unit + integration + DO tests across all tiers
 │   ├── testHelpers.ts           # virtualTap, buildCardTestEnv, TEST_OPERATOR_AUTH
 │   ├── replayNamespace.ts       # In-memory DO mock with balance enforcement
 │   ├── adversarial.test.ts      # 42 adversarial tests

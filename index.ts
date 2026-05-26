@@ -37,6 +37,7 @@ import { handleReceipt } from "./handlers/receiptHandler.js";
 import { handleMenuEditorPage, handleMenuGet, handleMenuPut } from "./handlers/menuEditorHandler.js";
 import { handleIdentifyCard } from "./handlers/identifyCardHandler.js";
 import { handleIdentifyIssuerKey } from "./handlers/identifyIssuerKeyHandler.js";
+import { handleVirtualCardKeys } from "./handlers/virtualCardHandler.js";
 import { handleCardAuditPage, handleCardAuditData, handleIndexRepair } from "./handlers/cardAuditHandler.js";
 import { handleCardBatchAction } from "./handlers/cardBatchHandler.js";
 import { handleReconciliationPage, handleReconciliationData } from "./handlers/reconciliationHandler.js";
@@ -106,7 +107,8 @@ router.post("/api/identity/profile", (request, env) => handleIdentityProfileUpda
 router.get("/operator/login", (request) => handleOperatorLoginPage(request));
 router.post("/operator/login", (request, env) => handleOperatorLogin(request, env));
 router.post("/api/identify-card", withOperatorAuth((request, env) => handleIdentifyCard(request, env)));
-router.post("/api/identify-issuer-key", withOperatorAuth((request, env) => handleIdentifyIssuerKey(request, env)));
+  router.post("/api/identify-issuer-key", withOperatorAuth((request, env) => handleIdentifyIssuerKey(request, env)));
+  router.get("/api/debug/virtual-card-keys", withOperatorAuth((request, env) => handleVirtualCardKeys(request, env)));
 router.post("/operator/logout", (request, env) => handleOperatorLogout(request, env));
 router.get("/operator", withOperatorAuth(() => redirect("/operator/pos")));
 router.get("/operator/cards", withOperatorAuth((request, env) => handleCardAuditPage(request, env)));
