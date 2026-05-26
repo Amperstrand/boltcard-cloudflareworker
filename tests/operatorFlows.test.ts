@@ -278,7 +278,7 @@ describe("Refund flow", () => {
     );
   }
 
-  it("full refund zeroes balance", async () => {
+  it("full refund credits entire balance on top", async () => {
     await topUp(1000);
     const tap = await tapCard(keys, counter++);
     const response = await handleRequest(
@@ -293,10 +293,10 @@ describe("Refund flow", () => {
     const data = await response.json() as Record<string, any>;
     expect(data.success).toBe(true);
     expect(data.amount).toBe(1000);
-    expect(data.balance).toBe(0);
+    expect(data.balance).toBe(2000);
   });
 
-  it("partial refund reduces balance", async () => {
+  it("partial refund credits balance", async () => {
     await topUp(1000);
     const tap = await tapCard(keys, counter++);
     const response = await handleRequest(
@@ -310,10 +310,10 @@ describe("Refund flow", () => {
     expect(response.status).toBe(200);
     const data = await response.json() as Record<string, any>;
     expect(data.amount).toBe(300);
-    expect(data.balance).toBe(700);
+    expect(data.balance).toBe(1300);
   });
 
-  it("partial refund exceeding balance rejected", async () => {
+  it("partial refund always succeeds (credits regardless of balance)", async () => {
     await topUp(100);
     const tap = await tapCard(keys, counter++);
     const response = await handleRequest(
@@ -324,7 +324,10 @@ describe("Refund flow", () => {
       }),
       env,
     );
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(200);
+    const data = await response.json() as Record<string, any>;
+    expect(data.success).toBe(true);
+    expect(data.balance).toBe(600);
   });
 
   it("full refund on zero balance succeeds with zero", async () => {

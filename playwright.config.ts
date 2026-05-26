@@ -2,7 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  testMatch: "operator-ui.spec.ts",
+  testMatch: ["operator-ui.spec.ts", "virtual-card.spec.ts"],
   fullyParallel: false,
   retries: 0,
   timeout: 30000,

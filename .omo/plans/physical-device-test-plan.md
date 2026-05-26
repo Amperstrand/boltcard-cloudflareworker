@@ -5,10 +5,11 @@
 **Tester**: ___________
 **Worker URL**: `https://boltcardpoc.psbt.me`
 **Operator PIN**: `1234`
-**Cards**: At least 3 NTAG424 cards (labeled A, B, C)
+**Cards**: At least 3 NTAG424 cards (labeled A, B, C) — OR use the **Virtual Card Simulator** (no physical card needed)
 
 ## Pre-requisites
 
+### With Physical Cards
 - [ ] Android phone with NFC enabled
 - [ ] Chrome browser (latest)
 - [ ] ADB connected: `adb devices` shows device
@@ -16,7 +17,31 @@
 - [ ] At least 3 NTAG424 cards programmed for this worker
 - [ ] `curl` and `jq` available on host machine
 
+### With Virtual Card Simulator (No Physical Card)
+- [ ] Any browser (Chrome, Firefox, Safari — desktop or mobile)
+- [ ] No NFC hardware needed
+- [ ] Go to `/debug` → **📌 Virtual Card** tab
+
 ---
+
+## 0. Virtual Card Simulator
+
+*User story: "I don't have a physical NFC card. I can test the entire system from the debug console using a virtual card that generates real encrypted tap parameters."*
+
+| # | Test | Steps | Expected | Pass? |
+|---|------|-------|----------|-------|
+| 0.1 | Virtual Card tab renders | Navigate to `/debug`, click "📌 Virtual Card" tab | Shows Create Virtual Card button, description text | ☐ |
+| 0.2 | Create virtual card | Click "Create Virtual Card" | Shows UID, K1, K2, Version. Tap Virtual Card button appears. | ☐ |
+| 0.3 | Tap virtual card | Click "Tap Virtual Card" | Sends GET to `/?p=XXX&c=YYY` with real AES-ECB/CMAC params. Shows LNURL-withdraw JSON response. | ☐ |
+| 0.4 | Multiple taps increment counter | Click "Tap Virtual Card" 3 more times | Each tap succeeds. Counter increments. Different `p` and `c` each time. | ☐ |
+| 0.5 | Card discovered in registry | Go to `/operator/cards` after tapping | Virtual card shows state `discovered`, provenance `public_issuer` | ☐ |
+| 0.6 | Auto-test lifecycle | Click "Run Auto-Test" button | Runs: discover → top-up 10000 → charge 3000 → refund 3000 → verify balance=10000. All steps pass. | ☐ |
+| 0.7 | Auto-test shows step-by-step | Watch auto-test output | Each step shows pass/fail with details. Final summary shows all passed. | ☐ |
+| 0.8 | Virtual card top-up | Top up the virtual card via `/operator/topup` using the tap button | Balance credited successfully | ☐ |
+| 0.9 | Virtual card POS charge | Charge the virtual card via `/operator/pos` using the tap button | Balance debited successfully | ☐ |
+| 0.10 | Virtual card refund | Refund the virtual card via `/operator/refund` using the tap button | Balance refunded, shows correct remaining | ☐ |
+| 0.11 | Virtual card dashboard | Navigate to `/card`, tap the virtual card | Shows balance, state, transaction history | ☐ |
+| 0.12 | Create second virtual card | Click "Create Virtual Card" again | New UID generated, different keys, previous card forgotten | ☐ |
 
 ## 1. Card Discovery & First Tap
 
@@ -343,6 +368,7 @@ After each major flow, take a screenshot and verify:
 
 | Section | Tests | Pass | Fail | Skip |
 |---------|-------|------|------|------|
+| 0. Virtual Card | 12 | | | |
 | 1. Discovery | 4 | | | |
 | 2. Login | 6 | | | |
 | 3. Top-Up | 7 | | | |
@@ -363,7 +389,7 @@ After each major flow, take a screenshot and verify:
 | 18. Balance Check | 2 | | | |
 | 19. Edge Cases | 10 | | | |
 | 20. Mobile UX | 8 | | | |
-| **TOTAL** | **121** | | | |
+| **TOTAL** | **133** | | | |
 
 ---
 

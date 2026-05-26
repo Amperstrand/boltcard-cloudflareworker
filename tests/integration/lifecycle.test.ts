@@ -182,13 +182,13 @@ describe("Card lifecycle state machine", () => {
       expect(resp.status).toBe(200);
     });
 
-    // ── Step 11: Verify balance decreased by 500 after refund ────────────────
+    // ── Step 11: Verify balance increased by 500 after refund ────────────────
 
-    it("step 11: verify balance decreased by 500 after refund", async () => {
+    it("step 11: verify balance increased by 500 after refund", async () => {
       const resp = await cardInfo(uid, k1, k2, nextCounter());
       expect(resp.status).toBe(200);
       const body = (await resp.json()) as CardInfoResponse;
-      expect(body.balance).toBe(balanceBeforeRefund - 500);
+      expect(body.balance).toBe(balanceBeforeRefund + 500);
     });
 
     // ── Step 12: Terminate card (cardholder self-lock) ───────────────────────

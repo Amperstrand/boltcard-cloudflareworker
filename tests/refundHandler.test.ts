@@ -64,7 +64,7 @@ describe("handleRefundPage", () => {
 // ─── handleRefundApply ─────────────────────────────────────────────
 
 describe("handleRefundApply", () => {
-  it("success: partial refund debits card and returns correct response", async () => {
+  it("success: partial refund credits card and returns correct response", async () => {
     env = makeEnvWithBalance(5000);
     const { pHex, cHex } = tapParams(++counter, env);
     const req = makeApplyRequest({ p: pHex, c: cHex, amount: 2000 });
@@ -73,10 +73,10 @@ describe("handleRefundApply", () => {
     const json = (await resp.json()) as Record<string, unknown>;
     expect(json.success).toBe(true);
     expect(json.amount).toBe(2000);
-    expect(json.balance).toBe(3000);
+    expect(json.balance).toBe(7000);
   });
 
-  it("success: full refund debits entire balance", async () => {
+  it("success: full refund credits entire balance on top", async () => {
     env = makeEnvWithBalance(7500);
     const { pHex, cHex } = tapParams(++counter, env);
     const req = makeApplyRequest({ p: pHex, c: cHex, fullRefund: true });
@@ -85,7 +85,7 @@ describe("handleRefundApply", () => {
     const json = (await resp.json()) as Record<string, unknown>;
     expect(json.success).toBe(true);
     expect(json.amount).toBe(7500);
-    expect(json.balance).toBe(0);
+    expect(json.balance).toBe(15000);
   });
 
   it("full refund with zero balance returns amount 0", async () => {
@@ -174,16 +174,16 @@ describe("handleRefundApply", () => {
     expect(resp.status).toBe(403);
   });
 
-  it("rejects refund amount greater than balance with 400", async () => {
+  it("refund always succeeds regardless of amount (credits, not debits)", async () => {
     env = makeEnvWithBalance(500);
     const { pHex, cHex } = tapParams(++counter, env);
     const req = makeApplyRequest({ p: pHex, c: cHex, amount: 1000 });
     const resp = await handleRefundApply(req, env, session);
-    expect(resp.status).toBe(400);
+    expect(resp.status).toBe(200);
     const json = (await resp.json()) as Record<string, unknown>;
-    expect(json.success).toBe(false);
-    expect(json.reason).toMatch(/insufficient/i);
-    expect(json.currentBalance).toBe(500);
+    expect(json.success).toBe(true);
+    expect(json.amount).toBe(1000);
+    expect(json.balance).toBe(1500);
   });
 
   it("returns note with shiftId from session", async () => {
@@ -205,7 +205,7 @@ describe("handleRefundApply", () => {
     const json = (await resp.json()) as Record<string, unknown>;
     expect(json.success).toBe(true);
     expect(json.amount).toBe(1000);
-    expect(json.balance).toBe(2000);
+    expect(json.balance).toBe(4000);
   });
 
   it("partial refund ignores fullRefund when false", async () => {
@@ -217,6 +217,6 @@ describe("handleRefundApply", () => {
     const json = (await resp.json()) as Record<string, unknown>;
     expect(json.success).toBe(true);
     expect(json.amount).toBe(2000);
-    expect(json.balance).toBe(3000);
+    expect(json.balance).toBe(7000);
   });
 });

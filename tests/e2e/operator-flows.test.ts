@@ -67,23 +67,23 @@ describe("E2E: Operator flows", () => {
       await card.credit(10000);
     });
 
-    test("partial refund reduces balance", async () => {
+    test("partial refund credits balance", async () => {
       const resp = await card.operatorRefund(3000);
       expect(resp.status).toBe(200);
       const json = await resp.json() as Record<string, unknown>;
       expect(json.success).toBe(true);
       expect(json.amount).toBe(3000);
-      expect(json.balance).toBe(7000);
-      expect(await card.getBalance()).toBe(7000);
+      expect(json.balance).toBe(13000);
+      expect(await card.getBalance()).toBe(13000);
     });
 
-    test("full refund drains balance to zero", async () => {
+    test("full refund credits full balance on top", async () => {
       const resp = await card.operatorRefund(0, true);
       expect(resp.status).toBe(200);
       const json = await resp.json() as Record<string, unknown>;
       expect(json.amount).toBe(10000);
-      expect(json.balance).toBe(0);
-      expect(await card.getBalance()).toBe(0);
+      expect(json.balance).toBe(20000);
+      expect(await card.getBalance()).toBe(20000);
     });
 
     test("full refund on zero balance returns zero", async () => {
@@ -97,10 +97,10 @@ describe("E2E: Operator flows", () => {
       expect(json.amount).toBe(0);
     });
 
-    test("rejects refund exceeding balance", async () => {
+    test("refund always succeeds regardless of amount (credits, not debits)", async () => {
       const resp = await card.operatorRefund(20000);
-      expect(resp.status).toBe(400);
-      expect(await card.getBalance()).toBe(10000);
+      expect(resp.status).toBe(200);
+      expect(await card.getBalance()).toBe(30000);
     });
 
     test("rejects zero amount partial refund", async () => {
@@ -111,7 +111,7 @@ describe("E2E: Operator flows", () => {
     test("records refund transaction", async () => {
       await card.operatorRefund(1000);
       const txns = await card.getTransactions();
-      const refund = txns.find((t) => t.amount === -1000);
+      const refund = txns.find((t) => t.amount === 1000);
       expect(refund).toBeDefined();
       expect(refund!.note).toContain("refund");
     });
@@ -194,10 +194,10 @@ describe("E2E: Operator flows", () => {
       expect(await card.getBalance()).toBe(6500);
 
       await card.operatorRefund(500);
-      expect(await card.getBalance()).toBe(6000);
+      expect(await card.getBalance()).toBe(7000);
 
       await card.operatorPosCharge(6000);
-      expect(await card.getBalance()).toBe(0);
+      expect(await card.getBalance()).toBe(1000);
     });
 
     test("topup after full drain restores balance", async () => {

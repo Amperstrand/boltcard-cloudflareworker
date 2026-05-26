@@ -4,7 +4,7 @@ import { getErrorMessage } from "../utils/logger.js";
 import type { Env } from "../types/core.js";
 import { getCurrencyLabel } from "../utils/currency.js";
 import { htmlResponse, jsonResponse, errorResponse } from "../utils/responses.js";
-import { debitCard, getBalance } from "../replayProtection.js";
+import { creditCard, getBalance } from "../replayProtection.js";
 import { validateCardTap, type ValidateCardTapResult } from "../utils/validateCardTap.js";
 import { logger } from "../utils/logger.js";
 import { getRequestOrigin, parsePositiveInt } from "../utils/validation.js";
@@ -56,7 +56,7 @@ export async function handleRefundApply(request: Request, env: Env, session: Ses
   const note: string = `refund:${shiftId}`;
 
   try {
-    const result: OpResult = await debitCard(env, tap.uidHex, tap.counterValue, refundAmount, note);
+    const result: OpResult = await creditCard(env, tap.uidHex, refundAmount, note);
     if (!result.ok) {
       const isInsufficient = !!result.reason && result.reason.toLowerCase().includes("insufficient");
       const status = isInsufficient ? 400 : 500;

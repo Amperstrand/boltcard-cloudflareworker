@@ -59,7 +59,7 @@ describe("handleRefundApply", () => {
     const body = await res.json() as Record<string, any>;
     expect(body.success).toBe(true);
     expect(body.amount).toBe(300);
-    expect(body.balance).toBe(700);
+    expect(body.balance).toBe(1300);
     expect(body.note).toContain("refund:");
   });
 
@@ -72,7 +72,7 @@ describe("handleRefundApply", () => {
     const body = await res.json() as Record<string, any>;
     expect(body.success).toBe(true);
     expect(body.amount).toBe(1000);
-    expect(body.balance).toBe(0);
+    expect(body.balance).toBe(2000);
   });
 
   it("full refund on zero balance returns zero", async () => {
@@ -86,12 +86,15 @@ describe("handleRefundApply", () => {
     expect(body.amount).toBe(0);
   });
 
-  it("rejects refund exceeding balance", async () => {
+  it("refund succeeds regardless of current balance (credits, not debits)", async () => {
     const env = buildEnv(100);
     const keys = getDeterministicKeys(UID, { ISSUER_KEY } as unknown as Env, 1);
     const { pHex, cHex } = virtualTap(UID, 5, keys.k1, keys.k2);
     const res = await handleRefundApply(makeRequest({ p: pHex, c: cHex, amount: 500 }), env, { shiftId: "test" } as unknown as SessionPayload);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
+    const body = await res.json() as Record<string, any>;
+    expect(body.success).toBe(true);
+    expect(body.balance).toBe(600);
   });
 
   it("rejects invalid card tap", async () => {
@@ -100,7 +103,7 @@ describe("handleRefundApply", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 500 when debitCard returns failure", async () => {
+  it("returns 500 when creditCard returns failure", async () => {
     const env = buildEnv(1000);
     const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
     (env as any).CARD_REPLAY.get = (id: DurableObjectId) => {
@@ -109,7 +112,7 @@ describe("handleRefundApply", () => {
       return {
         fetch: async (request: Request) => {
           const url = new URL(request.url);
-          if (request.method === "POST" && url.pathname === "/debit") {
+          if (request.method === "POST" && url.pathname === "/credit") {
             return Response.json({ ok: false, reason: "Storage error" });
           }
           return origFetch(request);
@@ -124,7 +127,7 @@ describe("handleRefundApply", () => {
     expect(body.reason).toContain("Storage error");
   });
 
-  it("returns 500 when debitCard throws", async () => {
+  it("returns 500 when creditCard throws", async () => {
     const env = buildEnv(1000);
     const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
     (env as any).CARD_REPLAY.get = (id: DurableObjectId) => {
@@ -133,7 +136,7 @@ describe("handleRefundApply", () => {
       return {
         fetch: async (request: Request) => {
           const url = new URL(request.url);
-          if (url.pathname === "/debit") throw new Error("DO connection lost");
+          if (url.pathname === "/credit") throw new Error("DO connection lost");
           return origFetch(request);
         },
       } as unknown as DurableObjectStub;
@@ -156,7 +159,7 @@ describe("handleRefundApply", () => {
     expect(body.note).toContain("refund:unknown");
   });
 
-  it("returns fallback message when debitCard fails without reason", async () => {
+  it("returns fallback message when creditCard fails without reason", async () => {
     const env = buildEnv(1000);
     const origGet = env.CARD_REPLAY.get.bind(env.CARD_REPLAY);
     (env as any).CARD_REPLAY.get = (id: DurableObjectId) => {
@@ -165,7 +168,7 @@ describe("handleRefundApply", () => {
       return {
         fetch: async (request: Request) => {
           const url = new URL(request.url);
-          if (request.method === "POST" && url.pathname === "/debit") {
+          if (request.method === "POST" && url.pathname === "/credit") {
             return Response.json({ ok: false });
           }
           return origFetch(request);
