@@ -16,9 +16,9 @@ export const posChargeBodySchema = v.object({
   c: v.string(),
   amount: v.union([v.string(), v.number()]),
   items: v.optional(
-    v.array(v.object({ name: v.string(), price: v.optional(v.number()), qty: v.optional(v.number()) }))
+    v.array(v.object({ name: v.string(v.maxLength(200)), price: v.optional(v.number()), qty: v.optional(v.number()) }), v.maxLength(100))
   ),
-  terminalId: v.optional(v.string()),
+  terminalId: v.optional(v.string(v.maxLength(256))),
 });
 
 export const topupBodySchema = v.object({

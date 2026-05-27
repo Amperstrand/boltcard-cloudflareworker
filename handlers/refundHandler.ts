@@ -61,7 +61,7 @@ export async function handleRefundApply(request: Request, env: Env, session: Ses
       const isInsufficient = !!result.reason && result.reason.toLowerCase().includes("insufficient");
       const status = isInsufficient ? 400 : 500;
       const extra = result.balance != null ? { currentBalance: result.balance } : {};
-      logger.error("Refund: debit failed", { uidHex: tap.uidHex, amount: refundAmount, reason: result.reason });
+      logger.error("Refund: credit failed", { uidHex: tap.uidHex, amount: refundAmount, reason: result.reason });
       return errorResponse(result.reason || "Refund failed", status, extra);
     }
 

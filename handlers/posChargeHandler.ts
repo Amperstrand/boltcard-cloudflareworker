@@ -23,6 +23,13 @@ export async function handlePosCharge(request: Request, env: Env, session: Sessi
     return errorResponse("Amount must be a positive integer", 400);
   }
 
+  if (env.MAX_TOPUP_AMOUNT) {
+    const maxAmount: number | null = parsePositiveInt(env.MAX_TOPUP_AMOUNT);
+    if (maxAmount !== null && parsedAmount > maxAmount) {
+      return errorResponse(`Amount exceeds maximum of ${maxAmount}`, 400);
+    }
+  }
+
   const tap: ValidateCardTapResult = await validateCardTap(request, env, { pHex: pHex || "", cHex: cHex || "", context: "POS charge" });
   if (!tap.ok) return errorResponse(tap.error, tap.status);
 

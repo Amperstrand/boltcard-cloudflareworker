@@ -202,4 +202,27 @@ describe("handlePosCharge", () => {
     expect(json.amount).toBe(1000);
     expect(json.balance).toBe(2000);
   });
+
+  it("rejects amount exceeding MAX_TOPUP_AMOUNT when set", async () => {
+    env = makeEnvWithBalance(50000);
+    (env as Record<string, unknown>).MAX_TOPUP_AMOUNT = "1000";
+    const { pHex, cHex } = tapParams(++counter, env);
+    const req = makeChargeRequest({ p: pHex, c: cHex, amount: 5000 });
+    const resp = await handlePosCharge(req, env, session);
+    expect(resp.status).toBe(400);
+    const json = (await resp.json()) as Record<string, unknown>;
+    expect(json.success).toBe(false);
+    expect(json.error).toContain("exceeds maximum");
+  });
+
+  it("allows charge at exactly MAX_TOPUP_AMOUNT", async () => {
+    env = makeEnvWithBalance(5000);
+    (env as Record<string, unknown>).MAX_TOPUP_AMOUNT = "1000";
+    const { pHex, cHex } = tapParams(++counter, env);
+    const req = makeChargeRequest({ p: pHex, c: cHex, amount: 1000 });
+    const resp = await handlePosCharge(req, env, session);
+    expect(resp.status).toBe(200);
+    const json = (await resp.json()) as Record<string, unknown>;
+    expect(json.success).toBe(true);
+  });
 });
