@@ -5,7 +5,7 @@ Usage:
   python3 scripts/pcscd-bridge.py [--port 4321]
 
 Requirements:
-  pip install pyscard
+  pip install pyscard ndeflib
 
 Endpoints:
   GET /status     — reader and card status
@@ -17,89 +17,88 @@ import sys
 import json
 import argparse
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
 
 try:
     from smartcard.System import readers
-    from smartcard.util import toHexString, toBytes
 except ImportError:
     print("pyscard not installed. Run: pip install pyscard", file=sys.stderr)
     sys.exit(1)
 
-NDEF_AID = [0xD2, 0x76, 0x00, 0x00, 0x85, 0x01, 0x01]
+try:
+    import ndef
+except ImportError:
+    print("ndeflib not installed. Run: pip install ndeflib", file=sys.stderr)
+    sys.exit(1)
+
+CLA_ISO = 0x00
+INS_SELECT = 0xA4
+INS_READ_BINARY = 0xB0
+MAX_APDU = 255
+
 cached_card_info = {}
 
 
-def select_ndef_app(connection):
-    apdu = [0x00, 0xA4, 0x04, 0x00, 0x07] + NDEF_AID + [0x00]
-    data, sw1, sw2 = connection.transmit(apdu)
-    if sw1 != 0x90:
-        raise RuntimeError(f"NDEF app select failed: SW={sw1:02X}{sw2:02X}")
-    return data
+def _check(sw1, sw2, label):
+    if (sw1, sw2) != (0x90, 0x00):
+        raise RuntimeError(f"{label} failed: SW={sw1:02X}{sw2:02X}")
 
 
-def read_ndef_file(connection, file_id):
-    select_apdu = [0x00, 0xA4, 0x00, 0x00, 0x02, (file_id >> 8) & 0xFF, file_id & 0xFF, 0x00]
-    data, sw1, sw2 = connection.transmit(select_apdu)
-    if sw1 != 0x90:
-        raise RuntimeError(f"File {file_id:04X} select failed: SW={sw1:02X}{sw2:02X}")
+def _select_ndef_app(conn):
+    apdu = [CLA_ISO, INS_SELECT, 0x04, 0x00, 0x07,
+            0xD2, 0x76, 0x00, 0x00, 0x85, 0x01, 0x01, 0x00]
+    _, sw1, sw2 = conn.transmit(apdu)
+    _check(sw1, sw2, "Select NDEF application")
 
-    read_apdu = [0x00, 0xB0, 0x00, 0x00, 0x00]
-    data, sw1, sw2 = connection.transmit(read_apdu)
-    if sw1 not in (0x90, 0x61):
-        raise RuntimeError(f"File {file_id:04X} read failed: SW={sw1:02X}{sw2:02X}")
+
+def _select_file(conn, file_id):
+    apdu = [CLA_ISO, INS_SELECT, 0x00, 0x0C, 0x02,
+            (file_id >> 8) & 0xFF, file_id & 0xFF]
+    _, sw1, sw2 = conn.transmit(apdu)
+    _check(sw1, sw2, f"Select file {file_id:04X}")
+
+
+def _read_binary(conn, offset, length):
+    data = bytearray()
+    while len(data) < length:
+        chunk = min(MAX_APDU, length - len(data))
+        p1 = ((offset + len(data)) >> 8) & 0xFF
+        p2 = (offset + len(data)) & 0xFF
+        resp, sw1, sw2 = conn.transmit([CLA_ISO, INS_READ_BINARY, p1, p2, chunk])
+        _check(sw1, sw2, f"Read binary at offset {offset + len(data)}")
+        data.extend(resp)
     return bytes(data)
 
 
-def parse_ndef_url(ndef_data):
-    idx = 0
-    while idx < len(ndef_data):
-        if idx + 3 > len(ndef_data):
-            break
-        tnf = ndef_data[idx] & 0x07
-        il = (ndef_data[idx] >> 3) & 0x01
-        sr = (ndef_data[idx] >> 4) & 0x01
-        has_payload = (ndef_data[idx] >> 5) & 0x01
-        idx += 1
+def _read_cc_get_ndef_file_id(conn):
+    _select_file(conn, 0xE103)
+    header = _read_binary(conn, 0, 2)
+    cc_len = (header[0] << 8) | header[1]
+    cc_data = header + _read_binary(conn, 2, cc_len - 2)
+    idx = 7
+    if len(cc_data) <= idx or cc_data[idx] != 0x04:
+        raise RuntimeError("NDEF File Control TLV not found in CC")
+    return (cc_data[idx + 2] << 8) | cc_data[idx + 3]
 
-        type_len = ndef_data[idx]
-        idx += 1
 
-        payload_len = ndef_data[idx] if sr else int.from_bytes(ndef_data[idx:idx+4], 'big')
-        if not sr:
-            idx += 4
-        else:
-            idx += 1
+def _read_ndef(conn, file_id):
+    _select_file(conn, file_id)
+    length_bytes = _read_binary(conn, 0, 2)
+    length = (length_bytes[0] << 8) | length_bytes[1]
+    if length == 0:
+        raise RuntimeError("NDEF message is empty")
+    return _read_binary(conn, 2, length)
 
-        if il:
-            idx += 1
 
-        idx += type_len
-
-        if tnf == 0x01 and has_payload:
-            payload = ndef_data[idx:idx+payload_len]
-            if payload and payload[0] in (0x01, 0x02, 0x03, 0x04):
-                url = payload[1:].decode('utf-8', errors='replace')
-                if payload[0] == 0x01:
-                    url = "http://" + url
-                elif payload[0] == 0x02:
-                    url = "https://" + url
-                elif payload[0] == 0x04:
-                    url = "https://" + url
-                return url
-            elif payload:
-                return payload.decode('utf-8', errors='replace')
-
-        idx += payload_len
+def _extract_url(ndef_data):
+    records = list(ndef.message_decoder(ndef_data))
+    for record in records:
+        if isinstance(record, ndef.UriRecord):
+            uri = record.uri
+            if uri.startswith("lnurlw://"):
+                uri = "https://" + uri[len("lnurlw://"):]
+            return uri
     return None
-
-
-def extract_params(url):
-    from urllib.parse import urlparse, parse_qs
-    parsed = urlparse(url)
-    params = parse_qs(parsed.query)
-    p = params.get('p', [None])[0]
-    c = params.get('c', [None])[0]
-    return p, c
 
 
 def read_card():
@@ -112,17 +111,19 @@ def read_card():
     connection.connect()
 
     try:
-        select_ndef_app(connection)
-        ndef_data = read_ndef_file(connection, 0xE104)
-        url = parse_ndef_url(list(ndef_data))
+        _select_ndef_app(connection)
+        ndef_file_id = _read_cc_get_ndef_file_id(connection)
+        ndef_data = _read_ndef(connection, ndef_file_id)
+        url = _extract_url(ndef_data)
 
         if not url:
-            raise RuntimeError("No NDEF URL found on card")
+            raise RuntimeError("No NDEF URI record found on card")
 
-        if url.startswith("lnurlw://"):
-            url = "https://" + url[len("lnurlw://"):]
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query)
+        p = params.get('p', [None])[0]
+        c = params.get('c', [None])[0]
 
-        p, c = extract_params(url)
         if not p or not c:
             raise RuntimeError(f"URL missing p/c params: {url}")
 
@@ -135,34 +136,31 @@ class BridgeHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/status":
             reader_list = readers()
-            status = {
+            self._json(200, {
                 "readers": len(reader_list),
                 "reader_names": [str(r) for r in reader_list],
                 "bridge": "ok",
-            }
-            self._json_response(200, status)
-
+            })
         elif self.path == "/tap":
             try:
                 result = read_card()
                 cached_card_info.update(result)
-                self._json_response(200, {"p": result["p"], "c": result["c"]})
+                self._json(200, {"p": result["p"], "c": result["c"]})
             except Exception as e:
-                self._json_response(500, {"error": str(e)})
-
+                self._json(500, {"error": str(e)})
         elif self.path == "/card-info":
             if cached_card_info:
-                self._json_response(200, cached_card_info)
+                self._json(200, cached_card_info)
             else:
-                self._json_response(404, {"error": "No card read yet. Call /tap first."})
+                self._json(404, {"error": "No card read yet. Call /tap first."})
         else:
-            self._json_response(404, {"error": "Not found"})
+            self._json(404, {"error": "Not found"})
 
     def do_HEAD(self):
         self.send_response(200)
         self.end_headers()
 
-    def _json_response(self, code, data):
+    def _json(self, code, data):
         body = json.dumps(data).encode()
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
@@ -170,7 +168,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def log_message(self, format, *args):
+    def log_message(self, fmt, *args):
         print(f"[pcscd-bridge] {args[0]}")
 
 
