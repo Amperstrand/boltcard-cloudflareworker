@@ -5715,8 +5715,16 @@ export const VIRTUAL_CARD_JS = `// virtual-card.js — classic script (no import
   document.getElementById('vc-tap-btn').addEventListener('click', tapAndQuery);
 
   document.getElementById('vc-auto-btn').addEventListener('click', autoTestLifecycle);
+
+  // Expose for E2E testing (prefixed with _ per project convention)
+  window._vcTap = function() { return tapVirtualCard(); };
+  window._vcGetKeys = function() {
+    return virtualCard.created
+      ? { uid: virtualCard.uid, k1: virtualCard.k1, k2: virtualCard.k2, counter: virtualCard.counter }
+      : null;
+  };
 })();`;
-export const VIRTUAL_CARD_JS_HASH = "a2e4f72dcf67";
+export const VIRTUAL_CARD_JS_HASH = "bf8ea35dd0c0";
 
 export const SW_REGISTER_JS = `// sw-register.js — classic script (no import/export)
 // Registers the PWA service worker for offline support

@@ -51,7 +51,6 @@ export function initCardReplaySchema(sql: SqlStorage): void {
   try { sql.exec(`ALTER TABLE card_state ADD COLUMN key_fingerprint TEXT`); } catch (_e: unknown) {}
   try { sql.exec(`ALTER TABLE card_state ADD COLUMN key_label TEXT`); } catch (_e: unknown) {}
   try { sql.exec(`ALTER TABLE card_state ADD COLUMN first_seen_at INTEGER`); } catch (_e: unknown) {}
-  try { sql.exec(`ALTER TABLE transactions ADD COLUMN voided_at INTEGER`); } catch (_e: unknown) {}
   sql.exec(`
     CREATE TABLE IF NOT EXISTS transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,4 +61,5 @@ export function initCardReplaySchema(sql: SqlStorage): void {
       note TEXT
     )
   `);
+  try { sql.exec(`ALTER TABLE transactions ADD COLUMN voided_at INTEGER`); } catch (_e: unknown) {}
 }
