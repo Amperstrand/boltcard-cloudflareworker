@@ -37,8 +37,8 @@ export async function handleRefundApply(request: Request, env: Env, session: Ses
     let balanceData: BalanceResult;
     try {
       balanceData = await getBalance(env, tap.uidHex);
-    } catch (err: unknown) {
-      logger.error("Refund: balance check failed", { uidHex: tap.uidHex, error: getErrorMessage(err) });
+    } catch (error: unknown) {
+      logger.error("Refund: balance check failed", { uidHex: tap.uidHex, error: getErrorMessage(error) });
       return errorResponse("Balance check failed", 500);
     }
     refundAmount = balanceData.balance;

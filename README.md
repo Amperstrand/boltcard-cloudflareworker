@@ -267,7 +267,7 @@ To submit keys for a service, add a CSV file to `keys/` and run `node scripts/bu
 - **Header filtering**: Proxy relay filters request/response headers to prevent credential leakage
 - **Rate limiting**: IP-based fixed-window (login: 5 req/15min; default: 100 req/min)
 - **Security headers**: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Content-Security-Policy` on all responses
-- **XSS prevention**: All innerHTML assignments use `esc()` for dynamic data (53 assignments audited)
+- **XSS prevention**: Zero innerHTML policy — all browser JS uses safe DOM APIs (`textContent`, `createElement`, `replaceChildren`); baseline = 0 (enforced by `scripts/check-innerhtml.js`)
 - **No offline mode**: If the worker is unreachable, taps fail
 
 ### Production Checklist
@@ -439,7 +439,7 @@ Run `npm run test:all` for current test counts across all tiers.
 ├── tests/                       # Unit + integration + DO tests across all tiers
 │   ├── testHelpers.ts           # virtualTap, buildCardTestEnv, TEST_OPERATOR_AUTH
 │   ├── replayNamespace.ts       # In-memory DO mock with balance enforcement
-│   ├── adversarial.test.ts      # 42 adversarial tests
+│   ├── adversarial.test.ts      # adversarial tests: replay, double-spend, overdraft, XSS, open redirect
 │   ├── e2e/                     # End-to-end tests
 │   │   ├── virtual-card.test.ts # Full NFC lifecycle
 │   │   └── pages.test.ts        # Page rendering + security headers

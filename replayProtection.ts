@@ -73,7 +73,7 @@ async function doStateTransition<K extends DoPostRoutes>(env: Env, uidHex: strin
   }
 
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
+    const payload = await response.json().catch((e: unknown) => { logger.warn("Failed to parse DO error response", { path, error: getErrorMessage(e) }); return {}; }) as Record<string, unknown>;
     throw new Error(String(payload.error || errorMsg));
   }
 
@@ -101,7 +101,7 @@ async function doRequiredPost<K extends DoPostRoutes>(env: Env, uidHex: string, 
   const stub = getCardStub(env, uidHex);
   const response = await doPost(stub, path, body);
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
+    const payload = await response.json().catch((e: unknown) => { logger.warn("Failed to parse DO error response", { path: String(path), error: getErrorMessage(e) }); return {}; }) as Record<string, unknown>;
     throw new Error(String(payload.reason || errorMsg));
   }
 }
@@ -179,7 +179,7 @@ export async function getCardState(env: Env, uidHex: string): Promise<CardStateR
   const response = await doGet(stub, "/card-state");
   if (response.status === 404) return legacyCardState;
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
+    const payload = await response.json().catch((e: unknown) => { logger.warn("Failed to parse DO card-state error", { uidHex, error: getErrorMessage(e) }); return {}; }) as Record<string, unknown>;
     throw new Error(String(payload.reason || payload.error || "Card state unavailable"));
   }
   return response.json() as Promise<CardStateRow>;

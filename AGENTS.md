@@ -124,7 +124,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 | GET | `/login` | `handleLoginPage()` | Login page |
 | POST | `/login` | `handleLoginVerify()` | Login verification |
 | GET | `/pos` | redirect → `/operator/pos` | Fakewallet POS payment |
-| GET | `/debug` | `handleDebugPage()` | Tabbed debug console (Console, Identify, Wipe, 2FA, Identity, POS) |
+| GET | `/debug` | `handleDebugPage()` | Tabbed debug console (Console, Identify, Wipe, 2FA, Identity, POS, Virtual Card) |
 | GET | `/identity` | `handleIdentityPage()` | Identity/access control demo |
 | GET | `/card` | `handleCardPage()` | Cardholder dashboard (NFC scan) |
 | GET | `/card/info` | `handleCardInfo()` | Card status API (JSON) — returns unified history, analytics, payment method |
@@ -142,6 +142,8 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 | GET | `/api/keys` | `handleGetKeys()` | Key listing (GET) |
 | POST | `/api/keys` | `handleGetKeys()` | Key listing (POST) |
 | GET | `/api/bulk-wipe-keys` | `handleBulkWipeKeys()` | Bulk wipe key candidates |
+| GET | `/api/debug/virtual-card-keys` | `handleVirtualCardKeys()` | Virtual card key generation (operator auth) |
+| POST | `/api/client-error` | `handleClientError()` | Client-side error reporting |
 | GET | `/api/decode` | `handleDecodeApi()` | BOLT11 invoice decode (JSON) |
 | ALL | `/api/v1/pull-payments/:pullPaymentId/boltcards` | `fetchBoltCardKeys()` | Pull-payment boltcard keys |
 | GET | `/operator/login` | `handleOperatorLoginPage()` | Operator PIN login page |
@@ -168,7 +170,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 | GET | `/experimental/nfc` | redirect → `/debug#console` | Redirects to unified console |
 | GET | `/experimental/activate` | `handleActivatePage()` | Card programming + activation |
 | GET | `/experimental/activate/form` | `handleActivateForm()` | Activation form page |
-| POST | `/activate/form` | `handleActivateCardSubmit()` | Card activation submit |
+| POST | `/experimental/activate/form` | `handleActivateCardSubmit()` | Card activation submit |
 | GET | `/experimental/wipe` | inline | Single card wipe |
 | GET | `/experimental/bulkwipe` | `handleBulkWipePage()` | Batch card operations |
 | GET | `/experimental/analytics` | `handleAnalyticsPage()` | Per-card analytics |
@@ -217,6 +219,8 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 - `durableObjects/CardReplayDO.ts` is a thin Durable Object shell/dispatcher; SQL schema and route handlers live under `durableObjects/cardReplay/` grouped by responsibility (schema, tap/replay, card state, config, balance/transactions)
 - All DO callers must wrap in try/catch with specific error messages (see #10 audit)
 - `processWithdrawalPayment` uses `normalizedUid` local variable — never mutate parameters
+- `handleVirtualCardKeys()` from `handlers/virtualCardHandler.ts` generates deterministic card keys for the virtual card simulator (operator auth required)
+- `handleClientError()` from `handlers/clientErrorHandler.ts` accepts client-side error reports with rate limiting (prefix `client_error:`, 20 req/hour per IP)
 - Tests use `makeReplayNamespace()` (in-memory DO mock) from `tests/replayNamespace.ts`
 - Commit style: semantic (`feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`)
 - Never commit without explicit user request
@@ -280,7 +284,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 | Shared `Env` type | Done | `types/core.ts` → `worker-configuration.d.ts` — eliminated 9 duplicate `EnvLike` interfaces |
 | Inline JS → static files | Done | 17 static JS files in `static/js/`, zero inline `<script>` blocks, `serveStaticJs()` in `static/js/registry.ts` |
 | Dead code cleanup | Done | Deleted `templates/browserNfc.ts` (all 9 exports unused after static JS extraction) |
-| Router cleanup | Done | `index.ts` 372→249 lines: fake-invoice handler extracted to `handlers/fakeInvoiceHandler.ts`, static JS registry extracted |
+| Router cleanup | Done | `index.ts` 372→307 lines: fake-invoice handler extracted, static JS registry extracted, virtual card endpoint added |
 | replayProtection DRY | Done | 334→288 lines: 6 generic DO facade helpers, 16 exports rewritten to 1-3 lines |
 | Test `: any` reduction | Done | 67 `: any` annotations replaced with proper types across 17 test files |
 | CardReplayDO split | Done | 933-line god object split into dispatcher + `durableObjects/cardReplay/` modules while preserving all DO route contracts |
