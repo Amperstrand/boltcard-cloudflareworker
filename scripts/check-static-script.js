@@ -53,4 +53,53 @@ if (violations.length > 0) {
 }
 
 console.log("staticScript audit: all script tags use staticScript(). OK.");
+
+const REGISTRY_FILE = join(import.meta.dirname, "..", "static", "js", "registry.ts");
+const SYNC_FILE = join(import.meta.dirname, "..", "scripts", "sync-js-exports.mjs");
+
+const registryContent = readFileSync(REGISTRY_FILE, "utf8");
+const syncContent = readFileSync(SYNC_FILE, "utf8");
+
+const registryFiles = new Set(
+  [...registryContent.matchAll(/"([a-z0-9-]+\.js)":\s*\{/g)].map((m) => m[1])
+);
+
+const syncFiles = new Set(
+  [...syncContent.matchAll(/"([a-z0-9-]+\.js)",/g)].map((m) => m[1])
+);
+
+const usedFiles = new Set();
+function collectStaticScriptRefs(dir, file) {
+  const content = readFileSync(join(dir, file), "utf8");
+  for (const match of content.matchAll(/staticScript\("([a-z0-9-]+\.js)"\)/g)) {
+    usedFiles.add(match[1]);
+  }
+}
+for (const file of readdirSync(TEMPLATES_DIR).filter((f) => f.endsWith(".ts"))) {
+  collectStaticScriptRefs(TEMPLATES_DIR, file);
+}
+for (const file of readdirSync(HANDLERS_DIR).filter((f) => f.endsWith(".ts"))) {
+  collectStaticScriptRefs(HANDLERS_DIR, file);
+}
+
+const registryIssues = [];
+for (const f of usedFiles) {
+  if (!registryFiles.has(f)) registryIssues.push(`  ${f} used via staticScript() but MISSING from registry.ts`);
+  if (!syncFiles.has(f)) registryIssues.push(`  ${f} used via staticScript() but MISSING from sync-js-exports.mjs FILE_ORDER`);
+}
+
+for (const f of registryFiles) {
+  if (!syncFiles.has(f)) registryIssues.push(`  ${f} in registry.ts but MISSING from sync-js-exports.mjs FILE_ORDER`);
+}
+for (const f of syncFiles) {
+  if (!registryFiles.has(f)) registryIssues.push(`  ${f} in sync-js-exports.mjs FILE_ORDER but MISSING from registry.ts`);
+}
+
+if (registryIssues.length > 0) {
+  console.error(`\nRegistry completeness audit: ${registryIssues.length} issue(s) found`);
+  for (const issue of registryIssues) console.error(issue);
+  process.exit(1);
+}
+
+console.log("Registry completeness audit: all staticScript() refs present in registry and sync. OK.");
 process.exit(0);

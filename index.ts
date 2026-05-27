@@ -201,6 +201,9 @@ router.get("/", (request, env) => {
 router.get("/static/js/:file", (request) => {
   return serveStaticJs(request.params.file, request.headers.get("If-None-Match"));
 });
+router.head("/static/js/:file", (request) => {
+  return serveStaticJs(request.params.file, request.headers.get("If-None-Match"));
+});
 
 router.get("/sw.js", () => {
   return new Response(SW_JS, {

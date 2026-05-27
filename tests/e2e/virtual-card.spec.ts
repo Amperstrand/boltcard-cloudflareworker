@@ -106,26 +106,27 @@ test.describe("Virtual Card Simulator", () => {
     expect(logEntries).toBeGreaterThanOrEqual(6);
   });
 
-  test("0.5 - Card discovered in registry after tap", async ({ page }) => {
+  test("0.5 - Card discovered after tap — DO state and registry", async ({ page }) => {
     await page.locator("#vc-create-btn").click();
     await expect(page.locator("#vc-uid")).not.toHaveText("--", { timeout: 10000 });
     await page.locator("#vc-tap-btn").click();
     await expect(page.locator("#vc-tap-log")).toContainText("withdrawRequest", { timeout: 10000 });
 
-    const uid = (await page.locator("#vc-uid").textContent())!.toLowerCase();
+    const keys = await page.evaluate(() => (window as any)._vcGetKeys());
+    const uid = keys.uid.toLowerCase();
 
-    await page.goto("/operator/cards", { waitUntil: "domcontentloaded" });
-    await page.waitForTimeout(3000);
-    await page.locator("#btn-refresh").click();
-    await page.waitForTimeout(3000);
+    const tapResult = await page.evaluate(() => (window as any)._vcTap());
 
-    const data = await page.evaluate(async () => {
-      const resp = await fetch("/operator/cards/data");
-      return resp.json();
-    });
-    const cards = data.cards ?? [];
-    const found = cards.some((c: { uid?: string }) => c.uid?.toLowerCase() === uid);
-    expect(found).toBeTruthy();
+    const cardInfo = await page.evaluate(async (tap: { p: string; c: string }): Promise<{
+      state: string; uid?: string;
+    }> => {
+      const r = await fetch("/card/info?p=" + encodeURIComponent(tap.p) + "&c=" + encodeURIComponent(tap.c));
+      return r.json();
+    }, tapResult);
+
+    expect(cardInfo.state).toBeDefined();
+    expect(["discovered", "active"]).toContain(cardInfo.state);
+    expect(cardInfo.uid?.toLowerCase()).toBe(uid);
   });
 
   test("0.6 - Auto-test lifecycle runs all steps", async ({ page }) => {

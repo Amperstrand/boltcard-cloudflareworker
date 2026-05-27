@@ -254,7 +254,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 - Deploy: `npm run deploy` (all tests → build_keys → wrangler deploy → live smoke test)
 - Lint: `npm run lint` (innerHTML zero-tolerance + staticScript enforcement)
   - `npm run lint:innerhtml` — zero innerHTML tolerance, enforced by `scripts/check-innerhtml.js`
-  - `npm run lint:static-script` — all `/static/js/` script tags must use `staticScript()`, enforced by `scripts/check-static-script.js`
+  - `npm run lint:static-script` — all `/static/js/` script tags must use `staticScript()`, enforced by `scripts/check-static-script.js`; also verifies registry completeness (every `staticScript()` ref exists in `registry.ts` and `sync-js-exports.mjs`)
 - Sync JS exports: `node scripts/sync-js-exports.mjs` (auto-regenerates `static/js/exports.ts` with SHA-256 hashes)
 
 ### Totals
@@ -282,7 +282,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 | `resolveCardIdentity()` shared pipeline | Done | `utils/cardAuth.ts` — decrypt→state→config→CMAC across 5 handlers |
 | TypeScript type tightening | Done | Source `: any` 318→0; source `as any` count: 0; `// @ts-nocheck` only in `tests/do/cardReplayDO.real.test.ts` and `tests/testHelpers.ts`; `types/core.ts` centralizes shared types; `catch(e: unknown)` + `getErrorMessage()` throughout |
 | Shared `Env` type | Done | `types/core.ts` → `worker-configuration.d.ts` — eliminated 9 duplicate `EnvLike` interfaces |
-| Inline JS → static files | Done | 17 static JS files in `static/js/`, zero inline `<script>` blocks, `serveStaticJs()` in `static/js/registry.ts` |
+| Inline JS → static files | Done | 27 static JS files in `static/js/`, zero inline `<script>` blocks, `serveStaticJs()` in `static/js/registry.ts` |
 | Dead code cleanup | Done | Deleted `templates/browserNfc.ts` (all 9 exports unused after static JS extraction) |
 | Router cleanup | Done | `index.ts` 372→307 lines: fake-invoice handler extracted, static JS registry extracted, virtual card endpoint added |
 | replayProtection DRY | Done | 334→288 lines: 6 generic DO facade helpers, 16 exports rewritten to 1-3 lines |
@@ -298,6 +298,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 | Cardholder PWA | Medium | Rich dashboard with push notifications, spending history, QR top-up |
 | GitHub #5: verifiable credentials | Low | Embed VC in payment JSON |
 | GitHub #3: SSH 2FA via NTAG424 | Low | NFC-based SSH authentication |
+| USB reader keyboard-wedge input | Medium | `pos.js` UI toggle exists but no keyboard event listener for USB reader input |
 
 ## Test-Only Exports
 

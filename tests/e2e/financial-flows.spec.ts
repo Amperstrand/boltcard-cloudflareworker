@@ -1,6 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
+import { createProvider, type CardProvider, type TapResult } from "./providers/index.js";
 
 const OPERATOR_PIN = "1234";
+const provider = createProvider();
 
 async function operatorLogin(page: Page) {
   await page.goto("/operator/login", { waitUntil: "domcontentloaded" });
@@ -9,33 +11,18 @@ async function operatorLogin(page: Page) {
   await page.waitForURL("**/operator/pos**", { timeout: 15000 });
 }
 
-async function createVirtualCard(page: Page) {
-  await page.goto("/debug", { waitUntil: "domcontentloaded" });
-  await page.locator('button[data-tab="virtual"]').click();
-  await expect(page.locator("#panel-virtual")).toBeVisible();
-  await page.locator("#vc-create-btn").click();
-  await expect(page.locator("#vc-uid")).not.toHaveText("--", { timeout: 10000 });
-}
-
-async function vcTap(page: Page): Promise<{ p: string; c: string }> {
-  return page.evaluate(() => {
-    const result = (window as any)._vcTap();
-    return result;
-  });
-}
-
-async function vcGetKeys(page: Page) {
-  return page.evaluate(() => (window as any)._vcGetKeys());
-}
-
 interface ApiResult {
   ok: boolean;
   status: number;
   data: Record<string, any>;
 }
 
+async function providerTap(page: Page): Promise<TapResult> {
+  return provider.tap(page);
+}
+
 async function discoverCard(page: Page): Promise<ApiResult> {
-  const tap = await vcTap(page);
+  const tap = await providerTap(page);
   return page.evaluate(async (t: { p: string; c: string }) => {
     const r = await fetch("/?p=" + encodeURIComponent(t.p) + "&c=" + encodeURIComponent(t.c));
     return { ok: r.ok, status: r.status, data: await r.json() };
@@ -43,7 +30,7 @@ async function discoverCard(page: Page): Promise<ApiResult> {
 }
 
 async function apiTopUp(page: Page, amount: number): Promise<ApiResult> {
-  const tap = await vcTap(page);
+  const tap = await providerTap(page);
   return page.evaluate(
     async ({ t, amount }: { t: { p: string; c: string }; amount: number }) => {
       const r = await fetch("/operator/topup/apply", {
@@ -58,7 +45,7 @@ async function apiTopUp(page: Page, amount: number): Promise<ApiResult> {
 }
 
 async function apiCharge(page: Page, amount: number): Promise<ApiResult> {
-  const tap = await vcTap(page);
+  const tap = await providerTap(page);
   return page.evaluate(
     async ({ t, amount }: { t: { p: string; c: string }; amount: number }) => {
       const r = await fetch("/operator/pos/charge", {
@@ -73,7 +60,7 @@ async function apiCharge(page: Page, amount: number): Promise<ApiResult> {
 }
 
 async function apiRefund(page: Page, amount: number): Promise<ApiResult> {
-  const tap = await vcTap(page);
+  const tap = await providerTap(page);
   return page.evaluate(
     async ({ t, amount }: { t: { p: string; c: string }; amount: number }) => {
       const r = await fetch("/operator/refund/apply", {
@@ -88,7 +75,7 @@ async function apiRefund(page: Page, amount: number): Promise<ApiResult> {
 }
 
 async function apiBalanceCheck(page: Page): Promise<ApiResult> {
-  const tap = await vcTap(page);
+  const tap = await providerTap(page);
   return page.evaluate(async (t: { p: string; c: string }) => {
     const r = await fetch("/api/balance-check", {
       method: "POST",
@@ -100,7 +87,7 @@ async function apiBalanceCheck(page: Page): Promise<ApiResult> {
 }
 
 async function apiVoid(page: Page, transactionId: number): Promise<ApiResult> {
-  const tap = await vcTap(page);
+  const tap = await providerTap(page);
   return page.evaluate(
     async ({ t, transactionId }: { t: { p: string; c: string }; transactionId: number }) => {
       const r = await fetch("/operator/void/apply", {
@@ -115,7 +102,7 @@ async function apiVoid(page: Page, transactionId: number): Promise<ApiResult> {
 }
 
 async function apiVoidTransactions(page: Page): Promise<ApiResult> {
-  const tap = await vcTap(page);
+  const tap = await providerTap(page);
   return page.evaluate(async (t: { p: string; c: string }) => {
     const r = await fetch(
       "/operator/void/transactions?p=" + encodeURIComponent(t.p) + "&c=" + encodeURIComponent(t.c),
@@ -134,10 +121,10 @@ async function apiReceipt(page: Page, txnId: number, uid: string): Promise<{ ok:
   );
 }
 
-test.describe("Financial Flows with Virtual Card", () => {
+test.describe(`Financial Flows (${provider.name} provider)`, () => {
   test.beforeEach(async ({ page }) => {
     await operatorLogin(page);
-    await createVirtualCard(page);
+    await provider.setup(page);
     const disc = await discoverCard(page);
     expect(disc.ok).toBeTruthy();
     expect(disc.data.tag).toBe("withdrawRequest");
@@ -248,7 +235,7 @@ test.describe("Financial Flows with Virtual Card", () => {
 
     const charge = await apiCharge(page, 3000);
     const txnId = charge.data.txnId;
-    const keys = await vcGetKeys(page);
+    const keys = await provider.getCardInfo(page);
 
     const receipt = await apiReceipt(page, txnId, keys.uid);
     expect(receipt.ok).toBeTruthy();
@@ -267,17 +254,20 @@ test.describe("Financial Flows with Virtual Card", () => {
   });
 });
 
-test.describe("Reconciliation Page with Virtual Card", () => {
+test.describe(`Reconciliation Page (${provider.name} provider)`, () => {
   test("reconciliation API returns transaction data after financial operations", async ({ page }) => {
     await operatorLogin(page);
-    await createVirtualCard(page);
+    await provider.setup(page);
     await discoverCard(page);
 
     await apiTopUp(page, 10000);
     await apiCharge(page, 3000);
     await apiRefund(page, 1000);
 
-    const reconData = await page.evaluate(async () => {
+    const reconData = await page.evaluate(async (): Promise<{
+      venueTotals: { topupTotal: number; chargeTotal: number; refundTotal: number; outstandingBalance: number };
+      summaries: unknown[];
+    }> => {
       const r = await fetch("/operator/reconciliation/data");
       return r.json();
     });
@@ -290,5 +280,19 @@ test.describe("Reconciliation Page with Virtual Card", () => {
 
     expect(reconData.summaries).toBeDefined();
     expect(reconData.summaries.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test("reconciliation page renders content after JS loads", async ({ page }) => {
+    await operatorLogin(page);
+
+    await page.goto("/operator/reconciliation", { waitUntil: "domcontentloaded" });
+
+    await expect(page.locator("#content")).toBeVisible({ timeout: 15000 });
+
+    const contentClass = await page.getAttribute("#content", "class");
+    expect(contentClass).not.toContain("hidden");
+
+    const topupTotal = await page.textContent("#topup-total");
+    expect(topupTotal).toBeTruthy();
   });
 });
