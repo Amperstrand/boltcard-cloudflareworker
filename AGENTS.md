@@ -326,3 +326,46 @@ The following exports are prefixed with `_` and only used in tests:
 - **Fire-and-forget**: `recordTapRead()` uses `.catch()` with `logger.warn()` — tap recording never blocks the response
 - **Graceful degradation**: `safeGetBalance()` returns `{balance: 0}` on failure; `getUidConfig()` falls back to deterministic keys; `history.ts` returns empty arrays
 - **Never expose**: Raw `err.message`, DO internals, CLN REST response bodies, or KV error details to clients
+
+## Cursor Cloud specific instructions
+
+This repo is a **single Cloudflare Worker** (no separate backend/frontend servers). Local dev uses **Wrangler + Miniflare**; KV and Durable Objects are emulated automatically.
+
+### Dependency refresh (VM update script)
+
+After `npm ci`, run `node scripts/build_keys.js` if `utils/generatedKeyData.js` is missing or `keys/` changed (also runs via `prebuild` on deploy).
+
+### Lint gotcha
+
+`npm run lint` includes `lint:build-info`, which requires `utils/buildInfo.ts`’s `BUILD_REVISION` to match `git rev-parse --short HEAD`. If it fails, run `node scripts/sync-js-exports.mjs` (do **not** add this to the VM update script).
+
+### Local dev server
+
+Start non-interactively (Wrangler 4 may prompt for “Cloudflare skills” in a TTY):
+
+```bash
+npx wrangler dev --ip 127.0.0.1 --port 8787 --show-interactive-dev-session false
+```
+
+First run in a new environment: if a skills prompt appears, answer `n` once, or restart with the flag above.
+
+- Default URL: `http://127.0.0.1:8787`
+- Health: `GET /status` → JSON with `kv_status: working`
+- Operator demo PIN: `1234` (see `wrangler.toml` / README)
+
+### Verify without a physical NFC card
+
+| Goal | Command |
+|------|---------|
+| Full test suite | `npm run test:all` |
+| API lifecycle on running dev server | `node scripts/live-lifecycle-test.mjs http://127.0.0.1:8787` |
+
+Integration tests (`npm run test:integration`) exercise the same flows in-process via Miniflare and need **no** `wrangler dev`.
+
+### Optional (out of scope for default cloud setup)
+
+- `npm run deploy` / `npm run live:smoke` — need Cloudflare credentials and remote bindings
+- Playwright (`npx playwright test`) — hits the public demo host by default
+- Physical NTAG424 or PCSCD bridge (`scripts/pcscd-bridge.py`) — hardware only
+
+Standard commands: **lint** `npm run lint`, **typecheck** `npm run typecheck`, **tests** `npm run test:all` — see [Test Baseline](#test-baseline--3-tier-architecture) above.
