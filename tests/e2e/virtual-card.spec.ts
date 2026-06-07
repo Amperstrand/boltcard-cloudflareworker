@@ -1,21 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-
-const OPERATOR_PIN = "1234";
-
-async function operatorLogin(page: Page) {
-  await page.goto("/operator/login", { waitUntil: "domcontentloaded" });
-  await page.locator('input[name="pin"]').fill(OPERATOR_PIN);
-  await page.locator('button[type="submit"]').click();
-  await page.waitForURL("**/operator/pos**", { timeout: 15000 });
-}
-
-async function gotoVirtualCardTab(page: Page) {
-  await page.goto("/debug", { waitUntil: "domcontentloaded" });
-  // Click the Virtual Card tab button
-  await page.locator('button[data-tab="virtual"]').click();
-  // Wait for the panel to be visible
-  await expect(page.locator("#panel-virtual")).toBeVisible();
-}
+import { operatorLogin, gotoVirtualCardTab } from "./helpers.js";
 
 test.describe("Virtual Card Simulator", () => {
   test.beforeEach(async ({ page }) => {

@@ -1,13 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
-
-const OPERATOR_PIN = "1234";
-
-async function operatorLogin(page: Page) {
-  await page.goto("/operator/login", { waitUntil: "domcontentloaded" });
-  await page.locator('input[name="pin"]').fill(OPERATOR_PIN);
-  await page.locator('button[type="submit"]').click();
-  await page.waitForURL("**/operator/pos**", { timeout: 15000 });
-}
+import { test, expect } from "@playwright/test";
+import { operatorLogin, OPERATOR_PIN } from "./helpers.js";
 
 test.describe("Operator UI", () => {
   test.describe("Operator Login Flow", () => {
