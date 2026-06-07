@@ -1,9 +1,4 @@
-import {
-  hexToBytes,
-  bytesToHex,
-  decryptP,
-  verifyCmac
-} from "./cryptoutils.js";
+import { decryptP, verifyCmac, hexToBytes, bytesToHex } from "@ntag424/crypto";
 import { getBoltCardK1 } from "./getUidConfig.js";
 import { logger, getErrorMessage } from "./utils/logger.js";
 import type { Env } from "./types/core.js";

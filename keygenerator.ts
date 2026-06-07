@@ -1,13 +1,9 @@
-import { computeAesCmac, hexToBytes, bytesToHex } from "./cryptoutils.js";
+import { deriveKeysFromHex as _deriveKeysFromHex, computeAesCmac, hexToBytes, bytesToHex } from "@ntag424/crypto";
+import type { DerivedKeys as LibDerivedKeys } from "@ntag424/crypto";
 import type { Env } from "./types/core.js";
 
-interface DerivedKeys {
-  k0: string;
-  k1: string;
-  k2: string;
-  k3: string;
-  k4: string;
-  cardKey: string;
+// App-specific extension: adds `id` field (CMAC of UID with constant 2d003f7b)
+interface DerivedKeys extends LibDerivedKeys {
   id: string;
 }
 
@@ -21,7 +17,7 @@ export function getDeterministicKeys(uidHex: string, env: Env | null | undefined
     }
     return "00000000000000000000000000000001";
   })();
-  const result = deriveKeysFromHex(uidHex, issuerKeyHex, version);
+  const result = _deriveKeysFromHex(uidHex, issuerKeyHex, version);
   const uid = hexToBytes(uidHex);
   const issuerKey = hexToBytes(issuerKeyHex);
   const id = computeAesCmac(new Uint8Array([...hexToBytes("2d003f7b"), ...uid]), issuerKey);
@@ -29,22 +25,5 @@ export function getDeterministicKeys(uidHex: string, env: Env | null | undefined
 }
 
 export function deriveKeysFromHex(uidHex: string, issuerKeyHex: string, version: number = 1): Omit<DerivedKeys, 'id'> {
-  const issuerKey = hexToBytes(issuerKeyHex);
-  const uid = hexToBytes(uidHex);
-  const versionBytes = new Uint8Array(4);
-  new DataView(versionBytes.buffer).setUint32(0, version, true);
-
-  const cardKey = computeAesCmac(
-    new Uint8Array([...hexToBytes("2d003f75"), ...uid, ...versionBytes]),
-    issuerKey
-  );
-
-  return {
-    k0: bytesToHex(computeAesCmac(hexToBytes("2d003f76"), cardKey)),
-    k1: bytesToHex(computeAesCmac(hexToBytes("2d003f77"), issuerKey)),
-    k2: bytesToHex(computeAesCmac(hexToBytes("2d003f78"), cardKey)),
-    k3: bytesToHex(computeAesCmac(hexToBytes("2d003f79"), cardKey)),
-    k4: bytesToHex(computeAesCmac(hexToBytes("2d003f7a"), cardKey)),
-    cardKey: bytesToHex(cardKey),
-  };
+  return _deriveKeysFromHex(uidHex, issuerKeyHex, version);
 }
