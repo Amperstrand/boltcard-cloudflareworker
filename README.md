@@ -311,27 +311,15 @@ See [docs/VENUE-DEPLOYMENT.md](docs/VENUE-DEPLOYMENT.md) for the full guide.
 ## Testing
 
 ```bash
-npm test                              # Unit tests (Vitest, node env)
+npm test                              # Unit + vitest E2E tests (Vitest, node env)
 npm run test:do                       # DO integration tests (real SQLite)
 npm run test:integration              # Integration tests (full Worker pipeline)
 npm run test:all                      # All three tiers
+npx playwright test                   # Playwright E2E (live production)
+HEADED=1 npx playwright test          # Playwright with visible browser
 npm test -- --testNamePattern="pos"   # Run specific tests
 npm test -- --watch                   # Watch mode
 npm run deploy                        # tests → build_keys → wrangler deploy
-
-Run `npm run test:all` for current test counts across all tiers.
-
-### Test Infrastructure
-
-- **`tests/testHelpers.ts`**: `virtualTap(uid, counter, k1, k2)`, `buildCardTestEnv(options)`, `TEST_OPERATOR_AUTH`
-- **`tests/replayNamespace.ts`**: In-memory Durable Object mock with balance enforcement
-- **`tests/e2e/virtual-card.test.ts`**: Full E2E lifecycle: provision → tap → pay → replay
-- **`tests/e2e/pages.test.ts`**: Page rendering, security headers, auth flows
-- **`tests/do/cardReplayDO.real.test.ts`**: DO integration tests with real SQLite via `@cloudflare/vitest-pool-workers`
-- **`tests/adversarial.test.ts`**: Adversarial tests: open redirect, XSS, balance overflow, counter replay
-
-## Project Structure
-
 ```
 ├── index.ts                     # Router + security headers + error handling
 ├── boltCardHelper.ts            # Card decrypt + CMAC validation
@@ -441,8 +429,13 @@ Run `npm run test:all` for current test counts across all tiers.
 │   ├── replayNamespace.ts       # In-memory DO mock with balance enforcement
 │   ├── adversarial.test.ts      # adversarial tests: replay, double-spend, overdraft, XSS, open redirect
 │   ├── e2e/                     # End-to-end tests
+│   │   ├── providers/           # CardProvider interface — virtual (browser JS hooks) and USB (pcscd bridge)
+│   │   ├── helpers.ts           # Shared Playwright helpers (operatorLogin, financial API wrappers)
 │   │   ├── virtual-card.test.ts # Full NFC lifecycle
-│   │   └── pages.test.ts        # Page rendering + security headers
+│   │   ├── pages.test.ts        # Page rendering + security headers
+│   │   ├── financial-flows.spec.ts  # Financial operations against live production
+│   │   ├── virtual-card.spec.ts     # Virtual card simulator UI lifecycle
+│   │   └── operator-ui.spec.ts      # Operator page rendering and auth flows
 │   ├── integration/             # Integration tests (full Worker pipeline, miniflare)
 │   │   ├── helpers.ts           # apiFetch, operatorLogin, provisionCard, etc.
 │   │   ├── lifecycle.test.ts    # Card state machine transitions

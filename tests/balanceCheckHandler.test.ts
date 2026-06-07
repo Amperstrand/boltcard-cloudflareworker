@@ -1,34 +1,14 @@
 
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
-import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
-import aesjs from "aes-js";
+import { TestCard } from "@ntag424/crypto/test";
 import { TEST_OPERATOR_AUTH, buildCardTestEnv } from "./testHelpers.js";
 import type { Env } from "../types/core.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const TEST_UID = "04aabbccdd7788";
-const K1_HEX = BOLT_CARD_K1.split(",")[0]!;
-
-function generateP(uidHex: string, counter: number, k1Hex: string) {
-  const k1 = hexToBytes(k1Hex);
-  const uid = hexToBytes(uidHex);
-  const plaintext = new Uint8Array(16);
-  plaintext[0] = 0xC7;
-  plaintext.set(uid, 1);
-  plaintext[8] = counter & 0xff;
-  plaintext[9] = (counter >> 8) & 0xff;
-  plaintext[10] = (counter >> 16) & 0xff;
-  const aes = new aesjs.ModeOfOperation.ecb(k1);
-  const encrypted = aes.encrypt(plaintext);
-  return bytesToHex(new Uint8Array(encrypted));
-}
-
-function computeC(uidHex: string, ctrHex: string, k2Hex: string) {
-  const vd = buildVerificationData(hexToBytes(uidHex), hexToBytes(ctrHex), hexToBytes(k2Hex));
-  return bytesToHex(vd.ct);
-}
+const ISSUER_KEY = "00000000000000000000000000000001";
 
 function makeEnv(replay: ReturnType<typeof makeReplayNamespace> = makeReplayNamespace({ [TEST_UID]: 1 })) {
   return buildCardTestEnv({ operatorAuth: true, extraEnv: { CARD_REPLAY: replay, BOLT_CARD_K1 } });
@@ -62,16 +42,14 @@ describe("POST /api/balance-check", () => {
   });
 
   it("returns balance for valid card tap", async () => {
-    const counter = 2;
-    const pHex = generateP(TEST_UID, counter, K1_HEX);
-    const ctrHex = bytesToHex(new Uint8Array([(counter >> 16) & 0xff, (counter >> 8) & 0xff, counter & 0xff]));
-    const cHex = computeC(TEST_UID, ctrHex, keys.k2);
+    const card = new TestCard(TEST_UID, ISSUER_KEY);
+    const tap = card.tap(2);
 
     const res = await handleRequest(
       new Request("https://test.local/api/balance-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ p: pHex, c: cHex }),
+        body: JSON.stringify({ p: tap.p, c: tap.c }),
       }),
       env,
     );
@@ -133,12 +111,13 @@ describe("POST /api/balance-check", () => {
   });
 
   it("returns 403 when CMAC validation fails", async () => {
-    const pHex = generateP(TEST_UID, 2, K1_HEX);
+    const card = new TestCard(TEST_UID, ISSUER_KEY);
+    const tap = card.tap(2);
     const res = await handleRequest(
       new Request("https://test.local/api/balance-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ p: pHex, c: "0000000000000000" }),
+        body: JSON.stringify({ p: tap.p, c: "0000000000000000" }),
       }),
       env,
     );
@@ -150,16 +129,14 @@ describe("POST /api/balance-check", () => {
     const emptyEnv = makeEnv(emptyReplay);
     await provisionCard(emptyEnv, emptyReplay, 0);
 
-    const counter = 2;
-    const pHex = generateP(TEST_UID, counter, K1_HEX);
-    const ctrHex = bytesToHex(new Uint8Array([(counter >> 16) & 0xff, (counter >> 8) & 0xff, counter & 0xff]));
-    const cHex = computeC(TEST_UID, ctrHex, keys.k2);
+    const card = new TestCard(TEST_UID, ISSUER_KEY);
+    const tap = card.tap(2);
 
     const res = await handleRequest(
       new Request("https://test.local/api/balance-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ p: pHex, c: cHex }),
+        body: JSON.stringify({ p: tap.p, c: tap.c }),
       }),
       emptyEnv,
     );

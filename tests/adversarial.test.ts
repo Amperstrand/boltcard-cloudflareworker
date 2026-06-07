@@ -2,17 +2,17 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import { buildCardTestEnv, virtualTap, TEST_OPERATOR_AUTH } from "./testHelpers.js";
 import { getDeterministicKeys } from "../keygenerator.js";
+import { TestCard } from "@ntag424/crypto/test";
 import { handleRequest } from "../index.js";
 import { debitCard, creditCard, getBalance, checkAndAdvanceCounter, recordTap, getCardState } from "../replayProtection.js";
 import { validateCardTap } from "../utils/validateCardTap.js";
 import { extractUIDAndCounter, validateCmac } from "../boltCardHelper.js";
-import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
 import { handleLnurlpPayment } from "../handlers/lnurlHandler.js";
 import { handlePosCharge } from "../handlers/posChargeHandler.js";
-import aesjs from "aes-js";
 import type { Env } from "../types/core.js";
 
 const UID = "04a39493cc8680";
+const ISSUER_KEY = "00000000000000000000000000000001";
 const INITIAL_BALANCE = 100000;
 
 function makeAdversarialEnv(balance = INITIAL_BALANCE): Env {
@@ -27,34 +27,6 @@ function makeRequest(path: string, method: string = "GET", body: Record<string, 
     opts.headers = { "Content-Type": "application/json" };
   }
   return handleRequest(new Request(url, opts), env);
-}
-
-function generateRealPandC(uidHex: string, counter: number, k1Hex: string) {
-  const k1 = hexToBytes(k1Hex);
-  const uid = hexToBytes(uidHex);
-  const plaintext = new Uint8Array(16);
-  plaintext[0] = 0xC7;
-  plaintext.set(uid, 1);
-  plaintext[8] = counter & 0xff;
-  plaintext[9] = (counter >> 8) & 0xff;
-  plaintext[10] = (counter >> 16) & 0xff;
-  const aes = new aesjs.ModeOfOperation.ecb(k1);
-  const encrypted = aes.encrypt(plaintext);
-  const pHex = bytesToHex(new Uint8Array(encrypted));
-  const ctrHex = bytesToHex(new Uint8Array([
-    (counter >> 16) & 0xff,
-    (counter >> 8) & 0xff,
-    counter & 0xff,
-  ]));
-  return { pHex, ctrHex };
-}
-
-function computeRealC(uidHex: string, ctrHex: string, k2Hex: string) {
-  const uid = hexToBytes(uidHex);
-  const ctr = hexToBytes(ctrHex);
-  const k2 = hexToBytes(k2Hex);
-  const vd = buildVerificationData(uid, ctr, k2);
-  return bytesToHex(vd.ct);
 }
 
 function makeCallbackUrl(pHex: string, cHex: string, extra: Record<string, any> = {}) {
@@ -135,8 +107,9 @@ describe("Adversarial: Duplicate Callbacks", () => {
   });
 
   it("rejects second callback with same counter and same bolt11 to prevent double-debit", async () => {
-    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
-    const cHex = computeRealC(UID, ctrHex, keys.k2);
+    const tap = new TestCard(UID, ISSUER_KEY).tap(1);
+    const pHex = tap.p;
+    const cHex = tap.c;
     const url = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1testinvoice" });
 
     const first = await handleLnurlpPayment(new Request("https://test.local" + url), env);
@@ -147,8 +120,9 @@ describe("Adversarial: Duplicate Callbacks", () => {
   });
 
   it("rejects second callback with same counter but different bolt11 to prevent double-debit", async () => {
-    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
-    const cHex = computeRealC(UID, ctrHex, keys.k2);
+    const tap = new TestCard(UID, ISSUER_KEY).tap(1);
+    const pHex = tap.p;
+    const cHex = tap.c;
     const url1 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1first" });
     const url2 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1second" });
 
@@ -160,8 +134,9 @@ describe("Adversarial: Duplicate Callbacks", () => {
   });
 
   it("rejects callback-only replay to prevent double-debit", async () => {
-    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
-    const cHex = computeRealC(UID, ctrHex, keys.k2);
+    const tap = new TestCard(UID, ISSUER_KEY).tap(1);
+    const pHex = tap.p;
+    const cHex = tap.c;
     const url = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1test" });
 
     const first = await handleLnurlpPayment(new Request("https://test.local" + url), env);
@@ -172,8 +147,9 @@ describe("Adversarial: Duplicate Callbacks", () => {
   });
 
   it("prevents double callback processing — second callback rejected with 409", async () => {
-    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
-    const cHex = computeRealC(UID, ctrHex, keys.k2);
+    const tap = new TestCard(UID, ISSUER_KEY).tap(1);
+    const pHex = tap.p;
+    const cHex = tap.c;
     const url1 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1first" });
     const url2 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1second" });
 
@@ -418,8 +394,9 @@ describe("Adversarial: Concurrent Callbacks (TOCTOU)", () => {
   });
 
   it("two concurrent callbacks with same counter: only one payment succeeds", async () => {
-    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
-    const cHex = computeRealC(UID, ctrHex, keys.k2);
+    const tap = new TestCard(UID, ISSUER_KEY).tap(1);
+    const pHex = tap.p;
+    const cHex = tap.c;
     const url1 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1invoiceA" });
     const url2 = makeCallbackUrl(pHex, cHex, { pr: "lnbc10n1invoiceB" });
 
@@ -574,9 +551,8 @@ describe("Adversarial: Edge Cases", () => {
   it("rejects callback with missing pr AND missing amount", async () => {
     const env = makeAdversarialEnv();
     const keys = getDeterministicKeys(UID, env, 1);
-    const { pHex, ctrHex } = generateRealPandC(UID, 1, env.BOLT_CARD_K1!.split(",")[0]!);
-    const cHex = computeRealC(UID, ctrHex, keys.k2);
-    const url = `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}`;
+    const tap = new TestCard(UID, ISSUER_KEY).tap(1);
+    const url = `/boltcards/api/v1/lnurl/cb/${tap.p}?k1=${tap.c}`;
 
     const res = await handleLnurlpPayment(new Request("https://test.local" + url), env);
     expect(res.status).toBe(400);

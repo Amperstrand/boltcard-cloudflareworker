@@ -1,61 +1,19 @@
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
 import type { ReplayNamespace } from "./replayNamespace.js";
-import { hexToBytes, bytesToHex } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
-import { buildVerificationData } from "../cryptoutils.js";
+import { virtualTap } from "./testHelpers.js";
 import { getCardState } from "../replayProtection.js";
-import aesjs from "aes-js";
 import type { Env } from "../types/core.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
+const K1_HEX = BOLT_CARD_K1.split(",")[0]!;
 
 const WITHDRAW_P_COUNTER3 = "4E2E289D945A66BB13377A728884E867";
 const WITHDRAW_C_COUNTER3 = "E19CCB1FED8892CE";
 const TEST_UID = "04996c6a926980";
-const TEST_UID_CONFIG = JSON.stringify({
-  K2: "B45775776CB224C75BCDE7CA3704E933",
-  payment_method: "clnrest",
-  clnrest: {
-    protocol: "https",
-    host: "https://cln.example.com",
-    port: 3001,
-    rune: "abcd1234efgh5678ijkl",
-  },
-});
-const TEST_UID_CONFIG_OBJECT = JSON.parse(TEST_UID_CONFIG);
-
-function generateRealPandC(uidHex: string, counter: number, k1Hex: string) {
-  const k1 = hexToBytes(k1Hex);
-  const uid = hexToBytes(uidHex);
-
-  const plaintext = new Uint8Array(16);
-  plaintext[0] = 0xC7;
-  plaintext.set(uid, 1);
-  plaintext[8] = counter & 0xff;
-  plaintext[9] = (counter >> 8) & 0xff;
-  plaintext[10] = (counter >> 16) & 0xff;
-
-  const aes = new aesjs.ModeOfOperation.ecb(k1);
-  const encrypted = aes.encrypt(plaintext);
-  const pHex = bytesToHex(new Uint8Array(encrypted));
-
-  const ctrHex = bytesToHex(new Uint8Array([
-    (counter >> 16) & 0xff,
-    (counter >> 8) & 0xff,
-    counter & 0xff,
-  ]));
-
-  return { pHex, ctrHex };
-}
-
-function computeRealC(uidHex: string, ctrHex: string, k2Hex: string) {
-  const uid = hexToBytes(uidHex);
-  const ctr = hexToBytes(ctrHex);
-  const k2 = hexToBytes(k2Hex);
-  const vd = buildVerificationData(uid, ctr, k2);
-  return bytesToHex(vd.ct);
-}
+const TEST_UID_CONFIG_OBJECT = { K2: "B45775776CB224C75BCDE7CA3704E933", payment_method: "fakewallet" as const };
+const TEST_UID_CONFIG = JSON.stringify(TEST_UID_CONFIG_OBJECT);
 
 function makeEnv(replayInitial: Record<string, number> = {}, balance = 0): Env {
   const ns = makeReplayNamespace(replayInitial);
@@ -143,8 +101,7 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
       put: async () => {},
     } as unknown as KVNamespace;
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]!);
-    const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
+    const { pHex, cHex } = virtualTap(TEST_UID, 1, K1_HEX, keys.k2);
 
     const response = await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}&pr=lnbc10n1testinvoice`,
@@ -208,9 +165,7 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
       body: JSON.stringify({ amount: 5000, note: "Initial funding" }),
     }));
 
-    const { pHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]!);
-    const ctrHex = bytesToHex(new Uint8Array([0x00, 0x00, 0x01]));
-    const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
+    const { pHex, cHex } = virtualTap(TEST_UID, 1, K1_HEX, keys.k2);
 
     const response = await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}&pr=lnbc10n1replay`,
@@ -251,8 +206,7 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
       body: JSON.stringify({ amount: 5000, note: "Initial funding" }),
     }));
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 10, BOLT_CARD_K1.split(",")[0]!);
-    const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
+    const { pHex, cHex } = virtualTap(TEST_UID, 10, K1_HEX, keys.k2);
 
     const response = await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}&pr=lnbc10n1testinvoice`,
@@ -299,8 +253,7 @@ describe("Tap tracking — Step 2 (withdraw callback)", () => {
       put: async () => {},
     } as unknown as KVNamespace;
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 3, BOLT_CARD_K1.split(",")[0]!);
-    const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
+    const { pHex, cHex } = virtualTap(TEST_UID, 3, K1_HEX, keys.k2);
 
     await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}&pr=lnbc10n1test`,
@@ -439,8 +392,7 @@ describe("Tap tracking — login response", () => {
       put: async () => {},
     } as unknown as KVNamespace;
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 15, BOLT_CARD_K1.split(",")[0]!);
-    const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
+    const { pHex, cHex } = virtualTap(TEST_UID, 15, K1_HEX, keys.k2);
 
     const callbackResp = await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}&pr=lnbc10n1testinvoice`,

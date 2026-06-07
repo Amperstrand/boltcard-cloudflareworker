@@ -2,6 +2,7 @@ import aesjs from "aes-js";
 import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { makeReplayNamespace, type ReplayNamespace } from "./replayNamespace.js";
+import { handleRequest } from "../index.js";
 import type { Env, CardConfig, SessionPayload } from "../types/core.js";
 
 const DEFAULT_BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
@@ -261,4 +262,29 @@ export function buildCardTestEnv(options: BuildCardTestEnvOptions = {}): TestEnv
   Object.assign(env, extraEnv);
 
   return env;
+}
+
+export const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
+
+export function makePageEnv(): Env {
+  return {
+    BOLT_CARD_K1,
+    ISSUER_KEY: "00000000000000000000000000000001",
+    CARD_REPLAY: makeReplayNamespace() as unknown as DurableObjectNamespace,
+    UID_CONFIG: {
+      get: async () => null,
+      put: async () => {},
+    } as unknown as KVNamespace,
+    ...TEST_OPERATOR_AUTH,
+  } as Env;
+}
+
+export async function makeE2ERequest(path: string, method = "GET", body: Record<string, unknown> | null = null, env: Env, headers: Record<string, string> = {}): Promise<Response> {
+  const url = "https://boltcardpoc.psbt.me" + path;
+  const opts: RequestInit = { method, headers };
+  if (body) {
+    opts.body = JSON.stringify(body);
+    (opts.headers as Record<string, string>)["Content-Type"] = "application/json";
+  }
+  return handleRequest(new Request(url, opts), env);
 }

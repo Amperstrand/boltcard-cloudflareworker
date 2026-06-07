@@ -244,6 +244,21 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 - Helpers: `tests/integration/helpers.ts` — `apiFetch()`, `operatorLogin()`, `provisionCard()`, `topUp()`, `posCharge()`, `cardTap()`, `virtualTap()`, `fakeInvoice()`, etc.
 - Suites: `lifecycle.test.ts`, `adversarial.test.ts`, `load.test.ts`, `csrf.test.ts`, `nfc-flow.test.ts`
 
+### Tier 2c: Playwright E2E Tests
+- Run: `npx playwright test` (Playwright, Chromium, live production)
+- Config: `playwright.config.ts` — baseURL: `https://boltcardpoc.psbt.me`
+- Provider architecture in `tests/e2e/providers/`:
+  - `provider.ts` — `CardProvider` interface: `setup()`, `tap()`, `getCardInfo()`
+  - `virtual-provider.ts` — Browser JS hooks (`_vcTap()`/`_vcGetKeys()`) for CI
+  - `usb-provider.ts` — pcscd bridge HTTP API for Omnikey reader
+  - `index.ts` — Factory: `TEST_PROVIDER=virtual` (default) or `TEST_PROVIDER=usb`
+- Shared helpers in `tests/e2e/helpers.ts`: `operatorLogin()`, `makeApiHelpers()`
+- Playwright test suites:
+  - `financial-flows.spec.ts` — Top-up, POS charge, refund, void, reconciliation (uses provider)
+  - `virtual-card.spec.ts` — Virtual card simulator UI, auto-test lifecycle
+  - `operator-ui.spec.ts` — Login flow, page rendering, auth protection
+- USB reader bridge: `scripts/pcscd-bridge.py` — reads NTAG424 via pyscard + ndeflib
+
 ### Tier 3: Smoke Tests
 - Run: `npm run live:smoke` (post-deploy, 5 HTTP requests to live worker)
 - Minimal health check — verifies deploy is alive + cache busting on script tags
@@ -251,6 +266,8 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 
 ### Commands
 - Run all: `npm run test:all` (unit → DO → integration)
+- Run Playwright: `npx playwright test` (headless), `HEADED=1 npx playwright test` (visible)
+- Run with USB reader: `TEST_PROVIDER=usb HEADED=1 npx playwright test`
 - Deploy: `npm run deploy` (all tests → build_keys → wrangler deploy → live smoke test)
 - Lint: `npm run lint` (innerHTML zero-tolerance + staticScript enforcement)
   - `npm run lint:innerhtml` — zero innerHTML tolerance, enforced by `scripts/check-innerhtml.js`
@@ -258,7 +275,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 - Sync JS exports: `node scripts/sync-js-exports.mjs` (auto-regenerates `static/js/exports.ts` with SHA-256 hashes)
 
 ### Totals
-- Unit tests + DO integration tests + full-pipeline integration tests — run `npm run test:all` for current counts
+- Unit tests + DO integration tests + full-pipeline integration tests + Playwright E2E tests — run `npm run test:all` for current counts
 - TypeScript: `tsc --noEmit` passes with `strict: true`, 0 errors (source + tests)
 - Source `: any` count: 0; source `as any` count: 0; `// @ts-nocheck` only in `tests/do/cardReplayDO.real.test.ts` and `tests/testHelpers.ts`
 

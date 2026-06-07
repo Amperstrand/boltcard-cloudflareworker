@@ -1,46 +1,12 @@
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
-import { hexToBytes, bytesToHex } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
-import { buildVerificationData } from "../cryptoutils.js";
-import aesjs from "aes-js";
-import { buildCardTestEnv } from "./testHelpers.js";
+import { buildCardTestEnv, virtualTap } from "./testHelpers.js";
 import type { Env } from "../types/core.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const TEST_UID = "04996c6a926980";
-
-function generateRealPandC(uidHex: string, counter: number, k1Hex: string) {
-  const k1 = hexToBytes(k1Hex);
-  const uid = hexToBytes(uidHex);
-
-  const plaintext = new Uint8Array(16);
-  plaintext[0] = 0xC7;
-  plaintext.set(uid, 1);
-  plaintext[8] = counter & 0xff;
-  plaintext[9] = (counter >> 8) & 0xff;
-  plaintext[10] = (counter >> 16) & 0xff;
-
-  const aes = new aesjs.ModeOfOperation.ecb(k1);
-  const encrypted = aes.encrypt(plaintext);
-  const pHex = bytesToHex(new Uint8Array(encrypted));
-
-  const ctrHex = bytesToHex(new Uint8Array([
-    (counter >> 16) & 0xff,
-    (counter >> 8) & 0xff,
-    counter & 0xff,
-  ]));
-
-  return { pHex, ctrHex };
-}
-
-function computeRealC(uidHex: string, ctrHex: string, k2Hex: string) {
-  const uid = hexToBytes(uidHex);
-  const ctr = hexToBytes(ctrHex);
-  const k2 = hexToBytes(k2Hex);
-  const vd = buildVerificationData(uid, ctr, k2);
-  return bytesToHex(vd.ct);
-}
+const K1_HEX = BOLT_CARD_K1.split(",")[0]!;
 
 function makeEnv(replayInitial: Record<string, number> = {}, balance: number = 0): Env & { __kvStore?: Record<string, string> } {
   return buildCardTestEnv({ uid: TEST_UID, replayInitial, balance, operatorAuth: true, extraEnv: { BOLT_CARD_K1 } });
@@ -105,8 +71,7 @@ describe("POS Amount Parameter Support", () => {
       put: async () => {},
     } as any;
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 1, BOLT_CARD_K1.split(",")[0]!);
-    const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
+    const { pHex, cHex } = virtualTap(TEST_UID, 1, K1_HEX, keys.k2);
 
     const response = await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}&pr=lnbc10n1testinvoice&amount=5000`,
@@ -143,8 +108,7 @@ describe("POS Amount Parameter Support", () => {
       put: async () => {},
     } as any;
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 2, BOLT_CARD_K1.split(",")[0]!);
-    const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
+    const { pHex, cHex } = virtualTap(TEST_UID, 2, K1_HEX, keys.k2);
 
     const response = await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}&amount=10000`,
@@ -182,8 +146,7 @@ describe("POS Amount Parameter Support", () => {
       put: async () => {},
     } as any;
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 3, BOLT_CARD_K1.split(",")[0]!);
-    const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
+    const { pHex, cHex } = virtualTap(TEST_UID, 3, K1_HEX, keys.k2);
 
     const response = await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}`,
@@ -213,8 +176,7 @@ describe("POS Amount Parameter Support", () => {
       put: async () => {},
     } as any;
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 4, BOLT_CARD_K1.split(",")[0]!);
-    const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
+    const { pHex, cHex } = virtualTap(TEST_UID, 4, K1_HEX, keys.k2);
 
     const bolt11Invoice = "lnbc1000n1pjrw..." + "u".repeat(50);
     const response = await makeRequest(
@@ -244,8 +206,7 @@ describe("POS Amount Parameter Support", () => {
       put: async () => {},
     } as any;
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 5, BOLT_CARD_K1.split(",")[0]!);
-    const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
+    const { pHex, cHex } = virtualTap(TEST_UID, 5, K1_HEX, keys.k2);
 
     const response = await makeRequest(
       `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}&pr=lnbc1000n1testinvoice&amount=25000`,
@@ -290,8 +251,7 @@ describe("POS Amount Parameter Support", () => {
       body: JSON.stringify({ amount: 50000, note: "Initial funding" }),
     }));
 
-    const { pHex, ctrHex } = generateRealPandC(TEST_UID, 6, BOLT_CARD_K1.split(",")[0]!);
-    const cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
+    const { pHex, cHex } = virtualTap(TEST_UID, 6, K1_HEX, keys.k2);
 
     const debitAmount = 15000;
     const response = await makeRequest(

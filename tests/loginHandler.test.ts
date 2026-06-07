@@ -1,11 +1,10 @@
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
-import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
 import { getDeterministicKeys, deriveKeysFromHex } from "../keygenerator.js";
 import { handleTerminateAction, handleRequestWipeAction, handleTopUpAction, normalizeSubmittedUid } from "../handlers/loginActions.js";
-import aesjs from "aes-js";
+import { TestCard } from "@ntag424/crypto/test";
+import { virtualTap, createMockKV } from "./testHelpers.js";
 import type { Env } from "../types/core.js";
-import { createMockKV } from "./testHelpers.js";
 
 const env: Env = {
   BOLT_CARD_K1: "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d",
@@ -14,10 +13,12 @@ const env: Env = {
   UID_CONFIG: createMockKV(),
 };
 
-// Test vector: p/c that decrypts with K1=55da174c9608993dc27bb3f30a4a7314
-const VALID_P = "4E2E289D945A66BB13377A728884E867";
-const VALID_C = "E19CCB1FED8892CE";
 const ACTION_UID = "04a39493cc8680";
+const ISSUER_KEY = "00000000000000000000000000000001";
+const loginCard = new TestCard(ACTION_UID, ISSUER_KEY);
+const loginTap = loginCard.tap(3);
+const VALID_P = loginTap.p;
+const VALID_C = loginTap.c;
 
 function makeEnv(replay = makeReplayNamespace()): Env & { __TEST_OPERATOR_SESSION: { shiftId: string; iat: number; exp: number } } {
   return {
@@ -566,21 +567,7 @@ describe("POST /login (handleLoginVerify)", () => {
     const perCardK1 = "3db8852a71d11fa0adb6babaf274af89";
     const perCardK2 = "ce08c57983d65fceaa571e248390790f";
 
-    const uid = hexToBytes(perCardUid);
-    const counter = 5;
-    const plaintext = new Uint8Array(16);
-    plaintext[0] = 0xc7;
-    plaintext.set(uid, 1);
-    plaintext[8] = counter & 0xff;
-    plaintext[9] = (counter >> 8) & 0xff;
-    plaintext[10] = (counter >> 16) & 0xff;
-    const aes = new aesjs.ModeOfOperation.ecb(hexToBytes(perCardK1));
-    const encrypted = aes.encrypt(plaintext);
-    const pHex = bytesToHex(new Uint8Array(encrypted));
-
-    const ctrHex = bytesToHex(new Uint8Array([(counter >> 16) & 0xff, (counter >> 8) & 0xff, counter & 0xff]));
-    const vd = buildVerificationData(uid, hexToBytes(ctrHex), hexToBytes(perCardK2));
-    const cHex = bytesToHex(vd.ct);
+    const { pHex, cHex } = virtualTap(perCardUid, 5, perCardK1, perCardK2);
 
     const replay = makeReplayNamespace();
     replay.__activate(perCardUid, 1);
@@ -611,21 +598,7 @@ describe("POST /login (handleLoginVerify)", () => {
     const perCardK1 = "3db8852a71d11fa0adb6babaf274af89";
     const perCardK2 = "420e18a161fec00e083aaaa787fb3a3f";
 
-    const uid = hexToBytes(perCardUid);
-    const counter = 3;
-    const plaintext = new Uint8Array(16);
-    plaintext[0] = 0xc7;
-    plaintext.set(uid, 1);
-    plaintext[8] = counter & 0xff;
-    plaintext[9] = (counter >> 8) & 0xff;
-    plaintext[10] = (counter >> 16) & 0xff;
-    const aes = new aesjs.ModeOfOperation.ecb(hexToBytes(perCardK1));
-    const encrypted = aes.encrypt(plaintext);
-    const pHex = bytesToHex(new Uint8Array(encrypted));
-
-    const ctrHex = bytesToHex(new Uint8Array([(counter >> 16) & 0xff, (counter >> 8) & 0xff, counter & 0xff]));
-    const vd = buildVerificationData(uid, hexToBytes(ctrHex), hexToBytes(perCardK2));
-    const cHex = bytesToHex(vd.ct);
+    const { pHex, cHex } = virtualTap(perCardUid, 3, perCardK1, perCardK2);
 
     const replay = makeReplayNamespace();
     replay.__activate(perCardUid, 1);
@@ -652,7 +625,7 @@ describe("POST /login (handleLoginVerify)", () => {
   });
 
   test("response includes keysDeliveredAt for keys_delivered card", async () => {
-    const tapUid = "04996c6a926980";
+    const tapUid = ACTION_UID;
     const replay = makeReplayNamespace();
     replay.__cardStates.set(tapUid, {
       state: "keys_delivered",
@@ -678,7 +651,7 @@ describe("POST /login (handleLoginVerify)", () => {
   });
 
   test("response includes programmingEndpoint for keys_delivered card", async () => {
-    const tapUid = "04996c6a926980";
+    const tapUid = ACTION_UID;
     const replay = makeReplayNamespace();
     replay.__cardStates.set(tapUid, {
       state: "keys_delivered",
@@ -717,22 +690,9 @@ describe("POST /login (handleLoginVerify)", () => {
     const SCAN_UID = "04a39493cc8680";
 
     function buildScanTapEnv(replay = makeReplayNamespace()) {
-      const keys = getDeterministicKeys(SCAN_UID, { ISSUER_KEY: env.ISSUER_KEY } as any, 1);
-      const uid = hexToBytes(SCAN_UID);
-      const counter = 7;
-      const plaintext = new Uint8Array(16);
-      plaintext[0] = 0xc7;
-      plaintext.set(uid, 1);
-      plaintext[8] = counter & 0xff;
-      plaintext[9] = (counter >> 8) & 0xff;
-      plaintext[10] = (counter >> 16) & 0xff;
-      const aes = new aesjs.ModeOfOperation.ecb(hexToBytes(keys.k1));
-      const encrypted = aes.encrypt(plaintext);
-      const pHex = bytesToHex(new Uint8Array(encrypted));
-      const ctrHex = bytesToHex(new Uint8Array([(counter >> 16) & 0xff, (counter >> 8) & 0xff, counter & 0xff]));
-      const vd = buildVerificationData(uid, hexToBytes(ctrHex), hexToBytes(keys.k2));
-      const cHex = bytesToHex(vd.ct);
-      return { pHex, cHex, keys, replay };
+      const scanCard = new TestCard(SCAN_UID, ISSUER_KEY);
+      const tap = scanCard.tap(7);
+      return { pHex: tap.p, cHex: tap.c, replay };
     }
 
     test("valid issuer-derived CMAC returns cmacValid true via scan match", async () => {

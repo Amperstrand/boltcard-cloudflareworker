@@ -1,42 +1,12 @@
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
-import { hexToBytes, bytesToHex } from "../cryptoutils.js";
-import { getDeterministicKeys } from "../keygenerator.js";
-import { buildVerificationData } from "../cryptoutils.js";
-import aesjs from "aes-js";
-import { buildCardTestEnv } from "./testHelpers.js";
+import { TestCard } from "@ntag424/crypto/test";
+import { buildCardTestEnv, virtualTap } from "./testHelpers.js";
 import type { Env } from "../types/core.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const TEST_UID = "04a39493cc8680";
-
-function generateRealPandC(uidHex: string, counter: number, k1Hex: string) {
-  const k1 = hexToBytes(k1Hex);
-  const uid = hexToBytes(uidHex);
-  const plaintext = new Uint8Array(16);
-  plaintext[0] = 0xC7;
-  plaintext.set(uid, 1);
-  plaintext[8] = counter & 0xff;
-  plaintext[9] = (counter >> 8) & 0xff;
-  plaintext[10] = (counter >> 16) & 0xff;
-  const aes = new aesjs.ModeOfOperation.ecb(k1);
-  const encrypted = aes.encrypt(plaintext);
-  const pHex = bytesToHex(new Uint8Array(encrypted));
-  const ctrHex = bytesToHex(new Uint8Array([
-    (counter >> 16) & 0xff,
-    (counter >> 8) & 0xff,
-    counter & 0xff,
-  ]));
-  return { pHex, ctrHex };
-}
-
-function computeRealC(uidHex: string, ctrHex: string, k2Hex: string) {
-  const uid = hexToBytes(uidHex);
-  const ctr = hexToBytes(ctrHex);
-  const k2 = hexToBytes(k2Hex);
-  const vd = buildVerificationData(uid, ctr, k2);
-  return bytesToHex(vd.ct);
-}
+const ISSUER_KEY = "00000000000000000000000000000001";
 
 function makeEnv(): Env {
   return buildCardTestEnv({ operatorAuth: true, extraEnv: { BOLT_CARD_K1 } });
@@ -57,10 +27,10 @@ describe("POST /api/identify-issuer-key", () => {
   let cHex: string;
 
   beforeAll(async () => {
-    const keys = getDeterministicKeys(TEST_UID, { BOLT_CARD_K1 } as unknown as Env);
-    const { pHex: p, ctrHex } = generateRealPandC(TEST_UID, 1, keys.k1);
-    pHex = p;
-    cHex = computeRealC(TEST_UID, ctrHex, keys.k2);
+    const card = new TestCard(TEST_UID, ISSUER_KEY);
+    const tap = card.tap(1);
+    pHex = tap.p;
+    cHex = tap.c;
   });
 
   test("returns matched: true for a known issuer key", async () => {
@@ -194,25 +164,7 @@ describe("POST /api/identify-issuer-key per-card fallback", () => {
     const perCardK1 = "3db8852a71d11fa0adb6babaf274af89";
     const perCardK2 = "ce08c57983d65fceaa571e248390790f";
 
-    const uid = hexToBytes(perCardUid);
-    const counter = 4;
-    const plaintext = new Uint8Array(16);
-    plaintext[0] = 0xC7;
-    plaintext.set(uid, 1);
-    plaintext[8] = counter & 0xff;
-    plaintext[9] = (counter >> 8) & 0xff;
-    plaintext[10] = (counter >> 16) & 0xff;
-    const aes = new aesjs.ModeOfOperation.ecb(hexToBytes(perCardK1));
-    const encrypted = aes.encrypt(plaintext);
-    const localPHex = bytesToHex(new Uint8Array(encrypted));
-
-    const ctrHex = bytesToHex(new Uint8Array([
-      (counter >> 16) & 0xff,
-      (counter >> 8) & 0xff,
-      counter & 0xff,
-    ]));
-    const vd = buildVerificationData(uid, hexToBytes(ctrHex), hexToBytes(perCardK2));
-    const localCHex = bytesToHex(vd.ct);
+    const { pHex: localPHex, cHex: localCHex } = virtualTap(perCardUid, 4, perCardK1, perCardK2);
 
     const perCardEnv = {
       ...makeEnv(),
@@ -239,17 +191,7 @@ describe("POST /api/identify-issuer-key per-card fallback", () => {
     const perCardUid = "040a69fa967380";
     const perCardK1 = "3db8852a71d11fa0adb6babaf274af89";
 
-    const uid = hexToBytes(perCardUid);
-    const counter = 5;
-    const plaintext = new Uint8Array(16);
-    plaintext[0] = 0xC7;
-    plaintext.set(uid, 1);
-    plaintext[8] = counter & 0xff;
-    plaintext[9] = (counter >> 8) & 0xff;
-    plaintext[10] = (counter >> 16) & 0xff;
-    const aes = new aesjs.ModeOfOperation.ecb(hexToBytes(perCardK1));
-    const encrypted = aes.encrypt(plaintext);
-    const localPHex = bytesToHex(new Uint8Array(encrypted));
+    const { pHex: localPHex } = virtualTap(perCardUid, 5, perCardK1, "00000000000000000000000000000000");
 
     const perCardEnv = {
       ...makeEnv(),

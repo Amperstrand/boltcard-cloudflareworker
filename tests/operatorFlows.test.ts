@@ -1,40 +1,14 @@
 import { handleRequest } from "../index.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
-import { hexToBytes, bytesToHex, buildVerificationData } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 type DerivedKeys = ReturnType<typeof getDeterministicKeys>;
-import aesjs from "aes-js";
+import { TestCard } from "@ntag424/crypto/test";
 import { buildCardTestEnv } from "./testHelpers.js";
 import type { Env } from "../types/core.js";
 
 const BOLT_CARD_K1 = "55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d";
 const TEST_UID = "04aabbccdd7788";
-const K1_HEX = BOLT_CARD_K1.split(",")[0]!;
-
-function generatePandC(uidHex: string, counter: number, k1Hex: string) {
-  const k1 = hexToBytes(k1Hex);
-  const uid = hexToBytes(uidHex);
-  const plaintext = new Uint8Array(16);
-  plaintext[0] = 0xC7;
-  plaintext.set(uid, 1);
-  plaintext[8] = counter & 0xff;
-  plaintext[9] = (counter >> 8) & 0xff;
-  plaintext[10] = (counter >> 16) & 0xff;
-  const aes = new aesjs.ModeOfOperation.ecb(k1);
-  const encrypted = aes.encrypt(plaintext);
-  const pHex = bytesToHex(new Uint8Array(encrypted));
-  const ctrHex = bytesToHex(new Uint8Array([
-    (counter >> 16) & 0xff,
-    (counter >> 8) & 0xff,
-    counter & 0xff,
-  ]));
-  return { pHex, ctrHex };
-}
-
-function computeC(uidHex: string, ctrHex: string, k2Hex: string) {
-  const vd = buildVerificationData(hexToBytes(uidHex), hexToBytes(ctrHex), hexToBytes(k2Hex));
-  return bytesToHex(vd.ct);
-}
+const ISSUER_KEY = "00000000000000000000000000000001";
 
 function makeEnv(): Env & { __kvStore?: Record<string, string> } {
   return buildCardTestEnv({ replayInitial: { [TEST_UID]: 1 }, operatorAuth: true, exposeKvStore: true, extraEnv: { BOLT_CARD_K1 } });
@@ -59,9 +33,9 @@ async function provisionCard(env: Env & { __kvStore?: Record<string, string> }) 
 }
 
 async function tapCard(keys: DerivedKeys, counter = 2) {
-  const { pHex, ctrHex } = generatePandC(TEST_UID, counter, K1_HEX);
-  const cHex = computeC(TEST_UID, ctrHex, keys.k2);
-  return { p: pHex, c: cHex };
+  const card = new TestCard(TEST_UID, ISSUER_KEY);
+  const tap = card.tap(counter);
+  return { p: tap.p, c: tap.c };
 }
 
 let keys: DerivedKeys;
