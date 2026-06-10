@@ -29,3 +29,6 @@ class_name = "CardReplayDO"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["CardReplayDO"]
+
+[observability]
+enabled = true

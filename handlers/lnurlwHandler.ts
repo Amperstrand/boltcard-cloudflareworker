@@ -47,6 +47,7 @@ async function discoverUnknownCard(uidHex: string, ctr: string, cHex: string, en
         if (matchedVersion !== null) {
           const classified: ClassifyResult = classifyIssuerKey(env, candidate.hex);
           logger.info("Discovered unknown card", {
+            action: "card_discovery",
             uidHex,
             version: matchedVersion,
             provenance: classified.provenance,
@@ -60,12 +61,12 @@ async function discoverUnknownCard(uidHex: string, ctr: string, cHex: string, en
               active_version: matchedVersion,
             });
           } catch (err: unknown) {
-            logger.warn("Failed to persist card discovery", { uidHex, error: getErrorMessage(err) });
+            logger.warn("Failed to persist card discovery", { action: "card_discovery", uidHex, error: getErrorMessage(err) });
           }
           try {
             await setCardK2(env, uidHex, k2);
           } catch (err: unknown) {
-            logger.warn("Failed to persist discovered card K2", { uidHex, error: getErrorMessage(err) });
+            logger.warn("Failed to persist discovered card K2", { action: "card_discovery", uidHex, error: getErrorMessage(err) });
           }
           return { version: matchedVersion, provenance: classified };
         }
@@ -81,20 +82,20 @@ async function checkReplayAndRecordTap(env: Env, uidHex: string, counterValue: n
   try {
     const replayResult: CounterCheckResult = await checkAndAdvanceCounter(env, uidHex, counterValue);
     if (!replayResult.accepted) {
-      logger.warn("Counter replay detected — continuing because replay enforcement is disabled", { uidHex, counterValue, reason: replayResult.reason, lastCounter: replayResult.lastCounter });
+      logger.warn("Counter replay detected — continuing because replay enforcement is disabled", { action: "card_tap", uidHex, counterValue, reason: replayResult.reason, lastCounter: replayResult.lastCounter });
     }
   } catch (error: unknown) {
-    logger.error("Replay protection check failed", { uidHex, counterValue, error: getErrorMessage(error) });
+    logger.error("Replay protection check failed", { action: "card_tap", uidHex, counterValue, error: getErrorMessage(error) });
     return { ok: false, response: errorResponse("Replay protection unavailable", 500) };
   }
 
-  logger.info("LNURLW request accepted", { uidHex, counterValue });
+  logger.info("LNURLW request accepted", { action: "card_tap", uidHex, counterValue });
   const tapPromise = recordTapRead(env, uidHex, counterValue, {
     userAgent: request.headers.get("user-agent") || null,
     requestUrl: request.url,
   });
   if (fireAndForget) {
-    tapPromise.catch((e: unknown) => logger.warn("recordTapRead failed", { uidHex, counterValue, error: getErrorMessage(e) }));
+    tapPromise.catch((e: unknown) => logger.warn("recordTapRead failed", { action: "card_tap", uidHex, counterValue, error: getErrorMessage(e) }));
   } else {
     await tapPromise;
   }
@@ -110,7 +111,7 @@ async function resolveCardVersion(uidHex: string, ctr: string, cHex: string, env
     try {
       await activateCard(env, uidHex, activeVersion);
     } catch (error: unknown) {
-      logger.error("Card activation failed", { uidHex, activeVersion, error: getErrorMessage(error) });
+      logger.error("Card activation failed", { action: "card_activation", uidHex, activeVersion, error: getErrorMessage(error) });
       return { error: errorResponse("Card activation failed", 500) };
     }
     return { activeVersion };
@@ -153,9 +154,10 @@ function validateCmac(uidHex: string, ctr: string, cHex: string, config: CardCon
     ));
   } else if (proxyRelayMode) {
     cmac_error = "CMAC validation deferred to downstream backend";
-    logger.info("Proxy relay mode: CMAC deferred", { uidHex });
+    logger.info("Proxy relay mode: CMAC deferred", { action: "card_tap", uidHex });
   } else {
     logger.error("K2 missing for payment method requiring local verification", {
+      action: "card_tap",
       uidHex,
       paymentMethod: config.payment_method,
     });
@@ -163,7 +165,7 @@ function validateCmac(uidHex: string, ctr: string, cHex: string, config: CardCon
   }
 
   if (hasK2 && !cmac_validated) {
-    logger.warn(`CMAC validation failed: ${cmac_error || "CMAC validation failed."}`);
+    logger.warn(`CMAC validation failed: ${cmac_error || "CMAC validation failed."}`, { action: "card_tap" });
     return { error: errorResponse(cmac_error || "CMAC validation failed", 403) };
   }
 
@@ -185,7 +187,7 @@ async function routeByPaymentMethod(request: Request, env: Env, uidHex: string, 
     recordTapRead(env, uidHex, counterValue, {
       userAgent: request.headers.get("user-agent") || null,
       requestUrl: request.url,
-    }).catch((e: unknown) => logger.warn("recordTapRead failed", { uidHex, counterValue, error: getErrorMessage(e) }));
+    }).catch((e: unknown) => logger.warn("recordTapRead failed", { action: "card_tap", uidHex, counterValue, error: getErrorMessage(e) }));
     return jsonResponse(constructPayRequest(uidHex, pHex, cHex, counterValue, baseUrl, config, env));
   }
 
@@ -198,7 +200,7 @@ async function routeByPaymentMethod(request: Request, env: Env, uidHex: string, 
     return jsonResponse(responsePayload);
   }
 
-  logger.error("Unsupported payment method", { uidHex, paymentMethod: config.payment_method });
+  logger.error("Unsupported payment method", { action: "card_tap", uidHex, paymentMethod: config.payment_method });
   return errorResponse(`Unsupported payment method: ${config.payment_method}`, 400);
 }
 
@@ -210,20 +212,20 @@ export async function handleLnurlw(request: Request, env: Env): Promise<Response
   const cHex = searchParams.get("c");
 
   if (!pHex || !cHex) {
-    logger.error("Missing required parameters", { pHex: !!pHex, cHex: !!cHex });
+    logger.error("Missing required parameters", { action: "card_tap", pHex: !!pHex, cHex: !!cHex });
     return errorResponse(MISSING_PARAMS_MSG);
   }
 
   const decryption: ExtractResult = extractUIDAndCounter(pHex, env);
   if (!decryption.success) {
-    logger.error("Failed to extract UID and counter", { error: decryption.error });
+    logger.error("Failed to extract UID and counter", { action: "card_tap", error: decryption.error });
     return errorResponse(decryption.error);
   }
 
   const { uidHex: rawUid, ctr } = decryption;
 
   if (!rawUid) {
-    logger.error("UID is undefined after decryption", { pHex: "[REDACTED]", cHex: "[REDACTED]" });
+    logger.error("UID is undefined after decryption", { action: "card_tap", pHex: "[REDACTED]", cHex: "[REDACTED]" });
     return errorResponse("Failed to extract UID from payload", 400);
   }
 
@@ -233,13 +235,13 @@ export async function handleLnurlw(request: Request, env: Env): Promise<Response
   if (!Number.isFinite(rawCounter)) return errorResponse("Invalid counter value", 400);
   const counterValue = rawCounter;
 
-  logger.info("LNURLW decrypted", { uidHex, counterValue });
+  logger.info("LNURLW decrypted", { action: "card_tap", uidHex, counterValue });
 
   let cardState: CardStateRow;
   try {
     cardState = await getCardState(env, uidHex);
   } catch (error: unknown) {
-    logger.error("Card state check failed", { uidHex, error: getErrorMessage(error) });
+    logger.error("Card state check failed", { action: "card_tap", uidHex, error: getErrorMessage(error) });
     return errorResponse("Card state unavailable", 503);
   }
 
@@ -253,6 +255,7 @@ export async function handleLnurlw(request: Request, env: Env): Promise<Response
 
   const config = (await getUidConfig(uidHex, env, activeVersion!)) as CardConfig | null;
   logger.info("Card config loaded", {
+    action: "card_tap",
     uidHex,
     paymentMethod: config?.payment_method,
     cardState: cardState.state,
@@ -260,7 +263,7 @@ export async function handleLnurlw(request: Request, env: Env): Promise<Response
   });
 
   if (!config) {
-    logger.error("UID not found in configuration", { uidHex });
+    logger.error("UID not found in configuration", { action: "card_tap", uidHex });
     return errorResponse("UID not found in config", 404);
   }
 
@@ -270,7 +273,7 @@ export async function handleLnurlw(request: Request, env: Env): Promise<Response
   return await routeByPaymentMethod(request, env, uidHex, pHex, cHex, ctr, counterValue, config, cmacResult.cmac_validated!, cmacResult.proxyRelayMode!);
 
   } catch (err: unknown) {
-    logger.error("Unhandled error in handleLnurlw", { error: getErrorMessage(err) });
+    logger.error("Unhandled error in handleLnurlw", { action: "card_tap", error: getErrorMessage(err) });
     return errorResponse("Internal error", 500);
   }
 }

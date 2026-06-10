@@ -46,11 +46,12 @@ export async function handlePosCharge(request: Request, env: Env, session: Sessi
       const isInsufficient: boolean = !!result.reason && result.reason.toLowerCase().includes("insufficient");
       const status: number = isInsufficient ? 402 : 500;
       const extra: Record<string, unknown> = result.balance != null ? { currentBalance: result.balance } : {};
+      logger.warn("POS charge: debit failed", { action: "pos_charge", uidHex: tap.uidHex, amount: parsedAmount, reason: result.reason, currentBalance: result.balance });
       return errorResponse(result.reason || "Debit failed", status, extra);
     }
 
     const newBalance: number = result.balance ?? 0;
-    logger.info("POS charge successful", { uidHex: tap.uidHex, amount: parsedAmount, newBalance, shiftId, terminalId });
+    logger.info("POS charge successful", { action: "pos_charge", uidHex: tap.uidHex, amount: parsedAmount, newBalance, shiftId, terminalId });
     await recordAuditEvent(env, { action: "pos_charge", uidHex: tap.uidHex, operatorShiftId: shiftId, details: { amount: parsedAmount, balance: newBalance, terminalId } });
 
     return jsonResponse({
@@ -61,7 +62,7 @@ export async function handlePosCharge(request: Request, env: Env, session: Sessi
       note,
     });
   } catch (error: unknown) {
-    logger.error("POS charge: unexpected error", { uidHex: tap.uidHex, amount: parsedAmount, error: getErrorMessage(error) });
+    logger.error("POS charge: unexpected error", { action: "pos_charge", uidHex: tap.uidHex, amount: parsedAmount, error: getErrorMessage(error) });
     return errorResponse("Charge failed", 500);
   }
 }

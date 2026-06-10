@@ -37,7 +37,7 @@ export async function handleVoidApply(request: Request, env: Env, session: Sessi
       return errorResponse(voidResult.reason || "Void failed", 400);
     }
 
-    logger.info("Void successful", { uidHex: tap.uidHex, transactionId: txnId, voidAmount: voidResult.newTransaction?.amount, shiftId });
+    logger.info("Void successful", { action: "void", uidHex: tap.uidHex, transactionId: txnId, voidAmount: voidResult.newTransaction?.amount, shiftId });
     await recordAuditEvent(env, { action: "void", uidHex: tap.uidHex, operatorShiftId: shiftId, details: { voidedTxnId: txnId, amount: voidResult.newTransaction?.amount, balance: voidResult.balance } });
 
     return jsonResponse({
@@ -47,7 +47,7 @@ export async function handleVoidApply(request: Request, env: Env, session: Sessi
       balance: voidResult.balance,
     });
   } catch (error: unknown) {
-    logger.error("Void: unexpected error", { uidHex: tap.uidHex, transactionId: txnId, error: getErrorMessage(error) });
+    logger.error("Void: unexpected error", { action: "void", uidHex: tap.uidHex, transactionId: txnId, error: getErrorMessage(error) });
     return errorResponse("Void failed", 500);
   }
 }
@@ -67,7 +67,7 @@ export async function handleVoidTransactions(request: Request, env: Env): Promis
     );
     return jsonResponse({ transactions: charges, uid: tap.uidHex });
   } catch (error: unknown) {
-    logger.error("Void transactions lookup failed", { error: getErrorMessage(error) });
+    logger.error("Void transactions lookup failed", { action: "void_lookup", error: getErrorMessage(error) });
     return errorResponse("Lookup failed", 500);
   }
 }

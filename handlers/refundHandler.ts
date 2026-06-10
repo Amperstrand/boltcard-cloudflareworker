@@ -38,7 +38,7 @@ export async function handleRefundApply(request: Request, env: Env, session: Ses
     try {
       balanceData = await getBalance(env, tap.uidHex);
     } catch (error: unknown) {
-      logger.error("Refund: balance check failed", { uidHex: tap.uidHex, error: getErrorMessage(error) });
+      logger.error("Refund: balance check failed", { action: "refund", uidHex: tap.uidHex, error: getErrorMessage(error) });
       return errorResponse("Balance check failed", 500);
     }
     refundAmount = balanceData.balance;
@@ -61,12 +61,12 @@ export async function handleRefundApply(request: Request, env: Env, session: Ses
       const isInsufficient = !!result.reason && result.reason.toLowerCase().includes("insufficient");
       const status = isInsufficient ? 400 : 500;
       const extra = result.balance != null ? { currentBalance: result.balance } : {};
-      logger.error("Refund: credit failed", { uidHex: tap.uidHex, amount: refundAmount, reason: result.reason });
+      logger.error("Refund: credit failed", { action: "refund", uidHex: tap.uidHex, amount: refundAmount, reason: result.reason });
       return errorResponse(result.reason || "Refund failed", status, extra);
     }
 
     const newBalance: number = result.balance ?? 0;
-    logger.info("Refund successful", { uidHex: tap.uidHex, amount: refundAmount, newBalance, shiftId, fullRefund: isFullRefund });
+    logger.info("Refund successful", { action: "refund", uidHex: tap.uidHex, amount: refundAmount, newBalance, shiftId, fullRefund: isFullRefund });
     await recordAuditEvent(env, { action: "refund", uidHex: tap.uidHex, operatorShiftId: shiftId, details: { amount: refundAmount, balance: newBalance, fullRefund: isFullRefund } });
 
     return jsonResponse({
@@ -76,7 +76,7 @@ export async function handleRefundApply(request: Request, env: Env, session: Ses
       note,
     });
   } catch (error: unknown) {
-    logger.error("Refund: unexpected error", { uidHex: tap.uidHex, amount: refundAmount, error: getErrorMessage(error) });
+    logger.error("Refund: unexpected error", { action: "refund", uidHex: tap.uidHex, amount: refundAmount, error: getErrorMessage(error) });
     return errorResponse("Refund failed", 500);
   }
 }

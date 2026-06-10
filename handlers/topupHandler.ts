@@ -44,13 +44,13 @@ export async function handleTopupApply(request: Request, env: Env, session: Sess
   try {
     const result: OpResult = await creditCard(env, tap.uidHex, parsedAmount, note);
     if (!result.ok) {
-      logger.error("Top-up: credit failed", { uidHex: tap.uidHex, amount: parsedAmount, reason: result.reason });
+      logger.error("Top-up: credit failed", { action: "topup", uidHex: tap.uidHex, amount: parsedAmount, reason: result.reason });
       return errorResponse(result.reason || "Credit failed", 500);
     }
 
     const newBalance: number = result.balance ?? 0;
 
-    logger.info("Top-up successful", { uidHex: tap.uidHex, amount: parsedAmount, newBalance, shiftId });
+    logger.info("Top-up successful", { action: "topup", uidHex: tap.uidHex, amount: parsedAmount, newBalance, shiftId });
     await recordAuditEvent(env, { action: "topup", uidHex: tap.uidHex, operatorShiftId: shiftId, details: { amount: parsedAmount, balance: newBalance } });
     return jsonResponse({
       success: true,
@@ -59,7 +59,7 @@ export async function handleTopupApply(request: Request, env: Env, session: Sess
       note,
     });
   } catch (error: unknown) {
-    logger.error("Top-up: unexpected error", { uidHex: tap.uidHex, amount: parsedAmount, error: getErrorMessage(error) });
+    logger.error("Top-up: unexpected error", { action: "topup", uidHex: tap.uidHex, amount: parsedAmount, error: getErrorMessage(error) });
     return errorResponse("Top-up failed", 500);
   }
 }
