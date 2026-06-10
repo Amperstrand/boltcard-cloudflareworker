@@ -20,7 +20,9 @@ function pickRandomAddress(config: CardConfig | null, env: Env): string | null {
     return configured;
   }
   const pool = getPosAddressPool(env);
-  return pool.length > 0 ? (pool[Math.floor(Math.random() * pool.length)] ?? null) : null;
+  if (pool.length === 0) return null;
+  const idx = crypto.getRandomValues(new Uint32Array(1))[0]! % pool.length;
+  return pool[idx] ?? null;
 }
 
 export function constructPayRequest(uidHex: string, pHex: string, cHex: string, counterValue: number, baseUrl: string, config: CardConfig | null, env: Env): Record<string, unknown> {

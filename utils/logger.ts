@@ -3,6 +3,7 @@ type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'trace';
 class Logger {
   levels: Record<LogLevel, number>;
   currentLevel: number;
+  private requestId: string = '';
 
   constructor(level: LogLevel = 'info') {
     this.levels = {
@@ -21,13 +22,18 @@ class Logger {
     }
   }
 
+  setRequestId(id: string) {
+    this.requestId = id;
+  }
+
   shouldLog(level: LogLevel) {
     return this.levels[level] <= this.currentLevel;
   }
 
   formatMessage(level: LogLevel, message: string, context: Record<string, unknown> = {}) {
     const timestamp = new Date().toISOString();
-    const contextStr = Object.keys(context).length > 0 ? ` | ${JSON.stringify(context)}` : '';
+    const merged = this.requestId ? { requestId: this.requestId, ...context } : context;
+    const contextStr = Object.keys(merged).length > 0 ? ` | ${JSON.stringify(merged)}` : '';
     return `[${timestamp}] [${level.toUpperCase()}] ${message}${contextStr}`;
   }
 

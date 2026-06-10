@@ -4198,7 +4198,7 @@ export const POS_JS = `// pos.js — classic script (no import/export)
   });
 
   if (!terminalId) {
-    terminalId = crypto.randomUUID ? crypto.randomUUID() : ('t-' + Math.random().toString(36).slice(2, 10));
+    terminalId = crypto.randomUUID();
     localStorage.setItem('terminal_id', terminalId);
   }
   document.getElementById('terminal-id').textContent = terminalId.slice(0, 8);
@@ -4483,7 +4483,7 @@ export const POS_JS = `// pos.js — classic script (no import/export)
        }
   }
 })();`;
-export const POS_JS_HASH = "a3fcdd460afe";
+export const POS_JS_HASH = "d041706ec4b1";
 
 export const TOPUP_JS = `// topup.js — classic script (no import/export)
 // Depends on: nfc.js (browserSupportsNfc, createNfcScanner)

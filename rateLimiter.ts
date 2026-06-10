@@ -3,6 +3,7 @@ import type { Env } from "./types/core.js";
 interface RateLimitOptions {
   maxRequests?: number;
   windowSeconds?: number;
+  customKey?: string;
 }
 
 interface RateLimitResult {
@@ -20,10 +21,10 @@ export async function checkRateLimit(request: Request, env: Env, options: RateLi
     return { allowed: true, remaining: maxRequests, resetAt: 0 };
   }
 
-  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
   const now = Math.floor(Date.now() / 1000);
   const windowStart = now - (now % windowSeconds);
-  const key = `${ip}:${windowStart}`;
+  const rawKey = options.customKey || (request.headers.get("CF-Connecting-IP") || "unknown");
+  const key = `${rawKey}:${windowStart}`;
 
   const current = parseInt(await env.RATE_LIMITS.get(key) ?? "0", 10) || 0;
 

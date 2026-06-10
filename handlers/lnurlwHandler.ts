@@ -16,7 +16,8 @@ import { getRequestOrigin } from "../utils/validation.js";
 import { cmacScanVersions } from "../utils/cmacScan.js";
 import { classifyIssuerKey, getAllIssuerKeyCandidates } from "../utils/keyLookup.js";
 import type { ClassifyResult } from "../utils/keyLookup.js";
-import { CARD_STATE, PAYMENT_METHOD, VERSION_SCAN_RANGE, MISSING_PARAMS_MSG } from "../utils/constants.js";
+import { CARD_STATE, PAYMENT_METHOD, VERSION_SCAN_RANGE, MISSING_PARAMS_MSG, TAP_RATE_LIMIT_REQUESTS, TAP_RATE_LIMIT_WINDOW } from "../utils/constants.js";
+import { checkRateLimit } from "../rateLimiter.js";
 
 async function detectCardVersion(uidHex: string, ctr: string, cHex: string, env: Env, latestVersion: number): Promise<number | null> {
   const uidBytes = hexToBytes(uidHex);
@@ -230,6 +231,16 @@ export async function handleLnurlw(request: Request, env: Env): Promise<Response
   }
 
   const uidHex: string = rawUid.toLowerCase();
+
+  const tapRateLimit = await checkRateLimit(request, env, {
+    maxRequests: TAP_RATE_LIMIT_REQUESTS,
+    windowSeconds: TAP_RATE_LIMIT_WINDOW,
+    customKey: `tap:${uidHex}`,
+  });
+  if (!tapRateLimit.allowed) {
+    logger.warn("Card tap rate limited", { action: "card_tap", uidHex });
+    return errorResponse("Rate limited — try again later", 429);
+  }
 
   const rawCounter = parseInt(ctr, 16);
   if (!Number.isFinite(rawCounter)) return errorResponse("Invalid counter value", 400);

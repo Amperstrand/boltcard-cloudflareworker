@@ -35,13 +35,14 @@ describe("handleStatus", () => {
     expect(body.kv_status).toBe("working");
   });
 
-  it("returns ERROR when KV health check fails", async () => {
+  it("returns DEGRADED when KV health check fails", async () => {
     const env = { UID_CONFIG: makeKvMock("error") } as unknown as Env;
     const res = await handleStatus(makeRequest(), env);
     expect(res.status).toBe(200);
     const body = await res.json() as Record<string, unknown>;
-    expect(body.status).toBe("ERROR");
+    expect(body.status).toBe("DEGRADED");
     expect(body.kv_status).toBe("error");
+    expect(body.do_status).toBe("not configured");
   });
 
   it("returns ERROR when KV returns wrong value", async () => {

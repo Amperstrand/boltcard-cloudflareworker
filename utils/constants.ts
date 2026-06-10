@@ -8,7 +8,7 @@ export const HISTORY_LIMIT = 25;
 export const VERSION_SCAN_RANGE = 10;
 export const MAX_ISSUER_CANDIDATES = 50;
 export const KV_LIST_LIMIT = 100;
-export const CARD_INDEX_TTL = 7 * 24 * 60 * 60;
+export const CARD_INDEX_TTL = 90 * 24 * 60 * 60; // 90 days — matches audit log TTL
 export const AUDIT_LOG_TTL = 90 * 24 * 60 * 60;
 export const SHIFT_SUMMARY_TTL = 90 * 24 * 60 * 60; // 90 days
 export const CARD_AUDIT_DEFAULT_LIMIT = 50;
@@ -24,6 +24,9 @@ export const MAX_BALANCE = 2147483647; // 2^31 - 1, prevents Number precision lo
 
 export const LOGIN_RATE_LIMIT_REQUESTS = 5;
 export const LOGIN_RATE_LIMIT_WINDOW = 900;
+
+export const TAP_RATE_LIMIT_REQUESTS = 30;
+export const TAP_RATE_LIMIT_WINDOW = 60;
 
 export const OPERATOR_SESSION_MAX_AGE = 12 * 60 * 60;
 export const OPERATOR_CSRF_MAX_AGE = 12 * 60 * 60;

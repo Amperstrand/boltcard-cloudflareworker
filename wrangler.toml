@@ -1,6 +1,6 @@
 name = "boltcard-poc"
 main = "index.ts"
-compatibility_date = "2025-02-28"
+compatibility_date = "2026-06-10"
 workers_dev = false
 
 kv_namespaces = [

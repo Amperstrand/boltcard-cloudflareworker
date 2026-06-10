@@ -76,7 +76,7 @@
   });
 
   if (!terminalId) {
-    terminalId = crypto.randomUUID ? crypto.randomUUID() : ('t-' + Math.random().toString(36).slice(2, 10));
+    terminalId = crypto.randomUUID();
     localStorage.setItem('terminal_id', terminalId);
   }
   document.getElementById('terminal-id').textContent = terminalId.slice(0, 8);

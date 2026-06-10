@@ -53,7 +53,7 @@ describe("cardIndex", () => {
       const env = makeKvEnv();
       await indexCard(env, "ff000000000002", { state: "discovered" });
       const stored = (env as any).__store["card_idx:ff000000000002"];
-      expect(stored.opts.expirationTtl).toBe(7 * 24 * 60 * 60);
+      expect(stored.opts.expirationTtl).toBe(90 * 24 * 60 * 60);
     });
 
     it("silently fails when UID_CONFIG is missing", async () => {

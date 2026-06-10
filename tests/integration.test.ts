@@ -252,7 +252,7 @@ describe('End-to-End Payment Flow Integration Tests', () => {
       const response = await handleRequest(request, errorKvEnv as Env);
       expect(response.status).toBe(200);
       const responseData = await response.json() as Record<string, unknown>;
-      expect(responseData.status).toBe('ERROR');
+      expect(responseData.status).toBe('DEGRADED');
       expect(responseData.kv_status).toBe('error');
     });
   });
