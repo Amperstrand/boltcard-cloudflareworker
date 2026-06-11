@@ -1,10 +1,39 @@
+// Test-only helper functions (moved from cryptoutils.ts for test isolation)
+
+function _bytesToDecimalString(bytes: Uint8Array): string {
+  return `[${Array.from(bytes).join(" ")}]`;
+}
+
+function _xorArrays(a: Uint8Array, b: Uint8Array): Uint8Array {
+  if (a.length !== b.length) {
+    throw new Error("_xorArrays: Input arrays must have the same length");
+  }
+  return new Uint8Array(a.map((val, i) => val ^ b[i]!));
+}
+
+function _shiftGo(src: Uint8Array): { shifted: Uint8Array; carry: number } {
+  const shifted = new Uint8Array(src.length);
+  let carry = 0;
+  for (let i = src.length - 1; i >= 0; i--) {
+    const msb = src[i]! >> 7;
+    shifted[i] = ((src[i]! << 1) & 0xff) | carry;
+    carry = msb;
+  }
+  return { shifted, carry };
+}
+
+function _generateSubkeyGo(input: Uint8Array): Uint8Array {
+  const { shifted, carry } = _shiftGo(input);
+  const subkey = new Uint8Array(shifted);
+  if (carry) {
+    subkey[subkey.length - 1]! ^= 0x87;
+  }
+  return subkey;
+}
+
 import {
   hexToBytes,
   bytesToHex,
-  _bytesToDecimalString,
-  _xorArrays,
-  _shiftGo,
-  _generateSubkeyGo,
   computeAesCmac,
   _computeKs,
   _computeCm,
@@ -13,8 +42,6 @@ import {
   decryptP,
   verifyCmac,
 } from "../cryptoutils.js";
-
-import AES from "aes-js";
 
 describe("BoltCard Crypto Tests", () => {
   const TEST_VECTORS = [
@@ -299,12 +326,14 @@ describe("RFC 4493 §4 — AES-CMAC Test Vectors", () => {
   const rfcKey = hexToBytes("2b7e151628aed2a6abf7158809cf4f3c");
 
   test("RFC 4493 §4 — Subkey Generation: K1 and K2", () => {
-    const aesEcb = new AES.ModeOfOperation.ecb(rfcKey);
-    const L = aesEcb.encrypt(new Uint8Array(16));
-
+    // RFC 4493 §4: L = AES_K(0^128) — raw AES-ECB, NOT CMAC.
+    // computeAesCmac(zeros, key) ≠ L because CMAC of a full block XORs with K1.
+    const { ecb } = require("@noble/ciphers/aes.js");
+    const L = ecb(rfcKey, { disablePadding: true }).encrypt(new Uint8Array(16));
     const k1 = _generateSubkeyGo(L);
     const k2 = _generateSubkeyGo(k1);
 
+    expect(bytesToHex(L)).toBe("7df76b0c1ab899b33e42f047b91b546f");
     expect(bytesToHex(k1)).toBe("fbeed618357133667c85e08f7236a8de");
     expect(bytesToHex(k2)).toBe("f7ddac306ae266ccf90bc11ee46d513b");
   });
