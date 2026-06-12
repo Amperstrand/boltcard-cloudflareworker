@@ -1,0 +1,37 @@
+# /etc/security/pam_ntag424.conf — example configuration
+#
+# Lines beginning with '#' are comments.
+# Copy this file to /etc/security/pam_ntag424.conf and set k1 and k2.
+
+# K1 — AES-128 key used to decrypt the p= parameter (PICCData).
+# This is derived from IssuerKey per boltcard DETERMINISTIC.md.
+# All cards issued under the same IssuerKey share the same K1.
+#
+# Example (from boltcard-protocol.md test vectors):
+k1 = 55da174c9608993dc27bb3f30a4a7314
+
+# K2 — AES-128 key used to verify the c= parameter (SDM MAC).
+# This is per-card, derived from each card's CardKey.
+# For a single-card local setup this is the specific card's K2.
+#
+# Example (from boltcard-protocol.md test vectors):
+k2 = f4b404be700ab285e333e32348fa3d3b
+
+# state_dir — directory where per-UID counter files are stored.
+# pam_ntag424 creates this directory automatically if it does not exist.
+# Must be writable by the process running the PAM module (typically root).
+state_dir = /var/lib/pam_ntag424
+
+# reader — optional substring to match the PC/SC reader name.
+# Leave blank (or omit) to use the first available reader.
+# Run `pcsc_scan` or `opensc-tool -l` to list reader names.
+#
+# Examples:
+#   reader = ACR122U
+#   reader = ACS
+#   reader = SCM Microsystems
+#
+# reader =
+
+# timeout — seconds to wait for a card tap before failing (default: 15).
+timeout = 15
