@@ -4,6 +4,9 @@ import { extractUIDAndCounter } from "../boltCardHelper.js";
 import { getBoltCardK1 } from "../getUidConfig.js";
 import type { Env } from "../types/core.js";
 
+// Cross-repo validation: this test vector is mirrored in bolty-rs
+// tests/fixtures/derivation/boltcard_deterministic.toml (Vector 3).
+// If you change these expected values, update the TOML fixture too.
 test("Generate deterministic keys for known UID", async () => {
   const uid = "04a39493cc8680";
   const keys = getDeterministicKeys(uid, undefined, 1);

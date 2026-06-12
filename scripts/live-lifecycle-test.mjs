@@ -464,18 +464,18 @@ async function main() {
     expectJson: (j) => j.success === true || j.status === "OK" || j.balance !== undefined,
   });
 
-  // ── 11. Verify balance decreased after refund ─────────────────────────
-  console.log("\n── Step 11: Verify balance decreased after refund");
+  // ── 11. Verify balance increased after refund ─────────────────────────
+  console.log("\n── Step 11: Verify balance increased after refund (+500)");
 
   const ctr11 = nextCounter();
   const tap11 = virtualTap(CARD_UID, ctr11, provisionedK1, provisionedK2);
   let balanceAfterRefund = 0;
   await req("GET", `/card/info?p=${tap11.pHex}&c=${tap11.cHex}`, {
-    label: `Balance after refund → decreased by 500`,
+    label: `Balance after refund → increased by 500`,
     expectStatus: 200,
     expectJson: (j) => {
       balanceAfterRefund = j.balance;
-      return typeof j.balance === "number" && j.balance === balanceAfterPayment - 500;
+      return typeof j.balance === "number" && j.balance === balanceAfterPayment + 500;
     },
   });
 
