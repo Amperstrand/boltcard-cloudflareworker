@@ -179,7 +179,7 @@ Cards are configured either via:
 
 This service helps bolt card owners recover cards from defunct services. Tap a card on [/login](https://boltcardpoc.psbt.me/login) — if we have the issuer keys, you'll see them and get a link to wipe and reprogram.
 
-To submit keys for a service, add a CSV file to `keys/` and run `node scripts/build_keys.js`.
+To submit keys for a service, add a CSV file to `keys/` and run `node scripts/build_keys.js`. See [docs/KEY-RECOVERY.md](docs/KEY-RECOVERY.md) for extraction guides covering BTCPayServer and LNBits.
 
 ## All Endpoints
 
