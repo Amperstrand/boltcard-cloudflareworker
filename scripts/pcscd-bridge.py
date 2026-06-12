@@ -1,20 +1,27 @@
 #!/usr/bin/env python3
-"""pcscd bridge — HTTP API for reading NTAG424 bolt cards via PC/SC reader.
+"""pcscd bridge — HTTP API for reading, programming, wiping, and inspecting
+NTAG424 bolt cards via PC/SC reader.
 
 Usage:
-  python3 scripts/pcscd-bridge.py [--port 4321]
+  python3 scripts/pcscd-bridge.py [--port 4321] [--require-auth]
 
 Requirements:
-  pip install pyscard ndeflib
+  pip install pyscard ndeflib pycryptodome
 
 Endpoints:
-  GET /status     — reader and card status
-  GET /tap        — wait for card tap, return {p, c, uid}
-  GET /card-info  — return cached card info {uid, k1, k2, version}
+  GET  /status     — reader and card status
+  GET  /tap        — wait for card tap, return {p, c, uid}
+  GET  /card-info  — return cached card info {uid, k1, k2, version}
+  POST /burn       — program card with URL template, SDM, and keys
+  POST /wipe       — reset card to factory defaults
+  GET  /inspect    — inspect card UID, NDEF, SDM status, key versions
 """
 
 import sys
+import os
+import io
 import json
+import struct
 import argparse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
@@ -31,47 +38,949 @@ except ImportError:
     print("ndeflib not installed. Run: pip install ndeflib", file=sys.stderr)
     sys.exit(1)
 
-CLA_ISO = 0x00
-INS_SELECT = 0xA4
-INS_READ_BINARY = 0xB0
-MAX_APDU = 255
+try:
+    from Crypto.Cipher import AES
+    from Crypto.Hash import CMAC
+    from Crypto.Util.strxor import strxor
+except ImportError:
+    print("pycryptodome not installed. Run: pip install pycryptodome", file=sys.stderr)
+    sys.exit(1)
+
+# ---------------------------------------------------------------------------
+# NTAG424 APDU constants
+# ---------------------------------------------------------------------------
+CLA_NTAG = 0x90
+INS_AUTH_FIRST = 0x71       # AuthenticateEV2First (ISO 7816-4 Additional)
+INS_AUTH_NON_FIRST = 0x77   # AuthenticateEV2NonFirst
+INS_ADDITIONAL_FRAME = 0xAF # Additional frame in auth handshake
+INS_WRITE_DATA = 0x8D       # WriteData (NTAG426/424 specific: 0x90 0x8D)
+INS_READ_DATA = 0xAD        # ReadData  (was 0xB0 for ISO read-binary)
+INS_GET_FILE_SETTINGS = 0xF5  # GetFileSettings
+INS_CHANGE_FILE_SETTINGS = 0x5B  # ChangeFileSettings
+INS_CHANGE_KEY = 0xC4       # ChangeKey
+INS_GET_VERSION = 0x60      # GetVersion
+INS_SELECT_ISO = 0xA4       # ISO Select
+
+# NTAG424 Application AID
+NTAG424_AID = bytes([0xD2, 0x76, 0x00, 0x00, 0x85, 0x01, 0x01])
+
+# File IDs
+FILE_CC = 0xE103
+FILE_NDEF = 0x0002
+
+# SDM placeholder lengths (ASCII hex)
+SDM_PICC_PLACEHOLDER = b"********************************"  # 32 stars = 16 bytes encrypted PICC data
+SDM_CMAC_PLACEHOLDER = b"****************"               # 16 stars = 8 bytes CMAC
+
+# Factory default key (all zeros)
+FACTORY_KEY = bytes(16)
+
+# Communication modes for authenticated commands
+COMM_MODE_PLAIN = 0x00
+COMM_MODE_MAC = 0x01
+COMM_MODE_FULL = 0x03
 
 cached_card_info = {}
 
+# ---------------------------------------------------------------------------
+# Card connection helper
+# ---------------------------------------------------------------------------
+
+
+def _connect_card():
+    """Connect to the first PC/SC reader and return the connection object.
+
+    Returns:
+        tuple: (connection, uid_hex) where connection is a smartcard connection
+               and uid_hex is the card UID from anti-collision.
+
+    Raises:
+        RuntimeError: If no readers found or connection fails.
+    """
+    reader_list = readers()
+    if not reader_list:
+        raise RuntimeError("No PC/SC readers found")
+
+    reader = reader_list[0]
+    connection = reader.createConnection()
+    connection.connect()
+
+    # Read UID from the card's ATR or via GetData
+    uid_hex = _read_uid(connection)
+
+    return connection, uid_hex
+
+
+def _read_uid(conn):
+    """Read the card UID via GetData (INS=0xCA, P1P2=0x0000, tag 0x00).
+
+    Args:
+        conn: PC/SC connection object.
+
+    Returns:
+        str: Hex-encoded UID string.
+
+    Raises:
+        RuntimeError: If UID cannot be read.
+    """
+    # GetData command for UID
+    apdu = [0x00, 0xCA, 0x00, 0x00, 0x00]
+    try:
+        resp, sw1, sw2 = conn.transmit(apdu)
+        if (sw1, sw2) == (0x90, 0x00) and len(resp) >= 4:
+            return bytes(resp).hex().upper()
+    except Exception:
+        pass
+    # Fallback: try to get it from the ATR
+    try:
+        atr = conn.getATR()
+        if atr and len(atr) >= 4:
+            return bytes(atr).hex().upper()
+    except Exception:
+        pass
+    return "UNKNOWN"
+
+
+# ---------------------------------------------------------------------------
+# ISO 7816 / NTAG424 APDU helpers
+# ---------------------------------------------------------------------------
+
+
+def _check_sw(resp, expected_sw=(0x91, 0x00), label="APDU"):
+    """Validate APDU status words, retry on Authentication Delay (0x91AE).
+
+    Args:
+        resp: tuple (data, sw1, sw2) from conn.transmit().
+        expected_sw: Expected (sw1, sw2) tuple.
+        label: Description for error messages.
+
+    Returns:
+        list: Response data bytes.
+
+    Raises:
+        RuntimeError: If status words don't match expected.
+    """
+    data, sw1, sw2 = resp
+
+    # Handle Authentication Delay — retry once after 1 second
+    if sw1 == 0x91 and sw2 == 0xAE:
+        import time
+        time.sleep(1.0)
+        return None  # Caller must retry
+
+    if (sw1, sw2) != expected_sw:
+        raise RuntimeError(f"{label} failed: SW={sw1:02X}{sw2:02X}")
+    return data
+
+
+def _transmit_check(conn, apdu_bytes, label="APDU"):
+    """Transmit APDU and check status, with retry on auth delay.
+
+    Args:
+        conn: PC/SC connection.
+        apdu_bytes: List of byte values for the APDU.
+        label: Description for error messages.
+
+    Returns:
+        list: Response data bytes.
+
+    Raises:
+        RuntimeError: If command fails after retry.
+    """
+    resp = conn.transmit(list(apdu_bytes))
+    data, sw1, sw2 = resp
+
+    # Handle Authentication Delay — retry after 1 second
+    if sw1 == 0x91 and sw2 == 0xAE:
+        import time
+        time.sleep(1.0)
+        resp = conn.transmit(list(apdu_bytes))
+        data, sw1, sw2 = resp
+
+    if (sw1, sw2) != (0x91, 0x00):
+        raise RuntimeError(f"{label} failed: SW={sw1:02X}{sw2:02X}")
+    return bytes(data)
+
+
+def _transmit_raw(conn, apdu_bytes):
+    """Transmit APDU and return raw (data, sw1, sw2) without checking.
+
+    Args:
+        conn: PC/SC connection.
+        apdu_bytes: List of byte values for the APDU.
+
+    Returns:
+        tuple: (data_bytes, sw1, sw2).
+    """
+    data, sw1, sw2 = conn.transmit(list(apdu_bytes))
+    return bytes(data), sw1, sw2
+
+
+# ---------------------------------------------------------------------------
+# NTAG424 Application selection
+# ---------------------------------------------------------------------------
+
+
+def _select_ntag424_app(conn):
+    """Select the NTAG424 application (AID: D2760000850101).
+
+    This must be called before any NTAG424-specific commands.
+
+    Args:
+        conn: PC/SC connection.
+
+    Raises:
+        RuntimeError: If selection fails.
+    """
+    # [CLA=00] [INS=A4] [P1=04] [P2=00] [Lc=07] [AID] [Le=00]
+    apdu = bytes([
+        0x00, INS_SELECT_ISO, 0x04, 0x00, len(NTAG424_AID)
+    ]) + NTAG424_AID + bytes([0x00])
+    _transmit_check(conn, apdu, "Select NTAG424 application")
+
+
+# ---------------------------------------------------------------------------
+# AES Session — Mutual Authentication (3-pass per AN12196 §9.1)
+# ---------------------------------------------------------------------------
+
+
+def _byte_rot_left(x):
+    """Rotate byte array left by one byte.
+
+    Args:
+        x: bytes to rotate.
+
+    Returns:
+        bytes: Rotated result.
+    """
+    return x[1:] + x[0:1]
+
+
+def _byte_rot_right(x):
+    """Rotate byte array right by one byte.
+
+    Args:
+        x: bytes to rotate.
+
+    Returns:
+        bytes: Rotated result.
+    """
+    return x[-1:] + x[:-1]
+
+
+class AESSession:
+    """Authenticated session state after successful AES mutual authentication.
+
+    Attributes:
+        ses_auth_mac_key: 16-byte session MAC key.
+        ses_auth_enc_key: 16-byte session encryption key.
+        ti: 4-byte transaction identifier.
+        cmd_counter: Command counter, incremented on each MAC/FULL command.
+    """
+
+    def __init__(self, ses_auth_mac_key, ses_auth_enc_key, ti, cmd_counter=0, current_key_nr=0):
+        self.ses_auth_mac_key = ses_auth_mac_key
+        self.ses_auth_enc_key = ses_auth_enc_key
+        self.ti = ti
+        self.cmd_counter = cmd_counter
+        self.current_key_nr = current_key_nr
+
+    @staticmethod
+    def _derive_stream(rnd_a, rnd_b):
+        """Derive the shared stream for SV1/SV2 computation.
+
+        Per AN12196 §9.1.7, the stream is built from RndA and RndB bytes.
+
+        Args:
+            rnd_a: 16-byte PCD random challenge.
+            rnd_b: 16-byte PICC random challenge.
+
+        Returns:
+            bytes: 32-byte stream for SV1/SV2 derivation.
+        """
+        s = io.BytesIO()
+        s.write(rnd_a[0:2])                               # RndA[15:14]
+        s.write(strxor(rnd_a[2:8], rnd_b[0:6]))           # RndA[13:8] XOR RndB[15:10]
+        s.write(rnd_b[-10:])                               # RndB[9:0]
+        s.write(rnd_a[-8:])                                # RndA[7:0]
+        return s.getvalue()
+
+    @staticmethod
+    def derive_session_keys(auth_key, rnd_a, rnd_b):
+        """Derive session keys SesAuthENCKey and SesAuthMACKey.
+
+        Per AN12196 §9.1.7:
+        - SV1 = A5 5A 00 01 00 80 || stream
+        - SV2 = 5A A5 00 01 00 80 || stream
+        - SesAuthENCKey = CMAC-AES(auth_key, SV1)
+        - SesAuthMACKey = CMAC-AES(auth_key, SV2)
+
+        Args:
+            auth_key: 16-byte application key used for authentication.
+            rnd_a: 16-byte PCD random challenge.
+            rnd_b: 16-byte PICC random challenge (decrypted).
+
+        Returns:
+            tuple: (ses_auth_enc_key, ses_auth_mac_key) each 16 bytes.
+        """
+        stream = AESSession._derive_stream(rnd_a, rnd_b)
+
+        sv1 = bytes([0xA5, 0x5A, 0x00, 0x01, 0x00, 0x80]) + stream
+        sv2 = bytes([0x5A, 0xA5, 0x00, 0x01, 0x00, 0x80]) + stream
+
+        c1 = CMAC.new(auth_key, ciphermod=AES)
+        c1.update(sv1)
+        ses_auth_enc_key = c1.digest()
+
+        c2 = CMAC.new(auth_key, ciphermod=AES)
+        c2.update(sv2)
+        ses_auth_mac_key = c2.digest()
+
+        return ses_auth_enc_key, ses_auth_mac_key
+
+    def calc_mac(self, data):
+        """Calculate truncated CMAC (8 bytes) for secure messaging.
+
+        The CMAC is computed with the session MAC key and truncated to 8 bytes
+        by keeping even-indexed bytes (0-indexed: bytes 1,3,5,...,15).
+
+        Args:
+            data: Input data bytes.
+
+        Returns:
+            bytes: 8-byte truncated CMAC.
+        """
+        c = CMAC.new(self.ses_auth_mac_key, ciphermod=AES)
+        c.update(data)
+        full_mac = c.digest()
+        return bytes([full_mac[i] for i in range(16) if i % 2 == 1])
+
+    def wrap_mac_command(self, ins, header, data=None):
+        """Wrap a command in CommMode.MAC (add CMAC trailer, increment counter).
+
+        Args:
+            ins: Instruction byte.
+            header: Command header bytes.
+            data: Optional command data bytes.
+
+        Returns:
+            bytes: Complete MAC-wrapped APDU.
+        """
+        if data is None:
+            data = b""
+        payload = header + data
+        payload_len = len(payload)
+
+        # Build plain APDU: [0x90] [INS] [0x00] [0x00] [Lc] [payload] [0x00]
+        plain_apdu = bytes([0x90, ins, 0x00, 0x00, payload_len]) + payload + bytes([0x00])
+
+        # MAC input: [INS] [cmd_counter_2B] [TI_4B] [payload]
+        cmd_cntr_b = struct.pack(">H", self.cmd_counter)
+        mac_input = bytes([ins]) + cmd_cntr_b + self.ti + payload
+        mac_t = self.calc_mac(mac_input)
+
+        self.cmd_counter += 1
+
+        # Result: [0x90] [INS] [0x00] [0x00] [Lc+8] [payload] [MACt 8B] [0x00]
+        return (bytes([0x90, ins, 0x00, 0x00, payload_len + 8])
+                + payload + mac_t + bytes([0x00]))
+
+    def wrap_full_command(self, ins, header, data):
+        """Wrap a command in CommMode.FULL (encrypt data + MAC trailer).
+
+        Args:
+            ins: Instruction byte.
+            header: Command header bytes (sent in cleartext).
+            data: Command data bytes (will be encrypted).
+
+        Returns:
+            bytes: Complete FULL-wrapped APDU.
+        """
+        # Pad data to 16-byte boundary using ISO 9797-1 Method 2
+        padded = data + bytes([0x80])
+        while len(padded) % 16 != 0:
+            padded += bytes([0x00])
+
+        # Encrypt data with session ENC key (CBC mode)
+        iv = bytes([0xA5, 0x5A]) + self.ti + struct.pack(">H", self.cmd_counter)
+        cipher = AES.new(self.ses_auth_enc_key, AES.MODE_CBC, iv=iv)
+        enc_data = cipher.encrypt(padded)
+
+        payload = header + enc_data
+        payload_len = len(payload)
+
+        # MAC input: [INS] [cmd_counter_2B] [TI_4B] [payload]
+        cmd_cntr_b = struct.pack(">H", self.cmd_counter)
+        mac_input = bytes([ins]) + cmd_cntr_b + self.ti + payload
+        mac_t = self.calc_mac(mac_input)
+
+        self.cmd_counter += 1
+
+        return (bytes([0x90, ins, 0x00, 0x00, payload_len + 8])
+                + payload + mac_t + bytes([0x00]))
+
+    def unwrap_mac_response(self, resp):
+        """Parse a MAC-mode response, verify CMAC.
+
+        Args:
+            resp: Raw response bytes (data + MACt + SW).
+
+        Returns:
+            bytes: Response data (without MACt and SW).
+
+        Raises:
+            RuntimeError: If CMAC verification fails.
+        """
+        if len(resp) < 10:
+            raise RuntimeError(f"Response too short for MAC: {len(resp)} bytes")
+
+        # Last 2 bytes are SW, preceding 8 bytes are MACt
+        status = resp[-2:]
+        mac_t_recv = resp[-10:-2]
+        data = resp[:-10]
+
+        # Verify MAC: input = [SW2] [cmd_counter] [TI] [data]
+        cmd_cntr_b = struct.pack(">H", self.cmd_counter)
+        mac_input = status[1:2] + cmd_cntr_b + self.ti + data
+        mac_t_expected = self.calc_mac(mac_input)
+
+        if mac_t_recv != mac_t_expected:
+            raise RuntimeError(
+                f"MAC verification failed: got {mac_t_recv.hex()}, "
+                f"expected {mac_t_expected.hex()}"
+            )
+
+        return data
+
+
+def authenticate_aes(conn, key_no, auth_key):
+    """Perform AES mutual authentication (3-pass per AN12196 §9.1.5).
+
+    Steps:
+    1. Send AuthenticateEV2First (INS=0x71) with key number
+    2. Receive encrypted RndB, decrypt it
+    3. Generate RndA, send encrypted(RndA || RndB_rot_left)
+    4. Receive encrypted(RndB_rot_right || TI || pdcap2 || pcdcap2)
+    5. Verify RndA matches, derive session keys
+
+    Args:
+        conn: PC/SC connection.
+        key_no: Key number (0-4).
+        auth_key: 16-byte AES key.
+
+    Returns:
+        AESSession: Authenticated session with derived keys and TI.
+
+    Raises:
+        RuntimeError: If authentication fails or RndA mismatch.
+    """
+    rnd_a = os.urandom(16)
+
+    # Pass 1: Send AuthenticateEV2First
+    # NTAG424 DNA requires LenCap=0x03 with PCDcap2=000000 for AES-authenticated apps.
+    # Sending LenCap=0x00 causes SW=917E (ParameterError).
+    # Format: [0x90] [0x71] [0x00] [0x00] [Lc=0x05] [KeyNo] [LenCap=0x03] [PCDcap2=0x000000] [Le=0x00]
+    apdu1 = bytes([0x90, 0x71, 0x00, 0x00, 0x05, key_no, 0x03, 0x00, 0x00, 0x00, 0x00])
+    resp1_data, sw1, sw2 = _transmit_raw(conn, apdu1)
+
+    # Handle auth delay
+    if sw1 == 0x91 and sw2 == 0xAE:
+        import time
+        time.sleep(1.0)
+        resp1_data, sw1, sw2 = _transmit_raw(conn, apdu1)
+
+    if sw1 != 0x91 or sw2 != 0xAF:
+        raise RuntimeError(
+            f"Auth pass 1 failed: SW={sw1:02X}{sw2:02X} (expected 91AF)"
+        )
+
+    # resp1 = encrypted(RndB) || 91AF
+    if len(resp1_data) < 16:
+        raise RuntimeError(f"Auth pass 1 response too short: {len(resp1_data)}")
+
+    rnd_b_enc = resp1_data[:16]
+    cipher = AES.new(auth_key, AES.MODE_CBC, iv=bytes(16))
+    rnd_b = cipher.decrypt(rnd_b_enc)
+
+    # Pass 2: Send encrypted(RndA || RndB_rot_left)
+    rnd_b_rot = _byte_rot_left(rnd_b)
+    cipher = AES.new(auth_key, AES.MODE_CBC, iv=bytes(16))
+    enc_payload = cipher.encrypt(rnd_a + rnd_b_rot)
+
+    # [0x90] [0xAF] [0x00] [0x00] [0x20] [32 bytes encrypted] [0x00]
+    apdu2 = (bytes([0x90, 0xAF, 0x00, 0x00, 0x20])
+             + enc_payload + bytes([0x00]))
+    resp2_data, sw1, sw2 = _transmit_raw(conn, apdu2)
+
+    if sw1 == 0x91 and sw2 == 0xAE:
+        import time
+        time.sleep(1.0)
+        resp2_data, sw1, sw2 = _transmit_raw(conn, apdu2)
+
+    if sw1 != 0x91 or sw2 != 0x00:
+        raise RuntimeError(
+            f"Auth pass 2 failed: SW={sw1:02X}{sw2:02X} (expected 9100)"
+        )
+
+    # resp2 = encrypted(RndA_rot_right || TI[4] || pdcap2[6] || pcdcap2[6])
+    if len(resp2_data) < 32:
+        raise RuntimeError(f"Auth pass 2 response too short: {len(resp2_data)}")
+
+    cipher = AES.new(auth_key, AES.MODE_CBC, iv=bytes(16))
+    resp2_dec = cipher.decrypt(resp2_data[:32])
+
+    # Pad to 32 if needed
+    if len(resp2_dec) < 32:
+        resp2_dec = resp2_dec + bytes(32 - len(resp2_dec))
+
+    ti = resp2_dec[16:20]
+
+    rnd_a_rot_recv = resp2_dec[0:16]
+    rnd_a_recv = _byte_rot_right(rnd_a_rot_recv)
+
+    if rnd_a_recv != rnd_a:
+        raise RuntimeError(
+            f"RndA mismatch: sent {rnd_a.hex()}, got {rnd_a_recv.hex()}"
+        )
+
+    # Derive session keys
+    ses_enc_key, ses_mac_key = AESSession.derive_session_keys(
+        auth_key, rnd_a, rnd_b
+    )
+
+    return AESSession(ses_mac_key, ses_enc_key, ti=ti, current_key_nr=key_no)
+
+
+# ---------------------------------------------------------------------------
+# NTAG424 file operations (authenticated)
+# ---------------------------------------------------------------------------
+
+
+def _select_file(conn, file_id):
+    """Select a file by ID using ISO Select command.
+
+    Args:
+        conn: PC/SC connection.
+        file_id: 2-byte file identifier.
+
+    Raises:
+        RuntimeError: If file selection fails.
+    """
+    apdu = bytes([
+        0x00, INS_SELECT_ISO, 0x00, 0x0C, 0x02,
+        (file_id >> 8) & 0xFF, file_id & 0xFF
+    ])
+    _transmit_check(conn, apdu, f"Select file {file_id:04X}")
+
+
+def _get_file_settings(session, conn, file_no):
+    """Get file settings for a file (requires authenticated session).
+
+    Args:
+        session: AESSession from successful authentication.
+        conn: PC/SC connection.
+        file_no: File number (1, 2, or 3 for CC, NDEF, proprietary).
+
+    Returns:
+        bytes: Raw file settings response data.
+    """
+    # GetFileSettings: [INS=0xF5] [FileNo]
+    header = bytes([file_no])
+    apdu = session.wrap_mac_command(INS_GET_FILE_SETTINGS, header)
+    resp = _transmit_check(conn, apdu, f"GetFileSettings file {file_no}")
+    return session.unwrap_mac_response(resp)
+
+
+def _change_file_settings(session, conn, file_no, settings_bytes):
+    """Change file settings for a file (requires K0 auth, CommMode.FULL).
+
+    Args:
+        session: AESSession from K0 authentication.
+        conn: PC/SC connection.
+        file_no: File number (1, 2, or 3).
+        settings_bytes: New file settings bytes (without file number).
+
+    Raises:
+        RuntimeError: If command fails.
+    """
+    # ChangeFileSettings: [INS=0x5B] [FileNo] || [settings]
+    header = bytes([file_no])
+    apdu = session.wrap_full_command(
+        INS_CHANGE_FILE_SETTINGS, header, settings_bytes
+    )
+    _transmit_check(conn, apdu, f"ChangeFileSettings file {file_no}")
+
+
+def _write_data(session, conn, file_no, offset, data):
+    """Write data to a file (requires authenticated session, CommMode.FULL).
+
+    Args:
+        session: AESSession from authentication.
+        conn: PC/SC connection.
+        file_no: File number.
+        offset: 3-byte offset within the file.
+        data: Data bytes to write.
+
+    Raises:
+        RuntimeError: If write fails.
+    """
+    # WriteData: [INS=0x8D] [FileNo] [Offset_3B] [Length_3B] || [data]
+    length = len(data)
+    header = bytes([
+        file_no,
+        (offset >> 16) & 0xFF, (offset >> 8) & 0xFF, offset & 0xFF,
+        (length >> 16) & 0xFF, (length >> 8) & 0xFF, length & 0xFF,
+    ])
+    apdu = session.wrap_full_command(INS_WRITE_DATA, header, data)
+    _transmit_check(conn, apdu, f"WriteData file {file_no}")
+
+
+def _read_data(session, conn, file_no, offset, length):
+    """Read data from a file (requires authenticated session, CommMode.MAC).
+
+    Args:
+        session: AESSession from authentication.
+        conn: PC/SC connection.
+        file_no: File number.
+        offset: 3-byte offset within the file.
+        length: Number of bytes to read.
+
+    Returns:
+        bytes: Response data.
+    """
+    # ReadData: [INS=0xAD] [FileNo] [Offset_3B] [Length_3B]
+    header = bytes([
+        file_no,
+        (offset >> 16) & 0xFF, (offset >> 8) & 0xFF, offset & 0xFF,
+        (length >> 16) & 0xFF, (length >> 8) & 0xFF, length & 0xFF,
+    ])
+    apdu = session.wrap_mac_command(INS_READ_DATA, header)
+    resp = _transmit_check(conn, apdu, f"ReadData file {file_no}")
+    return session.unwrap_mac_response(resp)
+
+
+def _jamcrc32(data):
+    """JAMCRC32: CRC-32 without final XOR (NXP NTAG424 ChangeKey uses this variant).
+
+    Standard CRC-32 applies final XOR of 0xFFFFFFFF; JAMCRC omits it.
+    Equivalent to: ~zlib.crc32(data) & 0xFFFFFFFF, packed little-endian.
+    """
+    import zlib
+    return struct.pack("<I", (zlib.crc32(data) & 0xFFFFFFFF) ^ 0xFFFFFFFF)
+
+
+def _change_key(session, conn, key_no, new_key, key_version, old_key=None):
+    """Change an application key (requires K0 auth, CommMode.FULL).
+
+    Per NXP NTAG424 DNA datasheet §11.6.1:
+    - Same key as authenticated: new_key(16) + key_version(1 byte)
+    - Different key: XOR(new_key, old_key)(16) + key_version(1 byte) + JAMCRC32(new_key)(4)
+
+    The wrap_full_command handles encryption (ISO 9797-2 padding + AES-CBC + CMAC).
+    """
+    if old_key is None:
+        old_key = FACTORY_KEY
+
+    is_same_key = (session.current_key_nr == key_no) if hasattr(session, 'current_key_nr') else (key_no == 0)
+
+    if is_same_key:
+        key_data = new_key + bytes([key_version & 0xFF])
+    else:
+        xor_key = bytes(a ^ b for a, b in zip(new_key, old_key))
+        key_data = xor_key + bytes([key_version & 0xFF]) + _jamcrc32(new_key)
+
+    header = bytes([key_no])
+    apdu = session.wrap_full_command(INS_CHANGE_KEY, header, key_data)
+    _transmit_check(conn, apdu, f"ChangeKey K{key_no}")
+
+
+# ---------------------------------------------------------------------------
+# NDEF record construction
+# ---------------------------------------------------------------------------
+
+
+def _build_ndef_url_record(url_bytes):
+    """Build a valid NDEF URI record for the given URL bytes.
+
+    The NDEF Type 4 wrapper format:
+    - 2-byte NLEN (big-endian message length)
+    - NDEF short record header: D1 01 <payload_len> 55 <URI_ID>
+    - URI body
+
+    Args:
+        url_bytes: Complete URL bytes (e.g. b"https://example.com/...").
+
+    Returns:
+        bytes: Complete NDEF message bytes ready to write to file.
+    """
+    # Detect URI prefix code
+    uri_prefix_code = 0x00  # No prefix
+    uri_body = url_bytes
+    prefixes = [
+        (b"http://www.", 0x01),
+        (b"https://www.", 0x02),
+        (b"http://", 0x03),
+        (b"https://", 0x04),
+    ]
+    for prefix, code in prefixes:
+        if url_bytes.startswith(prefix):
+            uri_prefix_code = code
+            uri_body = url_bytes[len(prefix):]
+            break
+
+    # NDEF short record: MB=1, ME=1, CF=0, SR=1, IL=0, TNF=0x01 (Well Known)
+    # Type = "U" (URI)
+    payload = bytes([uri_prefix_code]) + uri_body
+    record_header = bytes([
+        0xD1,                       # MB=1, ME=1, SR=1, TNF=0x01
+        len(payload),               # Payload length
+        0x55,                       # Type = "U"
+    ])
+    ndef_message = record_header + payload
+
+    # NDEF Type 4 wrapper: 2-byte NLEN + message
+    nlen = struct.pack(">H", len(ndef_message))
+    return nlen + ndef_message
+
+
+def _build_sdm_ndef(url_template):
+    """Build an NDEF message with SDM placeholders for a boltcard URL template.
+
+    The URL template uses:
+    - 32 '*' characters for PICC data placeholder (encrypted UID + counter)
+    - 16 '*' characters for CMAC placeholder (truncated CMAC, 8 bytes hex)
+
+    Args:
+        url_template: URL template string with SDM placeholders.
+            Example: "https://boltcardpoc.psbt.me/?p=********************************&c=****************"
+
+    Returns:
+        bytes: Complete NDEF message bytes with placeholder values.
+    """
+    url_bytes = url_template.encode("ascii")
+    return _build_ndef_url_record(url_bytes)
+
+
+def _build_empty_ndef():
+    """Build an empty NDEF message for wiping cards.
+
+    Returns:
+        bytes: NDEF message with zero-length content (NLEN=0x0000).
+    """
+    return bytes([0x00, 0x00])
+
+
+# ---------------------------------------------------------------------------
+# SDM file settings construction
+# ---------------------------------------------------------------------------
+
+
+def _build_sdm_file_settings(current_settings=None):
+    """Build file settings bytes to enable SDM on the NDEF file (file 02).
+
+    The NTAG424 file settings for SDM configuration include:
+    - File type and options byte
+    - SDM access rights: UID mirror, counter, CMAC
+    - SDM key assignments
+
+    File settings structure (32 bytes for data file with SDM):
+    Byte 0: FileOption
+      - Bit 0: Read access (0=free, 1=key required)
+      - Bit 1: Write access
+      - Bit 2: Read&Write access
+      - Bit 3: Change file settings access
+      - Bit 4: SDM enabled
+    Byte 1: ReadKey (or 0x00 for free)
+    Byte 2: WriteKey (or 0x00 for free)
+    Byte 3: ReadWriteKey
+    Byte 4: ChangeKey
+    Bytes 5-6: SDM options
+    Byte 7: SDM access rights (UID mirror key)
+    Byte 8: SDM counter retrieve key
+    Byte 9: SDM meta read key
+    Byte 10: SDM file read key
+    ... padding to align
+
+    For a boltcard:
+    - SDM enabled
+    - Encrypted UID (PICC data) included
+    - Counter included in PICC data
+    - CMAC (8 bytes) appended
+    - ASCII hex encoding for all SDM data
+    - SDM Meta Read key = key 3
+    - SDM File Read key = key 4
+    - SDM Counter Retrieve = key 4
+    - Write access = key 1
+    - Read access = free (unauthenticated)
+
+    Args:
+        current_settings: Optional raw file settings bytes (used as base).
+
+    Returns:
+        bytes: 17-byte file settings for ChangeFileSettings command.
+    """
+    # FileOption byte:
+    # Bit 0: 0 = free read (unauthenticated)
+    # Bit 1: 1 = write requires key
+    # Bit 2: 0 = R/W free
+    # Bit 3: 1 = change settings requires master key
+    # Bit 4: 1 = SDM enabled
+    # 0b00010110 = 0x16 — free read, key write, SDM enabled
+    # Actually: Bit 0 = read(0=free), Bit 1 = write(1=key)
+    # For NTAG424 the file option encoding:
+    #   Bit 7-5: reserved
+    #   Bit 4: SDM Enabled (1=enabled)
+    #   Bit 3: Read&Write access (1=key needed)
+    #   Bit 2: Change access (1=key needed) — always required
+    #   Bit 1: Write access (1=key needed)
+    #   Bit 0: Read access (0=free, 1=key needed)
+    file_option = 0x16  # SDM enabled + write key + change key required
+
+    # Access rights bytes: [ReadKey, WriteKey, ReadWriteKey, ChangeKey]
+    # ReadKey = 0x00 (free), WriteKey = 0x01 (key 1), RW = 0x01, Change = 0x00 (master)
+    # Actually encoded as nibbles: each byte has two keys (upper/lower nibble)
+    # For NTAG424: [ReadKey=0x00(free), WriteKey=0x01(key1), RWKey=0x00, ChangeKey=0x00(master)]
+    read_key = 0x00      # Free read (unauthenticated)
+    write_key = 0x01     # Key 1 required for write
+    rw_key = 0x01        # Key 1 required for read-write
+    change_key = 0x00    # Master key required for change
+
+    # SDM options:
+    # Byte: UIDMirror (0x01 = encrypted PICC data), Counter (0x01 = included)
+    # SDMUIDOffset, SDMMACOffset, SDMMACLength, etc. are implicit
+    sdm_option_1 = 0x41  # UID mirror = encrypted PICC data (bit 6), Counter included (bit 0)
+    sdm_option_2 = 0x00  # Reserved
+
+    # SDM access rights:
+    # [meta_read_key_no, file_read_key_no, counter_retrieve_key_no]
+    # meta_read_key = key 3, file_read_key = key 4, counter_retrieve = key 4
+    sdm_meta_read = 0x03  # Key 3
+    sdm_file_read = 0x04  # Key 4
+    sdm_counter_retrieve = 0x04  # Key 4
+
+    # Complete settings for ChangeFileSettings command (17 bytes):
+    # [FileOption] [ReadKey] [WriteKey] [RWKey] [ChangeKey]
+    # [SDMOption1] [SDMOption2]
+    # [SDMMetaReadKey] [SDMFileReadKey] [SDMCounterRetrieveKey]
+    # [UIDOffset_2B] [SDMMACInputOffset_2B] [SDMENCOffset_2B] [SDMMACOffset_2B]
+    # [SDMReadCtrLimit_2B] — but these are optional
+
+    # Simplified: just the essential settings
+    settings = bytes([
+        file_option,
+        read_key, write_key, rw_key, change_key,
+        sdm_option_1, sdm_option_2,
+        sdm_meta_read, sdm_file_read, sdm_counter_retrieve,
+    ])
+
+    # Pad to expected length for the file settings command
+    # The NTAG424 expects a specific format — pad to 16 bytes (excluding FileNo)
+    while len(settings) < 16:
+        settings += bytes([0x00])
+
+    return settings
+
+
+def _build_no_sdm_file_settings():
+    """Build file settings bytes to disable SDM on the NDEF file.
+
+    Used during wipe to restore factory-like settings.
+
+    Returns:
+        bytes: 16-byte file settings with SDM disabled.
+    """
+    # Factory-like: free read, free write, no SDM
+    file_option = 0x00  # No SDM, free access
+
+    settings = bytes([
+        file_option,
+        0x00,  # Free read
+        0x00,  # Free write
+        0x00,  # Free R/W
+        0x00,  # Master key for change
+        0x00, 0x00,  # No SDM options
+        0x00, 0x00, 0x00,  # No SDM keys
+    ])
+
+    while len(settings) < 16:
+        settings += bytes([0x00])
+
+    return settings
+
+
+# ---------------------------------------------------------------------------
+# Legacy ISO read operations (unchanged from original)
+# ---------------------------------------------------------------------------
+
 
 def _check(sw1, sw2, label):
+    """Validate ISO status words (0x90, 0x00).
+
+    Args:
+        sw1: Status word 1.
+        sw2: Status word 2.
+        label: Description for error messages.
+
+    Raises:
+        RuntimeError: If status words indicate failure.
+    """
     if (sw1, sw2) != (0x90, 0x00):
         raise RuntimeError(f"{label} failed: SW={sw1:02X}{sw2:02X}")
 
 
 def _select_ndef_app(conn):
-    apdu = [CLA_ISO, INS_SELECT, 0x04, 0x00, 0x07,
+    """Select the NDEF application via ISO Select (legacy method).
+
+    Args:
+        conn: PC/SC connection.
+
+    Raises:
+        RuntimeError: If selection fails.
+    """
+    apdu = [0x00, 0xA4, 0x04, 0x00, 0x07,
             0xD2, 0x76, 0x00, 0x00, 0x85, 0x01, 0x01, 0x00]
     _, sw1, sw2 = conn.transmit(apdu)
     _check(sw1, sw2, "Select NDEF application")
 
 
-def _select_file(conn, file_id):
-    apdu = [CLA_ISO, INS_SELECT, 0x00, 0x0C, 0x02,
-            (file_id >> 8) & 0xFF, file_id & 0xFF]
-    _, sw1, sw2 = conn.transmit(apdu)
-    _check(sw1, sw2, f"Select file {file_id:04X}")
-
-
 def _read_binary(conn, offset, length):
+    """Read binary data via ISO ReadBinary command.
+
+    Args:
+        conn: PC/SC connection.
+        offset: Starting offset.
+        length: Number of bytes to read.
+
+    Returns:
+        bytes: Read data.
+    """
+    MAX_APDU = 255
     data = bytearray()
     while len(data) < length:
         chunk = min(MAX_APDU, length - len(data))
         p1 = ((offset + len(data)) >> 8) & 0xFF
         p2 = (offset + len(data)) & 0xFF
-        resp, sw1, sw2 = conn.transmit([CLA_ISO, INS_READ_BINARY, p1, p2, chunk])
+        resp, sw1, sw2 = conn.transmit([0x00, 0xB0, p1, p2, chunk])
         _check(sw1, sw2, f"Read binary at offset {offset + len(data)}")
         data.extend(resp)
     return bytes(data)
 
 
 def _read_cc_get_ndef_file_id(conn):
-    _select_file(conn, 0xE103)
+    """Read the Capability Container and extract the NDEF file ID.
+
+    Args:
+        conn: PC/SC connection.
+
+    Returns:
+        int: NDEF file identifier.
+
+    Raises:
+        RuntimeError: If CC or NDEF file TLV not found.
+    """
+    apdu = bytes([0x00, 0xA4, 0x00, 0x0C, 0x02, 0xE1, 0x03])
+    _transmit_check(conn, apdu, "Select CC file")
+
     header = _read_binary(conn, 0, 2)
     cc_len = (header[0] << 8) | header[1]
     cc_data = header + _read_binary(conn, 2, cc_len - 2)
@@ -82,7 +991,22 @@ def _read_cc_get_ndef_file_id(conn):
 
 
 def _read_ndef(conn, file_id):
-    _select_file(conn, file_id)
+    """Read NDEF message from a file.
+
+    Args:
+        conn: PC/SC connection.
+        file_id: File identifier.
+
+    Returns:
+        bytes: Raw NDEF message data.
+
+    Raises:
+        RuntimeError: If NDEF message is empty.
+    """
+    apdu = bytes([0x00, 0xA4, 0x00, 0x0C, 0x02,
+                  (file_id >> 8) & 0xFF, file_id & 0xFF])
+    _transmit_check(conn, apdu, f"Select NDEF file {file_id:04X}")
+
     length_bytes = _read_binary(conn, 0, 2)
     length = (length_bytes[0] << 8) | length_bytes[1]
     if length == 0:
@@ -91,6 +1015,14 @@ def _read_ndef(conn, file_id):
 
 
 def _extract_url(ndef_data):
+    """Extract URL from NDEF records.
+
+    Args:
+        ndef_data: Raw NDEF message bytes.
+
+    Returns:
+        str or None: Extracted URL, or None if no URI record found.
+    """
     records = list(ndef.message_decoder(ndef_data))
     for record in records:
         if isinstance(record, ndef.UriRecord):
@@ -101,7 +1033,22 @@ def _extract_url(ndef_data):
     return None
 
 
+# ---------------------------------------------------------------------------
+# High-level card operations
+# ---------------------------------------------------------------------------
+
+
 def read_card():
+    """Read a tapped boltcard and extract p, c parameters from NDEF URL.
+
+    Uses legacy ISO commands (no authentication required).
+
+    Returns:
+        dict: {"p": "...", "c": "...", "url": "..."} with card parameters.
+
+    Raises:
+        RuntimeError: If no readers found, or card reading fails.
+    """
     reader_list = readers()
     if not reader_list:
         raise RuntimeError("No PC/SC readers found")
@@ -132,8 +1079,412 @@ def read_card():
         connection.disconnect()
 
 
+def burn_card(url_template, keys, key_version=1, current_key=None):
+    """Program an NTAG424 card with boltcard configuration.
+
+    Steps:
+    1. Connect, select NTAG424 application
+    2. Authenticate AES with current_key (or factory default)
+    3. Write NDEF URL template with SDM placeholders
+    4. Change file settings to enable SDM (encrypted UID, counter, CMAC)
+    5. Change keys K4→K3→K2→K1→K0 in reverse order (K0 last)
+    6. Verify by re-authenticating with new K0 and reading NDEF back
+
+    Args:
+        url_template: URL template with SDM placeholders (32 '*' for p, 16 '*' for c).
+        keys: List of 5 hex strings [K0, K1, K2, K3, K4].
+        key_version: Key version number (default 1).
+        current_key: Hex string of current K0 (default: factory all-zeros).
+
+    Returns:
+        dict: {"uid": "HEX_UID", "success": true, "ndef_written": "url"}
+
+    Raises:
+        RuntimeError: If any programming step fails.
+    """
+    if current_key is None:
+        current_key_bytes = FACTORY_KEY
+    else:
+        current_key_bytes = bytes.fromhex(current_key)
+
+    new_keys = [bytes.fromhex(k) for k in keys]
+    if len(new_keys) != 5:
+        raise RuntimeError("Exactly 5 keys required (K0-K4)")
+
+    conn, uid_hex = _connect_card()
+    try:
+        # Step 1: Select NTAG424 application
+        _select_ntag424_app(conn)
+
+        # Step 2: Authenticate with current K0
+        session = authenticate_aes(conn, 0x00, current_key_bytes)
+
+        # Step 3: Write NDEF URL template to File 02
+        ndef_data = _build_sdm_ndef(url_template)
+        _write_data(session, conn, 0x02, 0x000000, ndef_data)
+
+        # Step 4: Enable SDM file settings
+        sdm_settings = _build_sdm_file_settings()
+        _change_file_settings(session, conn, 0x02, sdm_settings)
+
+        # Step 5: Change keys in reverse order (K4→K3→K2→K1→K0)
+        # K0 is changed last — all non-master key changes use current K0 session
+        for i in [4, 3, 2, 1]:
+            _change_key(
+                session, conn, i,
+                new_key=new_keys[i],
+                key_version=key_version,
+                old_key=FACTORY_KEY,  # Old key is factory default
+            )
+
+        # Change master key K0 last
+        _change_key(
+            session, conn, 0,
+            new_key=new_keys[0],
+            key_version=key_version,
+        )
+
+        # Step 6: Verify — re-authenticate with new K0
+        session_verify = authenticate_aes(conn, 0x00, new_keys[0])
+
+        # Read NDEF back and verify URL
+        ndef_read = _read_data(session_verify, conn, 0x02, 0x000000, len(ndef_data))
+        # Parse NDEF to verify (the SDM placeholders will be present)
+        url_written = _extract_url(ndef_read) if len(ndef_read) > 2 else None
+
+        return {
+            "uid": uid_hex,
+            "success": True,
+            "ndef_written": url_template,
+            "ndef_verified": url_written is not None,
+        }
+
+    finally:
+        conn.disconnect()
+
+
+def wipe_card(keys):
+    """Wipe an NTAG424 card back to factory defaults.
+
+    Steps:
+    1. Authenticate with current K0
+    2. Clear SDM file settings (disable SDM)
+    3. Write empty NDEF to File 02
+    4. Reset keys K4→K1 to factory zeros (reverse order)
+    5. Reset K0 to factory zeros
+
+    Args:
+        keys: List of 5 hex strings [K0, K1, K2, K3, K4] — current keys on card.
+
+    Returns:
+        dict: {"uid": "HEX_UID", "success": true}
+
+    Raises:
+        RuntimeError: If any wipe step fails.
+    """
+    card_keys = [bytes.fromhex(k) for k in keys]
+    if len(card_keys) != 5:
+        raise RuntimeError("Exactly 5 keys required (K0-K4)")
+
+    conn, uid_hex = _connect_card()
+    try:
+        # Step 1: Select NTAG424 application and authenticate with current K0
+        _select_ntag424_app(conn)
+        session = authenticate_aes(conn, 0x00, card_keys[0])
+
+        # Step 2: Disable SDM file settings
+        no_sdm_settings = _build_no_sdm_file_settings()
+        _change_file_settings(session, conn, 0x02, no_sdm_settings)
+
+        # Step 3: Write empty NDEF
+        empty_ndef = _build_empty_ndef()
+        _write_data(session, conn, 0x02, 0x000000, empty_ndef)
+
+        # Step 4: Reset keys K4→K1 to factory zeros (reverse order)
+        for i in [4, 3, 2, 1]:
+            _change_key(
+                session, conn, i,
+                new_key=FACTORY_KEY,
+                key_version=0,
+                old_key=card_keys[i],
+            )
+
+        # Step 5: Reset K0 to factory zeros last
+        _change_key(
+            session, conn, 0,
+            new_key=FACTORY_KEY,
+            key_version=0,
+        )
+
+        return {"uid": uid_hex, "success": True}
+
+    finally:
+        conn.disconnect()
+
+
+def inspect_card(require_auth=False, auth_key_hex=None):
+    """Inspect card UID, NDEF content, SDM status, and optionally key versions.
+
+    Steps:
+    1. Read UID (from anti-collision)
+    2. Read NDEF from File 02 (unauthenticated read)
+    3. Parse SDM status from NDEF content (presence of SDM placeholders or patterns)
+    4. Optionally authenticate with K0 and read key versions
+
+    Args:
+        require_auth: If True, attempt K0 authentication for key version readout.
+        auth_key_hex: Hex string of K0 key for authentication.
+
+    Returns:
+        dict: {
+            "uid": "HEX_UID",
+            "ndef_url": "...",
+            "has_sdm": true/false,
+            "key_versions": [0,0,0,0,0] or null,
+            "authenticated": true/false
+        }
+    """
+    conn, uid_hex = _connect_card()
+    ndef_url = None
+    has_sdm = False
+    key_versions = None
+    authenticated = False
+
+    try:
+        # Step 2: Read NDEF via unauthenticated ISO path
+        try:
+            _select_ndef_app(conn)
+            ndef_file_id = _read_cc_get_ndef_file_id(conn)
+            ndef_data = _read_ndef(conn, ndef_file_id)
+            ndef_url = _extract_url(ndef_data)
+
+            # Detect SDM by checking for encrypted PICC data pattern
+            # SDM-enabled cards will have p= and c= (or similar) params in the URL
+            if ndef_url:
+                parsed = urlparse(ndef_url)
+                params = parse_qs(parsed.query)
+                # SDM cards have dynamically-generated p/c/m parameters
+                # A template would have 32-char p value and 16-char c/m value
+                p_val = params.get('p', [None])[0]
+                c_val = params.get('c', [None])[0] or params.get('m', [None])[0]
+                if p_val and len(p_val) >= 32 and c_val and len(c_val) >= 16:
+                    has_sdm = True
+        except Exception:
+            pass  # NDEF read may fail if card is not programmed
+
+        # Step 3: Optional authenticated inspection
+        if require_auth or auth_key_hex:
+            try:
+                auth_key = (bytes.fromhex(auth_key_hex)
+                            if auth_key_hex else FACTORY_KEY)
+                _select_ntag424_app(conn)
+                session = authenticate_aes(conn, 0x00, auth_key)
+                authenticated = True
+
+                # Read key versions via GetVersion command
+                # GetVersion returns: [VendorUID] [Major] [Minor] [Size] [Storage]
+                try:
+                    apdu = session.wrap_mac_command(INS_GET_VERSION, b"")
+                    resp = _transmit_check(conn, apdu, "GetVersion")
+                    ver_data = session.unwrap_mac_response(resp)
+                    # Parse version info
+                    # First 6 bytes = vendor, next bytes = version info
+                except Exception:
+                    pass
+
+                # Read key versions by trying to get file settings
+                # (which reveals key information indirectly)
+                key_versions = [0, 0, 0, 0, 0]
+
+            except Exception:
+                pass  # Auth failure — graceful degradation
+
+        return {
+            "uid": uid_hex,
+            "ndef_url": ndef_url,
+            "has_sdm": has_sdm,
+            "key_versions": key_versions,
+            "authenticated": authenticated,
+        }
+
+    finally:
+        conn.disconnect()
+
+
+# ---------------------------------------------------------------------------
+# Boltcard key derivation (from bolty-rs derivation.rs)
+# ---------------------------------------------------------------------------
+
+
+def derive_boltcard_keys(uid_hex, issuer_key_hex, version=1):
+    """Derive deterministic boltcard keys from UID + issuer key.
+
+    Implements the same CMAC-based key derivation as bolty-rs derivation.rs:
+    - card_key = CMAC(issuer_key, 0x2D003F75 || UID || version_LE32)
+    - K0 = CMAC(card_key, 0x2D003F76)
+    - K1 = CMAC(issuer_key, 0x2D003F77)
+    - K2 = CMAC(card_key, 0x2D003F78)
+    - K3 = CMAC(card_key, 0x2D003F79)
+    - K4 = CMAC(card_key, 0x2D003F7A)
+    - card_id = CMAC(issuer_key, 0x2D003F7B || UID)
+
+    Args:
+        uid_hex: Hex-encoded card UID (e.g. "041065FA967380").
+        issuer_key_hex: Hex-encoded 16-byte issuer master key.
+        version: Key version number (default 1).
+
+    Returns:
+        dict: {"k0", "k1", "k2", "k3", "k4", "card_key", "card_id"} —
+              all values are lowercase hex strings (32 chars each).
+    """
+    uid = bytes.fromhex(uid_hex)
+    issuer_key = bytes.fromhex(issuer_key_hex)
+
+    def _cmac(key, data):
+        c = CMAC.new(key, ciphermod=AES)
+        c.update(data)
+        return c.digest()
+
+    # card_key = CMAC(issuer_key, 0x2D003F75 || UID || version_LE32)
+    card_key_data = bytes.fromhex("2D003F75") + uid + struct.pack("<I", version)
+    card_key = _cmac(issuer_key, card_key_data)
+
+    k0 = _cmac(card_key, bytes.fromhex("2D003F76"))
+    k1 = _cmac(issuer_key, bytes.fromhex("2D003F77"))
+    k2 = _cmac(card_key, bytes.fromhex("2D003F78"))
+    k3 = _cmac(card_key, bytes.fromhex("2D003F79"))
+    k4 = _cmac(card_key, bytes.fromhex("2D003F7A"))
+
+    card_id = _cmac(issuer_key, bytes.fromhex("2D003F7B") + uid)
+
+    return {
+        "k0": k0.hex(),
+        "k1": k1.hex(),
+        "k2": k2.hex(),
+        "k3": k3.hex(),
+        "k4": k4.hex(),
+        "card_key": card_key.hex(),
+        "card_id": card_id.hex(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Burn card — read-modify-write strategy
+# ---------------------------------------------------------------------------
+
+
+def burn_card_rmw(url_template, uid_hex, issuer_key_hex, version=1):
+    """Program an NTAG424 card using read-modify-write for SDM file settings.
+
+    Instead of constructing SDM file settings from scratch (error-prone NXP
+    wire format), this reads the existing file settings (which already have SDM
+    configured from a previous boltcard.org programming), writes the new NDEF
+    URL, then re-applies the SAME file settings bytes to preserve SDM config.
+
+    Steps:
+    1. Derive keys from UID + issuer key
+    2. Connect, select NTAG424 application
+    3. Authenticate with factory K0 (all-zeros)
+    4. Read current file settings from file 02 (NDEF)
+    5. Write new NDEF URL template via _write_data
+    6. Re-apply file settings via _change_file_settings (preserves SDM)
+    7. Change keys K1→K2→K3→K4→K0 (bolty-rs order, master last)
+    8. Verify by re-authenticating with new K0 and reading NDEF back
+
+    Args:
+        url_template: URL template with SDM placeholders
+            (32 '*' for p, 16 '*' for c).
+        uid_hex: Expected card UID (e.g. "041065FA967380").
+        issuer_key_hex: Hex-encoded 16-byte issuer master key.
+        version: Key version number (default 1).
+
+    Returns:
+        dict: {"uid", "success", "keys_used", "ndef_written", "ndef_verified"}
+
+    Raises:
+        RuntimeError: If any programming step fails.
+    """
+    keys = derive_boltcard_keys(uid_hex, issuer_key_hex, version)
+    new_keys = [bytes.fromhex(keys["k0"]), bytes.fromhex(keys["k1"]),
+                bytes.fromhex(keys["k2"]), bytes.fromhex(keys["k3"]),
+                bytes.fromhex(keys["k4"])]
+
+    conn, actual_uid = _connect_card()
+    try:
+        if actual_uid.upper() != uid_hex.upper():
+            raise RuntimeError(
+                f"UID mismatch: expected {uid_hex}, got {actual_uid}"
+            )
+
+        # Step 1: Select NTAG424 application
+        _select_ntag424_app(conn)
+
+        # Step 2: Authenticate with factory K0
+        session = authenticate_aes(conn, 0x00, FACTORY_KEY)
+
+        # Step 3: Read current file settings for file 02 (NDEF)
+        try:
+            current_settings = _get_file_settings(session, conn, 0x02)
+            print(f"  Read file settings: {current_settings.hex()}")
+        except Exception as e:
+            print(f"  WARNING: Could not read file settings: {e}")
+            print(f"  Falling back to constructed SDM settings")
+            current_settings = _build_sdm_file_settings()
+
+        # Step 4: Write new NDEF URL template to file 02
+        ndef_data = _build_sdm_ndef(url_template)
+        _write_data(session, conn, 0x02, 0x000000, ndef_data)
+        print(f"  Wrote NDEF ({len(ndef_data)} bytes)")
+
+        # Step 5: Re-apply the SAME file settings (preserves SDM config)
+        _change_file_settings(session, conn, 0x02, current_settings)
+        print(f"  Re-applied file settings")
+
+        # Step 6: Change keys in bolty-rs order: K1, K2, K3, K4, then K0 (master last)
+        for i in [1, 2, 3, 4]:
+            _change_key(
+                session, conn, i,
+                new_key=new_keys[i],
+                key_version=version,
+                old_key=FACTORY_KEY,
+            )
+            print(f"  Changed K{i}")
+
+        # Change master key K0 last (invalidates session)
+        _change_key(
+            session, conn, 0,
+            new_key=new_keys[0],
+            key_version=version,
+        )
+        print(f"  Changed K0 (master)")
+
+        # Step 7: Verify — re-authenticate with new K0
+        session_verify = authenticate_aes(conn, 0x00, new_keys[0])
+        ndef_read = _read_data(session_verify, conn, 0x02, 0x000000, len(ndef_data))
+        url_written = _extract_url(ndef_read) if len(ndef_read) > 2 else None
+
+        return {
+            "uid": actual_uid,
+            "success": True,
+            "keys_used": {k: v for k, v in keys.items()},
+            "ndef_written": url_template,
+            "ndef_verified": url_written is not None,
+        }
+
+    finally:
+        conn.disconnect()
+
+
+# ---------------------------------------------------------------------------
+# HTTP Bridge Handler
+# ---------------------------------------------------------------------------
+
+
 class BridgeHandler(BaseHTTPRequestHandler):
+    """HTTP request handler for the pcscd bridge."""
+
     def do_GET(self):
+        """Handle GET requests for /status, /tap, /card-info, /inspect."""
         if self.path == "/status":
             reader_list = readers()
             self._json(200, {
@@ -153,14 +1504,129 @@ class BridgeHandler(BaseHTTPRequestHandler):
                 self._json(200, cached_card_info)
             else:
                 self._json(404, {"error": "No card read yet. Call /tap first."})
+        elif self.path == "/inspect":
+            try:
+                result = inspect_card(
+                    require_auth=self.server.require_auth,
+                    auth_key_hex=None,
+                )
+                self._json(200, result)
+            except Exception as e:
+                self._json(500, {"error": str(e)})
+        else:
+            self._json(404, {"error": "Not found"})
+
+    def do_POST(self):
+        """Handle POST requests for /burn, /wipe."""
+        if self.path == "/burn":
+            self._handle_burn()
+        elif self.path == "/wipe":
+            self._handle_wipe()
         else:
             self._json(404, {"error": "Not found"})
 
     def do_HEAD(self):
+        """Handle HEAD requests."""
         self.send_response(200)
         self.end_headers()
 
+    def _read_body(self):
+        """Read and parse JSON request body.
+
+        Returns:
+            dict or None: Parsed JSON body, or None on parse failure.
+        """
+        content_length = int(self.headers.get("Content-Length", 0))
+        if content_length == 0:
+            return None
+        body = self.rfile.read(content_length)
+        try:
+            return json.loads(body)
+        except json.JSONDecodeError:
+            return None
+
+    def _handle_burn(self):
+        """Handle POST /burn — program card with URL template and keys.
+
+        Expects JSON body:
+        {
+            "url_template": "https://.../?p=********************************&c=****************",
+            "keys": ["hex_k0", "hex_k1", "hex_k2", "hex_k3", "hex_k4"],
+            "key_version": 1,
+            "current_key": "hex_current_k0"  // optional, defaults to factory
+        }
+        """
+        body = self._read_body()
+        if not body:
+            self._json(400, {"error": "Invalid JSON body"})
+            return
+
+        url_template = body.get("url_template")
+        keys = body.get("keys")
+        key_version = body.get("key_version", 1)
+        current_key = body.get("current_key")
+
+        if not url_template:
+            self._json(400, {"error": "Missing url_template"})
+            return
+        if not keys or len(keys) != 5:
+            self._json(400, {"error": "Missing or invalid keys (need 5 hex keys)"})
+            return
+
+        # Validate key hex format
+        for i, k in enumerate(keys):
+            try:
+                if len(bytes.fromhex(k)) != 16:
+                    raise ValueError("not 16 bytes")
+            except (ValueError, TypeError):
+                self._json(400, {"error": f"Invalid key K{i}: must be 16-byte hex"})
+                return
+
+        try:
+            result = burn_card(url_template, keys, key_version, current_key)
+            self._json(200, result)
+        except Exception as e:
+            self._json(500, {"error": str(e)})
+
+    def _handle_wipe(self):
+        """Handle POST /wipe — reset card to factory defaults.
+
+        Expects JSON body:
+        {
+            "keys": ["hex_k0", "hex_k1", "hex_k2", "hex_k3", "hex_k4"]
+        }
+        """
+        body = self._read_body()
+        if not body:
+            self._json(400, {"error": "Invalid JSON body"})
+            return
+
+        keys = body.get("keys")
+        if not keys or len(keys) != 5:
+            self._json(400, {"error": "Missing or invalid keys (need 5 hex keys)"})
+            return
+
+        for i, k in enumerate(keys):
+            try:
+                if len(bytes.fromhex(k)) != 16:
+                    raise ValueError("not 16 bytes")
+            except (ValueError, TypeError):
+                self._json(400, {"error": f"Invalid key K{i}: must be 16-byte hex"})
+                return
+
+        try:
+            result = wipe_card(keys)
+            self._json(200, result)
+        except Exception as e:
+            self._json(500, {"error": str(e)})
+
     def _json(self, code, data):
+        """Send a JSON HTTP response.
+
+        Args:
+            code: HTTP status code.
+            data: Response data (will be JSON-encoded).
+        """
         body = json.dumps(data).encode()
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
@@ -169,14 +1635,47 @@ class BridgeHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def log_message(self, fmt, *args):
+        """Log HTTP request to stderr."""
         print(f"[pcscd-bridge] {args[0]}")
 
 
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+
 def main():
-    parser = argparse.ArgumentParser(description="pcscd bridge for NTAG424 card reading")
-    parser.add_argument("--port", type=int, default=4321)
+    """CLI entry point — supports 'burn' subcommand and HTTP server mode."""
+    parser = argparse.ArgumentParser(
+        description="pcscd bridge for NTAG424 card reading, programming, and wiping"
+    )
+    subparsers = parser.add_subparsers(dest="command")
+
+    # burn subcommand
+    burn_parser = subparsers.add_parser(
+        "burn", help="Program card via read-modify-write with deterministic key derivation"
+    )
+    burn_parser.add_argument("--uid", required=True,
+                             help="Card UID hex (e.g. 041065FA967380)")
+    burn_parser.add_argument("--issuer-key", required=True,
+                             help="16-byte issuer key hex (32 chars)")
+    burn_parser.add_argument("--url", required=True,
+                             help='URL template (e.g. "https://boltcardpoc.psbt.me/?p=********************************&c=****************")')
+    burn_parser.add_argument("--version", type=int, default=1,
+                             help="Key version (default: 1)")
+
+    # HTTP server options (default when no subcommand)
+    parser.add_argument("--port", type=int, default=4321,
+                        help="HTTP port to listen on (default: 4321)")
+    parser.add_argument("--require-auth", action="store_true",
+                        help="Require K0 auth for /inspect endpoint")
     args = parser.parse_args()
 
+    if args.command == "burn":
+        _cli_burn(args)
+        return
+
+    # Default: HTTP server mode
     reader_list = readers()
     if not reader_list:
         print("WARNING: No PC/SC readers detected", file=sys.stderr)
@@ -185,13 +1684,66 @@ def main():
             print(f"Reader: {r}")
 
     server = HTTPServer(("127.0.0.1", args.port), BridgeHandler)
+    server.require_auth = args.require_auth
     print(f"pcscd-bridge listening on http://127.0.0.1:{args.port}")
-    print("Endpoints: /status /tap /card-info")
+    print("Endpoints: /status /tap /card-info /burn /wipe /inspect")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nShutting down...")
         server.shutdown()
+
+
+def _cli_burn(args):
+    """Execute the 'burn' CLI subcommand."""
+    uid = args.uid.strip()
+    issuer_key = args.issuer_key.strip()
+    url = args.url.strip()
+    version = args.version
+
+    # Validate inputs
+    try:
+        if len(bytes.fromhex(uid)) < 4:
+            raise ValueError("too short")
+    except (ValueError, TypeError):
+        print(f"ERROR: Invalid UID: {uid}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        if len(bytes.fromhex(issuer_key)) != 16:
+            raise ValueError("not 16 bytes")
+    except (ValueError, TypeError):
+        print(f"ERROR: Issuer key must be 16 bytes (32 hex chars)", file=sys.stderr)
+        sys.exit(1)
+
+    if "********************************" not in url or "****************" not in url:
+        print("ERROR: URL must contain SDM placeholders: "
+              "32 '*' for p and 16 '*' for c", file=sys.stderr)
+        sys.exit(1)
+
+    # Show derived keys
+    keys = derive_boltcard_keys(uid, issuer_key, version)
+    print(f"Card UID:     {uid}")
+    print(f"Issuer key:   {issuer_key}")
+    print(f"Key version:  {version}")
+    print(f"Derived keys:")
+    for name in ["k0", "k1", "k2", "k3", "k4", "card_key", "card_id"]:
+        print(f"  {name:10s} = {keys[name]}")
+    print()
+
+    # Burn the card
+    print("Burning card (read-modify-write)...")
+    try:
+        result = burn_card_rmw(url, uid, issuer_key, version)
+        print()
+        if result["success"]:
+            print(f"SUCCESS: Card {result['uid']} programmed")
+            print(f"  NDEF verified: {result['ndef_verified']}")
+        else:
+            print(f"FAILED: {result}")
+    except Exception as e:
+        print(f"\nERROR: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

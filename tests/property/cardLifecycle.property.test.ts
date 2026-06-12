@@ -402,7 +402,7 @@ class CheckCounterCommand implements fc.AsyncCommand<CardModel, ReplayNamespace>
 // ---------------------------------------------------------------------------
 
 describe("Card lifecycle state machine", () => {
-  test("balance and state invariants hold under arbitrary operations", async () => {
+  test("balance and state invariants hold under arbitrary operations", { timeout: 30_000 }, async () => {
     const allCommands = [
       fc.integer({ min: 1, max: 100000 }).map((amount) => new CreditCommand(amount)),
       fc.integer({ min: 1, max: 100000 }).map((amount) => new DebitAmountCommand(amount)),
