@@ -91,7 +91,12 @@
     nfcTapBtn.disabled = true;
     nfcTapBtn.classList.add('opacity-50');
   } else {
-    window.addEventListener('load', function() { nfcScanner.scan(); });
+    canAutoStartNfc().then(function(granted) {
+      if (granted) {
+        window.addEventListener('load', function() { nfcScanner.scan(); });
+      }
+      // If not granted, the nfc-tap-btn click handler provides the user gesture
+    });
   }
 
   async function submitRefund(fullRefund, amount) {

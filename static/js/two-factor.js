@@ -119,6 +119,11 @@
   scanIndicator.addEventListener('click', startScan);
   updateIndicator(false);
   if (browserSupportsNfc()) {
-    window.addEventListener('load', startScan);
+    canAutoStartNfc().then(function(granted) {
+      if (granted) {
+        window.addEventListener('load', startScan);
+      }
+      // If not granted, scanButton/scanIndicator click handlers provide the user gesture
+    });
   }
 })();

@@ -111,7 +111,12 @@
     toggleWedgeMode();
     toggleWedge.classList.add('hidden');
   } else {
-    window.addEventListener('load', function() { clearResult(); nfcScanner.scan(); });
+    canAutoStartNfc().then(function(granted) {
+      if (granted) {
+        window.addEventListener('load', function() { clearResult(); nfcScanner.scan(); });
+      }
+      // If not granted, the nfc-tap-btn click handler provides the user gesture
+    });
   }
 
   function handleKeypad(key) {

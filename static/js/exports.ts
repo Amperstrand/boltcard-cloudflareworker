@@ -4,6 +4,16 @@ function browserSupportsNfc() {
   return 'NDEFReader' in window;
 }
 
+async function canAutoStartNfc() {
+  if (!browserSupportsNfc()) return false;
+  try {
+    var result = await navigator.permissions.query({ name: 'nfc' });
+    return result.state === 'granted';
+  } catch (e) {
+    return false;
+  }
+}
+
 function normalizeNfcSerial(serialNumber) {
   return serialNumber ? serialNumber.replace(/:/g, '').toLowerCase() : '';
 }
@@ -198,7 +208,7 @@ function provenanceColor(p) {
   if (p === 'env_issuer') return 'text-emerald-400';
   return 'text-gray-300';
 }`;
-export const NFC_JS_HASH = "c7748956e600";
+export const NFC_JS_HASH = "17a71e6f0a0e";
 
 export const NFC_GATE_JS = `// nfc-gate.js — passive NFC capture to prevent Android OS from intercepting taps
 (function() {
@@ -3455,7 +3465,16 @@ export const WIPE_JS = `// wipe.js — classic script (no import/export)
   });
 
   if (browserSupportsNfc()) {
-    window.addEventListener('load', function() { wipeScanner.scan(); });
+    canAutoStartNfc().then(function(granted) {
+      if (granted) {
+        window.addEventListener('load', function() { wipeScanner.scan(); });
+      } else {
+        var btn = document.getElementById('btn-scan');
+        if (btn) btn.classList.remove('hidden');
+        var autoHint = document.getElementById('scan-auto-hint');
+        if (autoHint) autoHint.classList.add('hidden');
+      }
+    });
   }
 
   document.getElementById('btn-scan').addEventListener('click', function() {
@@ -3534,7 +3553,7 @@ export const WIPE_JS = `// wipe.js — classic script (no import/export)
     }
   });
 })();`;
-export const WIPE_JS_HASH = "c4adfe7191d0";
+export const WIPE_JS_HASH = "02c9ea87e856";
 
 export const BULK_WIPE_JS = `// bulk-wipe.js — classic script (no import/export)
 // Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
@@ -3652,7 +3671,17 @@ function validateUid(uid) {
 
   if (browserSupportsNfc()) {
     initDetectScanner();
-    window.addEventListener('load', function() { detectScanner.scan(); });
+    canAutoStartNfc().then(function(granted) {
+      if (granted) {
+        window.addEventListener('load', function() { detectScanner.scan(); });
+      } else {
+        var statusEl = document.getElementById('detect-status');
+        statusEl.classList.remove('hidden');
+        statusEl.querySelector('span').textContent = 'Tap here to start NFC scanning';
+        statusEl.style.cursor = 'pointer';
+        statusEl.addEventListener('click', function() { detectScanner.scan(); });
+      }
+    });
   } else {
     document.getElementById('detect-status').querySelector('span').textContent = 'Web NFC not supported. Use Chrome on Android.';
     document.getElementById('detect-status').querySelector('div').className = 'w-2 h-2 bg-red-500 rounded-full';
@@ -3867,7 +3896,7 @@ function validateUid(uid) {
     }
   });
 })();`;
-export const BULK_WIPE_JS_HASH = "d2823720a078";
+export const BULK_WIPE_JS_HASH = "f559b75ad84f";
 
 export const TWO_FACTOR_JS = `// two-factor.js — classic script (no import/export)
 // Contains both OTP timer (renderTwoFactorPage) and NFC landing scanner (renderTwoFactorLandingPage)
@@ -3990,10 +4019,15 @@ export const TWO_FACTOR_JS = `// two-factor.js — classic script (no import/exp
   scanIndicator.addEventListener('click', startScan);
   updateIndicator(false);
   if (browserSupportsNfc()) {
-    window.addEventListener('load', startScan);
+    canAutoStartNfc().then(function(granted) {
+      if (granted) {
+        window.addEventListener('load', startScan);
+      }
+      // If not granted, scanButton/scanIndicator click handlers provide the user gesture
+    });
   }
 })();`;
-export const TWO_FACTOR_JS_HASH = "b5c22e50eb30";
+export const TWO_FACTOR_JS_HASH = "733b34ef89d2";
 
 export const BOLT11_DECODE_JS = `// bolt11-decode.js — classic script (no import/export)
 
@@ -4655,7 +4689,12 @@ export const TOPUP_JS = `// topup.js — classic script (no import/export)
     toggleWedgeMode();
     toggleWedge.classList.add('hidden');
   } else {
-    window.addEventListener('load', function() { clearResult(); nfcScanner.scan(); });
+    canAutoStartNfc().then(function(granted) {
+      if (granted) {
+        window.addEventListener('load', function() { clearResult(); nfcScanner.scan(); });
+      }
+      // If not granted, the nfc-tap-btn click handler provides the user gesture
+    });
   }
 
   function handleKeypad(key) {
@@ -4748,7 +4787,7 @@ export const TOPUP_JS = `// topup.js — classic script (no import/export)
 
   updateView();
 })();`;
-export const TOPUP_JS_HASH = "86faac35c73a";
+export const TOPUP_JS_HASH = "2aaf6cc28c88";
 
 export const REFUND_JS = `// refund.js — classic script (no import/export)
 // Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
@@ -4843,7 +4882,12 @@ export const REFUND_JS = `// refund.js — classic script (no import/export)
     nfcTapBtn.disabled = true;
     nfcTapBtn.classList.add('opacity-50');
   } else {
-    window.addEventListener('load', function() { nfcScanner.scan(); });
+    canAutoStartNfc().then(function(granted) {
+      if (granted) {
+        window.addEventListener('load', function() { nfcScanner.scan(); });
+      }
+      // If not granted, the nfc-tap-btn click handler provides the user gesture
+    });
   }
 
   async function submitRefund(fullRefund, amount) {
@@ -4896,7 +4940,7 @@ export const REFUND_JS = `// refund.js — classic script (no import/export)
      }
   }
 })();`;
-export const REFUND_JS_HASH = "d5223fbda65d";
+export const REFUND_JS_HASH = "5692b2d9d56f";
 
 export const RECONCILIATION_JS = `// reconciliation.js — classic script (no import/export)
 
@@ -5128,7 +5172,12 @@ export const VOID_JS = `// void.js — classic script (no import/export)
     nfcTapBtn.disabled = true;
     nfcTapBtn.classList.add('opacity-50');
   } else {
-    window.addEventListener('load', function() { nfcScanner.scan(); });
+    canAutoStartNfc().then(function(granted) {
+      if (granted) {
+        window.addEventListener('load', function() { nfcScanner.scan(); });
+      }
+      // If not granted, the nfc-tap-btn click handler provides the user gesture
+    });
   }
 
   function renderTransactionList(transactions) {
@@ -5215,7 +5264,7 @@ export const VOID_JS = `// void.js — classic script (no import/export)
     }
   }
 })();`;
-export const VOID_JS_HASH = "cac6fec89bb1";
+export const VOID_JS_HASH = "6cc60465ba90";
 
 export const IDENTITY_JS = `// identity.js — classic script (no import/export)
 // Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
@@ -5430,7 +5479,13 @@ export const IDENTITY_JS = `// identity.js — classic script (no import/export)
       return;
     }
     if (browserSupportsNfc()) {
-      window.addEventListener('load', function() { nfcScanner.scan(); });
+      canAutoStartNfc().then(function(granted) {
+        if (granted) {
+          window.addEventListener('load', function() { nfcScanner.scan(); });
+        } else {
+          ui.btnScan.classList.remove('hidden');
+        }
+      });
     } else {
       ui.noNfcMsg.classList.remove('hidden');
     }
@@ -5460,7 +5515,7 @@ export const IDENTITY_JS = `// identity.js — classic script (no import/export)
   profile.emojiSaveButton.addEventListener('click', saveEmojiSelection);
   profile.emojiSaveButton.disabled = true;
 })();`;
-export const IDENTITY_JS_HASH = "7adca6a8bc39";
+export const IDENTITY_JS_HASH = "21f4a9b9bfc4";
 
 export const VIRTUAL_CARD_JS = `// virtual-card.js — classic script (no import/export)
 // Requires: aes-js CDN (https://cdn.jsdelivr.net/npm/aes-js@3.1.2/index.js)

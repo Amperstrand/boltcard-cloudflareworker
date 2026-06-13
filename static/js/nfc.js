@@ -4,6 +4,16 @@ function browserSupportsNfc() {
   return 'NDEFReader' in window;
 }
 
+async function canAutoStartNfc() {
+  if (!browserSupportsNfc()) return false;
+  try {
+    var result = await navigator.permissions.query({ name: 'nfc' });
+    return result.state === 'granted';
+  } catch (e) {
+    return false;
+  }
+}
+
 function normalizeNfcSerial(serialNumber) {
   return serialNumber ? serialNumber.replace(/:/g, '').toLowerCase() : '';
 }

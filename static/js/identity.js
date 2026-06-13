@@ -211,7 +211,13 @@
       return;
     }
     if (browserSupportsNfc()) {
-      window.addEventListener('load', function() { nfcScanner.scan(); });
+      canAutoStartNfc().then(function(granted) {
+        if (granted) {
+          window.addEventListener('load', function() { nfcScanner.scan(); });
+        } else {
+          ui.btnScan.classList.remove('hidden');
+        }
+      });
     } else {
       ui.noNfcMsg.classList.remove('hidden');
     }

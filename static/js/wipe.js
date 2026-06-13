@@ -52,7 +52,16 @@
   });
 
   if (browserSupportsNfc()) {
-    window.addEventListener('load', function() { wipeScanner.scan(); });
+    canAutoStartNfc().then(function(granted) {
+      if (granted) {
+        window.addEventListener('load', function() { wipeScanner.scan(); });
+      } else {
+        var btn = document.getElementById('btn-scan');
+        if (btn) btn.classList.remove('hidden');
+        var autoHint = document.getElementById('scan-auto-hint');
+        if (autoHint) autoHint.classList.add('hidden');
+      }
+    });
   }
 
   document.getElementById('btn-scan').addEventListener('click', function() {

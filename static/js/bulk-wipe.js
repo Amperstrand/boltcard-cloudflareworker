@@ -114,7 +114,17 @@ function validateUid(uid) {
 
   if (browserSupportsNfc()) {
     initDetectScanner();
-    window.addEventListener('load', function() { detectScanner.scan(); });
+    canAutoStartNfc().then(function(granted) {
+      if (granted) {
+        window.addEventListener('load', function() { detectScanner.scan(); });
+      } else {
+        var statusEl = document.getElementById('detect-status');
+        statusEl.classList.remove('hidden');
+        statusEl.querySelector('span').textContent = 'Tap here to start NFC scanning';
+        statusEl.style.cursor = 'pointer';
+        statusEl.addEventListener('click', function() { detectScanner.scan(); });
+      }
+    });
   } else {
     document.getElementById('detect-status').querySelector('span').textContent = 'Web NFC not supported. Use Chrome on Android.';
     document.getElementById('detect-status').querySelector('div').className = 'w-2 h-2 bg-red-500 rounded-full';
