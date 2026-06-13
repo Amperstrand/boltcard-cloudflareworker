@@ -16,6 +16,7 @@ const BOLTY_CLI = process.env.BOLTY_CLI || "/Users/macbook/src/bolty-rs/target/d
 
 export class UsbProvider implements CardProvider {
   name = "usb";
+  private cardVersion: number = 1;
 
   async setup(_page: Page): Promise<void> {
     const resp = await fetch(`${BRIDGE_URL}/status`);
@@ -52,12 +53,12 @@ export class UsbProvider implements CardProvider {
 
   async getCardInfo(_page?: Page): Promise<CardInfo> {
     const uid = await this.resolveUid();
-    const keys = deriveKeysFromHex(uid, ISSUER_KEY, 1);
+    const keys = deriveKeysFromHex(uid, ISSUER_KEY, this.cardVersion);
     return {
       uid,
       k1: keys.k1,
       k2: keys.k2,
-      version: 1,
+      version: this.cardVersion,
     };
   }
 
@@ -77,7 +78,7 @@ export class UsbProvider implements CardProvider {
       throw new Error(`bolty-cli burn failed: ${out}`);
     }
     const m = out.match(/Card UID:\s*([0-9a-fA-F]+)/);
-    if (!m) throw new Error(`could not parse UID from bolty-cli output: ${out}`);
+    if (!m || !m[1]) throw new Error(`could not parse UID from bolty-cli output: ${out}`);
     return { uid: m[1] };
   }
 
@@ -109,7 +110,55 @@ export class UsbProvider implements CardProvider {
     return this.resolveUid();
   }
 
+  /**
+   * Burns card at v1 and verifies the server accepts the tap.
+   *
+   * The DO's stored K2 is always v1's K2 (set during initial discovery via
+   * setCardK2 and never updated by deliverKeys/activateCard). So the card
+   * MUST be burned at v1 for CMAC validation to pass.
+   *
+   * If the tap fails after burning, the card is likely in keys_delivered or
+   * terminated state from a prior test. The caller (beforeEach) handles this
+   * via the operator batch API (ensureCardActiveState).
+   */
   async ensureReady(): Promise<void> {
+    if (await this.tryServerTap()) return;
+
+    const url = `${SERVER_URL}/?p={picc:uid+ctr}&c=[[{mac}`;
+
+    try {
+      execFileSync(
+        BOLTY_CLI,
+        ["burn", "--issuer-key", ISSUER_KEY, "--url", url, "--version", "1"],
+        { timeout: 30000, encoding: "utf-8" },
+      );
+    } catch {
+      // Burn failed — card may have different keys. Wipe first, then burn.
+      try {
+        execFileSync(
+          BOLTY_CLI,
+          ["wipe", "--issuer-key", ISSUER_KEY, "--version", "1"],
+          { timeout: 30000, encoding: "utf-8" },
+        );
+      } catch {}
+      execFileSync(
+        BOLTY_CLI,
+        ["burn", "--issuer-key", ISSUER_KEY, "--url", url, "--version", "1"],
+        { timeout: 30000, encoding: "utf-8" },
+      );
+    }
+
+    this.cardVersion = 1;
+    await new Promise((r) => setTimeout(r, 2000));
+
+    if (await this.tryServerTap()) return;
+
+    // Tap still failing — server state needs operator reset (keys_delivered/terminated).
+    // The test's beforeEach will call ensureCardActiveState(page) to fix this.
+    console.warn("[ensureReady] tap failed after burning at v1 — server state needs operator reset");
+  }
+
+  private async tryServerTap(): Promise<boolean> {
     try {
       const tap = await this.tap(undefined as unknown as Page);
       const resp = await fetch(
@@ -117,27 +166,9 @@ export class UsbProvider implements CardProvider {
       );
       if (resp.ok) {
         const data: Record<string, unknown> = await resp.json();
-        if (data.tag === "withdrawRequest") return;
+        return data.tag === "withdrawRequest";
       }
-    } catch {
-    }
-
-    const url = `${SERVER_URL}/?p={picc:uid+ctr}&c=[[{mac}`;
-    for (const v of [1, 2, 3, 4, 0]) {
-      try {
-        execFileSync(
-          BOLTY_CLI,
-          ["wipe", "--issuer-key", ISSUER_KEY, "--version", String(v)],
-          { timeout: 30000, encoding: "utf-8" },
-        );
-        break;
-      } catch {
-      }
-    }
-    execFileSync(
-      BOLTY_CLI,
-      ["burn", "--issuer-key", ISSUER_KEY, "--url", url, "--version", "1"],
-      { timeout: 30000, encoding: "utf-8" },
-    );
+    } catch {}
+    return false;
   }
 }

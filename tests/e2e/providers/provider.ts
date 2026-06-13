@@ -35,4 +35,5 @@ export interface CardProvider {
   wipe(keys: [string, string, string, string, string]): Promise<{ uid: string }>;
   inspect(): Promise<InspectResult>;
   getUid(): Promise<string>;
+  ensureReady?(): Promise<void>;
 }

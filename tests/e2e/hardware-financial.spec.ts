@@ -9,6 +9,12 @@ test.skip(provider.name !== "usb", "Hardware tests require TEST_PROVIDER=usb");
 test.describe(`Hardware: Financial Flow (physical card)`, () => {
   let initialBalance = 0;
 
+  test.beforeAll(async () => {
+    if (provider.ensureReady) {
+      try { await provider.ensureReady(); } catch { /* best-effort recovery */ }
+    }
+  });
+
   test.beforeEach(async ({ page }) => {
     await operatorLogin(page);
     await provider.setup(page);
