@@ -155,17 +155,17 @@ describe("E2E: PWA — card dashboard has PWA elements", () => {
     expect(html).toContain("sw-register.js");
   });
 
-  it("balance display uses larger text", async () => {
+  it("balance display uses hero-sized text", async () => {
     const env = makePageEnv();
     const resp = await req("/card", "GET", null, env);
     const html = await resp.text();
-    // The balance element should have text-lg font-bold classes
+    // The balance element should have hero-sized text classes
     expect(html).toContain("card-balance");
-    // Find the balance span and verify it has larger text classes
+    // Find the balance element and verify it has large text classes
     const balanceMatch = html.match(/id="card-balance"[^>]*class="[^"]*"/);
     expect(balanceMatch).toBeTruthy();
-    expect(balanceMatch![0]).toContain("text-lg");
-    expect(balanceMatch![0]).toContain("font-bold");
+    expect(balanceMatch![0]).toContain("text-5xl");
+    expect(balanceMatch![0]).toContain("font-extrabold");
   });
 
   it("manifest link appears on all pages (not just /card)", async () => {

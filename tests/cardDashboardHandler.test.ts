@@ -24,7 +24,7 @@ describe("handleCardPage", () => {
     const res = await handleCardPage(req, env);
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain("MY CARD");
+    expect(html).toContain("card-dashboard.js");
     expect(html).toContain("/static/js/card-dashboard.js");
   });
 

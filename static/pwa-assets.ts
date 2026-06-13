@@ -15,9 +15,9 @@ export const MANIFEST_JSON = JSON.stringify({
   icons: [
     {
       src: "/static/icons/bolt.svg",
-      sizes: "any",
+      sizes: "512x512",
       type: "image/svg+xml",
-      purpose: "any",
+      purpose: "any maskable",
     },
   ],
 }, null, 2);

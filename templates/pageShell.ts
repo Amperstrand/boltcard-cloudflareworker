@@ -33,6 +33,10 @@ export function renderTailwindPage({
     ${metaRobots ? safe(rawHtml`<meta name="robots" content="${metaRobots}" />`) : ""}
     <link rel="manifest" href="/static/manifest.webmanifest" />
     <meta name="theme-color" content="#10b981" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Bolt Card" />
+    <link rel="apple-touch-icon" href="/static/icons/bolt.svg" />
     <title>${title}</title>
     <meta name="deploy-revision" content="${deployRevision}" />
     <meta name="js-fingerprint" content="${jsFingerprint}" />

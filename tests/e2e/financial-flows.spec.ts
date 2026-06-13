@@ -146,6 +146,82 @@ test.describe(`Financial Flows (${provider.name} provider)`, () => {
     const bal = await api.balanceCheck();
     expect(bal.data.balance).toBe(4000);
   });
+
+  // ─── Edge Cases ───
+
+  test("double-void of same transaction returns error", async ({ page }) => {
+    const api = makeApiHelpers(provider, page);
+    await api.topUp(10000);
+
+    const charge = await api.charge(3000);
+    expect(charge.ok).toBeTruthy();
+    const txnId = charge.data.txnId;
+
+    // First void succeeds
+    const v1 = await api.void(txnId);
+    expect(v1.ok, `First void failed: ${JSON.stringify(v1.data)}`).toBeTruthy();
+
+    // Second void should fail — already voided
+    const v2 = await api.void(txnId);
+    expect(v2.ok).toBeFalsy();
+  });
+
+  test("void then charge again preserves balance integrity", async ({ page }) => {
+    const api = makeApiHelpers(provider, page);
+    await api.topUp(10000);
+
+    // Charge 3000 → balance 7000
+    const c1 = await api.charge(3000);
+    expect(c1.data.balance).toBe(7000);
+
+    // Void it → balance 10000
+    await api.void(c1.data.txnId);
+    const bal1 = await api.balanceCheck();
+    expect(bal1.data.balance).toBe(10000);
+
+    // Charge 1500 → balance 8500
+    const c2 = await api.charge(1500);
+    expect(c2.data.balance).toBe(8500);
+
+    const bal2 = await api.balanceCheck();
+    expect(bal2.data.balance).toBe(8500);
+  });
+
+  test("multiple top-ups accumulate correctly", async ({ page }) => {
+    const api = makeApiHelpers(provider, page);
+
+    await api.topUp(3000);
+    await api.topUp(5000);
+    await api.topUp(2000);
+
+    const bal = await api.balanceCheck();
+    expect(bal.data.balance).toBe(10000);
+  });
+
+  test("refund after partial charges maintains correct totals", async ({ page }) => {
+    const api = makeApiHelpers(provider, page);
+    await api.topUp(10000);
+
+    await api.charge(3000); // balance 7000
+    await api.charge(2000); // balance 5000
+
+    // Full refund of entire remaining balance
+    const refund = await api.refund(5000);
+    expect(refund.ok).toBeTruthy();
+    expect(refund.data.balance).toBe(10000);
+  });
+
+  test("charge with exact balance succeeds (zero remaining)", async ({ page }) => {
+    const api = makeApiHelpers(provider, page);
+    await api.topUp(5000);
+
+    const charge = await api.charge(5000);
+    expect(charge.ok).toBeTruthy();
+    expect(charge.data.balance).toBe(0);
+
+    const bal = await api.balanceCheck();
+    expect(bal.data.balance).toBe(0);
+  });
 });
 
 test.describe(`Reconciliation Page (${provider.name} provider)`, () => {

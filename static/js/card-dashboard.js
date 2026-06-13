@@ -14,6 +14,32 @@ var STORAGE_KEY = 'boltcard_params';
 
 var currencyLabel = 'credits';
 var currencyDecimals = 0;
+var previousBalance = null;
+
+function animateBalance(element, fromValue, toValue) {
+  var from = (typeof fromValue === 'number') ? fromValue : parseInt(fromValue, 10);
+  var to = (typeof toValue === 'number') ? toValue : parseInt(toValue, 10);
+  if (!Number.isFinite(from)) from = 0;
+  if (!Number.isFinite(to)) to = 0;
+  if (from === to) {
+    element.textContent = formatBalance(to);
+    return;
+  }
+  var duration = 500;
+  var start = null;
+  function step(ts) {
+    if (!start) start = ts;
+    var elapsed = ts - start;
+    var progress = Math.min(elapsed / duration, 1);
+    var eased = 1 - Math.pow(1 - progress, 3);
+    var current = Math.round(from + (to - from) * eased);
+    element.textContent = formatBalance(current);
+    if (progress < 1) {
+      requestAnimationFrame(step);
+    }
+  }
+  requestAnimationFrame(step);
+}
 
 function formatBalance(raw) {
   if (!raw && raw !== 0) return '0 ' + currencyLabel;
@@ -164,6 +190,23 @@ function formatTime(iso) {
   } catch (e) { return iso; }
 }
 
+function relativeTime(iso) {
+  if (!iso) return '';
+  try {
+    var now = Date.now();
+    var then = new Date(iso).getTime();
+    if (!Number.isFinite(then)) return '';
+    var diff = Math.floor((now - then) / 1000);
+    if (diff < 0) return 'just now';
+    if (diff < 60) return diff + 's ago';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    if (diff < 172800) return 'Yesterday';
+    if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+    return formatTime(iso);
+  } catch (e) { return ''; }
+}
+
 function renderHistory(items) {
   var el = document.getElementById('history-list');
   if (!items || items.length === 0) {
@@ -175,51 +218,62 @@ function renderHistory(items) {
   }
   el.replaceChildren.apply(el, items.slice(0, 15).map(function(item) {
     var status = item.status || 'unknown';
-    var icon, color;
-    if (status === 'completed') { icon = '\u2713'; color = 'text-emerald-400'; }
-    else if (status === 'failed') { icon = '\u2717'; color = 'text-red-400'; }
-    else if (status === 'topup') { icon = '+'; color = 'text-cyan-400'; }
-    else if (status === 'payment') { icon = '\u2192'; color = 'text-amber-400'; }
-    else if (status === 'read') { icon = '\u2022'; color = 'text-gray-500'; }
-    else { icon = '?'; color = 'text-gray-500'; }
+    var icon, iconColor, label, labelBg;
+    if (status === 'topup' || status === 'credit') {
+      icon = '+'; iconColor = 'text-emerald-400'; label = status; labelBg = 'bg-emerald-900/40 text-emerald-400';
+    } else if (status === 'payment' || status === 'debit') {
+      icon = '\u2212'; iconColor = 'text-red-400'; label = status; labelBg = 'bg-red-900/40 text-red-400';
+    } else if (status === 'refund' || status === 'void') {
+      icon = '\u21A9'; iconColor = 'text-cyan-400'; label = status; labelBg = 'bg-cyan-900/40 text-cyan-400';
+    } else if (status === 'read' || status === 'tap') {
+      icon = '\u2022'; iconColor = 'text-gray-500'; label = status; labelBg = 'bg-gray-800 text-gray-500';
+    } else if (status === 'completed') {
+      icon = '\u2713'; iconColor = 'text-emerald-400'; label = status; labelBg = 'bg-emerald-900/40 text-emerald-400';
+    } else if (status === 'failed') {
+      icon = '\u2717'; iconColor = 'text-red-400'; label = status; labelBg = 'bg-red-900/40 text-red-400';
+    } else {
+      icon = '?'; iconColor = 'text-gray-500'; label = status; labelBg = 'bg-gray-800 text-gray-500';
+    }
     var amt = item.amount_msat || item.amountMsat;
-    var time = formatTime(item.created_at || item.createdAt);
+    var relTime = relativeTime(item.created_at || item.createdAt);
 
     var row = document.createElement('div');
     row.className = 'flex items-center gap-2 text-xs py-1.5 border-b border-gray-700/30 last:border-0';
 
     var iconSpan = document.createElement('span');
-    iconSpan.className = color + ' w-4 text-center font-bold';
+    iconSpan.className = iconColor + ' w-4 text-center font-bold text-sm';
     iconSpan.textContent = icon;
     row.appendChild(iconSpan);
 
-    var counterSpan = document.createElement('span');
-    counterSpan.className = 'text-gray-400 font-mono w-12 text-[10px]';
-    counterSpan.textContent = 'ctr ' + (item.counter || '-');
-    row.appendChild(counterSpan);
+    var pill = document.createElement('span');
+    pill.className = labelBg + ' text-[10px] px-1.5 py-0.5 rounded-full font-medium';
+    pill.textContent = label;
+    row.appendChild(pill);
 
-    var statusSpan = document.createElement('span');
-    statusSpan.className = color + ' flex-1';
-    statusSpan.textContent = status;
     if (item.note) {
       var noteSpan = document.createElement('span');
-      noteSpan.className = 'text-gray-600';
-      noteSpan.textContent = ' (' + item.note + ')';
-      statusSpan.appendChild(noteSpan);
+      noteSpan.className = 'text-gray-600 truncate max-w-[80px]';
+      noteSpan.textContent = item.note;
+      row.appendChild(noteSpan);
     }
-    row.appendChild(statusSpan);
+
+    var spacer = document.createElement('span');
+    spacer.className = 'flex-1';
+    row.appendChild(spacer);
 
     if (amt) {
+      var isCredit = status === 'topup' || status === 'credit' || status === 'refund' || status === 'void';
       var amtSpan = document.createElement('span');
-      amtSpan.className = 'text-gray-300 font-mono';
-      amtSpan.textContent = formatBalance(amt);
+      amtSpan.className = isCredit ? 'text-emerald-400 font-mono' : 'text-red-400 font-mono';
+      var prefix = isCredit ? '+' : '\u2212';
+      amtSpan.textContent = prefix + formatBalance(amt);
       row.appendChild(amtSpan);
     }
 
-    if (time) {
+    if (relTime) {
       var timeSpan = document.createElement('span');
-      timeSpan.className = 'text-gray-600 text-[10px] w-28 text-right';
-      timeSpan.textContent = time;
+      timeSpan.className = 'text-gray-600 text-[10px] w-16 text-right shrink-0';
+      timeSpan.textContent = relTime;
       row.appendChild(timeSpan);
     }
 
@@ -298,7 +352,10 @@ async function showCardInfo(p, c) {
       document.getElementById('method-row').classList.add('hidden');
     }
 
-    document.getElementById('card-balance').textContent = formatBalance(data.balance);
+    var balEl = document.getElementById('card-balance');
+    var newBalance = data.balance || 0;
+    animateBalance(balEl, previousBalance, newBalance);
+    previousBalance = newBalance;
 
     if (data.activatedAt) {
       var fmtAct = formatTime(data.activatedAt);
