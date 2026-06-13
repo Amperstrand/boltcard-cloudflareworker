@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { handleRefundPage, handleRefundApply } from "../handlers/refundHandler.js";
 import { buildCardTestEnv, virtualTap, TEST_OPERATOR_AUTH, type TestEnv } from "./testHelpers.js";
 import { getDeterministicKeys } from "../keygenerator.js";
+import { MAX_BALANCE } from "../utils/constants.js";
 
 const UID = "04a39493cc8680";
 const BASE_URL = "https://boltcardpoc.psbt.me";
@@ -218,5 +219,26 @@ describe("handleRefundApply", () => {
     expect(json.success).toBe(true);
     expect(json.amount).toBe(2000);
     expect(json.balance).toBe(7000);
+  });
+
+  it("rejects partial refund that would exceed MAX_BALANCE", async () => {
+    env = makeEnvWithBalance(MAX_BALANCE - 100);
+    const { pHex, cHex } = tapParams(++counter, env);
+    const req = makeApplyRequest({ p: pHex, c: cHex, amount: 500 });
+    const resp = await handleRefundApply(req, env, session);
+    expect(resp.status).toBe(500);
+    const json = (await resp.json()) as Record<string, unknown>;
+    expect(json.success).toBe(false);
+  });
+
+  it("allows partial refund that brings balance to exactly MAX_BALANCE", async () => {
+    env = makeEnvWithBalance(MAX_BALANCE - 100);
+    const { pHex, cHex } = tapParams(++counter, env);
+    const req = makeApplyRequest({ p: pHex, c: cHex, amount: 100 });
+    const resp = await handleRefundApply(req, env, session);
+    expect(resp.status).toBe(200);
+    const json = (await resp.json()) as Record<string, unknown>;
+    expect(json.success).toBe(true);
+    expect(json.balance).toBe(MAX_BALANCE);
   });
 });

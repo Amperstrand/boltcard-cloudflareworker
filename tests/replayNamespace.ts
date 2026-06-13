@@ -1,4 +1,5 @@
 import type { CardConfig } from "../types/core.js";
+import { MAX_BALANCE } from "../utils/constants.js";
 
 interface CardState {
   state: string;
@@ -203,7 +204,14 @@ export const makeReplayNamespace = (
         }
 
         const current = cardStates.get(idStr) || getDefaultState();
-        const newBalance = (current.balance ?? 0) + amount;
+        const currentBalance = current.balance ?? 0;
+        if (currentBalance + amount > MAX_BALANCE) {
+          return Response.json(
+            { ok: false, reason: "Balance would exceed maximum", balance: currentBalance },
+            { status: 400 }
+          );
+        }
+        const newBalance = currentBalance + amount;
         const now = Math.floor(Date.now() / 1000);
         cardStates.set(idStr, { ...current, balance: newBalance });
 

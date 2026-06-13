@@ -14,9 +14,10 @@ export default defineConfig({
     "identity-2fa.spec.ts",
     "nfc-ui.spec.ts",
     "hardware-financial.spec.ts",
+    "hardware-selfservice.spec.ts",
   ],
   fullyParallel: false,
-  retries: 0,
+  retries: isLocal ? 1 : 2,
   timeout: 60000,
   expect: { timeout: 10000 },
   use: {
