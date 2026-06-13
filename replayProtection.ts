@@ -1,7 +1,7 @@
 import { logger } from "./utils/logger.js";
 import { getErrorMessage } from "./utils/logger.js";
 import type { Env, CardStateRow, CardConfig, CounterCheckResult, TapRecordResult, ListTapsResult, ClaimTapResult, AnalyticsResult, BalanceResult, ListTransactionsResult, DiscoverResult, MarkPendingResult, OpResult, VoidResult } from "./types/core.js";
-import type { DoPostRoutes, DoGetRoutes, DoRequestBody, DoResponseBody, PathWithOptionalQuery } from "./durableObjects/cardReplay/routes.js";
+import type { DoPostRoutes, DoGetRoutes, DoRequestBody, DoResponseBody, PathWithOptionalQuery, CardExportData, ImportResult } from "./durableObjects/cardReplay/routes.js";
 import { DEFAULT_TAP_LIMIT, DEFAULT_TXN_LIMIT, CARD_STATE } from "./utils/constants.js";
 import { indexCard } from "./utils/cardIndex.js";
 
@@ -283,4 +283,29 @@ export async function discoverCard(env: Env, uidHex: string, { key_provenance, k
       keyFingerprint: key_fingerprint,
     },
   });
+}
+
+const EMPTY_EXPORT: CardExportData = Object.freeze({
+  version: 1,
+  exported_at: 0,
+  replay_state: null,
+  card_state: null,
+  card_config: null,
+  taps: [],
+  transactions: [],
+});
+
+export async function exportCardState(env: Env, uidHex: string): Promise<CardExportData> {
+  return doSafeGet(env, uidHex, "/export-state", { ...EMPTY_EXPORT });
+}
+
+export async function importCardState(env: Env, uidHex: string, data: CardExportData): Promise<ImportResult> {
+  requireDo(env);
+  const stub = getCardStub(env, uidHex);
+  const response = await doPost(stub, "/import-state", data);
+  if (!response.ok) {
+    const payload = await response.json().catch((e: unknown) => { logger.warn("Failed to parse DO import error", { uidHex, error: getErrorMessage(e) }); return {}; }) as Record<string, unknown>;
+    throw new Error(String(payload.error || "Card state import failed"));
+  }
+  return response.json() as Promise<ImportResult>;
 }
