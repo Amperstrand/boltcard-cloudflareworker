@@ -1,6 +1,7 @@
 import { logger, getErrorMessage } from "../utils/logger.js";
 import type { Env } from "../types/core.js";
 import { jsonResponse, redirect } from "../utils/responses.js";
+import { BUILD_REVISION } from "../utils/buildInfo.js";
 
 export async function handleStatus(request: Request, env: Env): Promise<Response> {
   const origin = new URL(request.url).origin;
@@ -12,6 +13,7 @@ export async function handleStatus(request: Request, env: Env): Promise<Response
   const result: Record<string, unknown> = {
     status: 'OK',
     message: 'Server is running',
+    version: BUILD_REVISION,
   };
 
   try {

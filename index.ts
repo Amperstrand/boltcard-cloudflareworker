@@ -39,6 +39,7 @@ import { handleIdentifyCard } from "./handlers/identifyCardHandler.js";
 import { handleIdentifyIssuerKey } from "./handlers/identifyIssuerKeyHandler.js";
 import { handleVirtualCardKeys } from "./handlers/virtualCardHandler.js";
 import { handleCardAuditPage, handleCardAuditData, handleIndexRepair } from "./handlers/cardAuditHandler.js";
+import { handleCardExport, handleCardRestore } from "./handlers/cardBackupHandler.js";
 import { handleCardBatchAction } from "./handlers/cardBatchHandler.js";
 import { handleReconciliationPage, handleReconciliationData } from "./handlers/reconciliationHandler.js";
 import { handleVoidPage, handleVoidApply, handleVoidTransactions } from "./handlers/voidHandler.js";
@@ -115,6 +116,8 @@ router.get("/operator/cards", withOperatorAuth((request, env) => handleCardAudit
 router.get("/operator/cards/data", withOperatorAuth((request, env) => handleCardAuditData(request, env)));
 router.post("/operator/cards/batch", withOperatorAuth((request, env, session) => handleCardBatchAction(request, env, session)));
 router.post("/operator/cards/repair", withOperatorAuth((request, env) => handleIndexRepair(request, env)));
+router.get("/operator/cards/:uid/export", withOperatorAuth((request, env) => handleCardExport(request, env)));
+router.post("/operator/cards/:uid/restore", withOperatorAuth((request, env, session) => handleCardRestore(request, env, session)));
 router.get("/operator/topup", withOperatorAuth((request, env) => handleTopupPage(request, env)));
 router.post("/operator/topup/apply", withOperatorAuth((request, env, session) => handleTopupApply(request, env, session)));
 router.get("/operator/refund", withOperatorAuth((request, env) => handleRefundPage(request, env)));
