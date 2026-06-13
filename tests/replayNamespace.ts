@@ -618,6 +618,123 @@ export const makeReplayNamespace = (
         });
       }
 
+      if (request.method === "GET" && url.pathname === "/export-state") {
+        const state = cardStates.get(idStr);
+        const config = cardConfigs.get(idStr);
+        const counter = counters.get(idStr) ?? 0;
+        const cardTaps = Array.from(taps.entries())
+          .filter(([key]) => key.startsWith(`${idStr}:`))
+          .map(([, t]) => ({
+            counter: t.counter,
+            bolt11: t.bolt11,
+            status: t.status,
+            payment_hash: t.payment_hash,
+            amount_msat: t.amount_msat,
+            user_agent: t.user_agent,
+            request_url: t.request_url,
+            created_at: t.created_at,
+            updated_at: t.updated_at,
+          }));
+        const cardTxns = (transactions.get(idStr) || []).map((t) => ({
+          id: t.id,
+          counter: t.counter,
+          amount: t.amount,
+          balance_after: t.balance_after,
+          created_at: t.created_at,
+          note: t.note,
+          voided_at: (t as unknown as Record<string, unknown>).voided_at ?? null,
+        }));
+        return Response.json({
+          version: 1,
+          exported_at: Date.now(),
+          replay_state: { singleton: 1, last_counter: counter },
+          card_state: state ? { singleton: 1, ...state } : null,
+          card_config: config ? { singleton: 1, ...config, updated_at: null } : null,
+          taps: cardTaps,
+          transactions: cardTxns,
+        });
+      }
+
+      if (request.method === "POST" && url.pathname === "/import-state") {
+        const body = await request.json() as Record<string, unknown>;
+        if (body.version !== 1) {
+          return Response.json({ error: "Unsupported export version" }, { status: 400 });
+        }
+        const importedState = body.card_state as Record<string, unknown> | null;
+        const importedConfig = body.card_config as Record<string, unknown> | null;
+        const importedReplay = body.replay_state as Record<string, unknown> | null;
+        const importedTaps = body.taps as Array<Record<string, unknown>> | undefined;
+        const importedTxns = body.transactions as Array<Record<string, unknown>> | undefined;
+
+        if (importedReplay) {
+          counters.set(idStr, Number(importedReplay.last_counter) || 0);
+        }
+        if (importedState) {
+          cardStates.set(idStr, {
+            state: String(importedState.state || "active"),
+            latest_issued_version: Number(importedState.latest_issued_version) || 0,
+            active_version: importedState.active_version != null ? Number(importedState.active_version) : null,
+            activated_at: importedState.activated_at != null ? Number(importedState.activated_at) : null,
+            terminated_at: importedState.terminated_at != null ? Number(importedState.terminated_at) : null,
+            keys_delivered_at: importedState.keys_delivered_at != null ? Number(importedState.keys_delivered_at) : null,
+            wipe_keys_fetched_at: importedState.wipe_keys_fetched_at != null ? Number(importedState.wipe_keys_fetched_at) : null,
+            balance: Number(importedState.balance) || 0,
+            key_provenance: (importedState.key_provenance as string) || null,
+            key_fingerprint: (importedState.key_fingerprint as string) || null,
+            key_label: (importedState.key_label as string) || null,
+            first_seen_at: importedState.first_seen_at != null ? Number(importedState.first_seen_at) : null,
+          });
+        }
+          if (importedConfig) {
+            cardConfigs.set(idStr, {
+              K2: (importedConfig.K2 as string) || null,
+              payment_method: String(importedConfig.payment_method || "fakewallet") as CardConfig["payment_method"],
+              config_json: (importedConfig.config_json as string) || undefined,
+              pull_payment_id: (importedConfig.pull_payment_id as string) || undefined,
+            });
+          }
+        taps.clear();
+        if (Array.isArray(importedTaps)) {
+          for (const t of importedTaps) {
+            const tCounter = Number(t.counter);
+            taps.set(`${idStr}:${tCounter}`, {
+              counter: tCounter,
+              bolt11: (t.bolt11 as string) || null,
+              status: String(t.status || "pending"),
+              payment_hash: (t.payment_hash as string) || null,
+              amount_msat: t.amount_msat != null ? Number(t.amount_msat) : null,
+              user_agent: (t.user_agent as string) || null,
+              request_url: (t.request_url as string) || null,
+              created_at: Number(t.created_at) || 0,
+              updated_at: Number(t.updated_at) || 0,
+            });
+          }
+        }
+        transactions.set(idStr, []);
+        if (Array.isArray(importedTxns)) {
+          const txns: Transaction[] = importedTxns.map((t, i) => ({
+            id: Number(t.id) || i + 1,
+            counter: t.counter != null ? Number(t.counter) : null,
+            amount: Number(t.amount) || 0,
+            balance_after: Number(t.balance_after) || 0,
+            created_at: Number(t.created_at) || 0,
+            note: (t.note as string) || null,
+          }));
+          transactions.set(idStr, txns);
+        }
+
+        return Response.json({
+          restored: true,
+          tables: {
+            replay_state: importedReplay ? 1 : 0,
+            card_state: importedState ? 1 : 0,
+            card_config: importedConfig ? 1 : 0,
+            taps: Array.isArray(importedTaps) ? importedTaps.length : 0,
+            transactions: Array.isArray(importedTxns) ? importedTxns.length : 0,
+          },
+        });
+      }
+
       return new Response("Not found", { status: 404 });
     },
   }) as DurableObjectStub<undefined>;
