@@ -143,7 +143,24 @@ describe("validateCardTap", () => {
     expect(replay(env).__cardStates.get(UID)!.state).toBe("active");
   });
 
-  it("rejects keys_delivered card with wrong CMAC (version mismatch)", async () => {
+  it("rejects keys_delivered card with wrong CMAC (no matching version)", async () => {
+    const env = makeTestEnv();
+    const keys = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
+    replay(env).__cardStates.get(UID)!.state = "keys_delivered";
+    replay(env).__cardStates.get(UID)!.latest_issued_version = 2;
+    replay(env).__cardStates.get(UID)!.active_version = null;
+    replay(env).__cardConfigs.set(UID, { K2: keys.k2, payment_method: "fakewallet" });
+
+    const { pHex } = virtualTap(UID, 2, keys.k1, keys.k2);
+    const result = await validateCardTap(makeTestRequest(), asEnv(env), { pHex, cHex: "DEADBEEFDEADBEEF" });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(403);
+      expect(result.error).toContain("version mismatch");
+    }
+  });
+
+  it("activates keys_delivered card at v1 when physical card is v1 (version fallback)", async () => {
     const env = makeTestEnv();
     const keysV2 = getDeterministicKeys(UID, { ISSUER_KEY } as any, 2);
     replay(env).__cardStates.get(UID)!.state = "keys_delivered";
@@ -154,10 +171,10 @@ describe("validateCardTap", () => {
     const keysV1 = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
     const { pHex, cHex } = virtualTap(UID, 2, keysV1.k1, keysV1.k2);
     const result = await validateCardTap(makeTestRequest(), asEnv(env), { pHex, cHex });
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.status).toBe(403);
-      expect(result.error).toContain("version mismatch");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.activeVersion).toBe(1);
+      expect(replay(env).__cardStates.get(UID)!.state).toBe("active");
     }
   });
 

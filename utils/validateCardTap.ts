@@ -4,9 +4,10 @@ import { getErrorMessage } from "../utils/logger.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getUidConfig } from "../getUidConfig.js";
 import { getDeterministicKeys } from "../keygenerator.js";
-import { getCardState, activateCard, checkAndAdvanceCounter, recordTapRead } from "../replayProtection.js";
+import { getCardState, activateCard, checkAndAdvanceCounter, recordTapRead, setCardK2 } from "../replayProtection.js";
 import { logger } from "../utils/logger.js";
 import { CARD_STATE } from "./constants.js";
+import { detectCardVersion } from "./versionDetection.js";
 
 interface ValidateCardTapOptions {
   pHex: string;
@@ -74,7 +75,23 @@ export async function validateCardTap(request: Request, env: Env, { pHex, cHex, 
       activeVersion = cardState.latest_issued_version;
       await activateCard(env, uidHex, activeVersion);
     } else {
-      return { ok: false, status: 403, error: "Card version mismatch — try again or re-program card" };
+      // Fallback: scan versions for physical cards that can't change keys
+      // after server-side reactivation (e.g., deliverKeys advanced the version
+      // but the physical card is still at v1).
+      const detectedVersion = await detectCardVersion(uidHex, ctr, cHex, env, cardState.latest_issued_version);
+      if (detectedVersion !== null) {
+        activeVersion = detectedVersion;
+        await activateCard(env, uidHex, activeVersion);
+        // Persist K2 so future taps skip version scanning
+        try {
+          const detectedKeys = getDeterministicKeys(uidHex, env, detectedVersion);
+          await setCardK2(env, uidHex, detectedKeys.k2);
+        } catch (e: unknown) {
+          logger.warn(`${context}: failed to persist K2 after version detection`, { uidHex, version: detectedVersion, error: getErrorMessage(e) });
+        }
+      } else {
+        return { ok: false, status: 403, error: "Card version mismatch — try again or re-program card" };
+      }
     }
   } else if (cardState.state === CARD_STATE.ACTIVE || cardState.state === CARD_STATE.DISCOVERED) {
     activeVersion = cardState.active_version || 1;

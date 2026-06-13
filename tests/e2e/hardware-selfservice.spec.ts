@@ -71,9 +71,10 @@ async function ensureCardActiveState(page: Page): Promise<void> {
       if (state === "terminated") {
         await postJson(page, "/operator/cards/batch", { uids: [uid], action: "reprovision" });
       }
-      // Leave in keys_delivered — the first tap will trigger detectCardVersion
+      // Trigger activation via LNURL-withdraw tap — this runs detectCardVersion
       // (with v1 fallback) which finds the card, calls setCardK2, and activates.
-      // This avoids version mismatch between physical card (v1) and server tracking.
+      const actTap = await provider.tap(page);
+      await getJson(page, "/?p=" + encodeURIComponent(actTap.p) + "&c=" + encodeURIComponent(actTap.c));
     }
   } catch { /* best effort — test will fail if card stays in wrong state */ }
 }
