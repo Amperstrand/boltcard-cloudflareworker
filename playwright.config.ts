@@ -1,5 +1,8 @@
 import { defineConfig } from "@playwright/test";
 
+const baseURL = process.env.PLAYWRIGHT_BASE_URL || "https://boltcardpoc.psbt.me";
+const isLocal = baseURL.includes("127.0.0.1") || baseURL.includes("localhost");
+
 export default defineConfig({
   testDir: "./tests/e2e",
   testMatch: [
@@ -10,13 +13,14 @@ export default defineConfig({
     "cardholder-selfservice.spec.ts",
     "identity-2fa.spec.ts",
     "nfc-ui.spec.ts",
+    "hardware-financial.spec.ts",
   ],
   fullyParallel: false,
   retries: 0,
   timeout: 60000,
   expect: { timeout: 10000 },
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || "https://boltcardpoc.psbt.me",
+    baseURL,
     headless: true,
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
@@ -27,4 +31,14 @@ export default defineConfig({
       use: { browserName: "chromium" },
     },
   ],
+  ...(isLocal
+    ? {
+        webServer: {
+          command: "npx wrangler dev --ip 127.0.0.1 --port 8787 --show-interactive-dev-session false",
+          url: "http://127.0.0.1:8787/status",
+          reuseExistingServer: true,
+          timeout: 30000,
+        },
+      }
+    : {}),
 });
