@@ -87,8 +87,30 @@ cached_card_info = {}
 # ---------------------------------------------------------------------------
 
 
+def _select_reader():
+    """Select the best PC/SC reader for card operations.
+
+    Prefers a reader with 'PICC' in the name (e.g. ACS ACR1252 has SAM + PICC
+    slots). Falls back to the first available reader.
+
+    Returns:
+        A PC/SC reader object.
+
+    Raises:
+        RuntimeError: If no readers found.
+    """
+    reader_list = readers()
+    if not reader_list:
+        raise RuntimeError("No PC/SC readers found")
+
+    for r in reader_list:
+        if "PICC" in str(r):
+            return r
+    return reader_list[0]
+
+
 def _connect_card():
-    """Connect to the first PC/SC reader and return the connection object.
+    """Connect to a PC/SC reader with a card present.
 
     Returns:
         tuple: (connection, uid_hex) where connection is a smartcard connection
@@ -97,11 +119,7 @@ def _connect_card():
     Raises:
         RuntimeError: If no readers found or connection fails.
     """
-    reader_list = readers()
-    if not reader_list:
-        raise RuntimeError("No PC/SC readers found")
-
-    reader = reader_list[0]
+    reader = _select_reader()
     connection = reader.createConnection()
     connection.connect()
 
@@ -979,7 +997,8 @@ def _read_cc_get_ndef_file_id(conn):
         RuntimeError: If CC or NDEF file TLV not found.
     """
     apdu = bytes([0x00, 0xA4, 0x00, 0x0C, 0x02, 0xE1, 0x03])
-    _transmit_check(conn, apdu, "Select CC file")
+    _, sw1, sw2 = conn.transmit(list(apdu))
+    _check(sw1, sw2, "Select CC file")
 
     header = _read_binary(conn, 0, 2)
     cc_len = (header[0] << 8) | header[1]
@@ -1005,7 +1024,8 @@ def _read_ndef(conn, file_id):
     """
     apdu = bytes([0x00, 0xA4, 0x00, 0x0C, 0x02,
                   (file_id >> 8) & 0xFF, file_id & 0xFF])
-    _transmit_check(conn, apdu, f"Select NDEF file {file_id:04X}")
+    _, sw1, sw2 = conn.transmit(list(apdu))
+    _check(sw1, sw2, f"Select NDEF file {file_id:04X}")
 
     length_bytes = _read_binary(conn, 0, 2)
     length = (length_bytes[0] << 8) | length_bytes[1]
@@ -1049,11 +1069,7 @@ def read_card():
     Raises:
         RuntimeError: If no readers found, or card reading fails.
     """
-    reader_list = readers()
-    if not reader_list:
-        raise RuntimeError("No PC/SC readers found")
-
-    reader = reader_list[0]
+    reader = _select_reader()
     connection = reader.createConnection()
     connection.connect()
 
@@ -1066,6 +1082,8 @@ def read_card():
         if not url:
             raise RuntimeError("No NDEF URI record found on card")
 
+        from urllib.parse import unquote
+        url = unquote(url)
         parsed = urlparse(url)
         params = parse_qs(parsed.query)
         p = params.get('p', [None])[0]
