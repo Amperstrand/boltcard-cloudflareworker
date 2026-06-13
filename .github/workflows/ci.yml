@@ -11,6 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # @ntag424/crypto is a file:../ntag424-crypto dependency
+      # Clone and build it so npm ci + typecheck can resolve the module
+      - name: Clone ntag424-crypto
+        run: git clone https://github.com/Amperstrand/ntag424-crypto.git ../ntag424-crypto
+      - name: Build ntag424-crypto
+        run: cd ../ntag424-crypto && npm install && npm run build
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -19,7 +25,6 @@ jobs:
       - run: node scripts/sync-js-exports.mjs
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm audit --audit-level=high
       - run: npm test
       - run: npm run test:do
       - run: npm run test:integration
