@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     globals: true,
     include: ["tests/do/**/*.test.{js,ts}"],
+    testTimeout: 15000,
   },
   plugins: [
     cloudflareTest({

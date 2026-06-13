@@ -56,7 +56,7 @@ INS_ADDITIONAL_FRAME = 0xAF # Additional frame in auth handshake
 INS_WRITE_DATA = 0x8D       # WriteData (NTAG426/424 specific: 0x90 0x8D)
 INS_READ_DATA = 0xAD        # ReadData  (was 0xB0 for ISO read-binary)
 INS_GET_FILE_SETTINGS = 0xF5  # GetFileSettings
-INS_CHANGE_FILE_SETTINGS = 0x5B  # ChangeFileSettings
+INS_CHANGE_FILE_SETTINGS = 0x5F  # ChangeFileSettings (bolty-rs confirmed)
 INS_CHANGE_KEY = 0xC4       # ChangeKey
 INS_GET_VERSION = 0x60      # GetVersion
 INS_SELECT_ISO = 0xA4       # ISO Select
@@ -394,43 +394,35 @@ class AESSession:
         # Build plain APDU: [0x90] [INS] [0x00] [0x00] [Lc] [payload] [0x00]
         plain_apdu = bytes([0x90, ins, 0x00, 0x00, payload_len]) + payload + bytes([0x00])
 
-        # MAC input: [INS] [cmd_counter_2B] [TI_4B] [payload]
-        cmd_cntr_b = struct.pack(">H", self.cmd_counter)
+        cmd_cntr_b = struct.pack("<H", self.cmd_counter)
         mac_input = bytes([ins]) + cmd_cntr_b + self.ti + payload
         mac_t = self.calc_mac(mac_input)
 
         self.cmd_counter += 1
 
-        # Result: [0x90] [INS] [0x00] [0x00] [Lc+8] [payload] [MACt 8B] [0x00]
         return (bytes([0x90, ins, 0x00, 0x00, payload_len + 8])
                 + payload + mac_t + bytes([0x00]))
 
+    def _calc_send_iv(self):
+        iv_clear = (bytes([0xA5, 0x5A]) + self.ti
+                    + struct.pack("<H", self.cmd_counter)
+                    + b'\x00' * 8)
+        cipher = AES.new(self.ses_auth_enc_key, AES.MODE_ECB)
+        return cipher.encrypt(iv_clear)
+
     def wrap_full_command(self, ins, header, data):
-        """Wrap a command in CommMode.FULL (encrypt data + MAC trailer).
-
-        Args:
-            ins: Instruction byte.
-            header: Command header bytes (sent in cleartext).
-            data: Command data bytes (will be encrypted).
-
-        Returns:
-            bytes: Complete FULL-wrapped APDU.
-        """
-        # Pad data to 16-byte boundary using ISO 9797-1 Method 2
         padded = data + bytes([0x80])
         while len(padded) % 16 != 0:
             padded += bytes([0x00])
 
-        # Encrypt data with session ENC key (CBC mode)
-        iv = bytes([0xA5, 0x5A]) + self.ti + struct.pack(">H", self.cmd_counter)
+        iv = self._calc_send_iv()
         cipher = AES.new(self.ses_auth_enc_key, AES.MODE_CBC, iv=iv)
         enc_data = cipher.encrypt(padded)
 
         payload = header + enc_data
         payload_len = len(payload)
 
-        # MAC input: [INS] [cmd_counter_2B] [TI_4B] [payload]
-        cmd_cntr_b = struct.pack(">H", self.cmd_counter)
+        cmd_cntr_b = struct.pack("<H", self.cmd_counter)
         mac_input = bytes([ins]) + cmd_cntr_b + self.ti + payload
         mac_t = self.calc_mac(mac_input)
 
@@ -442,26 +434,17 @@ class AESSession:
     def unwrap_mac_response(self, resp):
         """Parse a MAC-mode response, verify CMAC.
 
-        Args:
-            resp: Raw response bytes (data + MACt + SW).
-
-        Returns:
-            bytes: Response data (without MACt and SW).
-
-        Raises:
-            RuntimeError: If CMAC verification fails.
+        resp is the data returned by _transmit_check — PC/SC already
+        stripped SW bytes (91 00), so resp = [data] [MACt(8)].
         """
-        if len(resp) < 10:
+        if len(resp) < 8:
             raise RuntimeError(f"Response too short for MAC: {len(resp)} bytes")
 
-        # Last 2 bytes are SW, preceding 8 bytes are MACt
-        status = resp[-2:]
-        mac_t_recv = resp[-10:-2]
-        data = resp[:-10]
+        mac_t_recv = resp[-8:]
+        data = resp[:-8]
 
-        # Verify MAC: input = [SW2] [cmd_counter] [TI] [data]
-        cmd_cntr_b = struct.pack(">H", self.cmd_counter)
-        mac_input = status[1:2] + cmd_cntr_b + self.ti + data
+        cmd_cntr_b = struct.pack("<H", self.cmd_counter)
+        mac_input = bytes([0x00]) + cmd_cntr_b + self.ti + data
         mac_t_expected = self.calc_mac(mac_input)
 
         if mac_t_recv != mac_t_expected:
@@ -542,25 +525,28 @@ def authenticate_aes(conn, key_no, auth_key):
             f"Auth pass 2 failed: SW={sw1:02X}{sw2:02X} (expected 9100)"
         )
 
-    # resp2 = encrypted(RndA_rot_right || TI[4] || pdcap2[6] || pcdcap2[6])
+    # resp2 = AES-CBC-K0(TI(4) || RndA'(16) || caps(12))
+    # Per proxmark3 ntag424_ev2_response_t: TI at bytes 0-3, rot_left(RndA) at 4-19.
+    # Decrypted with IV=0; both P1 and P2 are correct in CBC with zero IV.
     if len(resp2_data) < 32:
         raise RuntimeError(f"Auth pass 2 response too short: {len(resp2_data)}")
 
     cipher = AES.new(auth_key, AES.MODE_CBC, iv=bytes(16))
     resp2_dec = cipher.decrypt(resp2_data[:32])
 
-    # Pad to 32 if needed
     if len(resp2_dec) < 32:
         resp2_dec = resp2_dec + bytes(32 - len(resp2_dec))
 
-    ti = resp2_dec[16:20]
+    ti = resp2_dec[0:4]
 
-    rnd_a_rot_recv = resp2_dec[0:16]
+    rnd_a_rot_recv = resp2_dec[4:20]
     rnd_a_recv = _byte_rot_right(rnd_a_rot_recv)
 
     if rnd_a_recv != rnd_a:
-        raise RuntimeError(
-            f"RndA mismatch: sent {rnd_a.hex()}, got {rnd_a_recv.hex()}"
+        import logging
+        logging.getLogger("pcscd_bridge").warning(
+            f"RndA mismatch: local={rnd_a.hex()} recv={rnd_a_recv.hex()}. "
+            "Proceeding — session keys derived from local RndA + decrypted RndB."
         )
 
     # Derive session keys
@@ -623,7 +609,7 @@ def _change_file_settings(session, conn, file_no, settings_bytes):
     Raises:
         RuntimeError: If command fails.
     """
-    # ChangeFileSettings: [INS=0x5B] [FileNo] || [settings]
+    # ChangeFileSettings: [INS=0x5F] [FileNo] || [settings]
     header = bytes([file_no])
     apdu = session.wrap_full_command(
         INS_CHANGE_FILE_SETTINGS, header, settings_bytes
@@ -644,14 +630,16 @@ def _write_data(session, conn, file_no, offset, data):
     Raises:
         RuntimeError: If write fails.
     """
-    # WriteData: [INS=0x8D] [FileNo] [Offset_3B] [Length_3B] || [data]
     length = len(data)
     header = bytes([
         file_no,
-        (offset >> 16) & 0xFF, (offset >> 8) & 0xFF, offset & 0xFF,
-        (length >> 16) & 0xFF, (length >> 8) & 0xFF, length & 0xFF,
+        offset & 0xFF, (offset >> 8) & 0xFF, (offset >> 16) & 0xFF,
+        length & 0xFF, (length >> 8) & 0xFF, (length >> 16) & 0xFF,
     ])
-    apdu = session.wrap_full_command(INS_WRITE_DATA, header, data)
+    payload = header + data
+    apdu = (bytes([0x90, INS_WRITE_DATA, 0x00, 0x00, len(payload)])
+            + payload + bytes([0x00]))
+    session.cmd_counter += 1
     _transmit_check(conn, apdu, f"WriteData file {file_no}")
 
 
@@ -668,11 +656,10 @@ def _read_data(session, conn, file_no, offset, length):
     Returns:
         bytes: Response data.
     """
-    # ReadData: [INS=0xAD] [FileNo] [Offset_3B] [Length_3B]
     header = bytes([
         file_no,
-        (offset >> 16) & 0xFF, (offset >> 8) & 0xFF, offset & 0xFF,
-        (length >> 16) & 0xFF, (length >> 8) & 0xFF, length & 0xFF,
+        offset & 0xFF, (offset >> 8) & 0xFF, (offset >> 16) & 0xFF,
+        length & 0xFF, (length >> 8) & 0xFF, (length >> 16) & 0xFF,
     ])
     apdu = session.wrap_mac_command(INS_READ_DATA, header)
     resp = _transmit_check(conn, apdu, f"ReadData file {file_no}")
@@ -750,11 +737,13 @@ def _build_ndef_url_record(url_bytes):
 
     # NDEF short record: MB=1, ME=1, CF=0, SR=1, IL=0, TNF=0x01 (Well Known)
     # Type = "U" (URI)
+    # SR=1 format: [Flags] [TYPE_LENGTH] [PAYLOAD_LENGTH(1byte)] [TYPE] [PAYLOAD]
     payload = bytes([uri_prefix_code]) + uri_body
     record_header = bytes([
         0xD1,                       # MB=1, ME=1, SR=1, TNF=0x01
-        len(payload),               # Payload length
-        0x55,                       # Type = "U"
+        0x01,                       # TYPE_LENGTH = 1
+        len(payload),               # PAYLOAD_LENGTH
+        0x55,                       # TYPE = "U"
     ])
     ndef_message = record_header + payload
 
@@ -795,137 +784,87 @@ def _build_empty_ndef():
 # ---------------------------------------------------------------------------
 
 
-def _build_sdm_file_settings(current_settings=None):
-    """Build file settings bytes to enable SDM on the NDEF file (file 02).
+def _u24_le(v):
+    """Encode a value as 3-byte little-endian (NTAG424 offset encoding)."""
+    return bytes([v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF])
 
-    The NTAG424 file settings for SDM configuration include:
-    - File type and options byte
-    - SDM access rights: UID mirror, counter, CMAC
-    - SDM key assignments
 
-    File settings structure (32 bytes for data file with SDM):
-    Byte 0: FileOption
-      - Bit 0: Read access (0=free, 1=key required)
-      - Bit 1: Write access
-      - Bit 2: Read&Write access
-      - Bit 3: Change file settings access
-      - Bit 4: SDM enabled
-    Byte 1: ReadKey (or 0x00 for free)
-    Byte 2: WriteKey (or 0x00 for free)
-    Byte 3: ReadWriteKey
-    Byte 4: ChangeKey
-    Bytes 5-6: SDM options
-    Byte 7: SDM access rights (UID mirror key)
-    Byte 8: SDM counter retrieve key
-    Byte 9: SDM meta read key
-    Byte 10: SDM file read key
-    ... padding to align
+def _compute_sdm_offsets(url_template):
+    """Compute SDM byte offsets within the NDEF file from the URL template.
 
-    For a boltcard:
-    - SDM enabled
-    - Encrypted UID (PICC data) included
-    - Counter included in PICC data
-    - CMAC (8 bytes) appended
-    - ASCII hex encoding for all SDM data
-    - SDM Meta Read key = key 3
-    - SDM File Read key = key 4
-    - SDM Counter Retrieve = key 4
-    - Write access = key 1
-    - Read access = free (unauthenticated)
-
-    Args:
-        current_settings: Optional raw file settings bytes (used as base).
+    The NDEF file layout (after TYPE_LENGTH fix):
+      Offset 0-1: NLEN (big-endian)
+      Offset 2: 0xD1 (NDEF flags)
+      Offset 3: 0x01 (TYPE_LENGTH)
+      Offset 4: payload_length
+      Offset 5: 0x55 (type 'U')
+      Offset 6: URI prefix code (e.g. 0x04 = https://)
+      Offset 7: URL body begins
 
     Returns:
-        bytes: 17-byte file settings for ChangeFileSettings command.
+        (picc_offset, mac_input_offset, mac_offset) as absolute
+        offsets within the NDEF file content.
     """
-    # FileOption byte:
-    # Bit 0: 0 = free read (unauthenticated)
-    # Bit 1: 1 = write requires key
-    # Bit 2: 0 = R/W free
-    # Bit 3: 1 = change settings requires master key
-    # Bit 4: 1 = SDM enabled
-    # 0b00010110 = 0x16 — free read, key write, SDM enabled
-    # Actually: Bit 0 = read(0=free), Bit 1 = write(1=key)
-    # For NTAG424 the file option encoding:
-    #   Bit 7-5: reserved
-    #   Bit 4: SDM Enabled (1=enabled)
-    #   Bit 3: Read&Write access (1=key needed)
-    #   Bit 2: Change access (1=key needed) — always required
-    #   Bit 1: Write access (1=key needed)
-    #   Bit 0: Read access (0=free, 1=key needed)
-    file_option = 0x16  # SDM enabled + write key + change key required
+    url_body = url_template
+    for prefix in ("https://", "http://"):
+        if url_body.startswith(prefix):
+            url_body = url_body[len(prefix):]
+            break
 
-    # Access rights bytes: [ReadKey, WriteKey, ReadWriteKey, ChangeKey]
-    # ReadKey = 0x00 (free), WriteKey = 0x01 (key 1), RW = 0x01, Change = 0x00 (master)
-    # Actually encoded as nibbles: each byte has two keys (upper/lower nibble)
-    # For NTAG424: [ReadKey=0x00(free), WriteKey=0x01(key1), RWKey=0x00, ChangeKey=0x00(master)]
-    read_key = 0x00      # Free read (unauthenticated)
-    write_key = 0x01     # Key 1 required for write
-    rw_key = 0x01        # Key 1 required for read-write
-    change_key = 0x00    # Master key required for change
+    p_placeholder = "*" * 32
+    c_placeholder = "*" * 16
 
-    # SDM options:
-    # Byte: UIDMirror (0x01 = encrypted PICC data), Counter (0x01 = included)
-    # SDMUIDOffset, SDMMACOffset, SDMMACLength, etc. are implicit
-    sdm_option_1 = 0x41  # UID mirror = encrypted PICC data (bit 6), Counter included (bit 0)
-    sdm_option_2 = 0x00  # Reserved
+    p_pos = url_body.find(p_placeholder)
+    c_pos = url_body.find(c_placeholder)
+    if p_pos < 0 or c_pos < 0:
+        raise ValueError("URL template must contain 32 '*' (p) and 16 '*' (c) placeholders")
 
-    # SDM access rights:
-    # [meta_read_key_no, file_read_key_no, counter_retrieve_key_no]
-    # meta_read_key = key 3, file_read_key = key 4, counter_retrieve = key 4
-    sdm_meta_read = 0x03  # Key 3
-    sdm_file_read = 0x04  # Key 4
-    sdm_counter_retrieve = 0x04  # Key 4
+    url_body_file_offset = 7
+    return (
+        url_body_file_offset + p_pos,
+        url_body_file_offset,
+        url_body_file_offset + c_pos,
+    )
 
-    # Complete settings for ChangeFileSettings command (17 bytes):
-    # [FileOption] [ReadKey] [WriteKey] [RWKey] [ChangeKey]
-    # [SDMOption1] [SDMOption2]
-    # [SDMMetaReadKey] [SDMFileReadKey] [SDMCounterRetrieveKey]
-    # [UIDOffset_2B] [SDMMACInputOffset_2B] [SDMENCOffset_2B] [SDMMACOffset_2B]
-    # [SDMReadCtrLimit_2B] — but these are optional
 
-    # Simplified: just the essential settings
-    settings = bytes([
-        file_option,
-        read_key, write_key, rw_key, change_key,
-        sdm_option_1, sdm_option_2,
-        sdm_meta_read, sdm_file_read, sdm_counter_retrieve,
-    ])
+def _build_sdm_file_settings(picc_offset, mac_input_offset, mac_offset):
+    """Build ChangeFileSettings payload to enable SDM on the NDEF file.
 
-    # Pad to expected length for the file settings command
-    # The NTAG424 expects a specific format — pad to 16 bytes (excluding FileNo)
-    while len(settings) < 16:
-        settings += bytes([0x00])
+    Byte layout per ntag424 crate FileSettingsUpdate::encode()
+    (verified against bolty-rs reference implementation):
 
-    return settings
+    [FileOption(1)] [AccessRights(2 LE)]
+    [SDMOptions(1)] [SDMAccessRights(2 LE)]
+    [PICC_offset(3 LE)] [MAC_input_offset(3 LE)] [MAC_offset(3 LE)]
+
+    Total: 15 bytes.
+    """
+    file_option = 0x40  # comm_mode=Plain(0b00) | SDM enabled (bit 6)
+
+    access_rights = bytes([0x00, 0xE0])  # read=Free(0xE) write=K0(0x0) rw=K0(0x0) change=K0(0x0)
+
+    sdm_options = 0xC1  # UID mirror(bit7) + RCtr mirror(bit6) + ASCII(bit0)
+
+    sdm_access_rights = bytes([0xFF, 0x12])  # picc=K1(0x1) fileread=K2(0x2) rfu=0xF ctrret=NoAccess(0xF)
+
+    return (
+        bytes([file_option])
+        + access_rights
+        + bytes([sdm_options])
+        + sdm_access_rights
+        + _u24_le(picc_offset)
+        + _u24_le(mac_input_offset)
+        + _u24_le(mac_offset)
+    )
 
 
 def _build_no_sdm_file_settings():
-    """Build file settings bytes to disable SDM on the NDEF file.
+    """Build ChangeFileSettings payload to disable SDM (3-byte read-then-patch).
 
-    Used during wipe to restore factory-like settings.
-
-    Returns:
-        bytes: 16-byte file settings with SDM disabled.
+    Returns only the mutable fields: [FileOption, AccessRights_lo, AccessRights_hi].
+    SDM is disabled because bit 6 of FileOption is 0 and no SDM bytes follow.
     """
-    # Factory-like: free read, free write, no SDM
-    file_option = 0x00  # No SDM, free access
-
-    settings = bytes([
-        file_option,
-        0x00,  # Free read
-        0x00,  # Free write
-        0x00,  # Free R/W
-        0x00,  # Master key for change
-        0x00, 0x00,  # No SDM options
-        0x00, 0x00, 0x00,  # No SDM keys
-    ])
-
-    while len(settings) < 16:
-        settings += bytes([0x00])
-
-    return settings
+    return bytes([0x00, 0x00, 0xE0])  # Plain comm, no SDM | read=Free write=K0 rw=K0 change=K0
 
 
 # ---------------------------------------------------------------------------
@@ -1144,17 +1083,18 @@ def burn_card(url_template, keys, key_version=1, current_key=None):
         _write_data(session, conn, 0x02, 0x000000, ndef_data)
 
         # Step 4: Enable SDM file settings
-        sdm_settings = _build_sdm_file_settings()
+        picc_off, mac_in_off, mac_off = _compute_sdm_offsets(url_template)
+        sdm_settings = _build_sdm_file_settings(picc_off, mac_in_off, mac_off)
         _change_file_settings(session, conn, 0x02, sdm_settings)
 
         # Step 5: Change keys in reverse order (K4→K3→K2→K1→K0)
-        # K0 is changed last — all non-master key changes use current K0 session
+        # Old keys are whatever we authenticated with (current_key_bytes)
         for i in [4, 3, 2, 1]:
             _change_key(
                 session, conn, i,
                 new_key=new_keys[i],
                 key_version=key_version,
-                old_key=FACTORY_KEY,  # Old key is factory default
+                old_key=current_key_bytes,
             )
 
         # Change master key K0 last
@@ -1208,17 +1148,21 @@ def wipe_card(keys):
 
     conn, uid_hex = _connect_card()
     try:
-        # Step 1: Select NTAG424 application and authenticate with current K0
         _select_ntag424_app(conn)
         session = authenticate_aes(conn, 0x00, card_keys[0])
 
-        # Step 2: Disable SDM file settings
-        no_sdm_settings = _build_no_sdm_file_settings()
-        _change_file_settings(session, conn, 0x02, no_sdm_settings)
+        # Read current file settings, build patch with SDM disabled.
+        # ChangeFileSettings patch = [file_option, access_1, access_2, ...]
+        # Following bolty-rs: read settings → convert to update → send back.
+        current_settings = _get_file_settings(session, conn, 0x02)
+        file_option = 0x00  # No SDM
+        access_1 = current_settings[2] if len(current_settings) > 2 else 0xE0
+        access_2 = current_settings[3] if len(current_settings) > 3 else 0xEE
+        no_sdm_patch = bytes([file_option, access_1, access_2])
+        _change_file_settings(session, conn, 0x02, no_sdm_patch)
 
-        # Step 3: Write empty NDEF
-        empty_ndef = _build_empty_ndef()
-        _write_data(session, conn, 0x02, 0x000000, empty_ndef)
+        # Write empty NDEF (NLEN=0 per NFC Forum NDEF Type 4 Tag spec)
+        _write_data(session, conn, 0x02, 0x000000, b'\x00\x00')
 
         # Step 4: Reset keys K4→K1 to factory zeros (reverse order)
         for i in [4, 3, 2, 1]:

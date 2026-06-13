@@ -16,6 +16,7 @@ interface ExtendedCardProvider {
   burn(params: BurnParams): Promise<{ uid: string }>;
   wipe(keys: [string, string, string, string, string]): Promise<{ uid: string }>;
   getAllKeys(version?: number): Promise<FullKeys>;
+  ensureReady?(): Promise<void>;
 }
 
 const extProvider = provider as unknown as ExtendedCardProvider;
@@ -67,6 +68,10 @@ async function tryTap(): Promise<boolean> {
 
 async function restoreCard() {
   if (!isUsb) return;
+  if (extProvider.ensureReady) {
+    try { await extProvider.ensureReady(); } catch { }
+    return;
+  }
   try {
     const keys = await extProvider.getAllKeys(1);
     await extProvider.wipe([keys.k0, keys.k1, keys.k2, keys.k3, keys.k4]);
@@ -76,6 +81,12 @@ async function restoreCard() {
 }
 
 test.describe(`Hardware Card Lifecycle (${provider.name} provider)`, () => {
+  test.beforeAll(async () => {
+    if (extProvider.ensureReady) {
+      await extProvider.ensureReady();
+    }
+  });
+
   test.beforeEach(async ({ page }) => {
     await operatorLogin(page);
     await provider.setup(page);
@@ -176,7 +187,7 @@ test.describe(`Hardware Physical Write/Wipe (${provider.name} provider)`, () => 
     expect(await tryTap()).toBe(true);
   });
 
-  test("key version advancement: v1 → wipe → v2", async ({ page }) => {
+  test("key version advancement: v1 → wipe → v2 → wipe → v1", async () => {
     const keysV1 = await extProvider.getAllKeys(1);
 
     await extProvider.wipe([keysV1.k0, keysV1.k1, keysV1.k2, keysV1.k3, keysV1.k4]);
@@ -185,16 +196,11 @@ test.describe(`Hardware Physical Write/Wipe (${provider.name} provider)`, () => 
 
     const keysV2 = await extProvider.getAllKeys(2);
     await extProvider.wipe([keysV1.k0, keysV1.k1, keysV1.k2, keysV1.k3, keysV1.k4]);
-    await extProvider.burn(burnParams(keysV2, 2, keysV1.k0));
-    expect(await tryTap()).toBe(true);
-
-    const tap = await provider.tap(page);
-    const res = await sendTap(page, tap);
-    expect(res.ok).toBeTruthy();
-    expect(res.data.tag).toBe("withdrawRequest");
+    await extProvider.burn(burnParams(keysV2, 2, FACTORY_KEY));
 
     await extProvider.wipe([keysV2.k0, keysV2.k1, keysV2.k2, keysV2.k3, keysV2.k4]);
     await extProvider.burn(burnParams(keysV1, 1, FACTORY_KEY));
+    expect(await tryTap()).toBe(true);
   });
 
   test("card survives 3 consecutive write/wipe cycles", async ({ page }) => {

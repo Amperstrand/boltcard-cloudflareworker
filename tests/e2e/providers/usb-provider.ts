@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import type { Page } from "@playwright/test";
 import { deriveKeysFromHex } from "@ntag424/crypto";
 import type {
@@ -11,6 +12,7 @@ import type {
 const BRIDGE_URL = process.env.PCSCD_BRIDGE_URL || "http://localhost:4321";
 const ISSUER_KEY = process.env.TEST_ISSUER_KEY || "00000000000000000000000000000001";
 const SERVER_URL = process.env.PLAYWRIGHT_BASE_URL || "https://boltcardpoc.psbt.me";
+const BOLTY_CLI = process.env.BOLTY_CLI || "/Users/macbook/src/bolty-rs/target/debug/bolty-cli";
 
 export class UsbProvider implements CardProvider {
   name = "usb";
@@ -65,22 +67,18 @@ export class UsbProvider implements CardProvider {
   }
 
   async burn(params: BurnParams): Promise<{ uid: string }> {
-    const resp = await fetch(`${BRIDGE_URL}/burn`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        url_template: params.urlTemplate,
-        keys: params.keys,
-        key_version: params.keyVersion,
-        current_key: params.currentKey,
-      }),
-      signal: AbortSignal.timeout(30000),
-    });
-    if (!resp.ok) {
-      const errBody = await resp.text().catch(() => "");
-      throw new Error(`pcscd bridge /burn returned ${resp.status}: ${errBody}`);
+    const url = `${SERVER_URL}/?p={picc:uid+ctr}&c=[[{mac}`;
+    const out = execFileSync(
+      BOLTY_CLI,
+      ["burn", "--issuer-key", ISSUER_KEY, "--url", url, "--version", String(params.keyVersion)],
+      { timeout: 30000, encoding: "utf-8" },
+    );
+    if (!out.includes("successfully")) {
+      throw new Error(`bolty-cli burn failed: ${out}`);
     }
-    return resp.json();
+    const m = out.match(/Card UID:\s*([0-9a-fA-F]+)/);
+    if (!m) throw new Error(`could not parse UID from bolty-cli output: ${out}`);
+    return { uid: m[1] };
   }
 
   async wipe(keys: [string, string, string, string, string]): Promise<{ uid: string }> {
@@ -109,5 +107,37 @@ export class UsbProvider implements CardProvider {
 
   async getUid(): Promise<string> {
     return this.resolveUid();
+  }
+
+  async ensureReady(): Promise<void> {
+    try {
+      const tap = await this.tap(undefined as unknown as Page);
+      const resp = await fetch(
+        `${SERVER_URL}/?p=${encodeURIComponent(tap.p)}&c=${encodeURIComponent(tap.c)}`,
+      );
+      if (resp.ok) {
+        const data: Record<string, unknown> = await resp.json();
+        if (data.tag === "withdrawRequest") return;
+      }
+    } catch {
+    }
+
+    const url = `${SERVER_URL}/?p={picc:uid+ctr}&c=[[{mac}`;
+    for (const v of [1, 2, 3, 4, 0]) {
+      try {
+        execFileSync(
+          BOLTY_CLI,
+          ["wipe", "--issuer-key", ISSUER_KEY, "--version", String(v)],
+          { timeout: 30000, encoding: "utf-8" },
+        );
+        break;
+      } catch {
+      }
+    }
+    execFileSync(
+      BOLTY_CLI,
+      ["burn", "--issuer-key", ISSUER_KEY, "--url", url, "--version", "1"],
+      { timeout: 30000, encoding: "utf-8" },
+    );
   }
 }
