@@ -45,16 +45,10 @@ async function ensureCardActive(page: Page): Promise<number> {
 }
 
 /**
- * Server bug workaround: detectCardVersion (KEYS_DELIVERED) uses derived K2
- * to find the version, but validateCmac uses stored K2 (always v1's from
- * initial discovery). deliverKeys/activateCard never call setCardK2, so
- * stored K2 never changes. When latest_issued_version accumulates beyond
- * VERSION_SCAN_RANGE (10), v1 falls outside the scan range and taps fail.
- *
- * This helper uses the operator batch API to move the card to active state
- * directly, bypassing detectCardVersion entirely. For active state,
- * resolveCardVersion returns the stored version and getUidConfig returns
- * stored K2 (v1's), which matches the card physically burned at v1.
+ * Handles cards stuck in terminated/keys_delivered state from prior test runs.
+ * Reprovisions terminated cards (→ keys_delivered) but intentionally does NOT
+ * batch-activate — the first tap triggers detectCardVersion (with v1 fallback)
+ * which handles version matching, K2 persistence, and activation correctly.
  */
 async function ensureCardActiveState(page: Page): Promise<void> {
   let uid: string | undefined;
@@ -73,11 +67,13 @@ async function ensureCardActiveState(page: Page): Promise<void> {
   if (state === "active" || state === "discovered") return;
 
   try {
-    if (state === "keys_delivered") {
-      await postJson(page, "/operator/cards/batch", { uids: [uid], action: "activate" });
-    } else if (state === "terminated") {
-      await postJson(page, "/operator/cards/batch", { uids: [uid], action: "reprovision" });
-      await postJson(page, "/operator/cards/batch", { uids: [uid], action: "activate" });
+    if (state === "keys_delivered" || state === "terminated") {
+      if (state === "terminated") {
+        await postJson(page, "/operator/cards/batch", { uids: [uid], action: "reprovision" });
+      }
+      // Leave in keys_delivered — the first tap will trigger detectCardVersion
+      // (with v1 fallback) which finds the card, calls setCardK2, and activates.
+      // This avoids version mismatch between physical card (v1) and server tracking.
     }
   } catch { /* best effort — test will fail if card stays in wrong state */ }
 }

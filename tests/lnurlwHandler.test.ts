@@ -207,6 +207,24 @@ describe("handleLnurlw", () => {
     expect(storedK2).not.toBe(keysV1.k2);
   });
 
+  it("detects v1 card when latest_issued_version exceeds scan range", async () => {
+    const env = buildEnv("fakewallet");
+    (env.CARD_REPLAY as any).__cardStates.get(UID).state = "keys_delivered";
+    (env.CARD_REPLAY as any).__cardStates.get(UID).latest_issued_version = 30;
+    (env.CARD_REPLAY as any).__cardStates.get(UID).active_version = null;
+
+    const keysV1 = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
+    (env.CARD_REPLAY as any).__cardConfigs.get(UID).K2 = keysV1.k2;
+
+    const req = tapRequest(UID, 2, keysV1.k1, keysV1.k2);
+
+    const res = await handleLnurlw(req, env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, any>;
+    expect(body.tag).toBe("withdrawRequest");
+    expect((env.CARD_REPLAY as any).__cardStates.get(UID).state).toBe("active");
+  });
+
   it("rejects keys_delivered card with version mismatch", async () => {
     const env = buildEnv("fakewallet");
     (env.CARD_REPLAY as any).__cardStates.get(UID).state = "keys_delivered";
