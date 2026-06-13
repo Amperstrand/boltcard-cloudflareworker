@@ -254,7 +254,9 @@ def _select_ntag424_app(conn):
     apdu = bytes([
         0x00, INS_SELECT_ISO, 0x04, 0x00, len(NTAG424_AID)
     ]) + NTAG424_AID + bytes([0x00])
-    _transmit_check(conn, apdu, "Select NTAG424 application")
+    _, sw1, sw2 = _transmit_raw(conn, apdu)
+    if (sw1, sw2) not in ((0x90, 0x00), (0x91, 0x00)):
+        raise RuntimeError(f"Select NTAG424 application failed: SW={sw1:02X}{sw2:02X}")
 
 
 # ---------------------------------------------------------------------------

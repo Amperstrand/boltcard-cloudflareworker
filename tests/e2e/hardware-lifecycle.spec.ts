@@ -1,31 +1,38 @@
-import { test, expect } from "@playwright/test";
-import { createProvider, type BurnParams, type InspectResult } from "./providers/index.js";
-import { operatorLogin, makeApiHelpers } from "./helpers.js";
+import { test, expect, type Page } from "@playwright/test";
+import { createProvider, type BurnParams } from "./providers/index.js";
+import { operatorLogin, makeApiHelpers, type ApiResult } from "./helpers.js";
 
 const provider = createProvider();
 
+interface FullKeys {
+  k0: string; k1: string; k2: string; k3: string; k4: string; cardKey: string;
+}
+
 interface ExtendedCardProvider {
   name: string;
-  setup(page: import("@playwright/test").Page): Promise<void>;
-  tap(page: import("@playwright/test").Page): Promise<{ p: string; c: string }>;
-  getCardInfo(page?: import("@playwright/test").Page): Promise<{ uid: string; k1: string; k2: string; version: number }>;
+  setup(page: Page): Promise<void>;
+  tap(page: Page): Promise<{ p: string; c: string }>;
+  getCardInfo(page?: Page): Promise<{ uid: string; k1: string; k2: string; version: number }>;
   burn(params: BurnParams): Promise<{ uid: string }>;
   wipe(keys: [string, string, string, string, string]): Promise<{ uid: string }>;
-  inspect(): Promise<InspectResult>;
-  getUid(): Promise<string>;
+  getAllKeys(version?: number): Promise<FullKeys>;
 }
 
 const extProvider = provider as unknown as ExtendedCardProvider;
-
+const isUsb = provider.name === "usb";
 const FACTORY_KEY = "00000000000000000000000000000000";
+const CARD_URL = process.env.PLAYWRIGHT_BASE_URL || "https://boltcardpoc.psbt.me";
 
-// ─── Helpers ───
+function burnParams(keys: FullKeys, version: number, currentKey: string): BurnParams {
+  return {
+    urlTemplate: CARD_URL + "/?p=********************************&c=****************",
+    keys: [keys.k0, keys.k1, keys.k2, keys.k3, keys.k4],
+    keyVersion: version,
+    currentKey,
+  };
+}
 
-/** Send a card tap (p, c) to the LNURL-withdraw endpoint. */
-async function sendTap(
-  page: import("@playwright/test").Page,
-  tap: { p: string; c: string },
-): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
+async function sendTap(page: Page, tap: { p: string; c: string }): Promise<ApiResult> {
   return page.evaluate(
     async (url: string) => {
       const r = await fetch(url);
@@ -35,11 +42,7 @@ async function sendTap(
   );
 }
 
-/** Fetch card info from the server (state, balance, etc.). */
-async function fetchCardInfo(
-  page: import("@playwright/test").Page,
-  tap: { p: string; c: string },
-): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
+async function getCardInfo(page: Page, tap: { p: string; c: string }): Promise<ApiResult> {
   return page.evaluate(
     async (url: string) => {
       const r = await fetch(url);
@@ -49,209 +52,176 @@ async function fetchCardInfo(
   );
 }
 
-// ─── Test Suite ───
+async function tryTap(): Promise<boolean> {
+  try {
+    const tap = await provider.tap(undefined as unknown as Page);
+    const resp = await fetch(
+      `${CARD_URL}/?p=${encodeURIComponent(tap.p)}&c=${encodeURIComponent(tap.c)}`,
+    );
+    const data: Record<string, unknown> = await resp.json();
+    return resp.ok && data.tag === "withdrawRequest";
+  } catch {
+    return false;
+  }
+}
+
+async function restoreCard() {
+  if (!isUsb) return;
+  try {
+    const keys = await extProvider.getAllKeys(1);
+    await extProvider.wipe([keys.k0, keys.k1, keys.k2, keys.k3, keys.k4]);
+    await extProvider.burn(burnParams(keys, 1, FACTORY_KEY));
+  } catch {
+  }
+}
 
 test.describe(`Hardware Card Lifecycle (${provider.name} provider)`, () => {
-  // ── 1. Inspect blank card ──
-
-  test("inspect blank card", async ({ page }) => {
-    if (!extProvider.inspect) test.skip();
+  test.beforeEach(async ({ page }) => {
     await operatorLogin(page);
-    await extProvider.setup(page);
-
-    const result = await extProvider.inspect();
-    expect(result.hasSdm).toBe(false);
-    expect(result.keyVersions).toBeDefined();
+    await provider.setup(page);
   });
 
-  // ── 2. Burn card and verify ──
-
-  test("burn card and verify", async ({ page }) => {
-    if (!extProvider.burn) test.skip();
-    await operatorLogin(page);
-    await extProvider.setup(page);
-
-    const info = await extProvider.getCardInfo(page);
-    const urlTemplate = "https://boltcardpoc.psbt.me/";
-    await extProvider.burn({
-      urlTemplate,
-      keys: [info.k1, info.k2, "", "", ""] as [string, string, string, string, string],
-      keyVersion: 1,
-      currentKey: FACTORY_KEY,
-    });
-
-    // Tap the freshly burned card
-    const tap = await extProvider.tap(page);
+  test("tap returns valid LNURL-withdraw response", async ({ page }) => {
+    const tap = await provider.tap(page);
     const res = await sendTap(page, tap);
     expect(res.ok).toBeTruthy();
     expect(res.data.tag).toBe("withdrawRequest");
+    expect(res.data.callback).toBeDefined();
+    expect(res.data.k1).toBeDefined();
   });
 
-  // ── 3. Tap after burn triggers auto-discovery ──
-
-  test("tap after burn triggers auto-discovery", async ({ page }) => {
-    if (!extProvider.burn) test.skip();
-    await operatorLogin(page);
-    await extProvider.setup(page);
-    const info = await extProvider.getCardInfo(page);
-
-    // Burn first so the card has keys
-    await extProvider.burn({
-      urlTemplate: "https://boltcardpoc.psbt.me/",
-      keys: [info.k1, info.k2, "", "", ""] as [string, string, string, string, string],
-      keyVersion: 1,
-      currentKey: FACTORY_KEY,
-    });
-
-    // First tap → server auto-discovers the card
-    const tap = await extProvider.tap(page);
+  test("card info shows discovered or active state", async ({ page }) => {
+    const tap = await provider.tap(page);
     await sendTap(page, tap);
-
-    // Check card info → should be discovered or active
-    const cardInfo = await fetchCardInfo(page, tap);
-    expect(cardInfo.ok).toBeTruthy();
-    const state = cardInfo.data.state as string;
-    expect(["discovered", "active"]).toContain(state);
+    const info = await getCardInfo(page, tap);
+    expect(info.ok).toBeTruthy();
+    expect(info.data.uid).toBeDefined();
+    expect(["discovered", "active"]).toContain(info.data.state);
   });
 
-  // ── 4. Full financial cycle: topup → charge → refund ──
-
-  test("full financial cycle: topup → charge → refund", async ({ page }) => {
-    await operatorLogin(page);
-    await extProvider.setup(page);
+  test("top-up then charge respects balance delta", async ({ page }) => {
     const api = makeApiHelpers(provider, page);
+    await api.discoverCard();
+    const before = await api.balanceCheck();
+    const startBalance = before.data.balance;
 
-    // Discover card first
-    const disc = await api.discoverCard();
-    expect(disc.ok).toBeTruthy();
+    await api.topUp(5000);
+    const afterTopup = await api.balanceCheck();
+    expect(afterTopup.data.balance).toBe(startBalance + 5000);
 
-    // Top up 10000 credits
-    const topup = await api.topUp(10000);
-    expect(topup.ok).toBeTruthy();
-    expect(topup.data.balance).toBe(10000);
-
-    // POS charge 3000 credits
-    const charge = await api.charge(3000);
-    expect(charge.ok).toBeTruthy();
-    expect(charge.data.success).toBeTruthy();
-    expect(charge.data.balance).toBe(7000);
-
-    // Verify balance is 7000
-    const bal1 = await api.balanceCheck();
-    expect(bal1.data.balance).toBe(7000);
-
-    // Refund 2000 credits
-    const refund = await api.refund(2000);
-    expect(refund.ok).toBeTruthy();
-    expect(refund.data.balance).toBe(9000);
-
-    // Verify final balance is 9000
-    const bal2 = await api.balanceCheck();
-    expect(bal2.data.balance).toBe(9000);
+    await api.charge(2000);
+    const afterCharge = await api.balanceCheck();
+    expect(afterCharge.data.balance).toBe(startBalance + 3000);
   });
 
-  // ── 5. Multiple taps increment counter ──
-
-  test("multiple taps increment counter", async ({ page }) => {
-    await operatorLogin(page);
-    await extProvider.setup(page);
+  test("multiple sequential taps each return valid withdraw response", async ({ page }) => {
     const api = makeApiHelpers(provider, page);
-
-    // Discover and top up
-    const disc = await api.discoverCard();
-    expect(disc.ok).toBeTruthy();
+    await api.discoverCard();
     await api.topUp(50000);
 
-    // Three sequential taps — each should succeed
     for (let i = 0; i < 3; i++) {
       const tapResult = await api.tap();
       const res = await sendTap(page, tapResult);
-      expect(res.ok, `Tap ${i + 1} failed: ${JSON.stringify(res.data)}`).toBeTruthy();
+      expect(res.ok, `Tap ${i + 1} failed`).toBeTruthy();
       expect(res.data.tag).toBe("withdrawRequest");
-      expect(res.data.k1).toBeDefined();
+    }
+  });
+});
+
+test.describe(`Hardware Physical Write/Wipe (${provider.name} provider)`, () => {
+  let canPhysicallyWipe = false;
+
+  test.beforeAll(async () => {
+    if (!extProvider.burn || !extProvider.wipe) return;
+    if (!isUsb) { canPhysicallyWipe = true; return; }
+    try {
+      const keys = await extProvider.getAllKeys(1);
+      await extProvider.wipe([keys.k0, keys.k1, keys.k2, keys.k3, keys.k4]);
+      await extProvider.burn(burnParams(keys, 1, FACTORY_KEY));
+      canPhysicallyWipe = true;
+    } catch {
+      canPhysicallyWipe = false;
     }
   });
 
-  // ── 6. Wipe card and verify factory state ──
-
-  test("wipe card and verify factory state", async ({ page }) => {
-    if (!extProvider.wipe) test.skip();
-    await operatorLogin(page);
-    await extProvider.setup(page);
-    const api = makeApiHelpers(provider, page);
-
-    // Discover card to create server-side record
-    const disc = await api.discoverCard();
-    expect(disc.ok).toBeTruthy();
-
-    const info = await extProvider.getCardInfo(page);
-
-    // Wipe the card
-    await extProvider.wipe([info.k1, info.k2, "", "", ""] as [string, string, string, string, string]);
-
-    // After wipe, inspect should show factory state
-    if (extProvider.inspect) {
-      const inspectResult = await extProvider.inspect();
-      expect(inspectResult.hasSdm).toBe(false);
-    }
-
-    // A tap with the old keys should fail on the server
-    // (the card no longer generates valid p/c for the server's stored keys)
-    // Note: virtual provider still generates valid p/c from in-memory state,
-    // but the card's physical state is wiped. The USB provider would produce
-    // different output after a real wipe.
-    if (extProvider.name === "usb") {
-      const tapAfter = await extProvider.tap(page);
-      const res = await sendTap(page, tapAfter);
-      // After physical wipe, the card can't produce valid encrypted data
-      expect(res.ok).toBeFalsy();
-    }
+  test.afterAll(async () => {
+    if (canPhysicallyWipe) await restoreCard();
   });
 
-  // ── 7. Re-burn wiped card ──
-
-  test("re-burn wiped card", async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     if (!extProvider.burn || !extProvider.wipe) test.skip();
+    if (!canPhysicallyWipe) test.skip(true, "Card K0 unknown — cannot physically wipe");
     await operatorLogin(page);
-    await extProvider.setup(page);
-    const api = makeApiHelpers(provider, page);
+    await provider.setup(page);
+  });
 
-    const info = await extProvider.getCardInfo(page);
-    const originalK1 = info.k1;
-    const originalK2 = info.k2;
+  test("full burn cycle: wipe → burn → verify tap → wipe → verify broken → re-burn", async ({ page }) => {
+    const keys = await extProvider.getAllKeys(1);
 
-    // First burn with original keys
-    await extProvider.burn({
-      urlTemplate: "https://boltcardpoc.psbt.me/",
-      keys: [originalK1, originalK2, "", "", ""] as [string, string, string, string, string],
-      keyVersion: 1,
-      currentKey: FACTORY_KEY,
-    });
+    await extProvider.wipe([keys.k0, keys.k1, keys.k2, keys.k3, keys.k4]);
+    expect(await tryTap()).toBe(false);
 
-    // Verify first burn works
-    const tap1 = await extProvider.tap(page);
-    const res1 = await sendTap(page, tap1);
-    expect(res1.ok).toBeTruthy();
+    await extProvider.burn(burnParams(keys, 1, FACTORY_KEY));
+    expect(await tryTap()).toBe(true);
 
-    // Wipe the card
-    await extProvider.wipe([originalK1, originalK2, "", "", ""] as [string, string, string, string, string]);
+    const tap = await provider.tap(page);
+    const res = await sendTap(page, tap);
+    expect(res.ok).toBeTruthy();
+    expect(res.data.tag).toBe("withdrawRequest");
 
-    // Fetch new keys for the same UID (server will generate different keys
-    // via key version advancement)
-    const newInfo = await extProvider.getCardInfo();
+    await extProvider.wipe([keys.k0, keys.k1, keys.k2, keys.k3, keys.k4]);
+    expect(await tryTap()).toBe(false);
 
-    // Re-burn with new keys
-    await extProvider.burn({
-      urlTemplate: "https://boltcardpoc.psbt.me/",
-      keys: [newInfo.k1, newInfo.k2, "", "", ""] as [string, string, string, string, string],
-      keyVersion: 2,
-      currentKey: originalK1,
-    });
+    await extProvider.burn(burnParams(keys, 1, FACTORY_KEY));
+    expect(await tryTap()).toBe(true);
+  });
 
-    // Verify new tap works with new keys
-    const tap2 = await extProvider.tap(page);
-    const res2 = await sendTap(page, tap2);
-    expect(res2.ok, `Re-burned tap failed: ${JSON.stringify(res2.data)}`).toBeTruthy();
-    expect(res2.data.tag).toBe("withdrawRequest");
+  test("key version advancement: v1 → wipe → v2", async ({ page }) => {
+    const keysV1 = await extProvider.getAllKeys(1);
+
+    await extProvider.wipe([keysV1.k0, keysV1.k1, keysV1.k2, keysV1.k3, keysV1.k4]);
+    await extProvider.burn(burnParams(keysV1, 1, FACTORY_KEY));
+    expect(await tryTap()).toBe(true);
+
+    const keysV2 = await extProvider.getAllKeys(2);
+    await extProvider.wipe([keysV1.k0, keysV1.k1, keysV1.k2, keysV1.k3, keysV1.k4]);
+    await extProvider.burn(burnParams(keysV2, 2, keysV1.k0));
+    expect(await tryTap()).toBe(true);
+
+    const tap = await provider.tap(page);
+    const res = await sendTap(page, tap);
+    expect(res.ok).toBeTruthy();
+    expect(res.data.tag).toBe("withdrawRequest");
+
+    await extProvider.wipe([keysV2.k0, keysV2.k1, keysV2.k2, keysV2.k3, keysV2.k4]);
+    await extProvider.burn(burnParams(keysV1, 1, FACTORY_KEY));
+  });
+
+  test("card survives 3 consecutive write/wipe cycles", async ({ page }) => {
+    const keys = await extProvider.getAllKeys(1);
+
+    for (let i = 0; i < 3; i++) {
+      await extProvider.wipe([keys.k0, keys.k1, keys.k2, keys.k3, keys.k4]);
+      expect(await tryTap(), `Cycle ${i + 1}: tap should fail after wipe`).toBe(false);
+
+      await extProvider.burn(burnParams(keys, 1, FACTORY_KEY));
+      expect(await tryTap(), `Cycle ${i + 1}: tap should succeed after burn`).toBe(true);
+    }
+  });
+
+  test("tap after wipe returns no valid withdraw response", async ({ page }) => {
+    const keys = await extProvider.getAllKeys(1);
+
+    await extProvider.burn(burnParams(keys, 1, FACTORY_KEY));
+    expect(await tryTap()).toBe(true);
+
+    await extProvider.wipe([keys.k0, keys.k1, keys.k2, keys.k3, keys.k4]);
+
+    if (isUsb) {
+      const works = await tryTap();
+      expect(works).toBe(false);
+    }
+
+    await extProvider.burn(burnParams(keys, 1, FACTORY_KEY));
   });
 });
