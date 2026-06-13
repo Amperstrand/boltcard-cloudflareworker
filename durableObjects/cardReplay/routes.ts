@@ -131,6 +131,31 @@ export interface SimpleOkRes {
   ok: boolean;
 }
 
+export interface CardExportDataRow {
+  [key: string]: unknown;
+}
+
+export interface CardExportData {
+  version: number;
+  exported_at: number;
+  replay_state: CardExportDataRow | null;
+  card_state: CardExportDataRow | null;
+  card_config: CardExportDataRow | null;
+  taps: CardExportDataRow[];
+  transactions: CardExportDataRow[];
+}
+
+export interface ImportResult {
+  restored: boolean;
+  tables: {
+    replay_state: number;
+    card_state: number;
+    card_config: number;
+    taps: number;
+    transactions: number;
+  };
+}
+
 /** POST /deliver-keys returns CardStateRow plus the version */
 export type DeliverKeysRes = CardStateRow & { version: number };
 
@@ -163,6 +188,8 @@ export interface DoRouteMap {
   "/reset":             { method: "POST"; req: EmptyReq;         res: ResetRes };
   "/mark-pending":      { method: "POST"; req: SetProvenanceReq; res: MarkPendingResult };
   "/discover":          { method: "POST"; req: DiscoverReq;      res: DiscoverResult };
+  "/export-state":      { method: "GET";  req: void;              res: CardExportData };
+  "/import-state":      { method: "POST"; req: CardExportData;     res: ImportResult };
 }
 
 // ---------------------------------------------------------------------------

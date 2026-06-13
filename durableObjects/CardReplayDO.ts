@@ -5,6 +5,7 @@ import { handleActivate, handleDeliverKeys, handleDiscover, handleGetCardState, 
 import { handleGetConfig, handleSetConfig, handleSetK2 } from "./cardReplay/configHandlers.js";
 import { handleAnalytics, handleCheck, handleClaimTap, handleListTaps, handleRecordRead, handleRecordTap, handleUpdateTapStatus } from "./cardReplay/tapHandlers.js";
 import { handleCredit, handleDebit, handleGetBalance, handleListTransactions, handleReset, handleVoid } from "./cardReplay/balanceHandlers.js";
+import { handleExportState, handleImportState } from "./cardReplay/stateExportHandlers.js";
 
 export class CardReplayDO extends DurableObject<Env> {
   declare state: DurableObjectState;
@@ -120,6 +121,14 @@ export class CardReplayDO extends DurableObject<Env> {
 
       if (request.method === "POST" && url.pathname === "/set-k2") {
         return handleSetK2(this.sql, request);
+      }
+
+      if (request.method === "GET" && url.pathname === "/export-state") {
+        return handleExportState(this.sql);
+      }
+
+      if (request.method === "POST" && url.pathname === "/import-state") {
+        return handleImportState(this.sql, request);
       }
     } catch (err: unknown) {
       if (err instanceof SyntaxError) {
