@@ -184,6 +184,29 @@ describe("handleLnurlw", () => {
     expect((env.CARD_REPLAY as any).__cardStates.get(UID).state).toBe("active");
   });
 
+  it("updates stored K2 to match detected version during keys_delivered activation", async () => {
+    const env = buildEnv("fakewallet");
+    (env.CARD_REPLAY as any).__cardStates.get(UID).state = "keys_delivered";
+    (env.CARD_REPLAY as any).__cardStates.get(UID).latest_issued_version = 5;
+    (env.CARD_REPLAY as any).__cardStates.get(UID).active_version = null;
+
+    const keysV1 = getDeterministicKeys(UID, { ISSUER_KEY } as any, 1);
+    (env.CARD_REPLAY as any).__cardConfigs.get(UID).K2 = keysV1.k2;
+
+    const keysV5 = getDeterministicKeys(UID, { ISSUER_KEY } as any, 5);
+    const req = tapRequest(UID, 2, keysV5.k1, keysV5.k2);
+
+    const res = await handleLnurlw(req, env);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, any>;
+    expect(body.tag).toBe("withdrawRequest");
+    expect((env.CARD_REPLAY as any).__cardStates.get(UID).state).toBe("active");
+
+    const storedK2 = (env.CARD_REPLAY as any).__cardConfigs.get(UID).K2;
+    expect(storedK2).toBe(keysV5.k2);
+    expect(storedK2).not.toBe(keysV1.k2);
+  });
+
   it("rejects keys_delivered card with version mismatch", async () => {
     const env = buildEnv("fakewallet");
     (env.CARD_REPLAY as any).__cardStates.get(UID).state = "keys_delivered";

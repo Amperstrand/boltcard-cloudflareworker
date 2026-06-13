@@ -110,6 +110,8 @@ async function resolveCardVersion(uidHex: string, ctr: string, cHex: string, env
       return { error: errorResponse("Unable to verify card. Version mismatch.", 403) };
     }
     try {
+      const derivedK2 = getDeterministicKeys(uidHex, env, activeVersion).k2;
+      await setCardK2(env, uidHex, derivedK2);
       await activateCard(env, uidHex, activeVersion);
     } catch (error: unknown) {
       logger.error("Card activation failed", { action: "card_activation", uidHex, activeVersion, error: getErrorMessage(error) });
