@@ -64,18 +64,24 @@ export const test = base.extend<NFCFixtures>({
   // Installs NDEFReader mock on the main test page and provides
   // simulateNFCTap that bridges provider -> mock event
   simulateNFCTap: async ({ page, nfcProvider, nfcSetupPage }, use) => {
-    // Install NDEFReader mock BEFORE any navigation on the test page.
-    // This runs before page scripts, so 'NDEFReader' in window is true.
     await page.addInitScript({ content: MOCK_NDEF_READER_SCRIPT });
+    await page.addInitScript({
+      content: `if(navigator.serviceWorker){navigator.serviceWorker.register=function(){return Promise.resolve()};navigator.serviceWorker.getRegistrations=function(){return Promise.resolve([])};}`,
+    });
+    await page.route(/\/sw\.js(\?|$)/, (route) => route.abort());
+    await page.route(/\/sw-register\.js(\?|$)/, (route) => route.abort());
 
     const doTap = async (overrideUrl?: string): Promise<TapResult> => {
-      // Get fresh p/c from the provider (uses setupPage for virtual provider)
       const result = await nfcProvider.tap(nfcSetupPage);
 
-      // Build the NFC URL using the test page's origin so URL parsing works
       const pageUrl = page.url();
-      const origin = new URL(pageUrl).origin;
-      const url = overrideUrl ?? buildNfcUrl(origin + "/", result.p, result.c);
+      const hostname = new URL(pageUrl).hostname;
+      const port = new URL(pageUrl).port;
+      const url = overrideUrl ?? buildNfcUrl(
+        `https://${hostname}${port ? ":" + port : "/"}`,
+        result.p,
+        result.c,
+      );
 
       // Fire the mock onreading event on all active NDEFReader instances
       await page.evaluate((tapUrl: string) => {

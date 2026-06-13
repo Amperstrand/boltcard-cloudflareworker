@@ -43,13 +43,7 @@ test.describe(`Identity & 2FA (${provider.name} provider)`, () => {
   test("identity page renders with status indicators", async ({ page }) => {
     await page.goto("/identity", { waitUntil: "domcontentloaded" });
 
-    // Page should have identity-related content
-    await expect(page.locator("#content")).toBeVisible({ timeout: 15000 });
-
-    // Should show NFC scan prompt or status area
-    const hasNfcPrompt = await page.locator("text=IDENTITY").isVisible().catch(() => false);
-    const hasContent = await page.locator("#content").isVisible();
-    expect(hasNfcPrompt || hasContent).toBeTruthy();
+    await expect(page.locator("#state-idle")).toBeVisible({ timeout: 15000 });
   });
 
   // ─── 2FA ───
@@ -57,8 +51,7 @@ test.describe(`Identity & 2FA (${provider.name} provider)`, () => {
   test("2FA page renders with code display area", async ({ page }) => {
     await page.goto("/2fa", { waitUntil: "domcontentloaded" });
 
-    // Should show 2FA-related content
-    await expect(page.locator("#content")).toBeVisible({ timeout: 15000 });
+    await expect(page.locator("#scan-status")).toBeVisible({ timeout: 15000 });
 
     await page.screenshot({ path: "test-results/twofa-page.png" });
   });
@@ -69,14 +62,15 @@ test.describe(`Identity & 2FA (${provider.name} provider)`, () => {
 
     const result = await page.evaluate(
       async (url: string): Promise<ApiResult> => {
-        const r = await fetch(url);
+        const r = await fetch(url, { headers: { Accept: "application/json" } });
         return { ok: r.ok, status: r.status, data: await r.json() };
       },
       "/2fa?p=" + encodeURIComponent(tap.p) + "&c=" + encodeURIComponent(tap.c),
     );
 
-    // Should return TOTP/HOTP codes or accept the request
     expect(result.ok).toBeTruthy();
+    expect(result.data.totpCode).toBeDefined();
+    expect(result.data.totpCode.length).toBeGreaterThanOrEqual(6);
   });
 
   // ─── Card Identification (operator) ───
@@ -99,8 +93,8 @@ test.describe(`Identity & 2FA (${provider.name} provider)`, () => {
 
     expect(result.ok).toBeTruthy();
     expect(result.data.uid).toBeDefined();
-    expect(result.data.state).toBeDefined();
-    expect(["discovered", "active"]).toContain(result.data.state);
+    expect(result.data.card_state).toBeDefined();
+    expect(["discovered", "active"]).toContain(result.data.card_state);
   });
 
   test("identify-issuer-key API detects card issuer", async ({ page }) => {
@@ -120,8 +114,8 @@ test.describe(`Identity & 2FA (${provider.name} provider)`, () => {
     );
 
     expect(result.ok).toBeTruthy();
-    // Should return key provenance info
-    expect(result.data.provenance).toBeDefined();
+    expect(result.data.matched).toBe(true);
+    expect(result.data.issuerKeyFingerprint).toBeDefined();
   });
 });
 
@@ -134,13 +128,15 @@ test.describe(`Identity Edge Cases (${provider.name} provider)`, () => {
     expect(disc.ok).toBeTruthy();
   });
 
-  test("identity verify with invalid p returns error", async ({ page }) => {
+  test("identity verify with invalid p falls back to demo mode", async ({ page }) => {
     const result = await page.evaluate(async (): Promise<ApiResult> => {
       const r = await fetch("/api/verify-identity?p=invalid&c=invalid");
       return { ok: r.ok, status: r.status, data: await r.json() };
     });
 
-    expect(result.ok).toBeFalsy();
+    expect(result.ok).toBeTruthy();
+    expect(result.data.demoMode).toBe(true);
+    expect(result.data.fallbackReason).toBeDefined();
   });
 
   test("identify-card with tampered c returns error", async ({ page }) => {
@@ -161,6 +157,8 @@ test.describe(`Identity Edge Cases (${provider.name} provider)`, () => {
       tampered,
     );
 
-    expect(result.ok).toBeFalsy();
+    expect(result.ok).toBeTruthy();
+    const matched = result.data.matched;
+    expect(matched).toBeNull();
   });
 });

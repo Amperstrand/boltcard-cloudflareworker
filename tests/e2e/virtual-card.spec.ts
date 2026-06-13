@@ -207,11 +207,13 @@ test.describe("Virtual Card — Operator Flow Integration", () => {
     const uid = await page.locator("#vc-uid").textContent();
 
     // Direct API call to verify card exists
-    const response = await page.request.get(
-      `/api/debug/virtual-card-keys?uid=${uid}`
-    );
-    expect(response.ok()).toBeTruthy();
-    const data = await response.json();
+    const response = await page.evaluate(async (uid: string): Promise<{ ok: boolean; data: { uid: string; k1: string; k2: string } }> => {
+      const r = await fetch(`/api/debug/virtual-card-keys?uid=${uid}`);
+      return { ok: r.ok, data: await r.json() };
+    }, uid!);
+    expect(response.ok).toBeTruthy();
+    const data = response.data;
+    expect(data.uid.toLowerCase()).toBe(uid!.toLowerCase());
     expect(data.uid.toLowerCase()).toBe(uid!.toLowerCase());
     expect(data.k1).toBeDefined();
     expect(data.k2).toBeDefined();

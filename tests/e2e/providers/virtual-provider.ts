@@ -18,6 +18,9 @@ export class VirtualProvider implements CardProvider {
     await page.locator("#panel-virtual").waitFor({ state: "visible" });
     await page.locator("#vc-create-btn").click();
     await expect(page.locator("#vc-uid")).not.toHaveText("--", { timeout: 10000 });
+
+    // Cache card info so getCardInfo() works without a page parameter
+    this.cachedCardInfo = await page.evaluate(() => (window as any)._vcGetKeys());
   }
 
   async tap(page: Page): Promise<TapResult> {

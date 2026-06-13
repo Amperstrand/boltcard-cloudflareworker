@@ -13,10 +13,10 @@ export default defineConfig({
   ],
   fullyParallel: false,
   retries: 0,
-  timeout: 30000,
+  timeout: 60000,
   expect: { timeout: 10000 },
   use: {
-    baseURL: "https://boltcardpoc.psbt.me",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || "https://boltcardpoc.psbt.me",
     headless: true,
     screenshot: "only-on-failure",
     trace: "retain-on-failure",

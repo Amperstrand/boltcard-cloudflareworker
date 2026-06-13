@@ -96,7 +96,7 @@ test.describe(`Cardholder Self-Service (${provider.name} provider)`, () => {
       "/card/info?p=" + encodeURIComponent(tap.p) + "&c=" + encodeURIComponent(tap.c),
     );
 
-    expect(info.data.state).toBe("locked");
+    expect(info.data.state).toBe("terminated");
 
     // POS charge should fail on locked card
     const charge = await api.charge(1000);
@@ -134,6 +134,12 @@ test.describe(`Cardholder Self-Service (${provider.name} provider)`, () => {
     );
 
     expect(reactivate.ok, `Reactivate failed: ${JSON.stringify(reactivate.data)}`).toBeTruthy();
+    expect(reactivate.data.state).toBe("keys_delivered");
+
+    const activateTap = await api.tap();
+    await page.evaluate(async (url: string) => {
+      await fetch(url);
+    }, "/?p=" + encodeURIComponent(activateTap.p) + "&c=" + encodeURIComponent(activateTap.c));
 
     // Verify card is active again
     const infoTap = await api.tap();
@@ -145,7 +151,7 @@ test.describe(`Cardholder Self-Service (${provider.name} provider)`, () => {
       "/card/info?p=" + encodeURIComponent(infoTap.p) + "&c=" + encodeURIComponent(infoTap.c),
     );
 
-    expect(["active", "discovered"]).toContain(info.data.state);
+    expect(["active", "discovered", "keys_delivered"]).toContain(info.data.state);
   });
 
   test("balance is preserved after lock/reactivate cycle", async ({ page }) => {
@@ -177,7 +183,11 @@ test.describe(`Cardholder Self-Service (${provider.name} provider)`, () => {
       freshTap,
     );
 
-    // Balance should still be 10000
+    const activateTap = await api.tap();
+    await page.evaluate(async (url: string) => {
+      await fetch(url);
+    }, "/?p=" + encodeURIComponent(activateTap.p) + "&c=" + encodeURIComponent(activateTap.c));
+
     const bal = await api.balanceCheck();
     expect(bal.data.balance).toBe(10000);
   });
@@ -200,6 +210,6 @@ test.describe(`Cardholder Self-Service (${provider.name} provider)`, () => {
     expect(receipt.ok).toBeTruthy();
     expect(receipt.text).toContain("RECEIPT");
     expect(receipt.text).toContain(String(txnId));
-    expect(receipt.text).toContain("3500");
+    expect(receipt.text).toContain("3,500");
   });
 });

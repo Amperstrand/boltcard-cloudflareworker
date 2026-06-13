@@ -56,6 +56,7 @@ test.describe(`Hardware Card Lifecycle (${provider.name} provider)`, () => {
 
   test("inspect blank card", async ({ page }) => {
     if (!extProvider.inspect) test.skip();
+    await operatorLogin(page);
     await extProvider.setup(page);
 
     const result = await extProvider.inspect();
@@ -67,9 +68,10 @@ test.describe(`Hardware Card Lifecycle (${provider.name} provider)`, () => {
 
   test("burn card and verify", async ({ page }) => {
     if (!extProvider.burn) test.skip();
+    await operatorLogin(page);
     await extProvider.setup(page);
 
-    const info = await extProvider.getCardInfo();
+    const info = await extProvider.getCardInfo(page);
     const urlTemplate = "https://boltcardpoc.psbt.me/";
     await extProvider.burn({
       urlTemplate,
@@ -89,8 +91,9 @@ test.describe(`Hardware Card Lifecycle (${provider.name} provider)`, () => {
 
   test("tap after burn triggers auto-discovery", async ({ page }) => {
     if (!extProvider.burn) test.skip();
+    await operatorLogin(page);
     await extProvider.setup(page);
-    const info = await extProvider.getCardInfo();
+    const info = await extProvider.getCardInfo(page);
 
     // Burn first so the card has keys
     await extProvider.burn({
@@ -181,7 +184,7 @@ test.describe(`Hardware Card Lifecycle (${provider.name} provider)`, () => {
     const disc = await api.discoverCard();
     expect(disc.ok).toBeTruthy();
 
-    const info = await extProvider.getCardInfo();
+    const info = await extProvider.getCardInfo(page);
 
     // Wipe the card
     await extProvider.wipe([info.k1, info.k2, "", "", ""] as [string, string, string, string, string]);
@@ -213,7 +216,7 @@ test.describe(`Hardware Card Lifecycle (${provider.name} provider)`, () => {
     await extProvider.setup(page);
     const api = makeApiHelpers(provider, page);
 
-    const info = await extProvider.getCardInfo();
+    const info = await extProvider.getCardInfo(page);
     const originalK1 = info.k1;
     const originalK2 = info.k2;
 
