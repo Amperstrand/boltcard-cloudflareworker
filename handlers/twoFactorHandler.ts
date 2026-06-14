@@ -17,7 +17,7 @@ export async function handleTwoFactor(request: Request, env: Env): Promise<Respo
     return htmlResponse(renderTwoFactorLandingPage(getRequestOrigin(request)));
   }
 
-  const auth: ResolveResult = await resolveCardIdentity(pHex, cHex, env, { context: "2fa" });
+  const auth: ResolveResult = await resolveCardIdentity(pHex, cHex, env, { context: "2fa", requestUrl: request.url });
   if (!auth.ok) {
     return errorResponse(auth.error, auth.status);
   }

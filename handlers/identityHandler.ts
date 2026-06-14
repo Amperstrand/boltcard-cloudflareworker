@@ -91,8 +91,8 @@ function buildDemoBackstageProfile(reason: string = "Demo fallback"): Record<str
   };
 }
 
-async function resolveIdentityContext({ p, c }: { p: string | null; c: string | null }, env: Env): Promise<Partial<IdentityContext> & { response?: Response }> {
-  const auth: ResolveResult = await resolveCardIdentity(p ?? undefined, c ?? undefined, env, { context: "identity" });
+async function resolveIdentityContext({ p, c }: { p: string | null; c: string | null }, env: Env, requestUrl?: string): Promise<Partial<IdentityContext> & { response?: Response }> {
+  const auth: ResolveResult = await resolveCardIdentity(p ?? undefined, c ?? undefined, env, { context: "identity", requestUrl });
   if (!auth.ok) {
     const resp = (auth.status === 404 || auth.status === 403)
       ? jsonResponse({ verified: false, reason: auth.status === 404 ? "Card not recognized" : "Card authentication failed" })
@@ -132,7 +132,7 @@ export async function handleIdentityVerify(request: Request, env: Env): Promise<
   const context = await resolveIdentityContext({
     p: url.searchParams.get("p"),
     c: url.searchParams.get("c"),
-  }, env);
+  }, env, request.url);
 
   if (context.response) {
     let fallbackReason = "Identity verification fallback";
@@ -184,7 +184,7 @@ export async function handleIdentityProfileUpdate(request: Request, env: Env): P
     });
   }
 
-  const context = await resolveIdentityContext({ p: p || null, c: c || null }, env);
+  const context = await resolveIdentityContext({ p: p || null, c: c || null }, env, request.url);
   if (context.response) {
     return context.response;
   }

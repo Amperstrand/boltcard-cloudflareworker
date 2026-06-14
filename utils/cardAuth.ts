@@ -1,4 +1,4 @@
-import { extractUIDAndCounter, validateCmac } from "../boltCardHelper.js";
+import { extractUIDAndCounter, validateCmac, buildMacWindowData } from "../boltCardHelper.js";
 import type { CardStateRow, CardConfig, Env } from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
 import { hexToBytes } from "../cryptoutils.js";
@@ -12,6 +12,7 @@ interface ResolveCardIdentityOptions {
   requireState?: boolean;
   skipCmac?: boolean;
   context?: string;
+  requestUrl?: string;
 }
 
 interface ResolveSuccess {
@@ -37,7 +38,7 @@ export async function resolveCardIdentity(
   pHex: string | undefined,
   cHex: string | undefined,
   env: Env,
-  { activeVersion: forcedVersion, requireState = false, skipCmac = false, context = "card-auth" }: ResolveCardIdentityOptions = {}
+  { activeVersion: forcedVersion, requireState = false, skipCmac = false, context = "card-auth", requestUrl }: ResolveCardIdentityOptions = {}
 ): Promise<ResolveResult> {
   if (!pHex || !cHex) {
     return { ok: false, status: 400, error: "Missing card parameters (p and c required)" };
@@ -76,11 +77,13 @@ export async function resolveCardIdentity(
     return { ok: false, status: 404, error: "Card configuration not found" };
   }
 
+  const windowData = requestUrl ? buildMacWindowData(requestUrl, cHex) : null;
   const { cmac_validated, cmac_error } = validateCmac(
     hexToBytes(uidHex),
     hexToBytes(ctr),
     cHex,
     hexToBytes(config.K2),
+    windowData,
   );
 
   if (!skipCmac && !cmac_validated) {

@@ -65,7 +65,7 @@ export async function handleLnurlPayCallback(request: Request, env: Env): Promis
       return errorResponse("Invalid amount parameter", 400);
     }
 
-    const auth: ResolveResult = await resolveCardIdentity(pHex, cHex, env, { context: "lnurl-pay" });
+    const auth: ResolveResult = await resolveCardIdentity(pHex, cHex, env, { context: "lnurl-pay", requestUrl: request.url });
     if (!auth.ok) {
       return errorResponse(auth.error, auth.status);
     }

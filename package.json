@@ -9,6 +9,7 @@
     "aes-js": "3.1.2",
     "better-sqlite3": "12.9.0",
     "fast-check": "^4.7.0",
+    "husky": "^9.1.7",
     "miniflare": "4.20260521.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.5",
@@ -37,6 +38,7 @@
     "lint": "npm run lint:innerhtml && npm run lint:static-script && npm run lint:build-info",
     "live:smoke": "node scripts/live-smoke-test.mjs",
     "cf-typegen": "wrangler types",
-    "deploy": "node scripts/sync-js-exports.mjs && npm test && npm run test:do && npm run test:integration && npm run typecheck && npm run lint && node scripts/build_keys.js && wrangler deploy && npm run live:smoke"
+    "deploy": "node scripts/sync-js-exports.mjs && npm test && npm run test:do && npm run test:integration && npm run typecheck && npm run lint && node scripts/build_keys.js && wrangler deploy && npm run live:smoke",
+    "prepare": "husky"
   }
 }

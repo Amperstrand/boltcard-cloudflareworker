@@ -22,9 +22,9 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   [PAYMENT_METHOD.TWOFACTOR]: "2FA Token",
 };
 
-async function resolveCardAuth(data: CardTapBody, env: Env, endpoint: string): Promise<{ error?: Response; uidHex?: string; ctr?: string; cardState?: CardStateRow; config?: CardConfig; activeVersion?: number }> {
+async function resolveCardAuth(data: CardTapBody, env: Env, endpoint: string, requestUrl?: string): Promise<{ error?: Response; uidHex?: string; ctr?: string; cardState?: CardStateRow; config?: CardConfig; activeVersion?: number }> {
   const { p: pHex, c: cHex } = data;
-  const auth: ResolveResult = await resolveCardIdentity(pHex, cHex, env, { requireState: true, context: endpoint });
+  const auth: ResolveResult = await resolveCardIdentity(pHex, cHex, env, { requireState: true, context: endpoint, requestUrl });
   if (!auth.ok) {
     return { error: errorResponse(auth.error, auth.status) };
   }
@@ -148,7 +148,7 @@ export async function handleCardLock(request: Request, env: Env): Promise<Respon
     return errorResponse(result.error, 400);
   }
 
-  const auth = await resolveCardAuth(result.data, env, "/api/card/lock");
+  const auth = await resolveCardAuth(result.data, env, "/api/card/lock", request.url);
   if (auth.error) return auth.error;
 
   const uidHex = auth.uidHex!;
@@ -182,7 +182,7 @@ export async function handleCardReactivate(request: Request, env: Env): Promise<
     return errorResponse(result.error, 400);
   }
 
-  const auth = await resolveCardAuth(result.data, env, "/api/card/reactivate");
+  const auth = await resolveCardAuth(result.data, env, "/api/card/reactivate", request.url);
   if (auth.error) return auth.error;
 
   const uidHex = auth.uidHex!;

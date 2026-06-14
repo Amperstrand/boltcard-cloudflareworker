@@ -54,7 +54,7 @@ export async function handleLnurlpPayment(request: Request, env: Env): Promise<R
         return jsonResponse({ status: "ERROR", reason: "Missing pr or amount parameter" }, 400);
       }
 
-      const auth: ResolveResult = await resolveCardIdentity(p, c, env, { context: "lnurl-callback" });
+      const auth: ResolveResult = await resolveCardIdentity(p, c, env, { context: "lnurl-callback", requestUrl: request.url });
       if (!auth.ok) {
         return jsonResponse({ status: "ERROR", reason: auth.error }, auth.status);
       }

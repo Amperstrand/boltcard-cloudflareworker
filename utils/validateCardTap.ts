@@ -1,4 +1,4 @@
-import { extractUIDAndCounter, validateCmac } from "../boltCardHelper.js";
+import { extractUIDAndCounter, validateCmac, buildMacWindowData } from "../boltCardHelper.js";
 import type { CardStateRow, CardConfig, Env, CounterCheckResult } from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
 import { hexToBytes } from "../cryptoutils.js";
@@ -70,6 +70,7 @@ export async function validateCardTap(request: Request, env: Env, { pHex, cHex, 
       hexToBytes(ctr),
       cHex,
       hexToBytes(keys.k2),
+      buildMacWindowData(request.url, cHex),
     );
     if (cmac_validated) {
       activeVersion = cardState.latest_issued_version;
@@ -111,6 +112,7 @@ export async function validateCardTap(request: Request, env: Env, { pHex, cHex, 
       hexToBytes(ctr),
       cHex,
       hexToBytes(config.K2),
+      buildMacWindowData(request.url, cHex),
     );
     if (!cmac_validated) {
       logger.warn(`${context}: CMAC validation failed`, { uidHex, error: cmac_error });

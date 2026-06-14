@@ -1,4 +1,4 @@
-import { extractUIDAndCounter, validateCmac as verifyCardCmac } from "../boltCardHelper.js";
+import { extractUIDAndCounter, validateCmac as verifyCardCmac, buildMacWindowData } from "../boltCardHelper.js";
 import type { ExtractResult } from "../boltCardHelper.js";
 import type { CardStateRow, CardConfig, Env, CounterCheckResult, KeyCandidate } from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
@@ -131,7 +131,7 @@ async function resolveCardVersion(uidHex: string, ctr: string, cHex: string, env
   return { activeVersion: 1 };
 }
 
-function validateCmac(uidHex: string, ctr: string, cHex: string, config: CardConfig): { error?: Response; cmac_validated?: boolean; proxyRelayMode?: boolean } {
+function validateCmac(uidHex: string, ctr: string, cHex: string, config: CardConfig, requestUrl?: string): { error?: Response; cmac_validated?: boolean; proxyRelayMode?: boolean } {
   const proxyRelayMode = config.payment_method === PAYMENT_METHOD.PROXY && !!config.proxy?.baseurl;
   const hasK2 = typeof config.K2 === "string" && config.K2.length > 0;
 
@@ -139,11 +139,13 @@ function validateCmac(uidHex: string, ctr: string, cHex: string, config: CardCon
   let cmac_error: string | null = null;
 
   if (hasK2) {
+    const windowData = requestUrl ? buildMacWindowData(requestUrl, cHex) : null;
     ({ cmac_validated, cmac_error } = verifyCardCmac(
       hexToBytes(uidHex),
       hexToBytes(ctr),
       cHex,
-      hexToBytes(config.K2!)
+      hexToBytes(config.K2!),
+      windowData,
     ));
   } else if (proxyRelayMode) {
     cmac_error = "CMAC validation deferred to downstream backend";
@@ -270,7 +272,7 @@ export async function handleLnurlw(request: Request, env: Env): Promise<Response
     return errorResponse("UID not found in config", 404);
   }
 
-  const cmacResult = validateCmac(uidHex, ctr, cHex, config);
+  const cmacResult = validateCmac(uidHex, ctr, cHex, config, request.url);
   if (cmacResult.error) return cmacResult.error;
 
   return await routeByPaymentMethod(request, env, uidHex, pHex, cHex, ctr, counterValue, config, cmacResult.cmac_validated!, cmacResult.proxyRelayMode!);

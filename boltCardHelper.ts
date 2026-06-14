@@ -3,6 +3,15 @@ import { getBoltCardK1 } from "./getUidConfig.js";
 import { logger, getErrorMessage } from "./utils/logger.js";
 import type { Env } from "./types/core.js";
 
+export function buildMacWindowData(requestUrl: string, cHex: string): Uint8Array | null {
+  const uriContent = requestUrl.replace(/^https?:\/\//, "");
+  const encoded = cHex.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = uriContent.match(new RegExp(`[?&]c=${encoded}`));
+  if (!match || match.index === undefined) return null;
+  const macValueStart = match.index + match[0].length - cHex.length;
+  return new TextEncoder().encode(uriContent.slice(0, macValueStart));
+}
+
 interface ExtractSuccess {
   success: true;
   uidHex: string;
@@ -44,7 +53,13 @@ export function extractUIDAndCounter(pHex: string, env: Env): ExtractResult {
   };
 }
 
-export function validateCmac(uidBytes: Uint8Array, ctr: Uint8Array, cHex: string | null | undefined, k2Bytes: Uint8Array | undefined): { cmac_validated: boolean; cmac_error: string | null } {
+export function validateCmac(
+  uidBytes: Uint8Array,
+  ctr: Uint8Array,
+  cHex: string | null | undefined,
+  k2Bytes: Uint8Array | undefined,
+  windowData?: Uint8Array | null,
+): { cmac_validated: boolean; cmac_error: string | null } {
   if (!cHex) {
     return { cmac_validated: false, cmac_error: null };
   }
@@ -55,9 +70,17 @@ export function validateCmac(uidBytes: Uint8Array, ctr: Uint8Array, cHex: string
 
   if (k2Bytes) {
     const verification = verifyCmac(uidBytes, ctr, cHex, k2Bytes);
-    if (!verification.cmac_validated) {
-      logger.warn("CMAC validation failed", { error: verification.cmac_error });
+    if (verification.cmac_validated) return verification;
+
+    if (windowData && windowData.length > 0) {
+      const fallback = verifyCmac(uidBytes, ctr, cHex, k2Bytes, windowData);
+      if (fallback.cmac_validated) {
+        logger.info("CMAC validated via MAC window fallback");
+        return fallback;
+      }
     }
+
+    logger.warn("CMAC validation failed", { error: verification.cmac_error });
     return verification;
   }
 
@@ -79,7 +102,13 @@ interface DecodeAndValidateFailure {
 
 type DecodeAndValidateResult = DecodeAndValidateSuccess | DecodeAndValidateFailure;
 
-export function decodeAndValidate(pHex: string, cHex: string | null | undefined, env: Env, k2Bytes?: Uint8Array): DecodeAndValidateResult {
+export function decodeAndValidate(
+  pHex: string,
+  cHex: string | null | undefined,
+  env: Env,
+  k2Bytes?: Uint8Array,
+  requestUrl?: string,
+): DecodeAndValidateResult {
   const decryption = extractUIDAndCounter(pHex, env);
   if (!decryption.success) {
     return { success: false, error: (decryption as ExtractFailure).error };
@@ -90,7 +119,8 @@ export function decodeAndValidate(pHex: string, cHex: string | null | undefined,
   const uidBytes = hexToBytes(uidHex);
   const ctrBytes = hexToBytes(ctr);
 
-  const validation = validateCmac(uidBytes, ctrBytes, cHex, k2Bytes);
+  const windowData = requestUrl && cHex ? buildMacWindowData(requestUrl, cHex) : null;
+  const validation = validateCmac(uidBytes, ctrBytes, cHex, k2Bytes, windowData);
 
   return {
     success: true,

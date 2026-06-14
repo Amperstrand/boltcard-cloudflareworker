@@ -267,13 +267,14 @@ test("computeAesCmac should succeed with 16-byte key (correct length)", () => {
   expect(result.length).toBe(16);
 });
 
-test("computeAesCmac should throw for 17-byte message (exceeds single-block limit)", () => {
+test("computeAesCmac should handle 17-byte message (multi-block, partial last block)", () => {
   const message = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]);
   const key = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
 
-  expect(() => computeAesCmac(message, key)).toThrow(
-    "computeAesCmac: message length 17 exceeds single-block limit (16)"
-  );
+  const result = computeAesCmac(message, key);
+  expect(result.length).toBe(16);
+  const result2 = computeAesCmac(message, key);
+  expect(result2).toEqual(result);
 });
 
 test("computeAesCmac should succeed with 16-byte message (exactly one block)", () => {
@@ -349,14 +350,16 @@ describe("RFC 4493 §4 — AES-CMAC Test Vectors", () => {
     expect(bytesToHex(result)).toBe("070a16b46b4d4144f79bdd9dd04a287c");
   });
 
-  test("RFC 4493 §4 — Example 3: len=40 throws (multi-block not implemented)", () => {
+  test("RFC 4493 §4 — Example 3: len=40 (multi-block, partial last block)", () => {
     const msg = hexToBytes("6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e5130c81c46a35ce411");
-    expect(() => computeAesCmac(msg, rfcKey)).toThrow(/multi-block/i);
+    const result = computeAesCmac(msg, rfcKey);
+    expect(bytesToHex(result)).toBe("dfa66747de9ae63030ca32611497c827");
   });
 
-  test("RFC 4493 §4 — Example 4: len=64 throws (multi-block not implemented)", () => {
+  test("RFC 4493 §4 — Example 4: len=64 (multi-block, all complete blocks)", () => {
     const msg = hexToBytes("6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e5130c81c46a35ce411e5fbc1191a0a52eff69f2445df4f9b17ad2b417be66c3710");
-    expect(() => computeAesCmac(msg, rfcKey)).toThrow(/multi-block/i);
+    const result = computeAesCmac(msg, rfcKey);
+    expect(bytesToHex(result)).toBe("51f0bebf7e3b9d92fc49741779363cfe");
   });
 });
 
