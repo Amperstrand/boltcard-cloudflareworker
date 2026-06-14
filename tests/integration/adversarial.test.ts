@@ -18,6 +18,7 @@ import {
   makeUid,
   virtualTap,
   resetAll,
+  resetSession,
 } from "./helpers.js";
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
@@ -263,5 +264,32 @@ describe("Adversarial integration tests", () => {
     expect(infoResp.status).toBe(200);
     const info = (await infoResp.json()) as { balance: number };
     expect(info.balance).toBe(0);
+  });
+
+  // ── 5. Security: Key Retrieval Auth ─────────────────────────────────────────
+
+  describe("security: key retrieval auth", () => {
+    it("rejects unauthenticated key retrieval with 302 redirect", async () => {
+      resetSession();
+      const resp = await apiFetch(
+        "/api/v1/pull-payments/test/boltcards?onExisting=UpdateVersion",
+        {
+          method: "POST",
+          contentType: "application/json",
+          body: JSON.stringify({ UID: makeUid() }),
+        },
+      );
+      expect(resp.status).toBe(302);
+      // Restore session for subsequent tests
+      await operatorLogin();
+    });
+
+    it("allows authenticated key retrieval with 200", async () => {
+      const uid = makeUid();
+      const result = await provisionCard(uid);
+      expect(result.status).toBe(200);
+      expect(result.k1).toBeTruthy();
+      expect(result.k2).toBeTruthy();
+    });
   });
 });
