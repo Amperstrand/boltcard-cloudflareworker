@@ -72,8 +72,11 @@ async function discoverUnknownCard(uidHex: string, ctr: string, cHex: string, en
 async function checkReplayAndRecordTap(env: Env, uidHex: string, counterValue: number, request: Request, fireAndForget: boolean = true): Promise<{ ok: boolean; response?: Response }> {
   try {
     const replayResult: CounterCheckResult = await checkAndAdvanceCounter(env, uidHex, counterValue);
+    // DESIGN DECISION: Replay enforcement disabled — LNURL Step 1 must be idempotent.
+    // A wallet may query the LNURL-withdraw response multiple times before sending
+    // the callback. Payment protection is at callback level via atomic bolt11 claim in DO.
     if (!replayResult.accepted) {
-      logger.warn("Counter replay detected — continuing because replay enforcement is disabled", { action: "card_tap", uidHex, counterValue, reason: replayResult.reason, lastCounter: replayResult.lastCounter });
+      logger.warn("Counter replay detected — continuing (replay enforcement disabled by design, see AGENTS.md)", { action: "card_tap", uidHex, counterValue, reason: replayResult.reason, lastCounter: replayResult.lastCounter });
     }
   } catch (error: unknown) {
     logger.error("Replay protection check failed", { action: "card_tap", uidHex, counterValue, error: getErrorMessage(error) });

@@ -27,7 +27,8 @@ export async function handleFakeInvoice(request: IRequest, env: Env): Promise<Re
       let fiatAmount: number;
       try {
         fiatAmount = await convertSatsToCurrency(amountMsat / 1000, currency);
-      } catch {
+      } catch (e: unknown) {
+        logger.warn("Fiat conversion failed for payto rail", { error: getErrorMessage(e) });
         fiatAmount = 0;
       }
 
@@ -52,7 +53,8 @@ export async function handleFakeInvoice(request: IRequest, env: Env): Promise<Re
       let fiatAmount: number;
       try {
         fiatAmount = await convertSatsToCurrency(amountMsat / 1000, currency);
-      } catch {
+      } catch (e: unknown) {
+        logger.warn("Fiat conversion failed for upi rail", { error: getErrorMessage(e) });
         fiatAmount = 0;
       }
 
@@ -70,7 +72,8 @@ export async function handleFakeInvoice(request: IRequest, env: Env): Promise<Re
       let fiatAmount: number;
       try {
         fiatAmount = await convertSatsToCurrency(amountMsat / 1000, currency);
-      } catch {
+      } catch (e: unknown) {
+        logger.warn("Fiat conversion failed for spayd rail", { error: getErrorMessage(e) });
         fiatAmount = 0;
       }
 

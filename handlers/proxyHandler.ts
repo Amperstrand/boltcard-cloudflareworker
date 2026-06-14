@@ -31,7 +31,8 @@ export async function handleProxy(request: Request, uidHex: string, pHex: string
   let targetUrl: URL;
   try {
     targetUrl = new URL(baseurl);
-  } catch {
+  } catch (e: unknown) {
+    logger.warn("Proxy baseurl parse failed", { baseurl, error: getErrorMessage(e) });
     return errorResponse("Invalid proxy baseurl", 400);
   }
   if (targetUrl.protocol !== "https:") {

@@ -1,5 +1,6 @@
-import { recordTap, updateTapStatus, listTaps, resetReplayProtection, getCardState, deliverKeys, activateCard, terminateCard, requestWipe, getCardConfig, setCardConfig, debitCard, creditCard, getBalance, listTransactions, recordTapRead, getAnalytics, checkAndAdvanceCounter, markPending, discoverCard } from "../replayProtection.js";
+import { recordTap, updateTapStatus, listTaps, resetReplayProtection, getCardState, deliverKeys, activateCard, terminateCard, requestWipe, getCardConfig, setCardConfig, setCardK2, debitCard, creditCard, getBalance, listTransactions, recordTapRead, getAnalytics, checkAndAdvanceCounter, markPending, discoverCard } from "../replayProtection.js";
 import { makeReplayNamespace } from "./replayNamespace.js";
+import { getDeterministicKeys } from "../keygenerator.js";
 import type { Env } from "../types/core.js";
 
 const UID = "04a39493cc8680";
@@ -176,6 +177,33 @@ describe("replayProtection", () => {
 
     it("throws when CARD_REPLAY missing", async () => {
       await expect(deliverKeys({} as any, UID)).rejects.toThrow("not configured");
+    });
+
+    it("persists K2 for the delivered version", async () => {
+      const env: Env = { UID_CONFIG: {} as unknown as KVNamespace, CARD_REPLAY: makeReplayNamespace({}, {}) as unknown as DurableObjectNamespace };
+      const result = await deliverKeys(env, UID);
+      const config = await getCardConfig(env, UID);
+      expect(config?.K2).toBeTruthy();
+      const keys = getDeterministicKeys(UID, env, result.version);
+      expect(config?.K2).toBe(keys.k2);
+    });
+
+    it("updates K2 after wipe + re-provision (no stale K2)", async () => {
+      const env: Env = { UID_CONFIG: {} as unknown as KVNamespace, CARD_REPLAY: makeReplayNamespace({}, {}) as unknown as DurableObjectNamespace };
+
+      const result1 = await deliverKeys(env, UID);
+      expect(result1.version).toBe(1);
+      const config1 = await getCardConfig(env, UID);
+      const keys1 = getDeterministicKeys(UID, env, 1);
+      expect(config1?.K2).toBe(keys1.k2);
+
+      await requestWipe(env, UID);
+      const result2 = await deliverKeys(env, UID);
+      expect(result2.version).toBe(2);
+      const config2 = await getCardConfig(env, UID);
+      const keys2 = getDeterministicKeys(UID, env, 2);
+      expect(config2?.K2).toBe(keys2.k2);
+      expect(config2?.K2).not.toBe(keys1.k2);
     });
   });
 

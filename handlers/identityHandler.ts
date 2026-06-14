@@ -139,7 +139,8 @@ export async function handleIdentityVerify(request: Request, env: Env): Promise<
     try {
       const payload = await context.response.clone().json() as Record<string, unknown>;
       fallbackReason = String(payload.reason || payload.error || fallbackReason);
-    } catch {
+    } catch (e: unknown) {
+      logger.debug("Identity fallback response body parse failed", { error: getErrorMessage(e) });
       fallbackReason = context.response.statusText || fallbackReason;
     }
     logger.warn("Identity demo fallback granted", { fallbackReason });

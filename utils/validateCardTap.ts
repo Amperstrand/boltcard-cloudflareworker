@@ -75,6 +75,12 @@ export async function validateCardTap(request: Request, env: Env, { pHex, cHex, 
     if (cmac_validated) {
       activeVersion = cardState.latest_issued_version;
       await activateCard(env, uidHex, activeVersion);
+      // Persist K2 so future ACTIVE taps use the correct key without version scanning
+      try {
+        await setCardK2(env, uidHex, keys.k2);
+      } catch (e: unknown) {
+        logger.warn(`${context}: failed to persist K2 after activation`, { uidHex, version: activeVersion, error: getErrorMessage(e) });
+      }
     } else {
       // Fallback: scan versions for physical cards that can't change keys
       // after server-side reactivation (e.g., deliverKeys advanced the version
@@ -127,8 +133,18 @@ export async function validateCardTap(request: Request, env: Env, { pHex, cHex, 
     logger.error(`${context}: replay protection check failed`, { uidHex, counterValue, error: getErrorMessage(error) });
     return { ok: false, status: 503, error: "Replay protection unavailable" };
   }
+  // DESIGN DECISION: Replay enforcement is intentionally disabled for operator
+  // handlers. The same physical NFC tap (same counter) must be usable across
+  // multiple operations — e.g., top-up then POS charge. Operators may also need
+  // to retry a tap if a network error occurred mid-operation.
+  //
+  // Security is NOT weakened because:
+  // - Financial operations (topup/charge/refund) are individually authorized
+  //   via operator session + CSRF token
+  // - Balance updates are atomic per-DO (single-threaded)
+  // - The replay counter is still advanced and logged for audit
   if (!replayResult.accepted) {
-    logger.warn(`${context}: replay detected — continuing because replay enforcement is disabled`, { uidHex, counterValue, reason: replayResult.reason, lastCounter: replayResult.lastCounter });
+    logger.warn(`${context}: replay detected — continuing (replay enforcement disabled by design, see AGENTS.md)`, { uidHex, counterValue, reason: replayResult.reason, lastCounter: replayResult.lastCounter });
   }
 
   recordTapRead(env, uidHex, counterValue, {

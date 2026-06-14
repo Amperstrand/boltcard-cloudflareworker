@@ -195,6 +195,11 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 - CSRF: double-submit cookie (`op_csrf`) on operator pages; `withOperatorAuth` validates on mutating methods; test bypass via `__TEST_OPERATOR_SESSION`
 - `POST /login` privileged actions (top-up, terminate, request-wipe) require operator auth via `requireOperator()`
 - LNURLW replay: Step 1 (`GET /`) atomically advances counter via `checkAndAdvanceCounter`; callback detects replay via `listTaps` bolt11 check
+- **Replay enforcement is intentionally DISABLED** at all 3 sites (`validateCardTap`, `lnurlwHandler`, `lnurlPayHandler`). The counter is still advanced and replays are logged at `warn` level, but requests continue. This is a deliberate design decision:
+  - **Operator handlers** (`validateCardTap`): same tap must work for multiple ops (top-up then POS charge, retry after network error). Security via operator session + CSRF + atomic DO balance.
+  - **LNURL Step 1** (`lnurlwHandler`): wallets query the withdraw response multiple times before sending callback. Must be idempotent.
+  - **LNURL-pay callback** (`lnurlPayHandler`): wallets retry callbacks on network errors. Double-spend prevented by atomic bolt11 claim in DO (`claimTap`), not by counter enforcement.
+  - **To re-enable enforcement**: reject when `!replayResult.accepted` at each site. Payment-level protection (bolt11 claim) should remain regardless.
 - `matchCardIssuer()` from `utils/cardMatching.ts` for shared card issuer detection across loginHandler and identifyIssuerKeyHandler
 - `CARD_STATE` and `PAYMENT_METHOD` enums from `utils/constants.ts` — use instead of raw strings
 - Card state predicates from `utils/constants.ts`: `isCardUsable()`, `isCardTerminated()`, `canAutoActivate()`, `isCardNew()`, `canTransact()` — use instead of raw `=== CARD_STATE.X` comparisons

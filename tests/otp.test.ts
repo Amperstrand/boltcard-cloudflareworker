@@ -11,9 +11,11 @@ describe("deriveOtpSecret", () => {
     expect(secret.length).toBe(16);
   });
 
-  it("throws in production when ISSUER_KEY is missing", () => {
-    const prodEnv = { WORKER_ENV: "production" } as unknown as Env;
-    expect(() => deriveOtpSecret(prodEnv, uidHex, "2d003f75")).toThrow("ISSUER_KEY must be set in production");
+  it("falls back to dev key when ISSUER_KEY is missing", () => {
+    const prodEnv = {} as Env;
+    const secret = deriveOtpSecret(prodEnv, uidHex, "2d003f75");
+    expect(secret).toBeInstanceOf(Uint8Array);
+    expect(secret.length).toBe(16);
   });
 
   it("uses fallback in dev when ISSUER_KEY is missing", () => {

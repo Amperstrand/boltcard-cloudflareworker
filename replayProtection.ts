@@ -4,6 +4,7 @@ import type { Env, CardStateRow, CardConfig, CounterCheckResult, TapRecordResult
 import type { DoPostRoutes, DoGetRoutes, DoRequestBody, DoResponseBody, PathWithOptionalQuery, CardExportData, ImportResult } from "./durableObjects/cardReplay/routes.js";
 import { DEFAULT_TAP_LIMIT, DEFAULT_TXN_LIMIT, CARD_STATE } from "./utils/constants.js";
 import { indexCard } from "./utils/cardIndex.js";
+import { getDeterministicKeys } from "./keygenerator.js";
 
 const EMPTY_ANALYTICS: AnalyticsResult = Object.freeze({
   totalMsat: 0, completedMsat: 0, failedMsat: 0, pendingMsat: 0,
@@ -228,10 +229,19 @@ export async function listTransactions(env: Env, uidHex: string, limit: number =
 }
 
 export async function deliverKeys(env: Env, uidHex: string): Promise<CardStateRow & { version: number }> {
-  return doStateTransition(env, uidHex, "/deliver-keys", {}, "Key delivery failed", {
+  const result = await doStateTransition(env, uidHex, "/deliver-keys", {}, "Key delivery failed", {
     legacyFallback: { ...legacyCardState, state: CARD_STATE.KEYS_DELIVERED, latest_issued_version: 1, version: 1 },
     indexMetadata: { state: CARD_STATE.KEYS_DELIVERED },
   });
+  // Persist K2 for the delivered version so future taps use the correct key
+  // (without this, re-provisioned cards retain stale K2 from the previous version)
+  try {
+    const keys = getDeterministicKeys(uidHex, env, result.version);
+    await setCardK2(env, uidHex, keys.k2);
+  } catch (e: unknown) {
+    logger.warn("Failed to persist K2 after deliverKeys", { uidHex, version: result.version, error: getErrorMessage(e) });
+  }
+  return result;
 }
 
 export async function activateCard(env: Env, uidHex: string, activeVersion: number): Promise<CardStateRow> {

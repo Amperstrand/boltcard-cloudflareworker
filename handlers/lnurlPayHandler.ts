@@ -94,7 +94,10 @@ export async function handleLnurlPayCallback(request: Request, env: Env): Promis
         requestUrl: request.url,
       });
       if (!tapResult.accepted) {
-        logger.warn("LNURL-pay callback replay detected — continuing because replay enforcement is disabled", {
+        // DESIGN DECISION: Replay enforcement disabled — LNURL-pay callbacks may be
+        // retried by the wallet on network errors. Double-spend is prevented by the
+        // atomic bolt11 claim in the DO (claimTap), not by counter enforcement.
+        logger.warn("LNURL-pay callback replay detected — continuing (replay enforcement disabled by design, see AGENTS.md)", {
           uidHex,
           counterValue,
           lastCounter: tapResult.lastCounter,

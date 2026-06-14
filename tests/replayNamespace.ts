@@ -244,7 +244,7 @@ export const makeReplayNamespace = (
           balance: current.balance ?? 0,
         };
         cardStates.set(idStr, newState);
-        return Response.json(newState);
+        return Response.json({ ...newState, version: newState.latest_issued_version });
       }
 
       if (request.method === "POST" && url.pathname === "/activate") {

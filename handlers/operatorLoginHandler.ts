@@ -33,7 +33,8 @@ export async function handleOperatorLogin(request: Request, env: Env): Promise<R
   let body: FormData;
   try {
     body = await request.formData();
-  } catch {
+  } catch (e: unknown) {
+    logger.warn("FormData parse failed on login", { error: getErrorMessage(e) });
     return errorResponse("Invalid form data", 400);
   }
 

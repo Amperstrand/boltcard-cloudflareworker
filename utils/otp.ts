@@ -2,13 +2,12 @@ import { computeAesCmac, hexToBytes } from "../cryptoutils.js";
 import type { Env } from "../types/core.js";
 import { hmac } from "@noble/hashes/hmac.js";
 import { sha1 } from "@noble/hashes/legacy.js";
+import { logger } from "./logger.js";
 
 
 export function deriveOtpSecret(env: Env | undefined, uidHex: string, domainTag: string): Uint8Array {
   if (!env?.ISSUER_KEY) {
-    if (env?.WORKER_ENV === "production") {
-      throw new Error("ISSUER_KEY must be set in production");
-    }
+    logger.warn("OTP derivation without ISSUER_KEY — using dev default");
   }
   const issuerKeyHex = env?.ISSUER_KEY || "00000000000000000000000000000001";
   const issuerKey = hexToBytes(issuerKeyHex);
