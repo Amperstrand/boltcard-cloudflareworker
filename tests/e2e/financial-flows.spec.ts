@@ -265,5 +265,7 @@ test.describe(`Reconciliation Page (${provider.name} provider)`, () => {
 
     const topupTotal = await page.textContent("#topup-total");
     expect(topupTotal).toBeTruthy();
+
+    await page.screenshot({ path: "test-results/reconciliation-page.png" });
   });
 });

@@ -42,7 +42,8 @@ test.describe("NFC Scanning UI", () => {
     // Card info panel should become visible
     await expect(page.locator("#card-info")).toBeVisible({ timeout: 10000 });
 
-    // Card state should show a usable state
+    await page.screenshot({ path: "test-results/card-dashboard-after-tap.png" });
+
     await expect(page.locator("#card-state")).toHaveText(/Active|Discovered/);
 
     // Balance should show the top-up amount (formatted as "5000 credits")
@@ -100,6 +101,8 @@ test.describe("NFC Scanning UI", () => {
     // In local dev, /api/verify-identity always returns verified:true (demo mode).
     // The page should show the verified state.
     await expect(page.locator("#state-verified")).toBeVisible({ timeout: 10000 });
+
+    await page.screenshot({ path: "test-results/identity-verified.png" });
   });
 
   // ─── /2fa — Two-Factor Authentication ─────────────────────────
@@ -130,6 +133,8 @@ test.describe("NFC Scanning UI", () => {
     expect(code).toBeTruthy();
     // TOTP codes are 6 digits
     expect(code!.trim().replace(/\s/g, "").length).toBeGreaterThanOrEqual(6);
+
+    await page.screenshot({ path: "test-results/2fa-otp-codes.png" });
   });
 
   // ─── /login — Key Recovery ────────────────────────────────────
@@ -162,6 +167,8 @@ test.describe("NFC Scanning UI", () => {
 
     const ndef = await page.locator("#pub-ndef, #priv-ndef").filter({ visible: true }).textContent();
     expect(ndef).toBeTruthy();
+
+    await page.screenshot({ path: "test-results/login-key-recovery.png" });
   });
 
   // ─── /login — NDEF display ────────────────────────────────────
