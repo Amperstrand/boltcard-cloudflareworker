@@ -182,6 +182,17 @@ export const MOCK_NDEF_READER_SCRIPT = `
 
   // Install globally — makes 'NDEFReader' in window return true
   window.NDEFReader = MockNDEFReader;
+
+  // Without this, canAutoStartNfc() returns false and pages never auto-start scanning
+  if (navigator.permissions && navigator.permissions.query) {
+    var originalQuery = navigator.permissions.query.bind(navigator.permissions);
+    navigator.permissions.query = function(desc) {
+      if (desc && desc.name === 'nfc') {
+        return Promise.resolve({ state: 'granted', onchange: null });
+      }
+      return originalQuery(desc);
+    };
+  }
 })();
 `;
 
