@@ -153,13 +153,13 @@
     cardTerminated.textContent = formatNum(c.terminated);
 
     var f = data.financials || {};
-    finTopupCount.textContent = formatNum(f.topupCount);
+    finTopupCount.textContent = formatNum(f.topupCount) + ' txns';
     finTopupTotal.textContent = formatNum(f.topupTotal);
-    finChargeCount.textContent = formatNum(f.chargeCount);
+    finChargeCount.textContent = formatNum(f.chargeCount) + ' txns';
     finChargeTotal.textContent = formatNum(f.chargeTotal);
-    finRefundCount.textContent = formatNum(f.refundCount);
+    finRefundCount.textContent = formatNum(f.refundCount) + ' txns';
     finRefundTotal.textContent = formatNum(f.refundTotal);
-    finVoidCount.textContent = formatNum(f.voidCount);
+    finVoidCount.textContent = formatNum(f.voidCount) + ' txns';
     finVoidTotal.textContent = formatNum(f.voidTotal);
     finOutstanding.textContent = formatNum(f.outstandingBalance);
     finNetCash.textContent = formatNum(f.netCashIn);

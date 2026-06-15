@@ -82,19 +82,19 @@ export function renderHealthPage(): string {
           <div class="bg-gray-800 border border-gray-700 rounded-xl p-4 space-y-2">
             <div class="flex justify-between items-center">
               <span class="text-sm text-gray-400">Top-ups</span>
-              <span><span id="fin-topup-count" class="text-sm text-gray-500">0</span><span class="text-gray-600 mx-1">\u00d7</span><span id="fin-topup-total" class="text-base font-bold text-emerald-400">0</span></span>
+              <span class="text-right"><span id="fin-topup-total" class="text-base font-bold text-emerald-400">0</span> <span id="fin-topup-count" class="text-xs text-gray-500">0 txns</span></span>
             </div>
             <div class="flex justify-between items-center">
               <span class="text-sm text-gray-400">Charges</span>
-              <span><span id="fin-charge-count" class="text-sm text-gray-500">0</span><span class="text-gray-600 mx-1">\u00d7</span><span id="fin-charge-total" class="text-base font-bold text-blue-400">0</span></span>
+              <span class="text-right"><span id="fin-charge-total" class="text-base font-bold text-blue-400">0</span> <span id="fin-charge-count" class="text-xs text-gray-500">0 txns</span></span>
             </div>
             <div class="flex justify-between items-center">
               <span class="text-sm text-gray-400">Refunds</span>
-              <span><span id="fin-refund-count" class="text-sm text-gray-500">0</span><span class="text-gray-600 mx-1">\u00d7</span><span id="fin-refund-total" class="text-base font-bold text-amber-400">0</span></span>
+              <span class="text-right"><span id="fin-refund-total" class="text-base font-bold text-amber-400">0</span> <span id="fin-refund-count" class="text-xs text-gray-500">0 txns</span></span>
             </div>
             <div class="flex justify-between items-center">
               <span class="text-sm text-gray-400">Voids</span>
-              <span><span id="fin-void-count" class="text-sm text-gray-500">0</span><span class="text-gray-600 mx-1">\u00d7</span><span id="fin-void-total" class="text-base font-bold text-red-400">0</span></span>
+              <span class="text-right"><span id="fin-void-total" class="text-base font-bold text-red-400">0</span> <span id="fin-void-count" class="text-xs text-gray-500">0 txns</span></span>
             </div>
             <div class="flex justify-between items-center pt-2 border-t border-gray-700">
               <span class="text-sm text-gray-400">Outstanding Balance</span>
