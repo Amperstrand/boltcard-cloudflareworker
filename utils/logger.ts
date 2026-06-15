@@ -1,70 +1,67 @@
 type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'trace';
 
+const LEVEL_PRIORITY: Record<LogLevel, number> = {
+  error: 0,
+  warn: 1,
+  info: 2,
+  debug: 3,
+  trace: 4,
+};
+
 class Logger {
-  levels: Record<LogLevel, number>;
-  currentLevel: number;
+  private currentLevel: number;
   private requestId: string = '';
 
   constructor(level: LogLevel = 'info') {
-    this.levels = {
-      error: 0,
-      warn: 1,
-      info: 2,
-      debug: 3,
-      trace: 4
-    };
-    this.currentLevel = this.levels[level] || this.levels.info;
+    this.currentLevel = LEVEL_PRIORITY[level] ?? LEVEL_PRIORITY.info;
   }
 
   setLevel(level: LogLevel) {
-    if (level in this.levels) {
-      this.currentLevel = this.levels[level];
-    }
+    this.currentLevel = LEVEL_PRIORITY[level] ?? this.currentLevel;
   }
 
   setRequestId(id: string) {
     this.requestId = id;
   }
 
-  shouldLog(level: LogLevel) {
-    return this.levels[level] <= this.currentLevel;
+  private shouldLog(level: LogLevel) {
+    return LEVEL_PRIORITY[level] <= this.currentLevel;
   }
 
-  formatMessage(level: LogLevel, message: string, context: Record<string, unknown> = {}) {
-    const timestamp = new Date().toISOString();
-    const merged = this.requestId ? { requestId: this.requestId, ...context } : context;
-    const contextStr = Object.keys(merged).length > 0 ? ` | ${JSON.stringify(merged)}` : '';
-    return `[${timestamp}] [${level.toUpperCase()}] ${message}${contextStr}`;
+  private emit(level: LogLevel, message: string, context: Record<string, unknown>) {
+    const payload: Record<string, unknown> = {
+      level,
+      message,
+      timestamp: new Date().toISOString(),
+    };
+    if (this.requestId) payload.requestId = this.requestId;
+    for (const [key, value] of Object.entries(context)) {
+      if (value !== undefined) payload[key] = value;
+    }
+    const serialized = JSON.stringify(payload);
+    if (level === 'error') console.error(serialized);
+    else if (level === 'warn') console.warn(serialized);
+    else console.log(serialized);
   }
 
   error(message: string, context: Record<string, unknown> = {}) {
-    if (this.shouldLog('error')) {
-      console.error(this.formatMessage('error', message, context));
-    }
+    if (this.shouldLog('error')) this.emit('error', message, context);
   }
 
   warn(message: string, context: Record<string, unknown> = {}) {
-    if (this.shouldLog('warn')) {
-      console.warn(this.formatMessage('warn', message, context));
-    }
+    if (this.shouldLog('warn')) this.emit('warn', message, context);
   }
 
   info(message: string, context: Record<string, unknown> = {}) {
-    if (this.shouldLog('info')) {
-      console.log(this.formatMessage('info', message, context));
-    }
+    if (this.shouldLog('info')) this.emit('info', message, context);
   }
 
   debug(message: string, context: Record<string, unknown> = {}) {
-    if (this.shouldLog('debug')) {
-      console.log(this.formatMessage('debug', message, context));
-    }
+    if (this.shouldLog('debug')) this.emit('debug', message, context);
   }
 
   trace(message: string, context: Record<string, unknown> = {}) {
-    if (this.shouldLog('trace')) {
-      console.log(this.formatMessage('trace', message, context));
-    }
+    if (this.shouldLog('trace')) this.emit('trace', message, context);
   }
 }
 

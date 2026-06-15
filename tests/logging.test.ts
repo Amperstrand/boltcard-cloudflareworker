@@ -256,7 +256,7 @@ describe("Logging and Observability", () => {
 
         const debugLog = logs.find((l: string) => l.includes("test debug message"));
         expect(debugLog).toBeDefined();
-        expect(debugLog).toContain("DEBUG");
+        expect(debugLog).toContain('"level":"debug"');
       } finally {
         console.log = originalLog;
       }
@@ -289,7 +289,7 @@ describe("Logging and Observability", () => {
 
         const traceLog = logs.find((l: string) => l.includes("test trace message"));
         expect(traceLog).toBeDefined();
-        expect(traceLog).toContain("TRACE");
+        expect(traceLog).toContain('"level":"trace"');
       } finally {
         console.log = originalLog;
       }
@@ -336,7 +336,7 @@ describe("Logging and Observability", () => {
         logger.info("no context");
         const logEntry = logs.find((l: string) => l.includes("no context"));
         expect(logEntry).toBeDefined();
-        expect(logEntry).not.toContain("{");
+        expect(logEntry).toContain('"message":"no context"');
       } finally {
         console.log = originalLog;
       }

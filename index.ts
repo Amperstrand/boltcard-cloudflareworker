@@ -42,6 +42,7 @@ import { handleCardAuditPage, handleCardAuditData, handleIndexRepair } from "./h
 import { handleCardExport, handleCardRestore } from "./handlers/cardBackupHandler.js";
 import { handleCardBatchAction } from "./handlers/cardBatchHandler.js";
 import { handleReconciliationPage, handleReconciliationData } from "./handlers/reconciliationHandler.js";
+import { handleHealthPage, handleHealthData } from "./handlers/healthHandler.js";
 import { handleVoidPage, handleVoidApply, handleVoidTransactions } from "./handlers/voidHandler.js";
 import { handleDecodePage, handleDecodeApi } from "./handlers/bolt11DecodeHandler.js";
 import { handleClientError } from "./handlers/clientErrorHandler.js";
@@ -125,6 +126,8 @@ router.get("/operator/refund", withOperatorAuth((request, env) => handleRefundPa
 router.post("/operator/refund/apply", withOperatorAuth((request, env, session) => handleRefundApply(request, env, session)));
 router.get("/operator/reconciliation", withOperatorAuth((request, env) => handleReconciliationPage(request, env)));
 router.get("/operator/reconciliation/data", withOperatorAuth((request, env) => handleReconciliationData(request, env)));
+router.get("/operator/health", withOperatorAuth((request, env) => handleHealthPage(request, env)));
+router.get("/operator/health/data", withOperatorAuth((request, env) => handleHealthData(request, env)));
 router.get("/operator/void", withOperatorAuth((request, env) => handleVoidPage(request, env)));
 router.post("/operator/void/apply", withOperatorAuth((request, env, session) => handleVoidApply(request, env, session)));
 router.get("/operator/void/transactions", withOperatorAuth((request, env) => handleVoidTransactions(request, env)));
@@ -238,18 +241,27 @@ router.get("/static/icons/bolt.svg", () => {
 });
 router.all("*", (request) => {
   const url = new URL(request.url);
-  const pathname = url.pathname;
+  const pathname = url.pathname.toLowerCase();
   const noisePaths = ["/favicon.ico", "/robots.txt", "/.well-known/", "/apple-touch-icon"];
   if (noisePaths.some(p => pathname.startsWith(p))) {
-    logger.debug("Request for well-known static path", { pathname, method: request.method });
     return new Response(null, { status: 204 });
   }
-  // API and static file paths should still 404
+
+  const SCAN_PATTERNS = [
+    "/.env", "/.git", "/.aws", "/.ssh", "/backup/", "/config/", "/db.sql",
+    "/wp-", "/xmlrpc", "/vendor/", "/composer.", "/docker-compose",
+    "/serviceaccount", "/terraform", "/sendgrid", "/idea/",
+    "/azure-pipelines", "/settings.ini", "/settings.php", "/secrets",
+    "/application.yml", "/infra/", "/devops/", "/v1/keys",
+  ];
+  if (SCAN_PATTERNS.some(p => pathname.includes(p))) {
+    return new Response(null, { status: 404 });
+  }
+
   if (pathname.startsWith("/api/") || pathname.startsWith("/static/") || pathname.startsWith("/boltcards/")) {
     logger.warn("API route not found", { pathname, method: request.method });
     return errorResponse("Not found", 404);
   }
-  // Page-like paths redirect to /
   logger.info("Unknown page redirect", { pathname, method: request.method });
   return redirect(url.origin + "/", 302);
 });

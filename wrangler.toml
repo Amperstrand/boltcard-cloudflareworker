@@ -32,3 +32,7 @@ new_sqlite_classes = ["CardReplayDO"]
 
 [observability]
 enabled = true
+head_sampling_rate = 1
+
+[observability.logs]
+invocation_logs = true
