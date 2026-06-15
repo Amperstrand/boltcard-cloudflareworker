@@ -18,6 +18,8 @@
   var voidTotal = document.getElementById('void-total');
   var outstandingBalance = document.getElementById('outstanding-balance');
   var netCashIn = document.getElementById('net-cash-in');
+  var varianceEl = document.getElementById('variance');
+  var asOfEl = document.getElementById('as-of');
   var shiftTbody = document.getElementById('shift-tbody');
   var noShifts = document.getElementById('no-shifts');
 
@@ -63,6 +65,13 @@
     voidTotal.textContent = formatNum(t.voidTotal);
     outstandingBalance.textContent = formatNum(t.outstandingBalance);
     netCashIn.textContent = formatNum(t.netCashIn);
+
+    var diff = t.netCashIn - t.outstandingBalance;
+    varianceEl.textContent = (diff >= 0 ? '+' : '') + formatNum(diff);
+    varianceEl.className = 'text-lg font-bold ' + (diff === 0 ? 'text-emerald-400' : diff > 0 ? 'text-amber-400' : 'text-red-400');
+
+    var now = new Date();
+    asOfEl.textContent = 'As of ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     shiftTbody.replaceChildren();
     var summaries = data.summaries || [];

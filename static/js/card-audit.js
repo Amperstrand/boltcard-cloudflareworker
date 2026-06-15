@@ -148,7 +148,7 @@ function _renderCards() {
     var link = document.createElement('a');
     link.href = '/experimental/analytics?uid=' + encodeURIComponent(card.uid);
     link.className = 'text-emerald-500 hover:text-emerald-400 text-xs';
-    link.textContent = 'analytics';
+    link.textContent = 'View';
     linkCell.appendChild(link);
     row.appendChild(linkCell);
 
@@ -244,8 +244,8 @@ document.addEventListener('click', function(e) {
   switch (action) {
     case 'filter':
       currentFilter = btn.getAttribute('data-filter') || '';
-      document.querySelectorAll('[data-action="filter"]').forEach(function(b) { b.classList.remove('ring-2', 'ring-emerald-500'); });
-      btn.classList.add('ring-2', 'ring-emerald-500');
+      document.querySelectorAll('[data-action="filter"]').forEach(function(b) { b.classList.remove('ring-2', 'ring-emerald-500', 'bg-gray-600'); });
+      btn.classList.add('ring-2', 'ring-emerald-500', 'bg-gray-600');
       _loadCards(false);
       break;
     case 'refresh':

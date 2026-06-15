@@ -56,7 +56,13 @@ export function renderReconciliationPage({ host, currencyLabel }: { host: string
             <span class="text-sm text-gray-400">Net Cash In</span>
             <span id="net-cash-in" class="text-lg font-bold text-emerald-400">0</span>
           </div>
+          <div class="flex justify-between items-center pt-2 border-t border-gray-700">
+            <span class="text-sm text-gray-400">Variance</span>
+            <span id="variance" class="text-lg font-bold text-gray-400">0</span>
+          </div>
         </div>
+
+        <p id="as-of" class="text-xs text-gray-600 text-center -mt-3"></p>
 
         <div>
           <p class="text-sm font-semibold text-gray-400 mb-2">Per-Shift Breakdown</p>

@@ -3101,7 +3101,7 @@ function _renderCards() {
     var link = document.createElement('a');
     link.href = '/experimental/analytics?uid=' + encodeURIComponent(card.uid);
     link.className = 'text-emerald-500 hover:text-emerald-400 text-xs';
-    link.textContent = 'analytics';
+    link.textContent = 'View';
     linkCell.appendChild(link);
     row.appendChild(linkCell);
 
@@ -3197,8 +3197,8 @@ document.addEventListener('click', function(e) {
   switch (action) {
     case 'filter':
       currentFilter = btn.getAttribute('data-filter') || '';
-      document.querySelectorAll('[data-action="filter"]').forEach(function(b) { b.classList.remove('ring-2', 'ring-emerald-500'); });
-      btn.classList.add('ring-2', 'ring-emerald-500');
+      document.querySelectorAll('[data-action="filter"]').forEach(function(b) { b.classList.remove('ring-2', 'ring-emerald-500', 'bg-gray-600'); });
+      btn.classList.add('ring-2', 'ring-emerald-500', 'bg-gray-600');
       _loadCards(false);
       break;
     case 'refresh':
@@ -3309,7 +3309,7 @@ function _handleRepair(btn) {
  }
 
 _loadCards(false);`;
-export const CARD_AUDIT_JS_HASH = "7e3c240e9247";
+export const CARD_AUDIT_JS_HASH = "7e6574c0d253";
 
 export const MENU_EDITOR_JS = `// menu-editor.js — classic script (no import/export)
 
@@ -4962,6 +4962,8 @@ export const RECONCILIATION_JS = `// reconciliation.js — classic script (no im
   var voidTotal = document.getElementById('void-total');
   var outstandingBalance = document.getElementById('outstanding-balance');
   var netCashIn = document.getElementById('net-cash-in');
+  var varianceEl = document.getElementById('variance');
+  var asOfEl = document.getElementById('as-of');
   var shiftTbody = document.getElementById('shift-tbody');
   var noShifts = document.getElementById('no-shifts');
 
@@ -5007,6 +5009,13 @@ export const RECONCILIATION_JS = `// reconciliation.js — classic script (no im
     voidTotal.textContent = formatNum(t.voidTotal);
     outstandingBalance.textContent = formatNum(t.outstandingBalance);
     netCashIn.textContent = formatNum(t.netCashIn);
+
+    var diff = t.netCashIn - t.outstandingBalance;
+    varianceEl.textContent = (diff >= 0 ? '+' : '') + formatNum(diff);
+    varianceEl.className = 'text-lg font-bold ' + (diff === 0 ? 'text-emerald-400' : diff > 0 ? 'text-amber-400' : 'text-red-400');
+
+    var now = new Date();
+    asOfEl.textContent = 'As of ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     shiftTbody.replaceChildren();
     var summaries = data.summaries || [];
@@ -5075,7 +5084,7 @@ export const RECONCILIATION_JS = `// reconciliation.js — classic script (no im
 
   loadData();
 })();`;
-export const RECONCILIATION_JS_HASH = "a0a95a055c4e";
+export const RECONCILIATION_JS_HASH = "b4bc8ffa6960";
 
 export const VOID_JS = `// void.js — classic script (no import/export)
 // Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
@@ -5729,7 +5738,7 @@ export const VIRTUAL_CARD_JS = `// virtual-card.js — classic script (no import
     createBtn.textContent = 'Creating\\u2026';
     setStatus('Fetching keys for UID ' + uidHex.toUpperCase() + '\\u2026', null);
 
-    fetch('/api/debug/virtual-card-keys?uid=' + uidHex)
+    fetch('/api/vc/keys?uid=' + uidHex)
       .then(function(r) {
         if (!r.ok) throw new Error('Server returned ' + r.status);
         return r.json();
@@ -5971,7 +5980,7 @@ export const VIRTUAL_CARD_JS = `// virtual-card.js — classic script (no import
       : null;
   };
 })();`;
-export const VIRTUAL_CARD_JS_HASH = "bf8ea35dd0c0";
+export const VIRTUAL_CARD_JS_HASH = "1dd3bd4da34b";
 
 export const SW_REGISTER_JS = `// sw-register.js — classic script (no import/export)
 // Registers the PWA service worker for offline support
