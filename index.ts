@@ -110,6 +110,7 @@ router.post("/operator/login", (request, env) => handleOperatorLogin(request, en
 router.post("/api/identify-card", withOperatorAuth((request, env) => handleIdentifyCard(request, env)));
   router.post("/api/identify-issuer-key", withOperatorAuth((request, env) => handleIdentifyIssuerKey(request, env)));
   router.get("/api/debug/virtual-card-keys", withOperatorAuth((request, env) => handleVirtualCardKeys(request, env)));
+  router.get("/api/vc/keys", withOperatorAuth((request, env) => handleVirtualCardKeys(request, env)));
 router.post("/operator/logout", (request, env) => handleOperatorLogout(request, env));
 router.get("/operator", withOperatorAuth(() => redirect("/operator/pos")));
 router.get("/operator/cards", withOperatorAuth((request, env) => handleCardAuditPage(request, env)));

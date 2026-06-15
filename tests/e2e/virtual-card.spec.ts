@@ -208,7 +208,7 @@ test.describe("Virtual Card — Operator Flow Integration", () => {
 
     // Direct API call to verify card exists
     const response = await page.evaluate(async (uid: string): Promise<{ ok: boolean; data: { uid: string; k1: string; k2: string } }> => {
-      const r = await fetch(`/api/debug/virtual-card-keys?uid=${uid}`);
+      const r = await fetch(`/api/vc/keys?uid=${uid}`);
       return { ok: r.ok, data: await r.json() };
     }, uid!);
     expect(response.ok).toBeTruthy();

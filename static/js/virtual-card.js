@@ -210,7 +210,7 @@
     createBtn.textContent = 'Creating\u2026';
     setStatus('Fetching keys for UID ' + uidHex.toUpperCase() + '\u2026', null);
 
-    fetch('/api/debug/virtual-card-keys?uid=' + uidHex)
+    fetch('/api/vc/keys?uid=' + uidHex)
       .then(function(r) {
         if (!r.ok) throw new Error('Server returned ' + r.status);
         return r.json();
