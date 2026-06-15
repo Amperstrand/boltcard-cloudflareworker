@@ -6065,9 +6065,10 @@ export const HEALTH_JS = `// health.js — classic script (no import/export)
     return h + ':' + m + ':' + s;
   }
 
-  function relativeTime(epochSec) {
-    var now = Math.floor(Date.now() / 1000);
-    var diff = now - epochSec;
+  function relativeTime(epochMs) {
+    var now = Date.now();
+    var diff = Math.floor((now - epochMs) / 1000);
+    if (diff < 0) return 'just now';
     if (diff < 60) return diff + 's ago';
     if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
     if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
@@ -6233,4 +6234,4 @@ export const HEALTH_JS = `// health.js — classic script (no import/export)
   loadData();
   startAutoRefresh();
 })();`;
-export const HEALTH_JS_HASH = "bfabe48dbe8d";
+export const HEALTH_JS_HASH = "df6c09d282a9";
