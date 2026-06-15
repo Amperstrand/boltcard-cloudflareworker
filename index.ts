@@ -43,6 +43,7 @@ import { handleCardExport, handleCardRestore } from "./handlers/cardBackupHandle
 import { handleCardBatchAction } from "./handlers/cardBatchHandler.js";
 import { handleReconciliationPage, handleReconciliationData } from "./handlers/reconciliationHandler.js";
 import { handleHealthPage, handleHealthData } from "./handlers/healthHandler.js";
+import { handleAuditExport, handleShiftReportPage } from "./handlers/reportsHandler.js";
 import { handleVoidPage, handleVoidApply, handleVoidTransactions } from "./handlers/voidHandler.js";
 import { handleDecodePage, handleDecodeApi } from "./handlers/bolt11DecodeHandler.js";
 import { handleClientError } from "./handlers/clientErrorHandler.js";
@@ -128,6 +129,8 @@ router.get("/operator/reconciliation", withOperatorAuth((request, env) => handle
 router.get("/operator/reconciliation/data", withOperatorAuth((request, env) => handleReconciliationData(request, env)));
 router.get("/operator/health", withOperatorAuth((request, env) => handleHealthPage(request, env)));
 router.get("/operator/health/data", withOperatorAuth((request, env) => handleHealthData(request, env)));
+router.get("/operator/audit/export", withOperatorAuth((request, env) => handleAuditExport(request, env)));
+router.get("/operator/shift/report", withOperatorAuth((request, env) => handleShiftReportPage(request, env)));
 router.get("/operator/void", withOperatorAuth((request, env) => handleVoidPage(request, env)));
 router.post("/operator/void/apply", withOperatorAuth((request, env, session) => handleVoidApply(request, env, session)));
 router.get("/operator/void/transactions", withOperatorAuth((request, env) => handleVoidTransactions(request, env)));
