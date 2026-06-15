@@ -13,6 +13,7 @@ import { CARD_STATE, KEY_PROVENANCE, PAYMENT_METHOD } from "../utils/constants.j
 import { getCurrencyLabel, getCurrencyDecimals } from "../utils/currency.js";
 import { getUnifiedHistory, type HistoryEntry } from "../utils/history.js";
 import { resolveCardIdentity, type ResolveResult } from "../utils/cardAuth.js";
+import { detectCardVersion } from "../utils/versionDetection.js";
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   [PAYMENT_METHOD.FAKEWALLET]: "Internal Wallet",
@@ -78,7 +79,12 @@ export async function handleCardInfo(request: Request, env: Env): Promise<Respon
   }
 
   if (!cmac_validated) {
-    return errorResponse("CMAC validation failed", 403);
+    // active_version is NULL for keys_delivered → resolveActiveVersion returns N+1,
+    // but the physical card has version N keys. Scan to find the real version.
+    const detectedVersion = await detectCardVersion(uidHex, auth.ctr, cHex, env, resolveLatestVersion(state));
+    if (detectedVersion === null) {
+      return errorResponse("CMAC validation failed", 403);
+    }
   }
 
   const balance: number = (await safeGetBalance(env, uidHex)).balance;
