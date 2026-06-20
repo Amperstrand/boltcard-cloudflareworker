@@ -47,6 +47,9 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }: LoginPageO
             <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-1"></span>
             <span class="text-emerald-400">NFC active</span>
           </p>
+          <button id="nfc-start-btn" type="button" class="hidden mt-4 w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl text-sm transition-colors">
+            Start NFC Scan
+          </button>
         </div>
       </div>
 

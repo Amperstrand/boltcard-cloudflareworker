@@ -512,6 +512,14 @@ document.getElementById('btn-scan-again').addEventListener('click', function() {
   cardScanner.restart();
 });
 
+var nfcStartBtn = document.getElementById('nfc-start-btn');
+if (nfcStartBtn) {
+  nfcStartBtn.addEventListener('click', function() {
+    nfcStartBtn.classList.add('hidden');
+    cardScanner.scan();
+  });
+}
+
 document.getElementById('btn-load-url').addEventListener('click', function() {
   var input = document.getElementById('url-input').value.trim();
   var urlError = document.getElementById('url-error');
@@ -682,10 +690,14 @@ async function submitReactivate(p, c) {
     return;
   }
 
-  // Start NFC scan
-  if (browserSupportsNfc()) {
-    cardScanner.scan();
-  } else {
-    document.getElementById('nfc-unsupported').classList.remove('hidden');
-  }
+  getNfcPermissionState().then(function(state) {
+    if (state === 'granted') {
+      cardScanner.scan();
+    } else if (state === 'prompt') {
+      var btn = document.getElementById('nfc-start-btn');
+      if (btn) btn.classList.remove('hidden');
+    } else {
+      document.getElementById('nfc-unsupported').classList.remove('hidden');
+    }
+  });
 })();

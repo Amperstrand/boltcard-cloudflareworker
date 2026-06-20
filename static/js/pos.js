@@ -300,7 +300,11 @@
       var hasAmount = (posMode === 'menu' && getCartTotal() > 0) || (posMode === 'free' && !amountIsZero(amountInput));
       clearTimeout(autoChargeTimer);
       if (hasAmount && browserSupportsNfc()) {
-        autoChargeTimer = setTimeout(function() { if (appState === 'idle') startChargeFlow(); }, 1000);
+        canAutoStartNfc().then(function(canAuto) {
+          if (canAuto && appState === 'idle') {
+            autoChargeTimer = setTimeout(function() { if (appState === 'idle') startChargeFlow(); }, 1000);
+          }
+        });
       }
     }
   }

@@ -17,6 +17,8 @@ const EXPORTS_FILE = join(JS_DIR, "exports.ts");
 const FILE_ORDER = [
   "nfc.js",
   "nfc-gate.js",
+  "virtual-card-sim.js",
+  "virtual-card-page.js",
   "client-error.js",
   "helpers.js",
   "card-info.js",

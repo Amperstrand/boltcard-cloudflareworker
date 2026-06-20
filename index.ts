@@ -38,6 +38,7 @@ import { handleMenuEditorPage, handleMenuGet, handleMenuPut } from "./handlers/m
 import { handleIdentifyCard } from "./handlers/identifyCardHandler.js";
 import { handleIdentifyIssuerKey } from "./handlers/identifyIssuerKeyHandler.js";
 import { handleVirtualCardKeys } from "./handlers/virtualCardHandler.js";
+import { handleVirtualCardPage } from "./handlers/virtualCardPageHandler.js";
 import { handleCardAuditPage, handleCardAuditData, handleIndexRepair } from "./handlers/cardAuditHandler.js";
 import { handleCardExport, handleCardRestore } from "./handlers/cardBackupHandler.js";
 import { handleCardBatchAction } from "./handlers/cardBatchHandler.js";
@@ -112,7 +113,7 @@ router.post("/operator/login", (request, env) => handleOperatorLogin(request, en
 router.post("/api/identify-card", withOperatorAuth((request, env) => handleIdentifyCard(request, env)));
   router.post("/api/identify-issuer-key", withOperatorAuth((request, env) => handleIdentifyIssuerKey(request, env)));
   router.get("/api/debug/virtual-card-keys", withOperatorAuth((request, env) => handleVirtualCardKeys(request, env)));
-  router.get("/api/vc/keys", withOperatorAuth((request, env) => handleVirtualCardKeys(request, env)));
+  router.get("/api/vc/keys", (request, env) => handleVirtualCardKeys(request, env));
 router.post("/operator/logout", (request, env) => handleOperatorLogout(request, env));
 router.get("/operator", withOperatorAuth(() => redirect("/operator/pos")));
 router.get("/operator/cards", withOperatorAuth((request, env) => handleCardAuditPage(request, env)));
@@ -164,7 +165,8 @@ router.get("/api/bulk-wipe-keys", withOperatorAuth((request) => handleBulkWipeKe
 router.post("/api/bulk-wipe-keys", withOperatorAuth((request) => handleBulkWipeKeys(request)));
 router.get("/identity", (request) => handleIdentityPage(request));
 
-router.get("/card", (request, env) => handleCardPage(request, env));
+  router.get("/card", (request, env) => handleCardPage(request, env));
+  router.get("/virtual", () => handleVirtualCardPage());
 router.get("/card/info", (request, env) => handleCardInfo(request, env));
 router.post("/api/card/lock", (request, env) => handleCardLock(request, env));
 router.post("/api/card/reactivate", (request, env) => handleCardReactivate(request, env));
@@ -241,6 +243,26 @@ router.get("/static/icons/bolt.svg", () => {
       "Cache-Control": "public, max-age=86400",
     },
   });
+});
+router.get("/nfc-uid", () => {
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NFC UID Reader</title><style>body{background:#111827;color:#f3f4f6;font-family:system-ui;padding:2rem;text-align:center}h1{color:#10b981;font-size:1.5rem}#uid{font-size:2rem;font-family:monospace;color:#34d399;margin:2rem 0;word-break:break-all}#status{color:#6b7280;font-size:0.875rem}button{background:#10b981;color:white;border:none;padding:0.75rem 2rem;border-radius:0.5rem;font-size:1rem;cursor:pointer;margin:1rem}</style></head><body><h1>NFC UID Reader</h1><p id="status">Tap card to read UID...</p><div id="uid">\u2014</div><button id="btn" onclick="startScan()">START SCAN</button><script>
+async function startScan(){
+if(!('NDEFReader' in window)){document.getElementById('status').textContent='Web NFC not supported';return;}
+try{
+const ndef=new NDEFReader();
+await ndef.scan();
+document.getElementById('status').textContent='Scanning... tap a card';
+ndef.onreading=e=>{
+const uid=e.serialNumber.replace(/:/g,'').toUpperCase();
+document.getElementById('uid').textContent=uid;
+document.getElementById('status').textContent='UID read! '+new Date().toLocaleTimeString();
+};
+ndef.onreadingerror=()=>{document.getElementById('status').textContent='Read error, try again';};
+}catch(err){document.getElementById('status').textContent='Error: '+err.message;}
+}
+if('NDEFReader' in window&&navigator.permissions){navigator.permissions.query({name:'nfc'}).then(r=>{if(r.state==='granted')startScan();});}
+</script></body></html>`;
+  return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
 });
 router.all("*", (request) => {
   const url = new URL(request.url);

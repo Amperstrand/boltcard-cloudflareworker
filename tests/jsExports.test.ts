@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   NFC_JS,
   NFC_GATE_JS,
+  VIRTUAL_CARD_SIM_JS,
+  VIRTUAL_CARD_PAGE_JS,
   CLIENT_ERROR_JS,
   HELPERS_JS,
   CSRF_JS,
@@ -25,6 +27,8 @@ import {
 const ALL_EXPORTS: [string, string][] = [
   ["nfc.js", NFC_JS],
   ["nfc-gate.js", NFC_GATE_JS],
+  ["virtual-card-sim.js", VIRTUAL_CARD_SIM_JS],
+  ["virtual-card-page.js", VIRTUAL_CARD_PAGE_JS],
   ["client-error.js", CLIENT_ERROR_JS],
   ["helpers.js", HELPERS_JS],
   ["csrf.js", CSRF_JS],

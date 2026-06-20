@@ -48,6 +48,43 @@ describe("E2E: Page rendering", () => {
       expect(html).toContain("url-input");
       expect(html).toContain("btn-load-url");
     });
+
+    it("includes NFC permission-aware start button", async () => {
+      const env = makePageEnv();
+      const resp = await req("/card", "GET", null, env);
+      const html = await resp.text();
+      expect(html).toContain("nfc-start-btn");
+      expect(html).toContain("nfc-unsupported");
+    });
+  });
+
+  describe("GET /virtual", () => {
+    it("renders virtual card management page", async () => {
+      const env = makePageEnv();
+      const resp = await req("/virtual", "GET", null, env);
+      expect(resp.status).toBe(200);
+      const html = await resp.text();
+      expect(html).toContain("vc-create-btn");
+      expect(html).toContain("Virtual Card");
+    });
+  });
+
+  describe("GET /api/vc/keys (public)", () => {
+    it("returns keys without operator auth", async () => {
+      const env = makePageEnv();
+      const resp = await req("/api/vc/keys?uid=04aabbccddeeff", "GET", null, env);
+      expect(resp.status).toBe(200);
+      const json = await resp.json() as Record<string, unknown>;
+      expect(json.uid).toBe("04aabbccddeeff");
+      expect(json.k1).toBeTruthy();
+      expect(json.k2).toBeTruthy();
+    });
+
+    it("rejects invalid UID", async () => {
+      const env = makePageEnv();
+      const resp = await req("/api/vc/keys?uid=invalid", "GET", null, env);
+      expect(resp.status).toBe(400);
+    });
   });
 
   describe("GET /operator/pos", () => {

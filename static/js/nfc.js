@@ -4,14 +4,18 @@ function browserSupportsNfc() {
   return 'NDEFReader' in window;
 }
 
-async function canAutoStartNfc() {
-  if (!browserSupportsNfc()) return false;
+async function getNfcPermissionState() {
+  if (!browserSupportsNfc()) return 'unsupported';
   try {
     var result = await navigator.permissions.query({ name: 'nfc' });
-    return result.state === 'granted';
+    return result.state;
   } catch (e) {
-    return false;
+    return 'prompt';
   }
+}
+
+async function canAutoStartNfc() {
+  return (await getNfcPermissionState()) === 'granted';
 }
 
 function normalizeNfcSerial(serialNumber) {

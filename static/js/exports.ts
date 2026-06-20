@@ -4,14 +4,18 @@ function browserSupportsNfc() {
   return 'NDEFReader' in window;
 }
 
-async function canAutoStartNfc() {
-  if (!browserSupportsNfc()) return false;
+async function getNfcPermissionState() {
+  if (!browserSupportsNfc()) return 'unsupported';
   try {
     var result = await navigator.permissions.query({ name: 'nfc' });
-    return result.state === 'granted';
+    return result.state;
   } catch (e) {
-    return false;
+    return 'prompt';
   }
+}
+
+async function canAutoStartNfc() {
+  return (await getNfcPermissionState()) === 'granted';
 }
 
 function normalizeNfcSerial(serialNumber) {
@@ -208,7 +212,7 @@ function provenanceColor(p) {
   if (p === 'env_issuer') return 'text-emerald-400';
   return 'text-gray-300';
 }`;
-export const NFC_JS_HASH = "17a71e6f0a0e";
+export const NFC_JS_HASH = "8252340a6425";
 
 export const NFC_GATE_JS = `// nfc-gate.js — passive NFC capture to prevent Android OS from intercepting taps
 (function() {
@@ -283,6 +287,494 @@ export const NFC_GATE_JS = `// nfc-gate.js — passive NFC capture to prevent An
   startGate();
 })();`;
 export const NFC_GATE_JS_HASH = "79dfa4f2cda9";
+
+export const VIRTUAL_CARD_SIM_JS = `(function() {
+  var VC_KEY = 'virtual_boltcard';
+  var AES_JS_URL = 'https://cdn.jsdelivr.net/npm/aes-js@3.1.2/index.js';
+
+  function loadVC() {
+    try {
+      var raw = localStorage.getItem(VC_KEY);
+      if (!raw) return null;
+      var data = JSON.parse(raw);
+      if (data && data.uid && data.k1 && data.k2 && typeof data.counter === 'number') return data;
+    } catch (e) {}
+    return null;
+  }
+
+  function saveVC(card) {
+    try { localStorage.setItem(VC_KEY, JSON.stringify(card)); } catch (e) {}
+  }
+
+  function clearVC() {
+    try { localStorage.removeItem(VC_KEY); } catch (e) {}
+  }
+
+  var virtualCard = loadVC();
+  if (!virtualCard) {
+    window._virtualSim = { isActive: function() { return false; } };
+    return;
+  }
+
+  var mockReaders = [];
+
+  function MockNDEFReader() {
+    this.onreading = null;
+    this.onreadingerror = null;
+    this._signal = null;
+    this._active = false;
+  }
+
+  MockNDEFReader.prototype.scan = function(options) {
+    var self = this;
+    var signal = options && options.signal ? options.signal : null;
+    self._signal = signal;
+    return new Promise(function(resolve, reject) {
+      if (signal && signal.aborted) {
+        var err = new Error('The operation was aborted.');
+        err.name = 'AbortError';
+        reject(err);
+        return;
+      }
+      self._active = true;
+      mockReaders.push(self);
+      if (signal) {
+        signal.addEventListener('abort', function() {
+          self._active = false;
+          var idx = mockReaders.indexOf(self);
+          if (idx !== -1) mockReaders.splice(idx, 1);
+        });
+      }
+      resolve();
+    });
+  };
+
+  window.NDEFReader = MockNDEFReader;
+
+  if (navigator.permissions && navigator.permissions.query) {
+    var originalQuery = navigator.permissions.query.bind(navigator.permissions);
+    navigator.permissions.query = function(desc) {
+      if (desc && desc.name === 'nfc') {
+        return Promise.resolve({ state: 'granted', onchange: null });
+      }
+      return originalQuery(desc);
+    };
+  }
+
+  var URI_PREFIX_TABLE = [
+    '', 'http://www.', 'https://www.', 'http://', 'https://',
+    'tel:', 'mailto:', 'ftp://anonymous:anonymous@', 'ftp://ftp.',
+    'ftps://', 'sftp://', 'smb://', 'nfs://', 'ftp://', 'dav://',
+    'news:', 'telnet://', 'imap:', 'rtsp://', 'urn:', 'pop:',
+    'sip:', 'sips:', 'tftp:', 'btspp://', 'btl2cap://', 'btgoep://',
+    'tcpobex://', 'irdaobex://', 'file://', 'urn:epc:id:',
+    'urn:epc:tag:', 'urn:epc:pat:', 'urn:epc:raw:', 'urn:epc:', 'urn:nfc:'
+  ];
+
+  function encodeNdefUrlRecord(url) {
+    var prefixCode = -1;
+    for (var i = 0; i < URI_PREFIX_TABLE.length; i++) {
+      if (url.indexOf(URI_PREFIX_TABLE[i]) === 0) {
+        prefixCode = i;
+        break;
+      }
+    }
+    var encoder = new TextEncoder();
+    var payload;
+    if (prefixCode >= 0) {
+      var remainder = url.substring(URI_PREFIX_TABLE[prefixCode].length);
+      var body = encoder.encode(remainder);
+      payload = new Uint8Array(1 + body.length);
+      payload[0] = prefixCode;
+      payload.set(body, 1);
+    } else {
+      payload = encoder.encode(url);
+    }
+    return payload.buffer;
+  }
+
+  function hexToBytes(hex) {
+    var bytes = new Uint8Array(hex.length / 2);
+    for (var i = 0; i < hex.length; i += 2) {
+      bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+    }
+    return bytes;
+  }
+
+  function bytesToHex(bytes) {
+    var hex = [];
+    for (var i = 0; i < bytes.length; i++) {
+      hex.push((bytes[i] & 0xff).toString(16).padStart(2, '0'));
+    }
+    return hex.join('');
+  }
+
+  function aesEcbEncrypt(key, plaintext) {
+    var aes = new aesjs.ModeOfOperation.ecb(key);
+    return new Uint8Array(aes.encrypt(plaintext));
+  }
+
+  function xorArrays(a, b) {
+    var result = new Uint8Array(a.length);
+    for (var i = 0; i < a.length; i++) result[i] = a[i] ^ b[i];
+    return result;
+  }
+
+  function shiftLeft(src) {
+    var shifted = new Uint8Array(src.length);
+    var carry = 0;
+    for (var i = src.length - 1; i >= 0; i--) {
+      var msb = src[i] >> 7;
+      shifted[i] = ((src[i] << 1) & 0xff) | carry;
+      carry = msb;
+    }
+    return { shifted: shifted, carry: carry };
+  }
+
+  function generateSubkey(input) {
+    var result = shiftLeft(input);
+    var subkey = new Uint8Array(result.shifted);
+    if (result.carry) subkey[subkey.length - 1] ^= 0x87;
+    return subkey;
+  }
+
+  function computeAesCmac(message, key) {
+    var zeroBlock = new Uint8Array(16);
+    var L = aesEcbEncrypt(key, zeroBlock);
+    var K1 = generateSubkey(L);
+    var M_last;
+    if (message.length === 16) {
+      M_last = xorArrays(message, K1);
+    } else {
+      var padded = new Uint8Array(16);
+      padded.set(message);
+      padded[message.length] = 0x80;
+      var K2 = generateSubkey(K1);
+      M_last = xorArrays(padded, K2);
+    }
+    return aesEcbEncrypt(key, M_last);
+  }
+
+  function computeCm(ks) {
+    var zeroBlock = new Uint8Array(16);
+    var Lprime = aesEcbEncrypt(ks, zeroBlock);
+    var K1prime = generateSubkey(Lprime);
+    var hk1 = generateSubkey(K1prime);
+    var hashVal = new Uint8Array(hk1);
+    hashVal[0] ^= 0x80;
+    return aesEcbEncrypt(ks, hashVal);
+  }
+
+  function buildVerificationData(uidBytes, ctr, k2Bytes) {
+    var sv2 = new Uint8Array(16);
+    sv2[0] = 0x3c; sv2[1] = 0xc3; sv2[2] = 0x00; sv2[3] = 0x01;
+    sv2[4] = 0x00; sv2[5] = 0x80;
+    sv2.set(uidBytes, 6);
+    sv2[13] = ctr[2]; sv2[14] = ctr[1]; sv2[15] = ctr[0];
+    var ks = computeAesCmac(sv2, k2Bytes);
+    var cm = computeCm(ks);
+    return new Uint8Array([cm[1], cm[3], cm[5], cm[7], cm[9], cm[11], cm[13], cm[15]]);
+  }
+
+  function virtualTap(uidHex, counter, k1Hex, k2Hex) {
+    var k1 = hexToBytes(k1Hex);
+    var uid = hexToBytes(uidHex);
+    var plaintext = new Uint8Array(16);
+    plaintext[0] = 0xc7;
+    plaintext.set(uid, 1);
+    plaintext[8] = counter & 0xff;
+    plaintext[9] = (counter >> 8) & 0xff;
+    plaintext[10] = (counter >> 16) & 0xff;
+    var encrypted = aesEcbEncrypt(k1, plaintext);
+    var pHex = bytesToHex(encrypted);
+    var ctrBytes = new Uint8Array([
+      (counter >> 16) & 0xff,
+      (counter >> 8) & 0xff,
+      counter & 0xff
+    ]);
+    var ct = buildVerificationData(uid, ctrBytes, hexToBytes(k2Hex));
+    var cHex = bytesToHex(ct);
+    return { p: pHex, c: cHex };
+  }
+
+  var aesJsPromise = null;
+  function ensureAesJs() {
+    if (window.aesjs) return Promise.resolve();
+    if (aesJsPromise) return aesJsPromise;
+    aesJsPromise = new Promise(function(resolve, reject) {
+      var script = document.createElement('script');
+      script.src = AES_JS_URL;
+      script.onload = function() { resolve(); };
+      script.onerror = function() {
+        aesJsPromise = null;
+        reject(new Error('Failed to load aes-js library'));
+      };
+      document.head.appendChild(script);
+    });
+    return aesJsPromise;
+  }
+
+  function formatSerial(uidHex) {
+    return uidHex.match(/.{2}/g).join(':');
+  }
+
+  function performVirtualTap() {
+    return ensureAesJs().then(function() {
+      var result = virtualTap(virtualCard.uid, virtualCard.counter, virtualCard.k1, virtualCard.k2);
+      virtualCard.counter++;
+      saveVC(virtualCard);
+
+      var baseUrl = window.location.origin;
+      var tapUrl = baseUrl + '/?p=' + encodeURIComponent(result.p) + '&c=' + encodeURIComponent(result.c);
+      var recordData = encodeNdefUrlRecord(tapUrl);
+      var event = {
+        serialNumber: formatSerial(virtualCard.uid),
+        message: { records: [{ recordType: 'url', mediaType: '', id: '', data: recordData }] }
+      };
+
+      var readers = mockReaders.slice();
+      var fired = 0;
+      for (var i = 0; i < readers.length; i++) {
+        var reader = readers[i];
+        if (reader._active && typeof reader.onreading === 'function') {
+          try { reader.onreading(event); fired++; } catch (e) {}
+        }
+      }
+
+      if (fired === 0) {
+        navigateToTapUrl(tapUrl);
+      }
+      updateFabLabel();
+      return { fired: fired, url: tapUrl };
+    });
+  }
+
+  function navigateToTapUrl(url) {
+    try {
+      var u = new URL(url, location.origin);
+      if (u.origin === location.origin && u.searchParams.has('p') && u.searchParams.has('c')) {
+        location.href = u.href;
+      }
+    } catch (e) {}
+  }
+
+  var fab = null;
+  function updateFabLabel() {
+    if (!fab) return;
+    var label = fab.querySelector('.vc-fab-label');
+    if (label) {
+      label.textContent = 'Virtual Tap #' + virtualCard.counter + ' (' + virtualCard.uid.substring(0, 7).toUpperCase() + '\\u2026)';
+    }
+  }
+
+  function addFloatingButton() {
+    if (document.getElementById('virtual-tap-fab')) return;
+    fab = document.createElement('div');
+    fab.id = 'virtual-tap-fab';
+    fab.style.cssText = 'position:fixed;bottom:1rem;right:1rem;z-index:99998;';
+    var inner = document.createElement('button');
+    inner.className = 'vc-fab-label';
+    inner.style.cssText = 'display:flex;align-items:center;gap:0.5rem;background:#6366f1;color:white;border:none;padding:0.75rem 1.5rem;border-radius:9999px;font-size:0.875rem;font-weight:600;box-shadow:0 4px 6px -1px rgba(0,0,0,0.3),0 2px 4px -2px rgba(99,102,241,0.4);cursor:pointer;transition:transform 0.15s,background 0.15s;';
+    inner.addEventListener('mouseenter', function() { inner.style.background = '#4f46e5'; inner.style.transform = 'scale(1.05)'; });
+    inner.addEventListener('mouseleave', function() { inner.style.background = '#6366f1'; inner.style.transform = 'scale(1)'; });
+
+    var icon = document.createElement('span');
+    icon.textContent = '\\u{1f4cb}';
+    icon.style.fontSize = '1.125rem';
+    inner.appendChild(icon);
+
+    var labelText = document.createElement('span');
+    labelText.className = 'vc-fab-label';
+    inner.appendChild(labelText);
+
+    inner.addEventListener('click', function() {
+      inner.disabled = true;
+      inner.style.opacity = '0.6';
+      performVirtualTap().then(function() {
+        inner.disabled = false;
+        inner.style.opacity = '1';
+      }).catch(function(err) {
+        inner.disabled = false;
+        inner.style.opacity = '1';
+        if (typeof window.reportClientError === 'function') {
+          window.reportClientError(err, 'virtual-card-sim.js:tap');
+        }
+      });
+    });
+
+    fab.appendChild(inner);
+
+    var clearLink = document.createElement('a');
+    clearLink.href = '/virtual';
+    clearLink.textContent = 'Manage \\u2192';
+    clearLink.style.cssText = 'display:block;text-align:center;margin-top:0.25rem;font-size:0.625rem;color:#818cf8;text-decoration:none;opacity:0.7;';
+    fab.appendChild(clearLink);
+
+    document.body.appendChild(fab);
+    updateFabLabel();
+  }
+
+  window._virtualSim = {
+    isActive: function() { return !!virtualCard; },
+    getCard: function() { return virtualCard ? { uid: virtualCard.uid, counter: virtualCard.counter, k1: virtualCard.k1, k2: virtualCard.k2 } : null; },
+    tap: performVirtualTap,
+    clear: function() { clearVC(); location.reload(); }
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', addFloatingButton);
+  } else {
+    addFloatingButton();
+  }
+})();`;
+export const VIRTUAL_CARD_SIM_JS_HASH = "09a6bf482ebd";
+
+export const VIRTUAL_CARD_PAGE_JS = `(function() {
+  var VC_KEY = 'virtual_boltcard';
+
+  function loadVC() {
+    try {
+      var raw = localStorage.getItem(VC_KEY);
+      if (!raw) return null;
+      var data = JSON.parse(raw);
+      if (data && data.uid && data.k1 && data.k2 && typeof data.counter === 'number') return data;
+    } catch (e) {}
+    return null;
+  }
+
+  function saveVC(card) {
+    try { localStorage.setItem(VC_KEY, JSON.stringify(card)); } catch (e) {}
+  }
+
+  function clearVC() {
+    try { localStorage.removeItem(VC_KEY); } catch (e) {}
+  }
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  function showView(viewId) {
+    ['vc-no-card', 'vc-card-details'].forEach(function(id) {
+      document.getElementById(id).classList.add('hidden');
+    });
+    document.getElementById(viewId).classList.remove('hidden');
+  }
+
+  function updateCardDisplay(card) {
+    document.getElementById('vc-uid').textContent = card.uid.toUpperCase();
+    document.getElementById('vc-counter').textContent = String(card.counter);
+    document.getElementById('vc-k1').textContent = card.k1.substring(0, 12) + '\\u2026';
+    document.getElementById('vc-k2').textContent = card.k2.substring(0, 12) + '\\u2026';
+    var created = card.createdAt ? new Date(card.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--';
+    document.getElementById('vc-created').textContent = created;
+  }
+
+  function createCard() {
+    var btn = document.getElementById('vc-create-btn');
+    var status = document.getElementById('vc-create-status');
+    btn.disabled = true;
+    btn.textContent = 'Creating\\u2026';
+    status.className = 'mt-3 text-sm text-gray-400';
+    status.textContent = 'Generating random UID and fetching keys\\u2026';
+    status.classList.remove('hidden');
+
+    var uidBytes = new Uint8Array(7);
+    crypto.getRandomValues(uidBytes);
+    var uidHex = Array.from(uidBytes).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+
+    fetch('/api/vc/keys?uid=' + uidHex)
+      .then(function(r) {
+        if (!r.ok) throw new Error('Server returned ' + r.status);
+        return r.json();
+      })
+      .then(function(data) {
+        var card = {
+          uid: data.uid,
+          k1: data.k1,
+          k2: data.k2,
+          counter: 1,
+          createdAt: Date.now()
+        };
+        saveVC(card);
+        updateCardDisplay(card);
+        showView('vc-card-details');
+        document.getElementById('vc-banner').classList.remove('hidden');
+        status.classList.add('hidden');
+        btn.textContent = 'Create Virtual Card';
+        btn.disabled = false;
+      })
+      .catch(function(err) {
+        if (typeof window.reportClientError === 'function') window.reportClientError(err, 'virtual-card-page.js:create');
+        status.className = 'mt-3 text-sm text-red-400';
+        status.textContent = 'Failed: ' + err.message;
+        btn.textContent = 'Create Virtual Card';
+        btn.disabled = false;
+      });
+  }
+
+  function virtualTapCard() {
+    var card = loadVC();
+    if (!card) return;
+
+    var k1 = [], uid = [];
+    for (var i = 0; i < card.k1.length; i += 2) k1.push(parseInt(card.k1.substring(i, i + 2), 16));
+    for (var i = 0; i < card.uid.length; i += 2) uid.push(parseInt(card.uid.substring(i, i + 2), 16));
+    k1 = new Uint8Array(k1);
+    uid = new Uint8Array(uid);
+
+    var plaintext = new Uint8Array(16);
+    plaintext[0] = 0xc7;
+    plaintext.set(uid, 1);
+    plaintext[8] = card.counter & 0xff;
+    plaintext[9] = (card.counter >> 8) & 0xff;
+    plaintext[10] = (card.counter >> 16) & 0xff;
+
+    var aes = new aesjs.ModeOfOperation.ecb(k1);
+    var encrypted = new Uint8Array(aes.encrypt(plaintext));
+    var pHex = Array.from(encrypted).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+
+    card.counter++;
+    saveVC(card);
+    document.getElementById('vc-counter').textContent = String(card.counter);
+
+    location.href = '/?p=' + encodeURIComponent(pHex) + '&c=' + encodeURIComponent(pHex.substring(0, 16));
+  }
+
+  var existing = loadVC();
+  if (existing) {
+    updateCardDisplay(existing);
+    showView('vc-card-details');
+    document.getElementById('vc-banner').classList.remove('hidden');
+  } else {
+    showView('vc-no-card');
+  }
+
+  document.getElementById('vc-create-btn').addEventListener('click', createCard);
+
+  document.getElementById('vc-tap-btn').addEventListener('click', function() {
+    if (window._virtualSim && window._virtualSim.isActive()) {
+      window._virtualSim.tap();
+    }
+  });
+
+  document.getElementById('vc-delete-btn').addEventListener('click', function() {
+    document.getElementById('vc-delete-confirm').classList.remove('hidden');
+  });
+
+  document.getElementById('vc-delete-cancel').addEventListener('click', function() {
+    document.getElementById('vc-delete-confirm').classList.add('hidden');
+  });
+
+  document.getElementById('vc-delete-confirm-btn').addEventListener('click', function() {
+    clearVC();
+    location.reload();
+  });
+})();`;
+export const VIRTUAL_CARD_PAGE_JS_HASH = "0664bf69d045";
 
 export const CLIENT_ERROR_JS = `// client-error.js — reports uncaught JS errors to the server with page version info
 (function() {
@@ -1229,6 +1721,14 @@ document.getElementById('btn-scan-again').addEventListener('click', function() {
   cardScanner.restart();
 });
 
+var nfcStartBtn = document.getElementById('nfc-start-btn');
+if (nfcStartBtn) {
+  nfcStartBtn.addEventListener('click', function() {
+    nfcStartBtn.classList.add('hidden');
+    cardScanner.scan();
+  });
+}
+
 document.getElementById('btn-load-url').addEventListener('click', function() {
   var input = document.getElementById('url-input').value.trim();
   var urlError = document.getElementById('url-error');
@@ -1399,14 +1899,18 @@ async function submitReactivate(p, c) {
     return;
   }
 
-  // Start NFC scan
-  if (browserSupportsNfc()) {
-    cardScanner.scan();
-  } else {
-    document.getElementById('nfc-unsupported').classList.remove('hidden');
-  }
+  getNfcPermissionState().then(function(state) {
+    if (state === 'granted') {
+      cardScanner.scan();
+    } else if (state === 'prompt') {
+      var btn = document.getElementById('nfc-start-btn');
+      if (btn) btn.classList.remove('hidden');
+    } else {
+      document.getElementById('nfc-unsupported').classList.remove('hidden');
+    }
+  });
 })();`;
-export const CARD_DASHBOARD_JS_HASH = "d420b0ec9245";
+export const CARD_DASHBOARD_JS_HASH = "fdd3713fd4fd";
 
 export const DEBUG_JS = `// debug.js — classic script (no import/export)
 // Requires: nfc.js (esc, browserSupportsNfc, createNfcScanner)
@@ -1926,10 +2430,12 @@ export const DEBUG_JS = `// debug.js — classic script (no import/export)
 
   var activePanel = document.querySelector('.debug-panel:not(.hidden)');
   if (activePanel && activePanel.id === 'panel-console' && nfcScanner) {
-    nfcScanner.scan();
+    canAutoStartNfc().then(function(granted) {
+      if (granted) nfcScanner.scan();
+    });
   }
 })();`;
-export const DEBUG_JS_HASH = "bf0c88d19b49";
+export const DEBUG_JS_HASH = "ade116ecd028";
 
 export const LOGIN_JS = `// login.js — classic script (no import/export)
 // Depends on: nfc.js, helpers.js, card-info.js, card-actions.js, programming.js
@@ -2094,7 +2600,20 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
     document.getElementById('nfc-not-supported').classList.remove('hidden');
     document.getElementById('nfc-ready').classList.add('hidden');
   } else {
-    scanner.scan();
+    getNfcPermissionState().then(function(state) {
+      if (state === 'granted') {
+        scanner.scan();
+      } else {
+        var btn = document.getElementById('nfc-start-btn');
+        if (btn) {
+          btn.classList.remove('hidden');
+          btn.addEventListener('click', function() {
+            btn.classList.add('hidden');
+            scanner.scan();
+          });
+        }
+      }
+    });
   }
 
   function startTimer() {
@@ -2680,7 +3199,7 @@ export const LOGIN_JS = `// login.js — classic script (no import/export)
     scanner.scan();
   }
 })();`;
-export const LOGIN_JS_HASH = "3c91b8660592";
+export const LOGIN_JS_HASH = "8e74fa157133";
 
 export const ACTIVATE_JS = `// activate.js — classic script (no import/export)
 // Depends on: nfc.js (browserSupportsNfc, createNfcScanner)
@@ -4513,7 +5032,11 @@ export const POS_JS = `// pos.js — classic script (no import/export)
       var hasAmount = (posMode === 'menu' && getCartTotal() > 0) || (posMode === 'free' && !amountIsZero(amountInput));
       clearTimeout(autoChargeTimer);
       if (hasAmount && browserSupportsNfc()) {
-        autoChargeTimer = setTimeout(function() { if (appState === 'idle') startChargeFlow(); }, 1000);
+        canAutoStartNfc().then(function(canAuto) {
+          if (canAuto && appState === 'idle') {
+            autoChargeTimer = setTimeout(function() { if (appState === 'idle') startChargeFlow(); }, 1000);
+          }
+        });
       }
     }
   }
@@ -4574,7 +5097,7 @@ export const POS_JS = `// pos.js — classic script (no import/export)
        }
   }
 })();`;
-export const POS_JS_HASH = "d041706ec4b1";
+export const POS_JS_HASH = "a067fe6ad4ec";
 
 export const TOPUP_JS = `// topup.js — classic script (no import/export)
 // Depends on: nfc.js (browserSupportsNfc, createNfcScanner)

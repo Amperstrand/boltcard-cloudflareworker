@@ -161,7 +161,20 @@
     document.getElementById('nfc-not-supported').classList.remove('hidden');
     document.getElementById('nfc-ready').classList.add('hidden');
   } else {
-    scanner.scan();
+    getNfcPermissionState().then(function(state) {
+      if (state === 'granted') {
+        scanner.scan();
+      } else {
+        var btn = document.getElementById('nfc-start-btn');
+        if (btn) {
+          btn.classList.remove('hidden');
+          btn.addEventListener('click', function() {
+            btn.classList.add('hidden');
+            scanner.scan();
+          });
+        }
+      }
+    });
   }
 
   function startTimer() {

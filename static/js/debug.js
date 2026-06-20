@@ -516,6 +516,8 @@
 
   var activePanel = document.querySelector('.debug-panel:not(.hidden)');
   if (activePanel && activePanel.id === 'panel-console' && nfcScanner) {
-    nfcScanner.scan();
+    canAutoStartNfc().then(function(granted) {
+      if (granted) nfcScanner.scan();
+    });
   }
 })();

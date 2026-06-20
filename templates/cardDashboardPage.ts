@@ -38,6 +38,9 @@ export function renderCardDashboardPage(): string {
       <div id="nfc-unsupported" class="hidden text-gray-500 text-xs mt-3">
         NFC not available on this device. Paste your card URL below.
       </div>
+      <button id="nfc-start-btn" type="button" class="hidden mt-4 w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl text-sm transition-colors">
+        Start NFC Scan
+      </button>
       <button id="btn-scan-again" type="button" class="hidden mt-4 w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-xl text-sm transition-colors">
         SCAN AGAIN
       </button>

@@ -1,6 +1,8 @@
 import {
   NFC_JS, NFC_JS_HASH,
   NFC_GATE_JS, NFC_GATE_JS_HASH,
+  VIRTUAL_CARD_SIM_JS, VIRTUAL_CARD_SIM_JS_HASH,
+  VIRTUAL_CARD_PAGE_JS, VIRTUAL_CARD_PAGE_JS_HASH,
   CLIENT_ERROR_JS, CLIENT_ERROR_JS_HASH,
   HELPERS_JS, HELPERS_JS_HASH,
   CARD_INFO_JS, CARD_INFO_JS_HASH,
@@ -38,6 +40,8 @@ interface StaticFileEntry {
 const STATIC_JS_FILES: Record<string, StaticFileEntry> = {
   "nfc.js": { content: NFC_JS, hash: NFC_JS_HASH },
   "nfc-gate.js": { content: NFC_GATE_JS, hash: NFC_GATE_JS_HASH },
+  "virtual-card-sim.js": { content: VIRTUAL_CARD_SIM_JS, hash: VIRTUAL_CARD_SIM_JS_HASH },
+  "virtual-card-page.js": { content: VIRTUAL_CARD_PAGE_JS, hash: VIRTUAL_CARD_PAGE_JS_HASH },
   "client-error.js": { content: CLIENT_ERROR_JS, hash: CLIENT_ERROR_JS_HASH },
   "helpers.js": { content: HELPERS_JS, hash: HELPERS_JS_HASH },
   "card-info.js": { content: CARD_INFO_JS, hash: CARD_INFO_JS_HASH },

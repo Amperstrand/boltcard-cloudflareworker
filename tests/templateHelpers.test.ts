@@ -1,12 +1,14 @@
 import { _buildErrorPayload, errorResponse } from "../utils/responses.js";
 import { renderTailwindPage } from "../templates/pageShell.js";
-import { NFC_JS } from "../static/js/exports.js";
+import { NFC_JS, VIRTUAL_CARD_SIM_JS } from "../static/js/exports.js";
 import { renderBulkWipePage } from "../templates/bulkWipePage.js";
 import { renderActivatePage, renderActivateCardPage } from "../templates/activatePage.js";
 import { renderAnalyticsPage } from "../templates/analyticsPage.js";
 import { renderWipePage } from "../templates/wipePage.js";
 import { rawHtml, safe, jsString, escapeHtml } from "../utils/rawTemplate.js";
 import { renderOperatorLoginPage } from "../templates/operatorLoginPage.js";
+import { renderCardDashboardPage } from "../templates/cardDashboardPage.js";
+import { renderLoginPage } from "../templates/loginPage.js";
 
 describe("response helpers", () => {
   test("_buildErrorPayload preserves backward-compatible fields", () => {
@@ -51,11 +53,50 @@ describe("template helpers", () => {
     expect(html).toContain("<main>Hello</main>");
   });
 
+  test("renderTailwindPage loads virtual-card-sim.js before nfc.js", () => {
+    const html = renderTailwindPage({ title: "Test", content: "<p>test</p>" });
+    const simIdx = html.indexOf("virtual-card-sim.js");
+    const nfcIdx = html.indexOf("nfc.js");
+    expect(simIdx).toBeGreaterThan(-1);
+    expect(nfcIdx).toBeGreaterThan(-1);
+    expect(simIdx).toBeLessThan(nfcIdx);
+  });
+
   test("static NFC JS exports shared primitives", () => {
     expect(NFC_JS).toContain("function browserSupportsNfc()");
     expect(NFC_JS).toContain("function normalizeNfcSerial(serialNumber)");
     expect(NFC_JS).toContain("async function extractNdefUrl(records, prefixes)");
     expect(NFC_JS).toContain("function normalizeBrowserNfcUrl(rawUrl)");
+  });
+
+  test("NFC JS exports permission-aware helpers", () => {
+    expect(NFC_JS).toContain("function getNfcPermissionState()");
+    expect(NFC_JS).toContain("function canAutoStartNfc()");
+  });
+
+  test("static NFC JS exports virtual card simulation helpers", () => {
+    expect(VIRTUAL_CARD_SIM_JS).toContain("_virtualSim");
+    expect(VIRTUAL_CARD_SIM_JS).toContain("virtual_boltcard");
+  });
+});
+
+describe("NFC permission-aware UI elements", () => {
+  test("card dashboard includes Start NFC button for permission prompt flow", () => {
+    const html = renderCardDashboardPage();
+    expect(html).toContain('id="nfc-start-btn"');
+    expect(html).toContain("Start NFC");
+    expect(html).toMatch(/id="nfc-start-btn"[^>]*class="[^"]*hidden/);
+  });
+
+  test("login page includes Start NFC button for permission prompt flow", () => {
+    const html = renderLoginPage({ host: "https://test.local", defaultProgrammingEndpoint: "https://test.local/api" });
+    expect(html).toContain('id="nfc-start-btn"');
+    expect(html).toContain("Start NFC");
+  });
+
+  test("card dashboard still includes NFC unsupported fallback", () => {
+    const html = renderCardDashboardPage();
+    expect(html).toContain('id="nfc-unsupported"');
   });
 });
 
