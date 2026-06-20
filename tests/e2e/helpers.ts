@@ -35,9 +35,12 @@ async function providerFetch(
   return page.evaluate(
     async ({ path, method, t, extraBody }: { path: string; method: string; t: { p: string; c: string }; extraBody?: Record<string, unknown> }) => {
       const body = { ...t, ...extraBody };
+      const csrfMatch = document.cookie.match(/op_csrf=([^;]+)/);
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (csrfMatch) headers["X-CSRF-Token"] = csrfMatch[1];
       const r = await fetch(path, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: method === "POST" ? JSON.stringify(body) : undefined,
       });
       return { ok: r.ok, status: r.status, data: await r.json() };

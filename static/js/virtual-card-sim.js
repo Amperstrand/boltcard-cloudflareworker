@@ -228,14 +228,20 @@
     return uidHex.match(/.{2}/g).join(':');
   }
 
-  function performVirtualTap() {
+  function computeTapParams() {
     return ensureAesJs().then(function() {
       var result = virtualTap(virtualCard.uid, virtualCard.counter, virtualCard.k1, virtualCard.k2);
       virtualCard.counter++;
       saveVC(virtualCard);
+      updateFabLabel();
+      return { p: result.p, c: result.c };
+    });
+  }
 
+  function performVirtualTap() {
+    return computeTapParams().then(function(params) {
       var baseUrl = window.location.origin;
-      var tapUrl = baseUrl + '/?p=' + encodeURIComponent(result.p) + '&c=' + encodeURIComponent(result.c);
+      var tapUrl = baseUrl + '/?p=' + encodeURIComponent(params.p) + '&c=' + encodeURIComponent(params.c);
       var recordData = encodeNdefUrlRecord(tapUrl);
       var event = {
         serialNumber: formatSerial(virtualCard.uid),
@@ -254,7 +260,6 @@
       if (fired === 0) {
         navigateToTapUrl(tapUrl);
       }
-      updateFabLabel();
       return { fired: fired, url: tapUrl };
     });
   }
@@ -328,6 +333,7 @@
     isActive: function() { return !!virtualCard; },
     getCard: function() { return virtualCard ? { uid: virtualCard.uid, counter: virtualCard.counter, k1: virtualCard.k1, k2: virtualCard.k2 } : null; },
     tap: performVirtualTap,
+    computeTap: computeTapParams,
     clear: function() { clearVC(); location.reload(); }
   };
 

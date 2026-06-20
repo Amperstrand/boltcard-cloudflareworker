@@ -15,6 +15,7 @@ export default defineConfig({
     "nfc-ui.spec.ts",
     "hardware-financial.spec.ts",
     "hardware-selfservice.spec.ts",
+    "user-stories.spec.ts",
   ],
   fullyParallel: false,
   retries: isLocal ? 1 : 2,

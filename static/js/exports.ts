@@ -518,14 +518,20 @@ export const VIRTUAL_CARD_SIM_JS = `(function() {
     return uidHex.match(/.{2}/g).join(':');
   }
 
-  function performVirtualTap() {
+  function computeTapParams() {
     return ensureAesJs().then(function() {
       var result = virtualTap(virtualCard.uid, virtualCard.counter, virtualCard.k1, virtualCard.k2);
       virtualCard.counter++;
       saveVC(virtualCard);
+      updateFabLabel();
+      return { p: result.p, c: result.c };
+    });
+  }
 
+  function performVirtualTap() {
+    return computeTapParams().then(function(params) {
       var baseUrl = window.location.origin;
-      var tapUrl = baseUrl + '/?p=' + encodeURIComponent(result.p) + '&c=' + encodeURIComponent(result.c);
+      var tapUrl = baseUrl + '/?p=' + encodeURIComponent(params.p) + '&c=' + encodeURIComponent(params.c);
       var recordData = encodeNdefUrlRecord(tapUrl);
       var event = {
         serialNumber: formatSerial(virtualCard.uid),
@@ -544,7 +550,6 @@ export const VIRTUAL_CARD_SIM_JS = `(function() {
       if (fired === 0) {
         navigateToTapUrl(tapUrl);
       }
-      updateFabLabel();
       return { fired: fired, url: tapUrl };
     });
   }
@@ -618,6 +623,7 @@ export const VIRTUAL_CARD_SIM_JS = `(function() {
     isActive: function() { return !!virtualCard; },
     getCard: function() { return virtualCard ? { uid: virtualCard.uid, counter: virtualCard.counter, k1: virtualCard.k1, k2: virtualCard.k2 } : null; },
     tap: performVirtualTap,
+    computeTap: computeTapParams,
     clear: function() { clearVC(); location.reload(); }
   };
 
@@ -627,7 +633,7 @@ export const VIRTUAL_CARD_SIM_JS = `(function() {
     addFloatingButton();
   }
 })();`;
-export const VIRTUAL_CARD_SIM_JS_HASH = "09a6bf482ebd";
+export const VIRTUAL_CARD_SIM_JS_HASH = "6eba4b88c765";
 
 export const VIRTUAL_CARD_PAGE_JS = `(function() {
   var VC_KEY = 'virtual_boltcard';

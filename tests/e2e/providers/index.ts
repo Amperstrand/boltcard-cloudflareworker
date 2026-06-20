@@ -6,6 +6,7 @@ import type {
   CardInfo,
 } from "./provider.js";
 import { VirtualProvider } from "./virtual-provider.js";
+import { SimProvider } from "./sim-provider.js";
 import { UsbProvider } from "./usb-provider.js";
 
 export function createProvider(): CardProvider {
@@ -15,8 +16,10 @@ export function createProvider(): CardProvider {
       return new UsbProvider();
     case "virtual":
       return new VirtualProvider();
+    case "sim":
+      return new SimProvider();
     default:
-      throw new Error(`Unknown TEST_PROVIDER: ${provider}. Use "virtual" or "usb".`);
+      throw new Error(`Unknown TEST_PROVIDER: ${provider}. Use "virtual", "sim", or "usb".`);
   }
 }
 
