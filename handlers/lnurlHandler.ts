@@ -135,16 +135,16 @@ async function processWithdrawalPayment(rawUid: string, pr: string | null, env: 
     try {
       result = await debitCard(env, normalizedUid, counterValue, amount, `Payment: ${amount} units`);
     } catch (error: unknown) {
-      logger.error("Fakewallet debit threw", { uid: normalizedUid, amount, error: getErrorMessage(error) });
+      logger.error("Fakewallet debit threw", { uid: normalizedUid, amountMsat: Math.round(amount / 1000) * 1000, error: getErrorMessage(error) });
       return jsonResponse({ status: "ERROR", reason: "Debit failed" }, 500);
     }
     if (result.ok) {
-      logger.info("Fakewallet payment processed", { uid: normalizedUid, amount, balance: result.balance });
+      logger.info("Fakewallet payment processed", { uid: normalizedUid, amountMsat: Math.round(amount / 1000) * 1000, balance: result.balance });
       return jsonResponse({ status: "OK", message: "Payment processed", balance: result.balance }, 200);
     }
     const isInsufficient = !!result.reason && result.reason.toLowerCase().includes("insufficient");
     const status = isInsufficient ? 402 : 500;
-    logger.error("Fakewallet debit failed", { uid: normalizedUid, amount, reason: result.reason });
+    logger.error("Fakewallet debit failed", { uid: normalizedUid, amountMsat: Math.round(amount / 1000) * 1000, reason: result.reason });
     return jsonResponse({ status: "ERROR", reason: result.reason || "Debit failed" }, status);
   }
 
@@ -185,7 +185,7 @@ async function processWithdrawalPayment(rawUid: string, pr: string | null, env: 
         return jsonResponse({ status: "ERROR", reason: "Payment not completed" }, 202);
       }
 
-      logger.error("CLN REST error", { uid: normalizedUid, status: response.status, body: JSON.stringify(responseBody) });
+      logger.error("CLN REST error", { uid: normalizedUid, status: response.status });
       return jsonResponse({ status: "ERROR", reason: `Payment failed with status ${response.status}` }, response.status);
     } catch (error: unknown) {
       logger.error("CLN REST pay request failed", { uid: normalizedUid, error: getErrorMessage(error) });

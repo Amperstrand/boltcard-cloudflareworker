@@ -102,7 +102,7 @@ export async function handleLoginVerify(request: Request, env: Env): Promise<Res
     try {
       cardState = await getCardState(env, uidHex);
     } catch (err: unknown) {
-      logger.error("Card state unavailable during NFC login", { uidHex, error: getErrorMessage(err) });
+      logger.error("Card state unavailable during NFC login", { uidHex: uidHex.slice(0, 8) + "...", error: getErrorMessage(err) });
       return errorResponse("Card state unavailable", 503);
     }
     const { cardConfig, programmingEndpoint }: { cardConfig: CardConfig | null; programmingEndpoint: string } = await getCardProgrammingEndpoint(env, uidHex, requestOrigin);
@@ -130,7 +130,7 @@ export async function handleLoginVerify(request: Request, env: Env): Promise<Res
     recordTapRead(env, uidHex, counterValue, {
       userAgent: request.headers.get("user-agent"),
       requestUrl: request.url,
-    }).catch((e: unknown) => logger.warn("Failed to record login tap", { uidHex, counterValue, error: getErrorMessage(e) }));
+    }).catch((e: unknown) => logger.warn("Failed to record login tap", { uidHex: uidHex.slice(0, 8) + "...", counterValue, error: getErrorMessage(e) }));
 
     return jsonResponse({
       success: true,
@@ -178,7 +178,7 @@ async function handleUidOnlyLogin(rawUid: string, env: Env, request: Request): P
   try {
     cardState = await getCardState(env, uidHex);
   } catch (err: unknown) {
-    logger.error("Card state unavailable during UID-only login", { uidHex, error: getErrorMessage(err) });
+    logger.error("Card state unavailable during UID-only login", { uidHex: uidHex.slice(0, 8) + "...", error: getErrorMessage(err) });
     return errorResponse("Card state unavailable", 503);
   }
   const { cardConfig, programmingEndpoint }: { cardConfig: CardConfig | null; programmingEndpoint: string } = await getCardProgrammingEndpoint(env, uidHex, requestOrigin);
@@ -209,7 +209,7 @@ async function handleUidOnlyLogin(rawUid: string, env: Env, request: Request): P
   recordTapRead(env, uidHex, null, {
     userAgent: request.headers.get("user-agent"),
     requestUrl: request.url,
-  }).catch((e: unknown) => logger.warn("Failed to record UID-only login tap", { uidHex, error: getErrorMessage(e) }));
+  }).catch((e: unknown) => logger.warn("Failed to record UID-only login tap", { uidHex: uidHex.slice(0, 8) + "...", error: getErrorMessage(e) }));
 
   return jsonResponse({
     success: true,

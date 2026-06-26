@@ -130,7 +130,7 @@ export async function handleTopUpAction(rawUid: string, rawAmount: unknown, env:
     }
     return errorResponse(result.reason || "Top-up failed", 500);
   } catch (e: unknown) {
-    logger.error("Top-up failed", { uidHex, amount, error: getErrorMessage(e) });
+    logger.error("Top-up failed", { uidHex, amountMsat: Math.round(amount / 1000) * 1000, error: getErrorMessage(e) });
     return errorResponse("Top-up failed", 500);
   }
 }

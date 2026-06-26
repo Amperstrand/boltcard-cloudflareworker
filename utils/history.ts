@@ -33,7 +33,19 @@ export function _mergeHistory(taps: TapEntry[], transactions: Transaction[]): Hi
     balance_after: tx.balance_after,
   }));
 
-  const merged: HistoryEntry[] = [...(taps || []), ...txEntries].sort((a, b) => {
+  const sanitizedTaps: HistoryEntry[] = (taps || []).map((tap) => ({
+    counter: tap.counter ?? null,
+    bolt11: tap.bolt11 ? tap.bolt11.slice(0, 8) + "..." : null,
+    status: tap.status,
+    payment_hash: null,
+    amount_msat: tap.amount_msat,
+    user_agent: null,
+    request_url: null,
+    created_at: tap.created_at,
+    updated_at: tap.updated_at,
+  }));
+
+  const merged: HistoryEntry[] = [...sanitizedTaps, ...txEntries].sort((a, b) => {
     const timeDiff = (b.created_at || 0) - (a.created_at || 0);
     if (timeDiff !== 0) return timeDiff;
     return (b.counter || 0) - (a.counter || 0);

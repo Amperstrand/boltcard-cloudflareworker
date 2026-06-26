@@ -37,7 +37,7 @@ export async function handleVoidApply(request: Request, env: Env, session: Sessi
       return errorResponse(voidResult.reason || "Void failed", 400);
     }
 
-    logger.info("Void successful", { action: "void", uidHex: tap.uidHex, transactionId: txnId, voidAmount: voidResult.newTransaction?.amount, shiftId });
+    logger.info("Void successful", { action: "void", uidHex: tap.uidHex, transactionId: txnId, voidAmountMsat: voidResult.newTransaction?.amount != null ? Math.round(voidResult.newTransaction.amount / 1000) * 1000 : null, shiftId });
     await recordAuditEvent(env, { action: "void", uidHex: tap.uidHex, operatorShiftId: shiftId, details: { voidedTxnId: txnId, amount: voidResult.newTransaction?.amount, balance: voidResult.balance } });
 
     return jsonResponse({
