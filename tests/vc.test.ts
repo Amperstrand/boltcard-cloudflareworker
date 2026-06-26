@@ -5,6 +5,8 @@ import {
   verifyVcJwt,
   decodeVcJwt,
   getIssuerDid,
+  issueDataIntegrityProof,
+  verifyDataIntegrityProof,
   _resetCachedIssuerKeys,
 } from "../utils/vc.js";
 import type { Env } from "../types/core.js";
@@ -230,5 +232,84 @@ describe("cross-algorithm issue + verify", () => {
     const headerEd = JSON.parse(new TextDecoder().decode(base64urlDecode(jwtEd.split(".")[0]!)));
     expect(headerEs.alg).toBe("ES256");
     expect(headerEd.alg).toBe("EdDSA");
+  });
+});
+
+describe("Data Integrity Proof (JCS + Ed25519)", () => {
+  beforeEach(() => _resetCachedIssuerKeys());
+
+  it("issues a VC with proof block", async () => {
+    const vc = await issueDataIntegrityProof(makeKvEnv(), SAMPLE_UID, SAMPLE_PROFILE);
+    expect(vc.proof).toBeDefined();
+    expect(vc.proof.type).toBe("DataIntegrityProof");
+    expect(vc.proof.cryptosuite).toBe("jcs-eddsa-2025");
+    expect(vc.proof.proofValue).toBeTruthy();
+    expect(vc.proof.verificationMethod).toMatch(/^did:key:z/);
+    expect(vc.proof.proofPurpose).toBe("assertionMethod");
+  });
+
+  it("includes correct credential payload", async () => {
+    const vc = await issueDataIntegrityProof(makeKvEnv(), SAMPLE_UID, SAMPLE_PROFILE);
+    expect(vc["@context"]).toContain("https://www.w3.org/ns/credentials/v2");
+    expect(vc.type).toContain("VerifiableCredential");
+    expect(vc.type).toContain("BoltcardAccessBadge");
+    expect(vc.credentialSubject.cardUid).toBe(SAMPLE_UID);
+    expect(vc.credentialSubject.name).toBe(SAMPLE_PROFILE.name);
+    expect(vc.issuer).toMatch(/^did:key:z/);
+  });
+
+  it("verifies a freshly issued VC", async () => {
+    const store: KvStore = {};
+    const env = makeKvEnv(store);
+    const vc = await issueDataIntegrityProof(env, SAMPLE_UID, SAMPLE_PROFILE);
+    _resetCachedIssuerKeys();
+    const result = await verifyDataIntegrityProof(makeKvEnv(store), vc);
+    expect(result.valid).toBe(true);
+  });
+
+  it("rejects tampered credential subject", async () => {
+    const store: KvStore = {};
+    const vc = await issueDataIntegrityProof(makeKvEnv(store), SAMPLE_UID, SAMPLE_PROFILE);
+    _resetCachedIssuerKeys();
+    const tampered = { ...vc, credentialSubject: { ...vc.credentialSubject, name: "Hacker" } };
+    const result = await verifyDataIntegrityProof(makeKvEnv(store), tampered);
+    expect(result.valid).toBe(false);
+  });
+
+  it("rejects tampered proof value", async () => {
+    const store: KvStore = {};
+    const vc = await issueDataIntegrityProof(makeKvEnv(store), SAMPLE_UID, SAMPLE_PROFILE);
+    _resetCachedIssuerKeys();
+    const tampered = {
+      ...vc,
+      proof: {
+        ...vc.proof,
+        proofValue: vc.proof.proofValue.slice(0, -2) + "AA",
+      },
+    };
+    const result = await verifyDataIntegrityProof(makeKvEnv(store), tampered as typeof vc);
+    expect(result.valid).toBe(false);
+  });
+
+  it("rejects wrong proof cryptosuite", async () => {
+    const store: KvStore = {};
+    const vc = await issueDataIntegrityProof(makeKvEnv(store), SAMPLE_UID, SAMPLE_PROFILE);
+    _resetCachedIssuerKeys();
+    const wrongSuite = { ...vc, proof: { ...vc.proof, cryptosuite: "eddsa-2022" as "jcs-eddsa-2025" } };
+    const result = await verifyDataIntegrityProof(makeKvEnv(store), wrongSuite);
+    expect(result.valid).toBe(false);
+  });
+
+  it("works for multiple different UIDs", async () => {
+    const store: KvStore = {};
+    const uids = ["04a39493cc8680", "ff000000000001", "1234567890abcd"];
+    for (const uid of uids) {
+      _resetCachedIssuerKeys();
+      const vc = await issueDataIntegrityProof(makeKvEnv(store), uid, SAMPLE_PROFILE);
+      _resetCachedIssuerKeys();
+      const result = await verifyDataIntegrityProof(makeKvEnv(store), vc);
+      expect(result.valid).toBe(true);
+      expect(vc.credentialSubject.cardUid).toBe(uid);
+    }
   });
 });

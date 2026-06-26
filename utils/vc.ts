@@ -282,3 +282,103 @@ export function decodeVcJwt(jwt: string): { header: unknown; payload: VcPayload 
     return null;
   }
 }
+
+// ─── Data Integrity Proof (JCS + Ed25519) ──────────────────────────────────────
+//
+// Uses RFC 8785 JCS canonicalization instead of URDNA2015 to avoid the
+// heavy rdf-canonize + jsonld dependency chain. Produces deterministic,
+// verifiable proofs with real Ed25519 signatures via native WebCrypto.
+
+function jcsCanonicalize(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return "[" + value.map(jcsCanonicalize).join(",") + "]";
+  const sorted = Object.keys(value as Record<string, unknown>).sort();
+  const parts = sorted.map((k) => JSON.stringify(k) + ":" + jcsCanonicalize((value as Record<string, unknown>)[k]));
+  return "{" + parts.join(",") + "}";
+}
+
+export interface DataIntegrityProof {
+  type: "DataIntegrityProof";
+  cryptosuite: "jcs-eddsa-2025";
+  verificationMethod: string;
+  proofValue: string;
+  created: string;
+  proofPurpose: "assertionMethod";
+}
+
+export interface VerifiableCredentialWithProof {
+  "@context": readonly ["https://www.w3.org/ns/credentials/v2"];
+  type: readonly ["VerifiableCredential", "BoltcardAccessBadge"];
+  issuer: string;
+  validFrom: string;
+  credentialSubject: VcCredentialSubject;
+  proof: DataIntegrityProof;
+}
+
+export async function issueDataIntegrityProof(
+  env: Env,
+  uidHex: string,
+  profile: VcProfile,
+): Promise<VerifiableCredentialWithProof> {
+  const keys = await loadOrCreateKeys(env, "EdDSA");
+  const now = new Date().toISOString();
+
+  const credential: Omit<VerifiableCredentialWithProof, "proof"> = {
+    "@context": ["https://www.w3.org/ns/credentials/v2"],
+    type: ["VerifiableCredential", "BoltcardAccessBadge"],
+    issuer: keys.didKey,
+    validFrom: now,
+    credentialSubject: {
+      cardUid: uidHex,
+      name: profile.name,
+      role: profile.role,
+      department: profile.dept,
+      clearance: profile.level,
+    },
+  };
+
+  const canonical = jcsCanonicalize(credential);
+  const hashed = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+  const signature = await crypto.subtle.sign("Ed25519", keys.privateKey, hashed);
+  const proofValue = base64urlEncode(new Uint8Array(signature));
+
+  return {
+    ...credential,
+    proof: {
+      type: "DataIntegrityProof",
+      cryptosuite: "jcs-eddsa-2025",
+      verificationMethod: keys.didKey + "#" + keys.didKey.split(":").pop(),
+      proofValue,
+      created: now,
+      proofPurpose: "assertionMethod",
+    },
+  };
+}
+
+export async function verifyDataIntegrityProof(
+  env: Env,
+  vc: VerifiableCredentialWithProof,
+): Promise<VerifyResult> {
+  const proof = vc.proof;
+  if (!proof || proof.type !== "DataIntegrityProof" || proof.cryptosuite !== "jcs-eddsa-2025") {
+    return { valid: false, error: "Unsupported proof format" };
+  }
+
+  const { proof: _omit, ...credentialWithoutProof } = vc;
+  void _omit;
+
+  const canonical = jcsCanonicalize(credentialWithoutProof);
+  const hashed = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+  const signature = base64urlDecode(proof.proofValue);
+
+  const keys = await loadOrCreateKeys(env, "EdDSA");
+  let valid: boolean;
+  try {
+    valid = await crypto.subtle.verify("Ed25519", keys.publicKey, signature, hashed);
+  } catch {
+    return { valid: false, error: "Signature verification failed" };
+  }
+
+  if (!valid) return { valid: false, error: "Invalid proof signature" };
+  return { valid: true };
+}

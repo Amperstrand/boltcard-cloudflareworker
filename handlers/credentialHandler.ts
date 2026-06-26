@@ -6,8 +6,8 @@ import type { VerifyCredentialBody } from "../utils/schemas.js";
 import { verifyCredentialBodySchema } from "../utils/schemas.js";
 import { renderCredentialPage } from "../templates/credentialPage.js";
 import { resolveCardIdentity } from "../utils/cardAuth.js";
-import { issueVcJwt, verifyVcJwt, decodeVcJwt, getIssuerDid, buildCredentialProfile } from "../utils/vc.js";
-import type { VcAlgorithm } from "../utils/vc.js";
+import { issueVcJwt, verifyVcJwt, decodeVcJwt, getIssuerDid, buildCredentialProfile, issueDataIntegrityProof, verifyDataIntegrityProof } from "../utils/vc.js";
+import type { VcAlgorithm, VerifiableCredentialWithProof } from "../utils/vc.js";
 
 export function handleCredentialPage(request: Request): Response {
   const url = new URL(request.url);
@@ -20,6 +20,7 @@ export async function handleCredentialIssue(request: Request, env: Env): Promise
   const c = url.searchParams.get("c");
   const algParam = url.searchParams.get("alg");
   const alg: VcAlgorithm = algParam === "EdDSA" ? "EdDSA" : "ES256";
+  const format = url.searchParams.get("format");
 
   const auth = await resolveCardIdentity(p ?? undefined, c ?? undefined, env, { context: "vc-issue" });
   if (!auth.ok) {
@@ -28,6 +29,13 @@ export async function handleCredentialIssue(request: Request, env: Env): Promise
 
   const { uidHex } = auth;
   const profile = buildCredentialProfile(uidHex);
+
+  if (format === "di") {
+    const vc = await issueDataIntegrityProof(env, uidHex, profile);
+    logger.info("VC Data Integrity proof issued", { uidHex, action: "vc_issue", format: "di" });
+    return jsonResponse({ credential: vc, issuer: vc.issuer, format: "di" });
+  }
+
   const jwt = await issueVcJwt(env, uidHex, profile, alg);
   const decoded = decodeVcJwt(jwt);
 
@@ -48,6 +56,17 @@ export async function handleCredentialVerify(request: Request, env: Env): Promis
   if (!result.ok) return errorResponse(result.error, 400);
 
   const { credential } = result.data;
+
+  if (credential.trim().startsWith("{")) {
+    try {
+      const vc = JSON.parse(credential) as VerifiableCredentialWithProof;
+      const verification = await verifyDataIntegrityProof(env, vc);
+      return jsonResponse({ valid: verification.valid, error: verification.error, format: "di" });
+    } catch {
+      return jsonResponse({ valid: false, error: "Failed to parse Data Integrity credential" });
+    }
+  }
+
   const verification = await verifyVcJwt(env, credential);
 
   return jsonResponse({
