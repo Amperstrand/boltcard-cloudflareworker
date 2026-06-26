@@ -14,7 +14,6 @@ import { handleVirtualCardKeys } from "../handlers/virtualCardHandler.js";
 import { handleFakeInvoice } from "../handlers/fakeInvoiceHandler.js";
 import { handleBalanceCheck } from "../handlers/balanceCheckHandler.js";
 import { handleClientError } from "../handlers/clientErrorHandler.js";
-import { handleCredentialPage, handleCredentialIssue, handleCredentialVerify, handleCredentialIssuer } from "../handlers/credentialHandler.js";
 
 export function registerPublicRoutes(router: AppRouter): void {
   router.get("/status", (request, env) => handleStatus(request, env));
@@ -30,11 +29,6 @@ export function registerPublicRoutes(router: AppRouter): void {
   router.get("/api/vc/keys", (request, env) => handleVirtualCardKeys(request, env));
   router.post("/api/balance-check", (request, env) => handleBalanceCheck(request, env));
   router.post("/api/client-error", (request, env) => handleClientError(request, env));
-
-  router.get("/credential", (request) => handleCredentialPage(request));
-  router.get("/api/credential", (request, env) => handleCredentialIssue(request, env));
-  router.get("/api/credential/issuer", (request, env) => handleCredentialIssuer(request, env));
-  router.post("/api/verify-credential", (request, env) => handleCredentialVerify(request, env));
 
   router.get("/decode", (request) => handleDecodePage(request));
   router.get("/api/decode", (request) => handleDecodeApi(request));

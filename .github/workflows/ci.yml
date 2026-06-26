@@ -11,8 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # @ntag424/crypto is a file:../ntag424-crypto dependency
-      # Clone and build it so npm ci + typecheck can resolve the module
       - name: Clone ntag424-crypto
         run: git clone https://github.com/Amperstrand/ntag424-crypto.git ../ntag424-crypto
       - name: Build ntag424-crypto
@@ -29,9 +27,77 @@ jobs:
       - run: npm run test:do
       - run: npm run test:integration
 
-  smoke:
+  deploy-staging:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clone ntag424-crypto
+        run: git clone https://github.com/Amperstrand/ntag424-crypto.git ../ntag424-crypto
+      - name: Build ntag424-crypto
+        run: cd ../ntag424-crypto && npm install && npm run build
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/sync-js-exports.mjs
+      - run: node scripts/build_keys.js
+      - name: Deploy to staging
+        run: npx wrangler deploy --env staging
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      - name: Staging health check
+        run: |
+          STAGING_URL="https://boltcard-staging.psbt.me"
+          echo "Checking $STAGING_URL/status ..."
+          sleep 5
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$STAGING_URL/status" || echo "000")
+          if [ "$STATUS" != "200" ]; then
+            echo "Staging health check failed: got $STATUS"
+            curl -s "$STAGING_URL/status" || true
+            exit 1
+          fi
+          echo "Staging health check passed (200)"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  deploy-production:
+    needs: deploy-staging
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clone ntag424-crypto
+        run: git clone https://github.com/Amperstrand/ntag424-crypto.git ../ntag424-crypto
+      - name: Build ntag424-crypto
+        run: cd ../ntag424-crypto && npm install && npm run build
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/sync-js-exports.mjs
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run test:do
+      - run: npm run test:integration
+      - run: node scripts/build_keys.js
+      - name: Deploy to production
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      - name: Production smoke test
+        run: node scripts/live-smoke-test.mjs https://boltcardpoc.psbt.me
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  smoke-only:
+    needs: test
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

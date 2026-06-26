@@ -18,10 +18,11 @@ Deployed at **https://boltcardpoc.psbt.me**
 | Card registry | [/operator/cards](https://boltcardpoc.psbt.me/operator/cards) |
 | Debug console | [/debug](https://boltcardpoc.psbt.me/debug) |
 | Cardholder dashboard | [/card](https://boltcardpoc.psbt.me/card) |
+| Virtual card simulator | [/virtual](https://boltcardpoc.psbt.me/virtual) |
 
 **Operator PIN for demo**: `1234`
 
-You need a physical NTAG424 card programmed for this worker's issuer key. Cards from other services won't work unless their keys are in the `keys/` directory.
+**No physical card?** Visit [/virtual](https://boltcardpoc.psbt.me/virtual) to create a virtual NTAG424 card in your browser. Simulate taps with real AES-ECB/CMAC encryption — no NFC hardware needed. A floating "Virtual Tap" button appears on all pages once created.
 
 ## How It Works
 
@@ -233,6 +234,8 @@ To submit keys for a service, add a CSV file to `keys/` and run `node scripts/bu
 | POST | `/api/identify-card` | Yes | Operator card identification |
 | POST | `/api/identify-issuer-key` | Yes | Tap-to-detect issuer key + version |
 | GET | `/card/info` | No | Card status JSON (balance, state, history) |
+| GET | `/virtual` | No | Virtual card simulator (create, simulate taps, auto-test) |
+| GET | `/api/vc/keys?uid=X` | No | Virtual card key generation (deterministic) |
 | POST | `/api/card/lock` | No | Cardholder self-service card lock (CMAC auth) |
 | POST | `/api/card/reactivate` | No | Cardholder self-service re-provision |
 | GET | `/api/receipt/:txnId` | No | Plain-text transaction receipt |
@@ -321,15 +324,34 @@ npm test -- --testNamePattern="pos"   # Run specific tests
 npm test -- --watch                   # Watch mode
 npm run deploy                        # tests → build_keys → wrangler deploy
 ```
-├── index.ts                     # Router + security headers + error handling
+
+### Virtual Card Simulator (No Hardware Needed)
+
+Visit [/virtual](https://boltcardpoc.psbt.me/virtual) to create a virtual NTAG424 card in your browser. The simulator uses real AES-ECB/AES-CMAC encryption identical to a physical card tap. Once created, a floating "Virtual Tap" button appears on every page. E2E tests use the same mechanism via `_vcTap()` / `_vcGetKeys()` browser hooks.
+├── index.ts                     # Router setup + rate limiting + security headers + 404 catchall
+├── routes/                      # Domain-based route modules
+│   ├── public.ts                # LNURLW, /login, /card, /identity, /virtual, /
+│   ├── operator.ts              # /operator/* (topup, POS, refund, void, reconciliation)
+│   ├── api.ts                   # /api/* (keys, identify, bulk-wipe, pull-payments)
+│   ├── admin.ts                 # /debug, /experimental/* (activate, wipe, analytics)
+│   └── static.ts                # Static JS, PWA assets, favicon
+├── card/                        # Card domain modules (DO facade + business logic)
+│   ├── doFacade.ts              # Shared DO transport helpers (getCardStub, doPost, etc.)
+│   ├── taps.ts                  # Tap recording + replay counter
+│   ├── balance.ts               # Credit, debit, void, balance, transactions
+│   ├── lifecycle.ts             # State transitions (markPending, discover, activate, etc.)
+│   ├── config.ts                # Card state + config + K2 management
+│   ├── analytics.ts             # Per-card analytics
+│   └── export.ts                # Card state export/import
 ├── boltCardHelper.ts            # Card decrypt + CMAC validation
 ├── cryptoutils.ts               # AES-ECB + AES-CMAC primitives
 ├── getUidConfig.ts              # Card config lookup (DO → deterministic fallback)
 ├── keygenerator.ts              # Deterministic key derivation from UID + ISSUER_KEY
 ├── rateLimiter.ts               # IP-based fixed-window rate limiting
-├── replayProtection.ts          # Replay check + balance/txn helpers → DO
+├── replayProtection.ts          # Barrel re-export over card/ domain modules
 ├── middleware/
-│   └── operatorAuth.ts          # PIN auth, session cookies, requireOperator()
+│   ├── operatorAuth.ts          # PIN auth, session cookies, requireOperator()
+│   └── withOperatorAuth.ts      # CSRF validation + session wrapper for routes
 ├── handlers/                    # 36 route handlers
 │   ├── operatorLoginHandler.ts  # PIN login/logout
 │   ├── loginHandler.ts          # Customer NFC key recovery + privileged actions

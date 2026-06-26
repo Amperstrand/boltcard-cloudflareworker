@@ -36,3 +36,31 @@ head_sampling_rate = 1
 
 [observability.logs]
 invocation_logs = true
+
+[env.staging]
+name = "boltcard-poc-staging"
+workers_dev = false
+routes = [
+  "https://boltcard-staging.psbt.me/*"
+]
+kv_namespaces = [
+  { binding = "UID_CONFIG", id = "b692f3eb3e2d4c11b57afae6713c0b2a" }
+]
+
+[env.staging.vars]
+CURRENCY_LABEL = "credits"
+CURRENCY_DECIMALS = "0"
+FAKEWALLET_CURRENCY = "EUR"
+FAKEWALLET_IBAN = "GB33BUKB20201555555555"
+FAKEWALLET_ACCOUNT_NAME = "FakeWallet"
+
+[[env.staging.durable_objects.bindings]]
+name = "CARD_REPLAY"
+class_name = "CardReplayDO"
+
+[[env.staging.migrations]]
+tag = "v1"
+new_sqlite_classes = ["CardReplayDO"]
+
+[env.staging.observability]
+enabled = true

@@ -3,8 +3,14 @@
 ## Architecture
 
 - **Runtime**: Cloudflare Workers (no Node.js APIs)
-- **Routing**: itty-router v5
+- **Routing**: itty-router v5, split into domain modules under `routes/` (`public.ts`, `operator.ts`, `api.ts`, `admin.ts`, `static.ts`)
+- **Route registration**: Each route module exports a `register*Routes(router)` function called from `index.ts` (~108 lines: rate limiting, security headers, 404 catchall)
+- **Auth middleware**: `withOperatorAuth` from `middleware/withOperatorAuth.ts` — wraps handlers with CSRF validation + session cookie injection
 - **Storage**: KV for UID config; Durable Objects (SQLite-backed) for replay protection + balance + card state
+- **DO facade**: `card/doFacade.ts` — shared transport helpers (getCardStub, doPost, doStateTransition, etc.) used by all `card/*.ts` domain modules
+- **Card domain modules**: `card/taps.ts`, `card/balance.ts`, `card/lifecycle.ts`, `card/config.ts`, `card/analytics.ts`, `card/export.ts` — barrel re-exported via `replayProtection.ts` for backward compatibility
+- **Handler factory**: `withCardTap()` from `utils/cardHandler.ts` — eliminates boilerplate (method check, body parse, card validation, try/catch) across financial handlers
+- **Static assets**: Wrangler `[assets]` binding serves JS/PWA files from `public/` directory via Cloudflare CDN; Worker routes kept as test fallback
 - **DO concurrency**: Each card maps to a unique Durable Object instance (keyed by UID). DOs are **single-threaded** — requests to the same card are processed sequentially. There are NO race conditions within a single card DO. Do not flag "concurrent callback" issues — they cannot happen in production.
 - **Crypto**: `aes-js` for AES-ECB/CMAC, `@noble/secp256k1` + `@scure/base` + `@noble/hashes` for bolt11
 - **Key derivation**: deterministic from UID + ISSUER_KEY via `keygenerator.ts`
@@ -128,6 +134,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 | GET | `/identity` | `handleIdentityPage()` | Identity/access control demo |
 | GET | `/card` | `handleCardPage()` | Cardholder dashboard (NFC scan) |
 | GET | `/card/info` | `handleCardInfo()` | Card status API (JSON) — returns unified history, analytics, payment method |
+| GET | `/virtual` | `handleVirtualCardPage()` | Virtual card simulator (create, view keys, simulate taps, auto-test lifecycle) |
 | GET | `/decode` | `handleDecodePage()` | BOLT11 invoice decoder page |
 | POST | `/api/card/lock` | `handleCardLock()` | Cardholder self-service card lock (CMAC auth) |
 | POST | `/api/card/reactivate` | `handleCardReactivate()` | Cardholder self-service re-provision (NFC tap, version advance) |
@@ -188,8 +195,11 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 - `errorResponse()` from `utils/responses.ts` for all error paths
 - `redirect()` from `utils/responses.ts` for all HTTP redirects
 - `renderTailwindPage()` + `rawHtml` tagged template for all HTML pages (auto-escapes interpolations; use `safe()` for known-safe HTML, `jsString()` for JS contexts)
-- `validateCardTap()` from `utils/validateCardTap.ts` for card-tap validation in operator handlers
+- `replayProtection.ts` is a barrel re-export over `card/` domain modules (`card/taps.ts`, `card/balance.ts`, `card/lifecycle.ts`, `card/config.ts`, `card/analytics.ts`, `card/export.ts`); transport helpers live in `card/doFacade.ts`
+- `withCardTap()` from `utils/cardHandler.ts` — handler factory for card-tap endpoints: handles method check, body parsing, card validation, try/catch; `handleOpFailure()` and `logSuccess()` for consistent error/audit patterns
+- `validateCardTap()` from `utils/validateCardTap.ts` for card-tap validation (used by `withCardTap()` internally)
 - **Cache busting**: `staticScript("file.js")` from `utils/rawTemplate.ts` — all templates use it; enforced by `lint:static-script` CI check
+- **Static assets**: Wrangler `[assets]` binding serves from `public/` directory (JS, manifest, icons) via Cloudflare CDN with automatic ETags; Worker routes in `routes/static.ts` kept as test-environment fallback
 - `replayProtection.ts` uses generic DO facade helpers (`doCounterPost`, `doRequiredPost`, `doOptionalGet`, `doOptionalPost`, `doSafeGet`, `doOptionalVoidPost`) — avoids repetitive getStub→doPost→parseJSON
 - All NFC pages auto-start scanning on page load; `/operator/pos` auto-starts after amount is entered (debounced 1s)
 - CSRF: double-submit cookie (`op_csrf`) on operator pages; `withOperatorAuth` validates on mutating methods; test bypass via `__TEST_OPERATOR_SESSION`
@@ -225,6 +235,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 - All DO callers must wrap in try/catch with specific error messages (see #10 audit)
 - `processWithdrawalPayment` uses `normalizedUid` local variable — never mutate parameters
 - `handleVirtualCardKeys()` from `handlers/virtualCardHandler.ts` generates deterministic card keys for the virtual card simulator (operator auth required)
+- Virtual card simulator: `static/js/virtual-card-widget.js` (700 lines) + `static/js/virtual-card-sim.js` (360 lines, loaded on every page); provides real AES-ECB/CMAC tap simulation, localStorage persistence, mock NDEFReader, floating tap button; `/virtual` page for management; `?embed=1` mode for iframe embedding; `_vcTap()`/`_vcGetKeys()` hooks for E2E tests
 - `handleClientError()` from `handlers/clientErrorHandler.ts` accepts client-side error reports with rate limiting (prefix `client_error:`, 20 req/hour per IP)
 - Tests use `makeReplayNamespace()` (in-memory DO mock) from `tests/replayNamespace.ts`
 - Commit style: semantic (`feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`)
@@ -254,7 +265,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 - Config: `playwright.config.ts` — baseURL: `https://boltcardpoc.psbt.me`
 - Provider architecture in `tests/e2e/providers/`:
   - `provider.ts` — `CardProvider` interface: `setup()`, `tap()`, `getCardInfo()`
-  - `virtual-provider.ts` — Browser JS hooks (`_vcTap()`/`_vcGetKeys()`) for CI
+  - `virtual-provider.ts` — Browser JS hooks (`_vcTap()`/`_vcGetKeys()`) for CI; creates card via `/virtual` page
   - `usb-provider.ts` — pcscd bridge HTTP API for Omnikey reader
   - `index.ts` — Factory: `TEST_PROVIDER=virtual` (default) or `TEST_PROVIDER=usb`
 - Shared helpers in `tests/e2e/helpers.ts`: `operatorLogin()`, `makeApiHelpers()`
@@ -304,10 +315,13 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 | `resolveCardIdentity()` shared pipeline | Done | `utils/cardAuth.ts` — decrypt→state→config→CMAC across 5 handlers |
 | TypeScript type tightening | Done | Source `: any` 318→0; source `as any` count: 0; `// @ts-nocheck` only in `tests/do/cardReplayDO.real.test.ts` and `tests/testHelpers.ts`; `types/core.ts` centralizes shared types; `catch(e: unknown)` + `getErrorMessage()` throughout |
 | Shared `Env` type | Done | `types/core.ts` → `worker-configuration.d.ts` — eliminated 9 duplicate `EnvLike` interfaces |
-| Inline JS → static files | Done | 27 static JS files in `static/js/`, zero inline `<script>` blocks, `serveStaticJs()` in `static/js/registry.ts` |
+| Inline JS → static files | Done | 29 static JS files in `static/js/` (also copied to `public/static/js/` for Wrangler `[assets]`), zero inline `<script>` blocks, `serveStaticJs()` in `static/js/registry.ts` (test fallback) |
 | Dead code cleanup | Done | Deleted `templates/browserNfc.ts` (all 9 exports unused after static JS extraction) |
-| Router cleanup | Done | `index.ts` 372→307 lines: fake-invoice handler extracted, static JS registry extracted, virtual card endpoint added |
-| replayProtection DRY | Done | 334→288 lines: 6 generic DO facade helpers, 16 exports rewritten to 1-3 lines |
+| Router cleanup | Done | `index.ts` 352→108 lines: split into `routes/public.ts`, `routes/operator.ts`, `routes/api.ts`, `routes/admin.ts`, `routes/static.ts`; `withOperatorAuth` extracted to `middleware/withOperatorAuth.ts` |
+| replayProtection DRY | Done | 321→7 files: split into `card/doFacade.ts` + `card/taps.ts`, `card/balance.ts`, `card/lifecycle.ts`, `card/config.ts`, `card/analytics.ts`, `card/export.ts`; barrel re-export in `replayProtection.ts` |
+| Handler factory | Done | `withCardTap()` + `handleOpFailure()` + `logSuccess()` in `utils/cardHandler.ts`; topup/POS/refund handlers refactored to use factory |
+| Static assets migration | Done | Wrangler `[assets]` binding serves from `public/`; Worker routes kept as test fallback |
+| Virtual card simulator | Done | `/virtual` page with visual card, keys, tap simulator, auto-test; `virtual-card-sim.js` on every page with floating button + NFC fallback |
 | Test `: any` reduction | Done | 67 `: any` annotations replaced with proper types across 17 test files |
 | CardReplayDO split | Done | 933-line god object split into dispatcher + `durableObjects/cardReplay/` modules while preserving all DO route contracts |
 
