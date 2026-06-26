@@ -10,6 +10,7 @@ export interface WithdrawResponse {
   minWithdrawable?: number;
   maxWithdrawable?: number;
   defaultDescription?: string;
+  verifiableCredential?: string;
 }
 
 export const constructWithdrawResponse = (

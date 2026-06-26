@@ -6,24 +6,8 @@ import type { VerifyCredentialBody } from "../utils/schemas.js";
 import { verifyCredentialBodySchema } from "../utils/schemas.js";
 import { renderCredentialPage } from "../templates/credentialPage.js";
 import { resolveCardIdentity } from "../utils/cardAuth.js";
-import { issueVcJwt, verifyVcJwt, decodeVcJwt, getIssuerDid } from "../utils/vc.js";
-import type { VcProfile, VcAlgorithm } from "../utils/vc.js";
-
-const ROLES = ["Administrator", "Specialist", "Technician", "Director"];
-const DEPTS = ["Engineering", "Security", "Operations", "Command"];
-
-function buildCredentialProfile(uidHex: string): VcProfile {
-  const hex = (uidHex || "00000000").padEnd(8, "0");
-  const p0 = parseInt(hex.substring(0, 2), 16) || 0;
-  const p1 = parseInt(hex.substring(2, 4), 16) || 0;
-  const p2 = parseInt(hex.substring(4, 6), 16) || 0;
-  return {
-    name: "Operator-" + hex.substring(0, 4).toUpperCase(),
-    role: ROLES[p0 % ROLES.length]!,
-    dept: DEPTS[p1 % DEPTS.length]!,
-    level: "Level " + ((p2 % 5) + 1),
-  };
-}
+import { issueVcJwt, verifyVcJwt, decodeVcJwt, getIssuerDid, buildCredentialProfile } from "../utils/vc.js";
+import type { VcAlgorithm } from "../utils/vc.js";
 
 export function handleCredentialPage(request: Request): Response {
   const url = new URL(request.url);

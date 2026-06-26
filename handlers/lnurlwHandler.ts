@@ -6,6 +6,7 @@ import { getUidConfig } from "../getUidConfig.js";
 import { handleProxy } from "./proxyHandler.js";
 import { constructWithdrawResponse } from "./withdrawHandler.js";
 import type { WithdrawResponse } from "./withdrawHandler.js";
+import { issueVcJwt, buildCredentialProfile } from "../utils/vc.js";
 import { constructPayRequest } from "./lnurlPayHandler.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
@@ -195,6 +196,11 @@ async function routeByPaymentMethod(request: Request, env: Env, uidHex: string, 
     const baseUrl = getRequestOrigin(request);
     const responsePayload: WithdrawResponse = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated, baseUrl, config.payment_method);
     if (responsePayload.status === "ERROR") return errorResponse(responsePayload.reason, 403);
+    try {
+      responsePayload.verifiableCredential = await issueVcJwt(env, uidHex, buildCredentialProfile(uidHex));
+    } catch (vcErr: unknown) {
+      logger.warn("VC issuance failed in LNURL flow", { uidHex, error: getErrorMessage(vcErr) });
+    }
     return jsonResponse(responsePayload);
   }
 

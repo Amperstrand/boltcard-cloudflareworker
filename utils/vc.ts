@@ -25,6 +25,22 @@ function base64urlEncodeString(str: string): string {
 
 export type VcAlgorithm = "ES256" | "EdDSA";
 
+const VC_ROLES = ["Administrator", "Specialist", "Technician", "Director"];
+const VC_DEPTS = ["Engineering", "Security", "Operations", "Command"];
+
+export function buildCredentialProfile(uidHex: string): VcProfile {
+  const hex = (uidHex || "00000000").padEnd(8, "0");
+  const p0 = parseInt(hex.substring(0, 2), 16) || 0;
+  const p1 = parseInt(hex.substring(2, 4), 16) || 0;
+  const p2 = parseInt(hex.substring(4, 6), 16) || 0;
+  return {
+    name: "Operator-" + hex.substring(0, 4).toUpperCase(),
+    role: VC_ROLES[p0 % VC_ROLES.length]!,
+    dept: VC_DEPTS[p1 % VC_DEPTS.length]!,
+    level: "Level " + ((p2 % 5) + 1),
+  };
+}
+
 export interface VcCredentialSubject {
   cardUid: string;
   name: string;
