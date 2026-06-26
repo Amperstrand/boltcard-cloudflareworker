@@ -382,3 +382,113 @@ export async function verifyDataIntegrityProof(
   if (!valid) return { valid: false, error: "Invalid proof signature" };
   return { valid: true };
 }
+
+// ─── SD-JWT (Selective Disclosure for JWTs, RFC 9901) ──────────────────────────
+
+export interface SdDisclosure {
+  claimName: string;
+  claimValue: string;
+  disclosure: string;
+}
+
+export interface SdJwtVerifyResult extends VerifyResult {
+  disclosures?: SdDisclosure[];
+}
+
+export async function issueSdJwt(
+  env: Env,
+  uidHex: string,
+  profile: VcProfile,
+  alg: VcAlgorithm = "ES256",
+): Promise<string> {
+  const keys = await loadOrCreateKeys(env, alg);
+  const now = Math.floor(Date.now() / 1000);
+
+  const selectableClaims: Array<[string, string]> = [
+    ["name", profile.name],
+    ["role", profile.role],
+    ["department", profile.dept],
+    ["clearance", profile.level],
+  ];
+
+  const disclosures: string[] = [];
+  const sdHashes: string[] = [];
+
+  for (const [claimName, claimValue] of selectableClaims) {
+    const salt = base64urlEncode(crypto.getRandomValues(new Uint8Array(16)));
+    const disclosureJson = JSON.stringify([salt, claimName, claimValue]);
+    const disclosureEncoded = base64urlEncode(new TextEncoder().encode(disclosureJson));
+    disclosures.push(disclosureEncoded);
+    const hashBuf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(disclosureEncoded));
+    sdHashes.push(base64urlEncode(new Uint8Array(hashBuf)));
+  }
+
+  const payload = {
+    iss: keys.didKey,
+    sub: "boltcard:" + uidHex,
+    iat: now,
+    exp: now + VC_TTL_SECONDS,
+    _sd_alg: "sha-256",
+    vc: {
+      "@context": ["https://www.w3.org/ns/credentials/v2"],
+      type: ["VerifiableCredential", "BoltcardAccessBadge"],
+      issuer: keys.didKey,
+      validFrom: new Date(now * 1000).toISOString(),
+      credentialSubject: {
+        cardUid: uidHex,
+        _sd: sdHashes,
+        _sd_alg: "sha-256",
+      },
+    },
+  };
+
+  const header = { typ: "JWT", alg, kid: "#0" };
+  const headerB64 = base64urlEncodeString(JSON.stringify(header));
+  const payloadB64 = base64urlEncodeString(JSON.stringify(payload));
+  const signingInput = headerB64 + "." + payloadB64;
+
+  const signAlg = alg === "EdDSA" ? "Ed25519" : { name: "ECDSA", hash: "SHA-256" };
+  const signatureBuf = await crypto.subtle.sign(signAlg, keys.privateKey, new TextEncoder().encode(signingInput));
+  const signatureB64 = base64urlEncode(new Uint8Array(signatureBuf));
+
+  return signingInput + "." + signatureB64 + "~" + disclosures.join("~");
+}
+
+export async function verifySdJwt(env: Env, sdJwt: string): Promise<SdJwtVerifyResult> {
+  const tildeIndex = sdJwt.indexOf("~");
+  if (tildeIndex === -1) {
+    return { valid: false, error: "Not an SD-JWT (no ~ separator)" };
+  }
+
+  const jwt = sdJwt.substring(0, tildeIndex);
+  const disclosureParts = sdJwt.substring(tildeIndex + 1).split("~").filter(Boolean);
+
+  const jwtResult = await verifyVcJwt(env, jwt);
+  if (!jwtResult.valid) return jwtResult;
+
+  const decoded = decodeVcJwt(jwt);
+  if (!decoded) return { valid: false, error: "Failed to decode JWT payload" };
+
+  const credentialSubject = decoded.payload.vc.credentialSubject as unknown as Record<string, unknown>;
+  const sdHashes = credentialSubject._sd as string[] | undefined;
+  if (!sdHashes || !Array.isArray(sdHashes)) {
+    return { valid: true, payload: decoded.payload, disclosures: [] };
+  }
+
+  const disclosures: SdDisclosure[] = [];
+  for (const disclosureEncoded of disclosureParts) {
+    const hashBuf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(disclosureEncoded));
+    const hash = base64urlEncode(new Uint8Array(hashBuf));
+    if (!sdHashes.includes(hash)) {
+      return { valid: false, error: "Disclosure hash not found in _sd array" };
+    }
+    try {
+      const decodedDisclosure = JSON.parse(new TextDecoder().decode(base64urlDecode(disclosureEncoded))) as [string, string, string];
+      disclosures.push({ claimName: decodedDisclosure[1]!, claimValue: decodedDisclosure[2]!, disclosure: disclosureEncoded });
+    } catch {
+      return { valid: false, error: "Failed to decode disclosure" };
+    }
+  }
+
+  return { valid: true, payload: decoded.payload, disclosures };
+}

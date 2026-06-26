@@ -7,6 +7,8 @@ import {
   getIssuerDid,
   issueDataIntegrityProof,
   verifyDataIntegrityProof,
+  issueSdJwt,
+  verifySdJwt,
   _resetCachedIssuerKeys,
 } from "../utils/vc.js";
 import type { Env } from "../types/core.js";
@@ -311,5 +313,83 @@ describe("Data Integrity Proof (JCS + Ed25519)", () => {
       expect(result.valid).toBe(true);
       expect(vc.credentialSubject.cardUid).toBe(uid);
     }
+  });
+});
+
+describe.each(ALGORITHMS)("SD-JWT [%s]", (alg) => {
+  beforeEach(() => _resetCachedIssuerKeys());
+
+  it("produces an SD-JWT with ~ separator", async () => {
+    const sdJwt = await issueSdJwt(makeKvEnv(), SAMPLE_UID, SAMPLE_PROFILE, alg);
+    expect(sdJwt).toContain("~");
+    const parts = sdJwt.split("~");
+    expect(parts.length).toBe(5); // jwt + 4 disclosures
+    expect(parts[0]!.split(".")).toHaveLength(3); // JWT part has 3 segments
+  });
+
+  it("JWT payload contains _sd array with 4 hashes", async () => {
+    const sdJwt = await issueSdJwt(makeKvEnv(), SAMPLE_UID, SAMPLE_PROFILE, alg);
+    const jwtPart = sdJwt.split("~")[0]!;
+    const decoded = decodeVcJwt(jwtPart)!;
+    const cs = decoded.payload.vc.credentialSubject as unknown as Record<string, unknown>;
+    expect(Array.isArray(cs._sd)).toBe(true);
+    expect((cs._sd as unknown[]).length).toBe(4);
+    expect(cs._sd_alg).toBe("sha-256");
+  });
+
+  it("cardUid is always visible (not selectively disclosed)", async () => {
+    const sdJwt = await issueSdJwt(makeKvEnv(), SAMPLE_UID, SAMPLE_PROFILE, alg);
+    const jwtPart = sdJwt.split("~")[0]!;
+    const decoded = decodeVcJwt(jwtPart)!;
+    expect(decoded.payload.vc.credentialSubject.cardUid).toBe(SAMPLE_UID);
+  });
+
+  it("verifies a freshly issued SD-JWT", async () => {
+    const store: KvStore = {};
+    const sdJwt = await issueSdJwt(makeKvEnv(store), SAMPLE_UID, SAMPLE_PROFILE, alg);
+    _resetCachedIssuerKeys();
+    const result = await verifySdJwt(makeKvEnv(store), sdJwt);
+    expect(result.valid).toBe(true);
+  });
+
+  it("returns decoded disclosures on verification", async () => {
+    const store: KvStore = {};
+    const sdJwt = await issueSdJwt(makeKvEnv(store), SAMPLE_UID, SAMPLE_PROFILE, alg);
+    _resetCachedIssuerKeys();
+    const result = await verifySdJwt(makeKvEnv(store), sdJwt);
+    expect(result.disclosures).toBeDefined();
+    expect(result.disclosures!.length).toBe(4);
+    const claimNames = result.disclosures!.map((d) => d.claimName).sort();
+    expect(claimNames).toEqual(["clearance", "department", "name", "role"]);
+  });
+
+  it("rejects if a disclosure is tampered", async () => {
+    const store: KvStore = {};
+    const sdJwt = await issueSdJwt(makeKvEnv(store), SAMPLE_UID, SAMPLE_PROFILE, alg);
+    const parts = sdJwt.split("~");
+    // Tamper with first disclosure (change last char)
+    const tamperedDisclosure = parts[1]!.slice(0, -1) + (parts[1]!.slice(-1) === "A" ? "B" : "A");
+    const tamperedSdJwt = parts[0] + "~" + tamperedDisclosure + "~" + parts.slice(2).join("~");
+    _resetCachedIssuerKeys();
+    const result = await verifySdJwt(makeKvEnv(store), tamperedSdJwt);
+    expect(result.valid).toBe(false);
+  });
+
+  it("rejects if an extra bogus disclosure is appended", async () => {
+    const store: KvStore = {};
+    const sdJwt = await issueSdJwt(makeKvEnv(store), SAMPLE_UID, SAMPLE_PROFILE, alg);
+    const bogusDisclosure = base64urlEncode(new TextEncoder().encode(JSON.stringify(["fakesalt", "bogus", "value"])));
+    _resetCachedIssuerKeys();
+    const result = await verifySdJwt(makeKvEnv(store), sdJwt + "~" + bogusDisclosure);
+    expect(result.valid).toBe(false);
+  });
+
+  it("rejects plain JWT without ~ separator", async () => {
+    const store: KvStore = {};
+    const jwt = await issueVcJwt(makeKvEnv(store), SAMPLE_UID, SAMPLE_PROFILE, alg);
+    _resetCachedIssuerKeys();
+    const result = await verifySdJwt(makeKvEnv(store), jwt);
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain("~");
   });
 });

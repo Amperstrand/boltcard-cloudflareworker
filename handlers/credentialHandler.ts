@@ -6,7 +6,7 @@ import type { VerifyCredentialBody } from "../utils/schemas.js";
 import { verifyCredentialBodySchema } from "../utils/schemas.js";
 import { renderCredentialPage } from "../templates/credentialPage.js";
 import { resolveCardIdentity } from "../utils/cardAuth.js";
-import { issueVcJwt, verifyVcJwt, decodeVcJwt, getIssuerDid, buildCredentialProfile, issueDataIntegrityProof, verifyDataIntegrityProof } from "../utils/vc.js";
+import { issueVcJwt, verifyVcJwt, decodeVcJwt, getIssuerDid, buildCredentialProfile, issueDataIntegrityProof, verifyDataIntegrityProof, issueSdJwt, verifySdJwt } from "../utils/vc.js";
 import type { VcAlgorithm, VerifiableCredentialWithProof } from "../utils/vc.js";
 
 export function handleCredentialPage(request: Request): Response {
@@ -34,6 +34,14 @@ export async function handleCredentialIssue(request: Request, env: Env): Promise
     const vc = await issueDataIntegrityProof(env, uidHex, profile);
     logger.info("VC Data Integrity proof issued", { uidHex, action: "vc_issue", format: "di" });
     return jsonResponse({ credential: vc, issuer: vc.issuer, format: "di" });
+  }
+
+  if (format === "sdjwt") {
+    const sdJwt = await issueSdJwt(env, uidHex, profile, alg);
+    const jwtPart = sdJwt.split("~")[0]!;
+    const sdDecoded = decodeVcJwt(jwtPart);
+    logger.info("VC SD-JWT issued", { uidHex, action: "vc_issue", format: "sdjwt", alg });
+    return jsonResponse({ credential: sdJwt, issuer: sdDecoded?.payload?.iss ?? "", format: "sdjwt", alg });
   }
 
   const jwt = await issueVcJwt(env, uidHex, profile, alg);
@@ -65,6 +73,17 @@ export async function handleCredentialVerify(request: Request, env: Env): Promis
     } catch {
       return jsonResponse({ valid: false, error: "Failed to parse Data Integrity credential" });
     }
+  }
+
+  if (credential.includes("~")) {
+    const sdResult = await verifySdJwt(env, credential);
+    return jsonResponse({
+      valid: sdResult.valid,
+      payload: sdResult.payload,
+      disclosures: sdResult.disclosures,
+      error: sdResult.error,
+      format: "sdjwt",
+    });
   }
 
   const verification = await verifyVcJwt(env, credential);
