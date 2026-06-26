@@ -1,5 +1,6 @@
 import { rawHtml, safe, jsString, staticScript } from "../utils/rawTemplate.js";
 import { renderTailwindPage } from "./pageShell.js";
+import { renderVirtualCardContent } from "./virtualCardPage.js";
 
 export function renderDebugConsolePage({ host, baseUrl }: { host: string; baseUrl: string }): string {
   const tabs: Array<{id: string; label: string; icon: string}> = [
@@ -176,45 +177,7 @@ export function renderDebugConsolePage({ host, baseUrl }: { host: string; baseUr
 
         <!-- Tab: Virtual Card -->
         <div class="debug-panel hidden" id="panel-virtual">
-          <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-4">
-            <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Virtual Card Simulator</div>
-            <p class="text-xs text-gray-500 mb-4">Generate a virtual NTAG424 card and simulate taps with real AES-ECB/CMAC encryption. No physical NFC hardware needed.</p>
-
-            <!-- Card Info -->
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm mb-4">
-              <div>
-                <div class="text-xs text-gray-500 uppercase">UID</div>
-                <div id="vc-uid" class="font-mono text-amber-300 text-xs truncate">--</div>
-              </div>
-              <div>
-                <div class="text-xs text-gray-500 uppercase">Counter</div>
-                <div id="vc-counter" class="font-mono text-cyan-300">--</div>
-              </div>
-              <div>
-                <div class="text-xs text-gray-500 uppercase">K1</div>
-                <div id="vc-k1" class="font-mono text-purple-300 text-xs">--</div>
-              </div>
-              <div>
-                <div class="text-xs text-gray-500 uppercase">K2</div>
-                <div id="vc-k2" class="font-mono text-purple-300 text-xs">--</div>
-              </div>
-            </div>
-
-            <!-- Buttons -->
-            <div class="flex flex-col gap-2 sm:flex-row">
-              <button id="vc-create-btn" class="flex-1 rounded-xl border border-gray-700 bg-gray-950 px-4 py-3 text-sm font-semibold text-gray-300 transition hover:border-cyan-500/50 hover:text-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed">Create Virtual Card</button>
-              <button id="vc-tap-btn" class="hidden flex-1 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Tap Virtual Card</button>
-              <button id="vc-auto-btn" class="hidden flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">Run Auto-Test</button>
-            </div>
-
-            <div id="vc-status" class="mt-3 hidden rounded-xl border px-4 py-3 text-sm font-semibold"></div>
-          </div>
-
-          <!-- Tap Log -->
-          <div class="rounded-xl border border-gray-800 bg-gray-900/80 p-4 mt-3">
-            <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Results Log</div>
-            <div id="vc-tap-log" class="max-h-80 overflow-y-auto text-sm space-y-0"></div>
-          </div>
+          ${safe(renderVirtualCardContent({ embed: true }))}
         </div>
 
       </main>
@@ -228,7 +191,7 @@ export function renderDebugConsolePage({ host, baseUrl }: { host: string; baseUr
     ${staticScript("card-actions.js")}
     ${staticScript("programming.js")}
     ${staticScript("debug.js")}
-    ${staticScript("virtual-card.js")}
+    ${staticScript("virtual-card-widget.js")}
   `;
 
   return renderTailwindPage({ title: "Debug Console", content, csrf: true });

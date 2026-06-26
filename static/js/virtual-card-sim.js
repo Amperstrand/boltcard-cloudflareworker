@@ -23,6 +23,15 @@
   var virtualCard = loadVC();
   if (!virtualCard) {
     window._virtualSim = { isActive: function() { return false; } };
+    window._vcTap = function() { return null; };
+    window._vcGetKeys = function() { return null; };
+    if (!('NDEFReader' in window)) {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', addCreateCardFab);
+      } else {
+        addCreateCardFab();
+      }
+    }
     return;
   }
 
@@ -282,6 +291,28 @@
     }
   }
 
+  function addCreateCardFab() {
+    if (document.getElementById('virtual-create-fab')) return;
+    if (window.location.pathname === '/virtual') return;
+    var fab = document.createElement('div');
+    fab.id = 'virtual-create-fab';
+    fab.style.cssText = 'position:fixed;bottom:1rem;right:1rem;z-index:99998;';
+    var link = document.createElement('a');
+    link.href = '/virtual';
+    link.style.cssText = 'display:flex;align-items:center;gap:0.5rem;background:#6366f1;color:white;text-decoration:none;padding:0.75rem 1.5rem;border-radius:9999px;font-size:0.875rem;font-weight:600;box-shadow:0 4px 6px -1px rgba(0,0,0,0.3),0 2px 4px -2px rgba(99,102,241,0.4);transition:transform 0.15s,background 0.15s;';
+    link.addEventListener('mouseenter', function() { link.style.background = '#4f46e5'; link.style.transform = 'scale(1.05)'; });
+    link.addEventListener('mouseleave', function() { link.style.background = '#6366f1'; link.style.transform = 'scale(1)'; });
+    var icon = document.createElement('span');
+    icon.textContent = '\u{1f4cb}';
+    icon.style.fontSize = '1.125rem';
+    link.appendChild(icon);
+    var label = document.createElement('span');
+    label.textContent = 'Create Virtual Card';
+    link.appendChild(label);
+    fab.appendChild(link);
+    document.body.appendChild(fab);
+  }
+
   function addFloatingButton() {
     if (document.getElementById('virtual-tap-fab')) return;
     fab = document.createElement('div');
@@ -335,6 +366,21 @@
     tap: performVirtualTap,
     computeTap: computeTapParams,
     clear: function() { clearVC(); location.reload(); }
+  };
+
+  // _vcTap/_vcGetKeys: consumed by E2E VirtualProvider on any page (see virtual-card-widget.js)
+  window._vcTap = function() {
+    if (!virtualCard) return null;
+    var result = virtualTap(virtualCard.uid, virtualCard.counter, virtualCard.k1, virtualCard.k2);
+    var counter = virtualCard.counter;
+    virtualCard.counter++;
+    saveVC(virtualCard);
+    return { p: result.p, c: result.c, counter: counter };
+  };
+  window._vcGetKeys = function() {
+    return virtualCard
+      ? { uid: virtualCard.uid, k1: virtualCard.k1, k2: virtualCard.k2, counter: virtualCard.counter }
+      : null;
   };
 
   if (document.readyState === 'loading') {

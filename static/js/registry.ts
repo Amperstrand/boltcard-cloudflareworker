@@ -2,7 +2,7 @@ import {
   NFC_JS, NFC_JS_HASH,
   NFC_GATE_JS, NFC_GATE_JS_HASH,
   VIRTUAL_CARD_SIM_JS, VIRTUAL_CARD_SIM_JS_HASH,
-  VIRTUAL_CARD_PAGE_JS, VIRTUAL_CARD_PAGE_JS_HASH,
+  VIRTUAL_CARD_WIDGET_JS, VIRTUAL_CARD_WIDGET_JS_HASH,
   CLIENT_ERROR_JS, CLIENT_ERROR_JS_HASH,
   HELPERS_JS, HELPERS_JS_HASH,
   CARD_INFO_JS, CARD_INFO_JS_HASH,
@@ -26,7 +26,6 @@ import {
   RECONCILIATION_JS, RECONCILIATION_JS_HASH,
   VOID_JS, VOID_JS_HASH,
   IDENTITY_JS, IDENTITY_JS_HASH,
-  VIRTUAL_CARD_JS, VIRTUAL_CARD_JS_HASH,
   SW_REGISTER_JS, SW_REGISTER_JS_HASH,
   HEALTH_JS, HEALTH_JS_HASH,
 } from "./exports.js";
@@ -41,7 +40,7 @@ const STATIC_JS_FILES: Record<string, StaticFileEntry> = {
   "nfc.js": { content: NFC_JS, hash: NFC_JS_HASH },
   "nfc-gate.js": { content: NFC_GATE_JS, hash: NFC_GATE_JS_HASH },
   "virtual-card-sim.js": { content: VIRTUAL_CARD_SIM_JS, hash: VIRTUAL_CARD_SIM_JS_HASH },
-  "virtual-card-page.js": { content: VIRTUAL_CARD_PAGE_JS, hash: VIRTUAL_CARD_PAGE_JS_HASH },
+  "virtual-card-widget.js": { content: VIRTUAL_CARD_WIDGET_JS, hash: VIRTUAL_CARD_WIDGET_JS_HASH },
   "client-error.js": { content: CLIENT_ERROR_JS, hash: CLIENT_ERROR_JS_HASH },
   "helpers.js": { content: HELPERS_JS, hash: HELPERS_JS_HASH },
   "card-info.js": { content: CARD_INFO_JS, hash: CARD_INFO_JS_HASH },
@@ -65,7 +64,6 @@ const STATIC_JS_FILES: Record<string, StaticFileEntry> = {
   "reconciliation.js": { content: RECONCILIATION_JS, hash: RECONCILIATION_JS_HASH },
   "void.js": { content: VOID_JS, hash: VOID_JS_HASH },
   "identity.js": { content: IDENTITY_JS, hash: IDENTITY_JS_HASH },
-  "virtual-card.js": { content: VIRTUAL_CARD_JS, hash: VIRTUAL_CARD_JS_HASH },
   "sw-register.js": { content: SW_REGISTER_JS, hash: SW_REGISTER_JS_HASH },
   "health.js": { content: HEALTH_JS, hash: HEALTH_JS_HASH },
 };

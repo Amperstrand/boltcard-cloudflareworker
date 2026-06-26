@@ -32,7 +32,11 @@ export function renderLoginPage({ host, defaultProgrammingEndpoint }: LoginPageO
       <div class="bg-gray-800 border border-gray-700 shadow-xl rounded-lg p-6">
         <div id="nfc-not-supported" class="hidden text-center py-8">
           <p class="text-red-400 font-semibold mb-2">Web NFC not supported</p>
-          <p class="text-gray-500 text-xs">Use Chrome 89+ on Android. On desktop, scan the card with your phone and open the URL.</p>
+          <p class="text-gray-500 text-xs mb-4">Use Chrome 89+ on Android. On desktop, scan the card with your phone and open the URL.</p>
+          <a href="/virtual" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 px-5 rounded-xl text-sm transition-colors">
+            <span>\u{1f4cb}</span> Create a Virtual Card
+          </a>
+          <p class="text-gray-600 text-xs mt-2">No physical card? Simulate one in your browser.</p>
         </div>
 
         <div id="nfc-ready" class="text-center">

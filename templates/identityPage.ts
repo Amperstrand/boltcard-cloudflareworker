@@ -50,7 +50,7 @@ export function renderIdentityPage({ host }: { host: string }): string {
               <button id="btn-scan" class="mt-8 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium tracking-wide transition-colors hidden shadow-lg shadow-blue-500/20">
                 RESCAN
               </button>
-              <p id="no-nfc-msg" class="mt-8 text-sm text-red-400/80 hidden">Web NFC is not supported on this device/browser. Use Chrome on Android.</p>
+              <p id="no-nfc-msg" class="mt-8 text-sm text-red-400/80 hidden">Web NFC is not supported on this device/browser. Use Chrome on Android. <a href="/virtual" class="text-indigo-400 underline">Create a Virtual Card</a> instead.</p>
             </div>
 
             <!-- Scanning State -->

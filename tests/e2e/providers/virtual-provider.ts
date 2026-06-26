@@ -13,13 +13,10 @@ export class VirtualProvider implements CardProvider {
   private cachedCardInfo: CardInfo | null = null;
 
   async setup(page: Page): Promise<void> {
-    await page.goto("/debug", { waitUntil: "domcontentloaded" });
-    await page.locator('button[data-tab="virtual"]').click();
-    await page.locator("#panel-virtual").waitFor({ state: "visible" });
+    await page.goto("/virtual", { waitUntil: "domcontentloaded" });
     await page.locator("#vc-create-btn").click();
     await expect(page.locator("#vc-uid")).not.toHaveText("--", { timeout: 10000 });
 
-    // Cache card info so getCardInfo() works without a page parameter
     this.cachedCardInfo = await page.evaluate(() => (window as any)._vcGetKeys());
   }
 

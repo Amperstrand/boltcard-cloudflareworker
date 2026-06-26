@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { SimProvider } from "./providers/sim-provider.js";
+import { VirtualProvider } from "./providers/virtual-provider.js";
 import { operatorLogin, makeApiHelpers } from "./helpers.js";
 
-const provider = new SimProvider();
+const provider = new VirtualProvider();
 
 test.describe(`User Stories — Virtual Card Simulation (${provider.name} provider)`, () => {
   test.beforeEach(async ({ page }) => {

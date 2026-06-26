@@ -18,7 +18,7 @@ const FILE_ORDER = [
   "nfc.js",
   "nfc-gate.js",
   "virtual-card-sim.js",
-  "virtual-card-page.js",
+  "virtual-card-widget.js",
   "client-error.js",
   "helpers.js",
   "card-info.js",
@@ -42,7 +42,6 @@ const FILE_ORDER = [
   "reconciliation.js",
   "void.js",
   "identity.js",
-  "virtual-card.js",
   "sw-register.js",
   "health.js",
 ];
