@@ -156,6 +156,42 @@ Examples:
 
 ## Operator Auth
 
+## Verifiable Credentials
+
+The deployed service acts as a **centralized VC issuer** — it holds the signing keys and makes attestations about cards/cardholders.
+
+### Attestation Types
+
+| Type | Source | Examples |
+|------|--------|----------|
+| **Service-initiated** | Server knows these automatically | Card enrolled, card state, balance, tap count, last seen |
+| **User-requested** | Cardholder asks server to attest | NIP-05 verified identity, age verification, event ticket, membership tier |
+
+VCs are short-lived (1 hour TTL), holder-bound to card UID, and presented via NFC tap (CMAC proves card possession). Third-party verifiers validate against the service's `did:key` without contacting the service.
+
+### Three Proof Formats
+
+| Format | Endpoint param | Standard | Use case |
+|--------|---------------|----------|----------|
+| **VC-JWT** | `?alg=ES256\|EdDSA` (default) | VC-JOSE-COSE | Simplest — compact, widely supported |
+| **Data Integrity** | `?format=di` | W3C VCDM v2.0 proof block | Visual proof block in JSON (JCS canonicalization) |
+| **SD-JWT** | `?format=sdjwt` | RFC 9901 | Selective disclosure — reveal only needed claims |
+
+All formats use native WebCrypto (zero external crypto dependencies). Issuer keys auto-generated and stored in KV.
+
+### Nostr Identity Pairing (Planned)
+
+Link a bolt card to a Nostr npub:
+
+1. Cardholder visits pairing page
+2. Logs in via NIP-07 browser extension (`window.nostr.getPublicKey()`)
+3. Taps card to prove possession
+4. Server links card UID → npub in KV
+5. Future taps include Nostr claims in VCs
+6. Server can fetch kind 0 metadata and NIP-85 reputation from relays
+
+## Operator Auth
+
 All `/operator/*` and `/experimental/*` and `/debug` routes require a shared PIN and HMAC-signed session cookie (12h expiry).
 
 - **Dev**: PIN is `1234`, session secret is built-in
