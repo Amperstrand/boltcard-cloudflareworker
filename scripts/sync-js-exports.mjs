@@ -44,6 +44,7 @@ const FILE_ORDER = [
   "identity.js",
   "sw-register.js",
   "health.js",
+  "credential.js",
 ];
 
 function jsName(filename) {

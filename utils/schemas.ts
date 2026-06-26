@@ -96,6 +96,10 @@ export const loginBodySchema = v.object({
   amount: v.optional(v.union([v.string(), v.number()])),
 });
 
+export const verifyCredentialBodySchema = v.object({
+  credential: v.string(),
+});
+
 export type CardTapBody = v.InferOutput<typeof cardTapBodySchema>;
 export type PosChargeBody = v.InferOutput<typeof posChargeBodySchema>;
 export type TopupBody = v.InferOutput<typeof topupBodySchema>;
@@ -107,6 +111,7 @@ export type ActivateCardBody = v.InferOutput<typeof activateCardBodySchema>;
 export type IdentityProfileBody = v.InferOutput<typeof identityProfileBodySchema>;
 export type BulkWipeBody = v.InferOutput<typeof bulkWipeBodySchema>;
 export type LoginBody = v.InferOutput<typeof loginBodySchema>;
+export type VerifyCredentialBody = v.InferOutput<typeof verifyCredentialBodySchema>;
 
 export async function parseValidatedBody<T>(
   request: Request,
