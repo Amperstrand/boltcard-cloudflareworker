@@ -78,9 +78,12 @@ interface AlgorithmKeys {
 }
 
 const VC_TTL_SECONDS = 3600;
-const KV_KEY = "vc_issuer_keys";
 
-let cachedKeys: AlgorithmKeys | null = null;
+const cachedKeys: Partial<Record<VcAlgorithm, AlgorithmKeys>> = {};
+
+function kvKeyForAlg(alg: VcAlgorithm): string {
+  return "vc_issuer_keys_" + alg.toLowerCase();
+}
 
 // ─── did:key encoding ─────────────────────────────────────────────────────────
 
@@ -103,21 +106,25 @@ function encodeDidKey(publicRaw: Uint8Array, alg: VcAlgorithm): string {
 // ─── Key management (KV-backed) ───────────────────────────────────────────────
 
 async function loadOrCreateKeys(env: Env, alg: VcAlgorithm): Promise<AlgorithmKeys> {
-  if (cachedKeys) return cachedKeys;
+  const cached = cachedKeys[alg];
+  if (cached) return cached;
+
+  const kvKey = kvKeyForAlg(alg);
 
   try {
-    const stored = await env.UID_CONFIG.get(KV_KEY);
+    const stored = await env.UID_CONFIG.get(kvKey);
     if (stored) {
       const parsed = JSON.parse(stored) as { privateRaw: number[]; publicRaw: number[] };
       const privateBytes = new Uint8Array(parsed.privateRaw);
       const publicBytes = new Uint8Array(parsed.publicRaw);
       const keys = await importKeys(privateBytes, publicBytes, alg);
-      cachedKeys = { ...keys, publicRaw: publicBytes, didKey: encodeDidKey(publicBytes, alg) };
-      logger.info("VC issuer keys loaded from KV", { alg, didKey: cachedKeys.didKey });
-      return cachedKeys;
+      const result: AlgorithmKeys = { ...keys, publicRaw: publicBytes, didKey: encodeDidKey(publicBytes, alg) };
+      cachedKeys[alg] = result;
+      logger.info("VC issuer keys loaded from KV", { alg, didKey: result.didKey });
+      return result;
     }
   } catch (err: unknown) {
-    logger.warn("Failed to load VC issuer keys from KV, generating new", { error: String(err) });
+    logger.warn("Failed to load VC issuer keys from KV, generating new", { alg, error: String(err) });
   }
 
   const generated = await generateKeys(alg);
@@ -125,17 +132,18 @@ async function loadOrCreateKeys(env: Env, alg: VcAlgorithm): Promise<AlgorithmKe
   const publicRaw = new Uint8Array(await crypto.subtle.exportKey("raw", generated.publicKey) as ArrayBuffer);
 
   try {
-    await env.UID_CONFIG.put(KV_KEY, JSON.stringify({
+    await env.UID_CONFIG.put(kvKey, JSON.stringify({
       privateRaw: Array.from(privateRaw),
       publicRaw: Array.from(publicRaw),
     }));
   } catch (err: unknown) {
-    logger.error("Failed to persist VC issuer keys to KV", { error: String(err) });
+    logger.error("Failed to persist VC issuer keys to KV", { alg, error: String(err) });
   }
 
-  cachedKeys = { ...generated, publicRaw, didKey: encodeDidKey(publicRaw, alg) };
-  logger.info("VC issuer keys generated and stored", { alg, didKey: cachedKeys.didKey });
-  return cachedKeys;
+  const result: AlgorithmKeys = { ...generated, publicRaw, didKey: encodeDidKey(publicRaw, alg) };
+  cachedKeys[alg] = result;
+  logger.info("VC issuer keys generated and stored", { alg, didKey: result.didKey });
+  return result;
 }
 
 async function generateKeys(alg: VcAlgorithm): Promise<{ publicKey: CryptoKey; privateKey: CryptoKey }> {
@@ -162,7 +170,8 @@ async function importKeys(privateBytes: Uint8Array, publicBytes: Uint8Array, alg
 }
 
 export function _resetCachedIssuerKeys(): void {
-  cachedKeys = null;
+  cachedKeys["ES256"] = undefined;
+  cachedKeys["EdDSA"] = undefined;
 }
 
 export async function getIssuerDid(env: Env): Promise<string> {

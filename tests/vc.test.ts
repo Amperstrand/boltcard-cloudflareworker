@@ -71,8 +71,8 @@ describe.each(ALGORITHMS)("getIssuerDid [%s]", (alg) => {
   it("persists keys to KV on first call", async () => {
     const env = makeKvEnv();
     await getIssuerDid(env);
-    expect(env.__store["vc_issuer_keys"]).toBeDefined();
-    const stored = JSON.parse(env.__store["vc_issuer_keys"]!);
+    expect(env.__store["vc_issuer_keys_es256"]).toBeDefined();
+    const stored = JSON.parse(env.__store["vc_issuer_keys_es256"]!);
     expect(stored.privateRaw).toBeInstanceOf(Array);
     expect(stored.publicRaw).toBeInstanceOf(Array);
   });
