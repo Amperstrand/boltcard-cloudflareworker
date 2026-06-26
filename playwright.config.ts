@@ -16,6 +16,7 @@ export default defineConfig({
     "hardware-financial.spec.ts",
     "hardware-selfservice.spec.ts",
     "user-stories.spec.ts",
+    "credential-flows.spec.ts",
   ],
   fullyParallel: false,
   retries: isLocal ? 1 : 2,
