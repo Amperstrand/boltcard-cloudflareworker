@@ -132,6 +132,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 | GET | `/pos` | redirect → `/operator/pos` | Fakewallet POS payment |
 | GET | `/debug` | `handleDebugPage()` | Tabbed debug console (Console, Identify, Wipe, 2FA, Identity, POS, Virtual Card) |
 | GET | `/identity` | `handleIdentityPage()` | Identity/access control demo |
+| GET | `/credential` | `handleCredentialPage()` | Verifiable Credential demo (NFC tap → issue VC-JWT) |
 | GET | `/card` | `handleCardPage()` | Cardholder dashboard (NFC scan) |
 | GET | `/card/info` | `handleCardInfo()` | Card status API (JSON) — returns unified history, analytics, payment method |
 | GET | `/virtual` | `handleVirtualCardPage()` | Virtual card simulator (create, view keys, simulate taps, auto-test lifecycle) |
@@ -141,6 +142,9 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 | GET | `/api/fake-invoice` | `handleFakeInvoice()` | Generate fake bolt11/SPAYD/UPI/payto for fakewallet |
 | GET | `/api/verify-identity` | `handleIdentityVerify()` | Identity verification API |
 | POST | `/api/identity/profile` | `handleIdentityProfileUpdate()` | Identity profile update |
+| GET | `/api/credential` | `handleCredentialIssue()` | Issue VC-JWT (card CMAC auth, `?alg=ES256\|EdDSA`) |
+| GET | `/api/credential/issuer` | `handleCredentialIssuer()` | VC issuer did:key identifier |
+| POST | `/api/verify-credential` | `handleCredentialVerify()` | Verify a VC-JWT signature + expiry |
 | POST | `/api/identify-card` | `handleIdentifyCard()` | Operator card identification |
 | POST | `/api/identify-issuer-key` | `handleIdentifyIssuerKey()` | Tap-to-detect issuer key + version |
 | POST | `/api/balance-check` | `handleBalanceCheck()` | Card balance query |
@@ -237,6 +241,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 - `handleVirtualCardKeys()` from `handlers/virtualCardHandler.ts` generates deterministic card keys for the virtual card simulator (operator auth required)
 - Virtual card simulator: `static/js/virtual-card-widget.js` (700 lines) + `static/js/virtual-card-sim.js` (360 lines, loaded on every page); provides real AES-ECB/CMAC tap simulation, localStorage persistence, mock NDEFReader, floating tap button; `/virtual` page for management; `?embed=1` mode for iframe embedding; `_vcTap()`/`_vcGetKeys()` hooks for E2E tests
 - `handleClientError()` from `handlers/clientErrorHandler.ts` accepts client-side error reports with rate limiting (prefix `client_error:`, 20 req/hour per IP)
+- Verifiable Credentials: `issueVcJwt()`, `verifyVcJwt()`, `decodeVcJwt()`, `getIssuerDid()` from `utils/vc.ts` — VC-JWT issuance/verification using native WebCrypto (ES256 P-256 + EdDSA Ed25519); issuer keys auto-generated and stored in KV (`vc_issuer_keys`); did:key encoding for both curves; `VcAlgorithm` type (`"ES256" | "EdDSA"`) controls algorithm; `/credential` page with NFC tap → issue → display + verify; `_resetCachedIssuerKeys()` for test-only cache clearing
 - Tests use `makeReplayNamespace()` (in-memory DO mock) from `tests/replayNamespace.ts`
 - Commit style: semantic (`feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`)
 - Never commit without explicit user request
@@ -332,7 +337,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 | Real Lightning integration | High | Currently all fakewallet; wire up `clnrest` or LND for real Bitcoin payments |
 | Multi-venue / multi-tenant | Medium | Namespace cards per venue, operator-scoped access |
 | Cardholder PWA | Medium | Rich dashboard with push notifications, spending history, QR top-up |
-| GitHub #5: verifiable credentials | Low | Embed VC in payment JSON |
+| GitHub #5: verifiable credentials | Phase 1+2 Done | VC-JWT with ES256 + EdDSA via native WebCrypto; `/credential` page; Phase 3 (SD-JWT, Data Integrity proofs) pending |
 | GitHub #3: SSH 2FA via NTAG424 | Low | NFC-based SSH authentication |
 | USB reader keyboard-wedge input | Medium | `pos.js` UI toggle exists but no keyboard event listener for USB reader input |
 

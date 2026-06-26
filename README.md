@@ -213,6 +213,7 @@ To submit keys for a service, add a CSV file to `keys/` and run `node scripts/bu
 | [/login](https://boltcardpoc.psbt.me/login) | Customer NFC login — key recovery |
 | [/card](https://boltcardpoc.psbt.me/card) | Cardholder dashboard — tap to see balance, state, provenance |
 | [/identity](https://boltcardpoc.psbt.me/identity) | Identity demo — NFC-based access control |
+| [/credential](https://boltcardpoc.psbt.me/credential) | Verifiable Credential demo — NFC tap → issue + verify VC-JWT |
 | [/2fa](https://boltcardpoc.psbt.me/2fa) | 2FA demo — TOTP/HOTP codes from NFC card |
 
 ### API Endpoints
@@ -240,6 +241,9 @@ To submit keys for a service, add a CSV file to `keys/` and run `node scripts/bu
 | POST | `/api/card/reactivate` | No | Cardholder self-service re-provision |
 | GET | `/api/receipt/:txnId` | No | Plain-text transaction receipt |
 | GET | `/api/verify-identity?p=X&c=Y` | No | Verify card identity |
+| GET | `/api/credential?p=X&c=Y&alg=ES256\|EdDSA` | Card CMAC | Issue VC-JWT for tapped card |
+| GET | `/api/credential/issuer` | No | VC issuer did:key identifier |
+| POST | `/api/verify-credential` | No | Verify a VC-JWT signature + expiry |
 | POST | `/api/identity/profile` | No | Update identity profile |
 | ALL | `/api/v1/pull-payments/:pullPaymentId/boltcards` | No | Card programming keys |
 | GET/POST | `/api/keys` | Yes | Key lookup |
