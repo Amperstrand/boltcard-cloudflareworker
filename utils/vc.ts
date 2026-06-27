@@ -48,6 +48,8 @@ export interface VcCredentialSubject {
   department: string;
   clearance: string;
   nostrNpub?: string;
+  cardBalance?: number;
+  cardState?: string;
 }
 
 export interface VcPayload {
@@ -70,6 +72,8 @@ export interface VcProfile {
   dept: string;
   level: string;
   nostrNpub?: string;
+  cardBalance?: number;
+  cardState?: string;
 }
 
 interface AlgorithmKeys {
@@ -209,6 +213,8 @@ export async function issueVcJwt(
         department: profile.dept,
         clearance: profile.level,
         ...(profile.nostrNpub ? { nostrNpub: profile.nostrNpub } : {}),
+        ...(profile.cardBalance !== undefined ? { cardBalance: profile.cardBalance } : {}),
+        ...(profile.cardState ? { cardState: profile.cardState } : {}),
       },
     },
   };
@@ -347,6 +353,8 @@ export async function issueDataIntegrityProof(
       department: profile.dept,
       clearance: profile.level,
       ...(profile.nostrNpub ? { nostrNpub: profile.nostrNpub } : {}),
+      ...(profile.cardBalance !== undefined ? { cardBalance: profile.cardBalance } : {}),
+      ...(profile.cardState ? { cardState: profile.cardState } : {}),
     },
   };
 
@@ -417,12 +425,14 @@ export async function issueSdJwt(
   const keys = await loadOrCreateKeys(env, alg);
   const now = Math.floor(Date.now() / 1000);
 
-  const selectableClaims: Array<[string, string]> = [
+  const selectableClaims: Array<[string, string | number]> = [
     ["name", profile.name],
     ["role", profile.role],
     ["department", profile.dept],
     ["clearance", profile.level],
-    ...(profile.nostrNpub ? [["nostrNpub", profile.nostrNpub] as [string, string]] : []),
+    ...(profile.nostrNpub ? [["nostrNpub", profile.nostrNpub] as [string, string | number]] : []),
+    ...(profile.cardBalance !== undefined ? [["cardBalance", profile.cardBalance] as [string, string | number]] : []),
+    ...(profile.cardState ? [["cardState", profile.cardState] as [string, string | number]] : []),
   ];
 
   const disclosures: string[] = [];

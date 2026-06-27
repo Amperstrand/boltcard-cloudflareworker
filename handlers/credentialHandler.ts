@@ -9,6 +9,7 @@ import { resolveCardIdentity } from "../utils/cardAuth.js";
 import { issueVcJwt, verifyVcJwt, decodeVcJwt, getIssuerDid, buildCredentialProfile, issueDataIntegrityProof, verifyDataIntegrityProof, issueSdJwt, verifySdJwt } from "../utils/vc.js";
 import type { VcAlgorithm, VerifiableCredentialWithProof } from "../utils/vc.js";
 import { getNostrNpub } from "./nostrPairingHandler.js";
+import { getCardState } from "../replayProtection.js";
 
 export function handleCredentialPage(request: Request): Response {
   const url = new URL(request.url);
@@ -32,6 +33,11 @@ export async function handleCredentialIssue(request: Request, env: Env): Promise
   const profile = buildCredentialProfile(uidHex);
   const nostrNpub = await getNostrNpub(env, uidHex);
   if (nostrNpub) profile.nostrNpub = nostrNpub;
+  try {
+    const cardState = await getCardState(env, uidHex);
+    profile.cardBalance = cardState.balance;
+    profile.cardState = cardState.state;
+  } catch { }
 
   if (format === "di") {
     const vc = await issueDataIntegrityProof(env, uidHex, profile);
