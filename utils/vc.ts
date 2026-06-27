@@ -48,6 +48,8 @@ export interface VcCredentialSubject {
   department: string;
   clearance: string;
   nostrNpub?: string;
+  nostrName?: string;
+  nostrNip05?: string;
   cardBalance?: number;
   cardState?: string;
 }
@@ -72,6 +74,8 @@ export interface VcProfile {
   dept: string;
   level: string;
   nostrNpub?: string;
+  nostrName?: string;
+  nostrNip05?: string;
   cardBalance?: number;
   cardState?: string;
 }
@@ -213,6 +217,8 @@ export async function issueVcJwt(
         department: profile.dept,
         clearance: profile.level,
         ...(profile.nostrNpub ? { nostrNpub: profile.nostrNpub } : {}),
+        ...(profile.nostrName ? { nostrName: profile.nostrName } : {}),
+        ...(profile.nostrNip05 ? { nostrNip05: profile.nostrNip05 } : {}),
         ...(profile.cardBalance !== undefined ? { cardBalance: profile.cardBalance } : {}),
         ...(profile.cardState ? { cardState: profile.cardState } : {}),
       },
@@ -353,6 +359,8 @@ export async function issueDataIntegrityProof(
       department: profile.dept,
       clearance: profile.level,
       ...(profile.nostrNpub ? { nostrNpub: profile.nostrNpub } : {}),
+      ...(profile.nostrName ? { nostrName: profile.nostrName } : {}),
+      ...(profile.nostrNip05 ? { nostrNip05: profile.nostrNip05 } : {}),
       ...(profile.cardBalance !== undefined ? { cardBalance: profile.cardBalance } : {}),
       ...(profile.cardState ? { cardState: profile.cardState } : {}),
     },
@@ -431,6 +439,8 @@ export async function issueSdJwt(
     ["department", profile.dept],
     ["clearance", profile.level],
     ...(profile.nostrNpub ? [["nostrNpub", profile.nostrNpub] as [string, string | number]] : []),
+    ...(profile.nostrName ? [["nostrName", profile.nostrName] as [string, string | number]] : []),
+    ...(profile.nostrNip05 ? [["nostrNip05", profile.nostrNip05] as [string, string | number]] : []),
     ...(profile.cardBalance !== undefined ? [["cardBalance", profile.cardBalance] as [string, string | number]] : []),
     ...(profile.cardState ? [["cardState", profile.cardState] as [string, string | number]] : []),
   ];

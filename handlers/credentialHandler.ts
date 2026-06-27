@@ -10,6 +10,7 @@ import { issueVcJwt, verifyVcJwt, decodeVcJwt, getIssuerDid, buildCredentialProf
 import type { VcAlgorithm, VerifiableCredentialWithProof } from "../utils/vc.js";
 import { getNostrNpub } from "./nostrPairingHandler.js";
 import { getCardState } from "../replayProtection.js";
+import { getNostrProfile } from "../utils/nostrRelay.js";
 
 export function handleCredentialPage(request: Request): Response {
   const url = new URL(request.url);
@@ -32,7 +33,14 @@ export async function handleCredentialIssue(request: Request, env: Env): Promise
   const { uidHex } = auth;
   const profile = buildCredentialProfile(uidHex);
   const nostrNpub = await getNostrNpub(env, uidHex);
-  if (nostrNpub) profile.nostrNpub = nostrNpub;
+  if (nostrNpub) {
+    profile.nostrNpub = nostrNpub;
+    try {
+      const nostrProfile = await getNostrProfile(env, nostrNpub);
+      if (nostrProfile?.name) profile.nostrName = nostrProfile.name;
+      if (nostrProfile?.nip05) profile.nostrNip05 = nostrProfile.nip05;
+    } catch { }
+  }
   try {
     const cardState = await getCardState(env, uidHex);
     profile.cardBalance = cardState.balance;
