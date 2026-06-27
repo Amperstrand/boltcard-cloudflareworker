@@ -276,4 +276,125 @@ test.describe(`User Stories — Virtual Card Simulation (${provider.name} provid
     expect(recon.venueTotals.chargeTotal).toBeGreaterThanOrEqual(3000);
     expect(recon.venueTotals.refundTotal).toBeGreaterThanOrEqual(1000);
   });
+
+  // ─── US17: VC Issuance ─────────────────────────────────────────────
+  test("US17: Card holder taps card and receives a verifiable credential", async ({ page }) => {
+    const t = await provider.tap(page);
+    const result = await page.evaluate(async (tap: { p: string; c: string }): Promise<{ ok: boolean; data: Record<string, unknown> }> => {
+      const r = await fetch(`/api/credential?p=${tap.p}&c=${tap.c}`);
+      return { ok: r.ok, data: await r.json() };
+    }, t);
+    expect(result.ok).toBeTruthy();
+    expect(result.data.credential).toBeTruthy();
+    expect(result.data.issuer).toMatch(/^did:key:z/);
+    expect((result.data.credential as string).split(".")).toHaveLength(3);
+  });
+
+  // ─── US18: VC Verification ─────────────────────────────────────────
+  test("US18: Third party verifies the credential signature", async ({ page }) => {
+    const t = await provider.tap(page);
+    const issue = await page.evaluate(async (tap: { p: string; c: string }): Promise<Record<string, unknown>> => {
+      const r = await fetch(`/api/credential?p=${tap.p}&c=${tap.c}`);
+      return r.json();
+    }, t);
+
+    const verify = await page.evaluate(async (credential: string): Promise<Record<string, unknown>> => {
+      const r = await fetch("/api/verify-credential", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential }),
+      });
+      return r.json();
+    }, issue.credential as string);
+
+    expect(verify.valid).toBe(true);
+    expect(verify.payload).toBeDefined();
+  });
+
+  // ─── US19: Algorithm Toggle ────────────────────────────────────────
+  test("US19: Credential issued with EdDSA algorithm verifies correctly", async ({ page }) => {
+    const t = await provider.tap(page);
+    const issue = await page.evaluate(async (tap: { p: string; c: string }): Promise<Record<string, unknown>> => {
+      const r = await fetch(`/api/credential?p=${tap.p}&c=${tap.c}&alg=EdDSA`);
+      return r.json();
+    }, t);
+    expect(issue.alg).toBe("EdDSA");
+
+    const verify = await page.evaluate(async (credential: string): Promise<Record<string, unknown>> => {
+      const r = await fetch("/api/verify-credential", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential }),
+      });
+      return r.json();
+    }, issue.credential as string);
+    expect(verify.valid).toBe(true);
+  });
+
+  // ─── US20: Data Integrity Proof ────────────────────────────────────
+  test("US20: Credential issued as Data Integrity proof with JCS+Ed25519", async ({ page }) => {
+    const t = await provider.tap(page);
+    const issue = await page.evaluate(async (tap: { p: string; c: string }): Promise<Record<string, unknown>> => {
+      const r = await fetch(`/api/credential?p=${tap.p}&c=${tap.c}&format=di`);
+      return r.json();
+    }, t);
+    expect(issue.format).toBe("di");
+    const credential = issue.credential as Record<string, unknown>;
+    const proof = credential.proof as Record<string, unknown>;
+    expect(proof).toBeDefined();
+    expect(proof.type).toBe("DataIntegrityProof");
+    expect(proof.cryptosuite).toBe("jcs-eddsa-2025");
+
+    const verify = await page.evaluate(async (cred: string): Promise<Record<string, unknown>> => {
+      const r = await fetch("/api/verify-credential", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential: cred }),
+      });
+      return r.json();
+    }, JSON.stringify(credential));
+    expect(verify.valid).toBe(true);
+  });
+
+  // ─── US21: SD-JWT Selective Disclosure ─────────────────────────────
+  test("US21: Credential issued as SD-JWT with selective disclosures", async ({ page }) => {
+    const t = await provider.tap(page);
+    const issue = await page.evaluate(async (tap: { p: string; c: string }): Promise<Record<string, unknown>> => {
+      const r = await fetch(`/api/credential?p=${tap.p}&c=${tap.c}&format=sdjwt`);
+      return r.json();
+    }, t);
+    expect(issue.format).toBe("sdjwt");
+    const sdJwt = issue.credential as string;
+    expect(sdJwt).toContain("~");
+
+    const verify = await page.evaluate(async (credential: string): Promise<Record<string, unknown>> => {
+      const r = await fetch("/api/verify-credential", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential }),
+      });
+      return r.json();
+    }, sdJwt);
+    expect(verify.valid).toBe(true);
+    expect(verify.disclosures).toBeDefined();
+    expect((verify.disclosures as unknown[]).length).toBeGreaterThan(0);
+  });
+
+  // ─── US22: VC in LNURL Response ────────────────────────────────────
+  test("US22: Card tap returns verifiable credential in LNURL payment response", async ({ page }) => {
+    const api = makeApiHelpers(provider, page);
+    const disc = await api.discoverCard();
+    expect(disc.data.verifiableCredential).toBeTruthy();
+    expect(typeof disc.data.verifiableCredential).toBe("string");
+
+    const verify = await page.evaluate(async (credential: string): Promise<Record<string, unknown>> => {
+      const r = await fetch("/api/verify-credential", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential }),
+      });
+      return r.json();
+    }, disc.data.verifiableCredential as string);
+    expect(verify.valid).toBe(true);
+  });
 });

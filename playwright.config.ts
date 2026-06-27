@@ -22,10 +22,16 @@ export default defineConfig({
   retries: isLocal ? 1 : 2,
   timeout: 60000,
   expect: { timeout: 10000 },
+  reporter: [
+    ["list"],
+    ["json", { outputFile: "test-results/report.json" }],
+    ["html", { outputFolder: "test-results/html-report", open: "never" }],
+  ],
   use: {
     baseURL,
     headless: true,
     screenshot: "on",
+    video: "on",
     trace: "retain-on-failure",
   },
   projects: [
