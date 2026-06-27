@@ -397,4 +397,85 @@ test.describe(`User Stories — Virtual Card Simulation (${provider.name} provid
     }, disc.data.verifiableCredential as string);
     expect(verify.valid).toBe(true);
   });
+
+  // ─── US23: Nostr Identity Pairing ─────────────────────────────────
+  test("US23: Card holder pairs their card to a Nostr identity", async ({ page }) => {
+    const t = await provider.tap(page);
+    const testNpub = "npub1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq987654";
+
+    const pair = await page.evaluate(async ({ p, c, npub }: { p: string; c: string; npub: string }): Promise<Record<string, unknown>> => {
+      const r = await fetch("/api/pair-nostr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ p, c, npub }),
+      });
+      return r.json();
+    }, { p: t.p, c: t.c, npub: testNpub });
+
+    expect(pair.success).toBe(true);
+    expect(pair.npub).toBe(testNpub);
+  });
+
+  // ─── US24: Paired Card Issues VC with Nostr npub ──────────────────
+  test("US24: Paired card's VC credentials include the Nostr npub", async ({ page }) => {
+    const t1 = await provider.tap(page);
+    const testNpub = "npub1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq987654";
+
+    await page.evaluate(async ({ p, c, npub }: { p: string; c: string; npub: string }) => {
+      await fetch("/api/pair-nostr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ p, c, npub }),
+      });
+    }, { p: t1.p, c: t1.c, npub: testNpub });
+
+    const t2 = await provider.tap(page);
+    const issue = await page.evaluate(async (tap: { p: string; c: string }): Promise<Record<string, unknown>> => {
+      const r = await fetch(`/api/credential?p=${tap.p}&c=${tap.c}`);
+      return r.json();
+    }, t2);
+
+    expect(issue.ok || issue.credential).toBeTruthy();
+    const decoded = issue.decoded as Record<string, unknown>;
+    const vc = decoded.vc as Record<string, unknown>;
+    const subject = vc.credentialSubject as Record<string, unknown>;
+    expect(subject.nostrNpub).toBe(testNpub);
+  });
+
+  // ─── US25: Unpair Nostr Identity ──────────────────────────────────
+  test("US25: Card holder can unpair their Nostr identity", async ({ page }) => {
+    const t1 = await provider.tap(page);
+    const testNpub = "npub1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq987654";
+
+    await page.evaluate(async ({ p, c, npub }: { p: string; c: string; npub: string }) => {
+      await fetch("/api/pair-nostr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ p, c, npub }),
+      });
+    }, { p: t1.p, c: t1.c, npub: testNpub });
+
+    const t2 = await provider.tap(page);
+    const unpair = await page.evaluate(async (tap: { p: string; c: string }): Promise<Record<string, unknown>> => {
+      const r = await fetch("/api/unpair-nostr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ p: tap.p, c: tap.c }),
+      });
+      return r.json();
+    }, t2);
+
+    expect(unpair.success).toBe(true);
+
+    const t3 = await provider.tap(page);
+    const issue = await page.evaluate(async (tap: { p: string; c: string }): Promise<Record<string, unknown>> => {
+      const r = await fetch(`/api/credential?p=${tap.p}&c=${tap.c}`);
+      return r.json();
+    }, t3);
+
+    const decoded = issue.decoded as Record<string, unknown>;
+    const vc = decoded.vc as Record<string, unknown>;
+    const subject = vc.credentialSubject as Record<string, unknown>;
+    expect(subject.nostrNpub).toBeUndefined();
+  });
 });

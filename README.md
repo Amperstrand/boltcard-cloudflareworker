@@ -179,16 +179,16 @@ VCs are short-lived (1 hour TTL), holder-bound to card UID, and presented via NF
 
 All formats use native WebCrypto (zero external crypto dependencies). Issuer keys auto-generated and stored in KV.
 
-### Nostr Identity Pairing (Planned)
+### Nostr Identity Pairing
 
 Link a bolt card to a Nostr npub:
 
-1. Cardholder visits pairing page
-2. Logs in via NIP-07 browser extension (`window.nostr.getPublicKey()`)
-3. Taps card to prove possession
-4. Server links card UID → npub in KV
-5. Future taps include Nostr claims in VCs
-6. Server can fetch kind 0 metadata and NIP-85 reputation from relays
+1. Cardholder visits [/pair-nostr](https://boltcardpoc.psbt.me/pair-nostr)
+2. Connects via NIP-07 browser extension (`window.nostr.getPublicKey()`)
+3. Taps card to prove possession (CMAC auth)
+4. Server links card UID → npub in KV (`card_nostr:<uid>`)
+5. Future VC credentials include `nostrNpub` in credentialSubject
+6. Unpair via `POST /api/unpair-nostr` with card tap auth
 
 ## Operator Auth
 
@@ -250,6 +250,7 @@ To submit keys for a service, add a CSV file to `keys/` and run `node scripts/bu
 | [/card](https://boltcardpoc.psbt.me/card) | Cardholder dashboard — tap to see balance, state, provenance |
 | [/identity](https://boltcardpoc.psbt.me/identity) | Identity demo — NFC-based access control |
 | [/credential](https://boltcardpoc.psbt.me/credential) | Verifiable Credential demo — NFC tap → issue + verify VC-JWT |
+| [/pair-nostr](https://boltcardpoc.psbt.me/pair-nostr) | Nostr identity pairing — NIP-07 login + tap card → link npub |
 | [/2fa](https://boltcardpoc.psbt.me/2fa) | 2FA demo — TOTP/HOTP codes from NFC card |
 
 ### API Endpoints
@@ -280,6 +281,8 @@ To submit keys for a service, add a CSV file to `keys/` and run `node scripts/bu
 | GET | `/api/credential?p=X&c=Y&alg=ES256\|EdDSA` | Card CMAC | Issue VC-JWT for tapped card |
 | GET | `/api/credential/issuer` | No | VC issuer did:key identifier |
 | POST | `/api/verify-credential` | No | Verify a VC-JWT signature + expiry |
+| POST | `/api/pair-nostr` | Card CMAC | Link card UID to Nostr npub in KV |
+| POST | `/api/unpair-nostr` | Card CMAC | Remove Nostr identity pairing from card |
 | POST | `/api/identity/profile` | No | Update identity profile |
 | ALL | `/api/v1/pull-payments/:pullPaymentId/boltcards` | No | Card programming keys |
 | GET/POST | `/api/keys` | Yes | Key lookup |
