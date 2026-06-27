@@ -100,6 +100,17 @@ export const verifyCredentialBodySchema = v.object({
   credential: v.string(),
 });
 
+export const pairNostrBodySchema = v.object({
+  p: v.string(),
+  c: v.string(),
+  npub: v.string(),
+});
+
+export const unpairNostrBodySchema = v.object({
+  p: v.string(),
+  c: v.string(),
+});
+
 export type CardTapBody = v.InferOutput<typeof cardTapBodySchema>;
 export type PosChargeBody = v.InferOutput<typeof posChargeBodySchema>;
 export type TopupBody = v.InferOutput<typeof topupBodySchema>;
@@ -112,6 +123,8 @@ export type IdentityProfileBody = v.InferOutput<typeof identityProfileBodySchema
 export type BulkWipeBody = v.InferOutput<typeof bulkWipeBodySchema>;
 export type LoginBody = v.InferOutput<typeof loginBodySchema>;
 export type VerifyCredentialBody = v.InferOutput<typeof verifyCredentialBodySchema>;
+export type PairNostrBody = v.InferOutput<typeof pairNostrBodySchema>;
+export type UnpairNostrBody = v.InferOutput<typeof unpairNostrBodySchema>;
 
 export async function parseValidatedBody<T>(
   request: Request,

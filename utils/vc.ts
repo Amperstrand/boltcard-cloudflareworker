@@ -47,6 +47,7 @@ export interface VcCredentialSubject {
   role: string;
   department: string;
   clearance: string;
+  nostrNpub?: string;
 }
 
 export interface VcPayload {
@@ -68,6 +69,7 @@ export interface VcProfile {
   role: string;
   dept: string;
   level: string;
+  nostrNpub?: string;
 }
 
 interface AlgorithmKeys {
@@ -206,6 +208,7 @@ export async function issueVcJwt(
         role: profile.role,
         department: profile.dept,
         clearance: profile.level,
+        ...(profile.nostrNpub ? { nostrNpub: profile.nostrNpub } : {}),
       },
     },
   };
@@ -343,6 +346,7 @@ export async function issueDataIntegrityProof(
       role: profile.role,
       department: profile.dept,
       clearance: profile.level,
+      ...(profile.nostrNpub ? { nostrNpub: profile.nostrNpub } : {}),
     },
   };
 
@@ -418,6 +422,7 @@ export async function issueSdJwt(
     ["role", profile.role],
     ["department", profile.dept],
     ["clearance", profile.level],
+    ...(profile.nostrNpub ? [["nostrNpub", profile.nostrNpub] as [string, string]] : []),
   ];
 
   const disclosures: string[] = [];
