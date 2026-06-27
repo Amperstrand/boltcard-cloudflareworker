@@ -40,6 +40,7 @@
     "cf-typegen": "wrangler types",
     "test:evidence": "npx playwright test && node scripts/render-test-dashboard.mjs",
     "test:evidence:local": "PLAYWRIGHT_BASE_URL=http://127.0.0.1:8787 npx playwright test && node scripts/render-test-dashboard.mjs",
+    "test:publish": "python3 scripts/publish/publish_evidence.py --nsec-file ../hackathon-tooling/.orchestrator-nsec",
     "deploy": "node scripts/sync-js-exports.mjs && npm test && npm run test:do && npm run test:integration && npm run typecheck && npm run lint && node scripts/build_keys.js && wrangler deploy && npm run live:smoke",
     "prepare": "husky"
   }
