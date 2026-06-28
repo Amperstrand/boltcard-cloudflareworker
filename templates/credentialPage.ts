@@ -94,7 +94,7 @@ export function renderCredentialPage({ host }: { host: string }): string {
 
               <div class="flex gap-2">
                 <button id="btn-copy-jwt" type="button" class="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold transition-colors shadow-lg shadow-purple-500/20">
-                  Copy JWT
+                  Copy Credential
                 </button>
                 <button id="btn-toggle-alg" type="button" class="flex-1 px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-xs font-semibold transition-colors border border-gray-700">
                   Re-issue as EdDSA
@@ -149,17 +149,21 @@ export function renderCredentialPage({ host }: { host: string }): string {
               Supports ES256 (P-256) and EdDSA (Ed25519) algorithms. The issuer identity is a self-contained
               <code class="text-purple-400">did:key</code> — no external DID resolver needed.
             </p>
+            <a href="/pair-nostr" class="mt-3 inline-flex items-center gap-1 text-xs text-orange-400 hover:text-orange-300 transition-colors">
+              Link your card to a Nostr identity →
+            </a>
           </section>
         </main>
 
         <footer class="mt-8 text-center pb-4">
-          <div class="flex items-center justify-center gap-4 text-sm">
-            <a href="/identity" class="text-gray-500 hover:text-gray-300 transition-colors inline-flex items-center gap-1">
-              Identity demo <span>&rarr;</span>
-            </a>
-            <a href="/debug" class="text-gray-500 hover:text-gray-300 transition-colors inline-flex items-center gap-1">
-              Debug tools <span>&rarr;</span>
-            </a>
+          <div class="flex items-center justify-center gap-3 flex-wrap text-sm">
+            <a href="/pair-nostr" class="text-gray-500 hover:text-orange-400 transition-colors">Pair Nostr</a>
+            <span class="text-gray-700">·</span>
+            <a href="/identity" class="text-gray-500 hover:text-gray-300 transition-colors">Identity</a>
+            <span class="text-gray-700">·</span>
+            <a href="/card" class="text-gray-500 hover:text-gray-300 transition-colors">Card Dashboard</a>
+            <span class="text-gray-700">·</span>
+            <a href="/debug" class="text-gray-500 hover:text-gray-300 transition-colors">Debug</a>
           </div>
         </footer>
       </div>

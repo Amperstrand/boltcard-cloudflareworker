@@ -106,9 +106,14 @@ export function renderNostrPairingPage({ host }: { host: string }): string {
         </main>
 
         <footer class="mt-8 text-center pb-4">
-          <div class="flex items-center justify-center gap-4 text-sm">
-            <a href="/credential" class="text-gray-500 hover:text-gray-300 transition-colors">Credential demo →</a>
-            <a href="/identity" class="text-gray-500 hover:text-gray-300 transition-colors">Identity demo →</a>
+          <div class="flex items-center justify-center gap-3 flex-wrap text-sm">
+            <a href="/credential" class="text-gray-500 hover:text-purple-400 transition-colors">Credential</a>
+            <span class="text-gray-700">·</span>
+            <a href="/identity" class="text-gray-500 hover:text-gray-300 transition-colors">Identity</a>
+            <span class="text-gray-700">·</span>
+            <a href="/card" class="text-gray-500 hover:text-gray-300 transition-colors">Card Dashboard</a>
+            <span class="text-gray-700">·</span>
+            <a href="/debug" class="text-gray-500 hover:text-gray-300 transition-colors">Debug</a>
           </div>
         </footer>
       </div>

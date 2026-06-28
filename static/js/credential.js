@@ -182,7 +182,7 @@
         if (navigator.clipboard) {
           navigator.clipboard.writeText(jwt).then(function () {
             btnCopy.textContent = "Copied!";
-            setTimeout(function () { btnCopy.textContent = "Copy JWT"; }, 2000);
+            setTimeout(function () { btnCopy.textContent = "Copy Credential"; }, 2000);
           });
         }
       });
