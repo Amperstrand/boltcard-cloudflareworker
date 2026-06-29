@@ -3,6 +3,9 @@ main = "index.ts"
 compatibility_date = "2026-06-10"
 workers_dev = false
 
+[assets]
+directory = "./public"
+
 kv_namespaces = [
   { binding = "UID_CONFIG", id = "7eaddc7f33d242ed94054dfb8da8fcbc" }
 ]

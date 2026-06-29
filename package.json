@@ -38,6 +38,7 @@
     "lint": "npm run lint:innerhtml && npm run lint:static-script && npm run lint:build-info",
     "live:smoke": "node scripts/live-smoke-test.mjs",
     "cf-typegen": "wrangler types",
+    "build:css": "./tailwindcss-macos-x64 -i src/input.css -o public/static/css/tailwind.css --minify",
     "test:evidence": "npx playwright test && node scripts/render-test-dashboard.mjs",
     "test:evidence:local": "PLAYWRIGHT_BASE_URL=http://127.0.0.1:8787 npx playwright test && node scripts/render-test-dashboard.mjs",
     "test:publish": "python3 scripts/publish/publish_evidence.py --nsec-file ../hackathon-tooling/.orchestrator-nsec",

@@ -7094,7 +7094,7 @@ export const CREDENTIAL_JS = `(function () {
         if (navigator.clipboard) {
           navigator.clipboard.writeText(jwt).then(function () {
             btnCopy.textContent = "Copied!";
-            setTimeout(function () { btnCopy.textContent = "Copy JWT"; }, 2000);
+            setTimeout(function () { btnCopy.textContent = "Copy Credential"; }, 2000);
           });
         }
       });
@@ -7138,7 +7138,7 @@ export const CREDENTIAL_JS = `(function () {
     }
   });
 })();`;
-export const CREDENTIAL_JS_HASH = "2279dec401ab";
+export const CREDENTIAL_JS_HASH = "9e56471b4e8e";
 
 export const NOSTR_PAIRING_JS = `(function () {
   "use strict";
