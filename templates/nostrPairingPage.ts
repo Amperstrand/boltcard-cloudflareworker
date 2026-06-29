@@ -88,6 +88,7 @@ export function renderNostrPairingPage({ host }: { host: string }): string {
               </div>
               <p class="text-sm font-medium text-red-400 mb-1">Pairing Failed</p>
               <p id="pair-error-msg" class="text-xs text-gray-500 text-center">—</p>
+              <p class="mt-3 text-xs text-gray-600">Connect your Nostr extension first, then tap an active card.</p>
               <button id="btn-retry-pair" class="mt-4 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-xs font-medium transition-colors border border-gray-700">
                 Try Again
               </button>
