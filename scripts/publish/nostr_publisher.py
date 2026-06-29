@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
 """
-Shared Nostr publisher for hackathon-tooling. Supports NIP-94 file metadata,
-NIP-78 app data, and NIP-90 DVM events. Uses nak CLI for signing.
+Shared Nostr publisher for hackathon-tooling. Supports NIP-94 file metadata
+and NIP-78 app data. Uses nak CLI for signing.
+
+DEPRECATED: The NIP-90 DVM mode (kinds 5xxx/6xxx/7000/31989) is deprecated
+per ADR-007. This file is kept at root because ble-publish/ imports it for
+NIP-94 (1063) and NIP-78 (30078) publishing. The NIP-90 functions below
+should not be called by new code. Use the ContextVM Gateway and mcp_server/
+for all tool-call workflows. See:
+  - docs/decision-log.md (ADR-007)
+  - patterns/contextvm/migration-from-nip-90.md
 
 Event kinds:
   NIP-94 + NIP-78 mode (test results dashboards):
@@ -10,7 +18,7 @@ Event kinds:
     - 30078: Application-specific data (parameterized replaceable). Used as a
              per-run "index" event: d-tag is the run_id, tags list all file URLs.
 
-  NIP-90 DVM mode (compute-as-a-service):
+  NIP-90 DVM mode (DEPRECATED — do not use in new code):
     - 31989: NIP-89 service announcement (DVM discoverability)
     - 7000:  Job feedback (status: processing, success, error, partial)
     - 6500:  Job result (request kind + 1000 per NIP-90 convention)
@@ -273,6 +281,7 @@ def publish_test_run_event(
     file_urls: list = None,
     summary: str = "",
     relays: list = None,
+    project_tag: str = "test-run",
 ) -> dict:
     """Publish a kind 30078 parameterized replaceable test-run index event.
 
@@ -282,6 +291,9 @@ def publish_test_run_event(
 
     Each file URL is added as a separate "file" tag so consumers can enumerate
     them. The summary goes into the event content.
+
+    Args:
+        project_tag: Project identifier for dashboard filtering (e.g. "tollgate", "fips", "ble-experiment").
     """
     if timestamp is None:
         timestamp = _nostr_now()
@@ -290,7 +302,7 @@ def publish_test_run_event(
 
     tags = [
         ["d", run_id],
-        ["t", "test-run"],
+        ["t", project_tag],
         ["timestamp", str(timestamp)],
     ]
 

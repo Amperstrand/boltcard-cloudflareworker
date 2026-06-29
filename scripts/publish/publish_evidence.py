@@ -163,6 +163,7 @@ def main():
             file_urls=all_urls,
             summary=summary,
             relays=relays,
+            project_tag="boltcard",
         )
         if result.get("success"):
             print(f"OK (event: {result.get('event_id', '?')[:16]}...)")
