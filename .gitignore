@@ -23,3 +23,4 @@ test-results/
 .omo/
 scripts/publish/__pycache__/
 tailwindcss-macos-x64
+phone-evidence/
