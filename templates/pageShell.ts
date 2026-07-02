@@ -41,6 +41,7 @@ export function renderTailwindPage({
     <meta name="deploy-revision" content="${deployRevision}" />
     <meta name="js-fingerprint" content="${jsFingerprint}" />
     <link rel="stylesheet" href="/static/css/tailwind.css?v=${deployVersion}" />
+    <script src="https://cdn.jsdelivr.net/npm/aes-js@3.1.2/index.js"></script>
     <script src="/static/js/client-error.js?v=${deployVersion}"></script>
     <script src="/static/js/virtual-card-sim.js?v=${deployVersion}"></script>
     <script src="/static/js/nfc.js?v=${deployVersion}"></script>
