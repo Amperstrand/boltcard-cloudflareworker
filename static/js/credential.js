@@ -174,6 +174,18 @@
       issueCredential(p, c);
     };
 
+    var _origVcTap = window._vcTap;
+    if (typeof _origVcTap === 'function') {
+      window._vcTap = function() {
+        var t = _origVcTap();
+        if (t && t.p && t.c) {
+          issueCredential(t.p, t.c);
+          return null;
+        }
+        return t;
+      };
+    }
+
     var btnCopy = document.getElementById("btn-copy-jwt");
     if (btnCopy) {
       btnCopy.addEventListener("click", function () {

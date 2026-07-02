@@ -267,7 +267,13 @@
       }
 
       if (fired === 0) {
-        navigateToTapUrl(tapUrl);
+        if (typeof window._vcTapCredential === 'function') {
+          window._vcTapCredential(params.p, params.c);
+        } else if (typeof window._vcTapPair === 'function') {
+          window._vcTapPair(params.p, params.c);
+        } else {
+          navigateToTapUrl(tapUrl);
+        }
       }
       return { fired: fired, url: tapUrl };
     });

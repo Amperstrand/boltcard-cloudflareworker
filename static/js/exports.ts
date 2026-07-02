@@ -557,7 +557,13 @@ export const VIRTUAL_CARD_SIM_JS = `(function() {
       }
 
       if (fired === 0) {
-        navigateToTapUrl(tapUrl);
+        if (typeof window._vcTapCredential === 'function') {
+          window._vcTapCredential(params.p, params.c);
+        } else if (typeof window._vcTapPair === 'function') {
+          window._vcTapPair(params.p, params.c);
+        } else {
+          navigateToTapUrl(tapUrl);
+        }
       }
       return { fired: fired, url: tapUrl };
     });
@@ -679,7 +685,7 @@ export const VIRTUAL_CARD_SIM_JS = `(function() {
     addFloatingButton();
   }
 })();`;
-export const VIRTUAL_CARD_SIM_JS_HASH = "1d9106d34ab6";
+export const VIRTUAL_CARD_SIM_JS_HASH = "ebed9fd678bb";
 
 export const VIRTUAL_CARD_WIDGET_JS = `// virtual-card-widget.js — unified virtual card simulator
 // Consolidates crypto + UI from virtual-card.js, virtual-card-page.js, virtual-card-sim.js
@@ -7086,6 +7092,18 @@ export const CREDENTIAL_JS = `(function () {
       issueCredential(p, c);
     };
 
+    var _origVcTap = window._vcTap;
+    if (typeof _origVcTap === 'function') {
+      window._vcTap = function() {
+        var t = _origVcTap();
+        if (t && t.p && t.c) {
+          issueCredential(t.p, t.c);
+          return null;
+        }
+        return t;
+      };
+    }
+
     var btnCopy = document.getElementById("btn-copy-jwt");
     if (btnCopy) {
       btnCopy.addEventListener("click", function () {
@@ -7138,7 +7156,7 @@ export const CREDENTIAL_JS = `(function () {
     }
   });
 })();`;
-export const CREDENTIAL_JS_HASH = "9e56471b4e8e";
+export const CREDENTIAL_JS_HASH = "f2ef55c6a03e";
 
 export const NOSTR_PAIRING_JS = `(function () {
   "use strict";
