@@ -271,7 +271,7 @@
           window._vcTapCredential(params.p, params.c);
         } else if (typeof window._vcTapPair === 'function') {
           window._vcTapPair(params.p, params.c);
-        } else {
+        } else if (!window._nfcPageHandler) {
           navigateToTapUrl(tapUrl);
         }
       }

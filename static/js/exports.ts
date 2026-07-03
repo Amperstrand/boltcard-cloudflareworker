@@ -561,7 +561,7 @@ export const VIRTUAL_CARD_SIM_JS = `(function() {
           window._vcTapCredential(params.p, params.c);
         } else if (typeof window._vcTapPair === 'function') {
           window._vcTapPair(params.p, params.c);
-        } else {
+        } else if (!window._nfcPageHandler) {
           navigateToTapUrl(tapUrl);
         }
       }
@@ -685,7 +685,7 @@ export const VIRTUAL_CARD_SIM_JS = `(function() {
     addFloatingButton();
   }
 })();`;
-export const VIRTUAL_CARD_SIM_JS_HASH = "ebed9fd678bb";
+export const VIRTUAL_CARD_SIM_JS_HASH = "c76e99e5f58c";
 
 export const VIRTUAL_CARD_WIDGET_JS = `// virtual-card-widget.js — unified virtual card simulator
 // Consolidates crypto + UI from virtual-card.js, virtual-card-page.js, virtual-card-sim.js
