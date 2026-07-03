@@ -1,6 +1,8 @@
 (function () {
   "use strict";
 
+  window._nfcPageHandler = true;
+
   var elIdle = document.getElementById("state-idle");
   var elLoading = document.getElementById("state-loading");
   var elIssued = document.getElementById("state-issued");

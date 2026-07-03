@@ -6919,6 +6919,8 @@ export const HEALTH_JS_HASH = "d2896064452e";
 export const CREDENTIAL_JS = `(function () {
   "use strict";
 
+  window._nfcPageHandler = true;
+
   var elIdle = document.getElementById("state-idle");
   var elLoading = document.getElementById("state-loading");
   var elIssued = document.getElementById("state-issued");
@@ -7156,7 +7158,7 @@ export const CREDENTIAL_JS = `(function () {
     }
   });
 })();`;
-export const CREDENTIAL_JS_HASH = "f2ef55c6a03e";
+export const CREDENTIAL_JS_HASH = "10d965ff9458";
 
 export const NOSTR_PAIRING_JS = `(function () {
   "use strict";
