@@ -1,6 +1,8 @@
 (function () {
   "use strict";
 
+  window._nfcPageHandler = true;
+
   var nostrNpub = null;
 
   function $(id) { return document.getElementById(id); }

@@ -5034,6 +5034,8 @@ export const TWO_FACTOR_JS = `// two-factor.js — classic script (no import/exp
 // Contains both OTP timer (renderTwoFactorPage) and NFC landing scanner (renderTwoFactorLandingPage)
 // Depends on: nfc.js (browserSupportsNfc, extractNdefUrl, normalizeBrowserNfcUrl)
 
+window._nfcPageHandler = true;
+
 // === Part 1: OTP countdown timer (used by renderTwoFactorPage) ===
 (function initOtpTimer() {
   var otpRoot = document.getElementById('otp-root');
@@ -5159,7 +5161,7 @@ export const TWO_FACTOR_JS = `// two-factor.js — classic script (no import/exp
     });
   }
 })();`;
-export const TWO_FACTOR_JS_HASH = "733b34ef89d2";
+export const TWO_FACTOR_JS_HASH = "14028afcd158";
 
 export const BOLT11_DECODE_JS = `// bolt11-decode.js — classic script (no import/export)
 
@@ -7163,6 +7165,8 @@ export const CREDENTIAL_JS_HASH = "10d965ff9458";
 export const NOSTR_PAIRING_JS = `(function () {
   "use strict";
 
+  window._nfcPageHandler = true;
+
   var nostrNpub = null;
 
   function $(id) { return document.getElementById(id); }
@@ -7333,4 +7337,4 @@ export const NOSTR_PAIRING_JS = `(function () {
     startNfcScan();
   });
 })();`;
-export const NOSTR_PAIRING_JS_HASH = "69bb093bcf00";
+export const NOSTR_PAIRING_JS_HASH = "07167d8ff1db";

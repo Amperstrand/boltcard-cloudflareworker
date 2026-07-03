@@ -2,6 +2,8 @@
 // Contains both OTP timer (renderTwoFactorPage) and NFC landing scanner (renderTwoFactorLandingPage)
 // Depends on: nfc.js (browserSupportsNfc, extractNdefUrl, normalizeBrowserNfcUrl)
 
+window._nfcPageHandler = true;
+
 // === Part 1: OTP countdown timer (used by renderTwoFactorPage) ===
 (function initOtpTimer() {
   var otpRoot = document.getElementById('otp-root');
