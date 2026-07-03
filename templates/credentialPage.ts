@@ -27,6 +27,33 @@ export function renderCredentialPage({ host }: { host: string }): string {
 
         <main class="flex-grow flex flex-col gap-6">
 
+          <!-- Profile Editor -->
+          <section class="w-full bg-gray-900/80 backdrop-blur-md rounded-2xl border border-gray-800 p-6 shadow-2xl">
+            <button id="profile-toggle" type="button" class="w-full flex items-center justify-between text-left">
+              <h2 class="text-sm font-bold text-amber-400 uppercase tracking-widest">Edit Profile</h2>
+              <svg id="profile-chevron" class="w-4 h-4 text-gray-500 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>
+            </button>
+            <div id="profile-content" class="hidden mt-4 space-y-3">
+              <p class="text-xs text-gray-500 mb-2">Customize your credential claims. These are self-attested — the server signs whatever you provide. Leave blank for deterministic defaults from card UID.</p>
+              <div>
+                <label for="profile-name" class="text-xs text-gray-500 uppercase tracking-wider block mb-1">Name</label>
+                <input id="profile-name" type="text" maxlength="100" placeholder="e.g. Satoshi Nakamoto" class="w-full bg-gray-950/80 border border-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/50" />
+              </div>
+              <div>
+                <label for="profile-role" class="text-xs text-gray-500 uppercase tracking-wider block mb-1">Role</label>
+                <input id="profile-role" type="text" maxlength="100" placeholder="e.g. Founder" class="w-full bg-gray-950/80 border border-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/50" />
+              </div>
+              <div>
+                <label for="profile-dept" class="text-xs text-gray-500 uppercase tracking-wider block mb-1">Department</label>
+                <input id="profile-dept" type="text" maxlength="100" placeholder="e.g. Engineering" class="w-full bg-gray-950/80 border border-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/50" />
+              </div>
+              <div>
+                <label for="profile-level" class="text-xs text-gray-500 uppercase tracking-wider block mb-1">Clearance</label>
+                <input id="profile-level" type="text" maxlength="100" placeholder="e.g. Level 5" class="w-full bg-gray-950/80 border border-gray-800 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/50" />
+              </div>
+            </div>
+          </section>
+
           <!-- Issue Section -->
           <section class="w-full bg-gray-900/80 backdrop-blur-md rounded-2xl border border-gray-800 p-6 shadow-2xl">
             <h2 class="text-sm font-bold text-purple-400 uppercase tracking-widest mb-4">Issue Credential</h2>

@@ -32,6 +32,16 @@ export async function handleCredentialIssue(request: Request, env: Env): Promise
 
   const { uidHex } = auth;
   const profile = buildCredentialProfile(uidHex);
+
+  const customName = url.searchParams.get("name");
+  if (customName) profile.name = customName.slice(0, 100);
+  const customRole = url.searchParams.get("role");
+  if (customRole) profile.role = customRole.slice(0, 100);
+  const customDept = url.searchParams.get("dept");
+  if (customDept) profile.dept = customDept.slice(0, 100);
+  const customLevel = url.searchParams.get("level");
+  if (customLevel) profile.level = customLevel.slice(0, 100);
+
   const nostrNpub = await getNostrNpub(env, uidHex);
   if (nostrNpub) {
     profile.nostrNpub = nostrNpub;

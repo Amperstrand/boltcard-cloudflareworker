@@ -6949,10 +6949,47 @@ export const CREDENTIAL_JS = `(function () {
   var lastP = null;
   var lastC = null;
 
+  var PROFILE_KEY = "vc_profile";
+
+  function loadProfile() {
+    try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || "{}"); } catch (e) { return {}; }
+  }
+
+  function saveProfile() {
+    try {
+      var p = {
+        name: (document.getElementById("profile-name").value || "").trim(),
+        role: (document.getElementById("profile-role").value || "").trim(),
+        dept: (document.getElementById("profile-dept").value || "").trim(),
+        level: (document.getElementById("profile-level").value || "").trim(),
+      };
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+    } catch (e) {}
+  }
+
+  function fillProfileInputs() {
+    var p = loadProfile();
+    document.getElementById("profile-name").value = p.name || "";
+    document.getElementById("profile-role").value = p.role || "";
+    document.getElementById("profile-dept").value = p.dept || "";
+    document.getElementById("profile-level").value = p.level || "";
+  }
+
+  function buildProfileQuery() {
+    var p = loadProfile();
+    var parts = [];
+    if (p.name) parts.push("name=" + encodeURIComponent(p.name));
+    if (p.role) parts.push("role=" + encodeURIComponent(p.role));
+    if (p.dept) parts.push("dept=" + encodeURIComponent(p.dept));
+    if (p.level) parts.push("level=" + encodeURIComponent(p.level));
+    return parts.length ? "&" + parts.join("&") : "";
+  }
+
   async function issueCredential(p, c, alg) {
     showState(elLoading);
     var url = "/api/credential?p=" + encodeURIComponent(p) + "&c=" + encodeURIComponent(c);
     if (alg) url += "&alg=" + encodeURIComponent(alg);
+    url += buildProfileQuery();
     try {
       var resp = await fetch(url);
       if (!resp.ok) {
@@ -7090,6 +7127,24 @@ export const CREDENTIAL_JS = `(function () {
   }
 
   document.addEventListener("DOMContentLoaded", function () {
+    fillProfileInputs();
+
+    var profileToggle = document.getElementById("profile-toggle");
+    var profileContent = document.getElementById("profile-content");
+    var profileChevron = document.getElementById("profile-chevron");
+    if (profileToggle) {
+      profileToggle.addEventListener("click", function () {
+        var isHidden = profileContent.classList.contains("hidden");
+        profileContent.classList.toggle("hidden", !isHidden);
+        if (profileChevron) profileChevron.style.transform = isHidden ? "rotate(180deg)" : "rotate(0deg)";
+      });
+    }
+
+    ["profile-name", "profile-role", "profile-dept", "profile-level"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener("input", saveProfile);
+    });
+
     startNfcScan();
 
     window._vcTapCredential = function (p, c) {
@@ -7160,7 +7215,7 @@ export const CREDENTIAL_JS = `(function () {
     }
   });
 })();`;
-export const CREDENTIAL_JS_HASH = "10d965ff9458";
+export const CREDENTIAL_JS_HASH = "ae6cb643661b";
 
 export const NOSTR_PAIRING_JS = `(function () {
   "use strict";
