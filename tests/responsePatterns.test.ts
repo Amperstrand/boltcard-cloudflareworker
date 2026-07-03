@@ -248,10 +248,10 @@ describe("response patterns", () => {
     });
   });
 
-  test("GET boltcards pull-payment endpoint returns JSON method error", async () => {
+  test("GET boltcards pull-payment endpoint now supported (returns 400 for missing params)", async () => {
     const response = await makeRequest("/api/v1/pull-payments/fUDXsnySxvb5LYZ1bSLiWzLjVuT/boltcards");
 
-    expect(response.status).toBe(405);
+    expect(response.status).toBe(400);
     expect(response.headers.get("Content-Type")).toContain("application/json");
 
     const json = await response.json() as Record<string, unknown>;

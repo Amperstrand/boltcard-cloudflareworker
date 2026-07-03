@@ -48,7 +48,7 @@ describe("template helpers", () => {
     expect(html).toContain("<!DOCTYPE html>");
     expect(html).toContain("<title>Example Page</title>");
     expect(html).toContain('class="min-h-screen"');
-    expect(html).toContain("cdn.tailwindcss.com");
+    expect(html).toContain("tailwind.css");
     expect(html).toContain('meta name="robots" content="noindex,nofollow"');
     expect(html).toContain("<main>Hello</main>");
   });
@@ -104,7 +104,7 @@ describe("refactored page renderers", () => {
   test("analytics page uses shared shell and loads static JS", () => {
     const html = renderAnalyticsPage();
     expect(html).toContain("Bolt Card Analytics");
-    expect(html).toContain("cdn.tailwindcss.com");
+    expect(html).toContain("tailwind.css");
     expect(html).toContain("analytics.js");
   });
 
@@ -114,7 +114,7 @@ describe("refactored page renderers", () => {
       resetApiUrl: "https://test.local/api/v1/pull-payments/example/boltcards?onExisting=KeepVersion",
     });
     expect(html).toContain("BoltCard Wipe Utility");
-    expect(html).toContain("cdn.tailwindcss.com");
+    expect(html).toContain("tailwind.css");
     expect(html).toContain('/static/js/nfc.js');
     expect(html).toContain('/static/js/wipe.js');
     expect(html).toContain('data-base-url="https://test.local"');
@@ -127,7 +127,7 @@ describe("refactored page renderers", () => {
       keyOptionsHtml: '<option value="deadbeef">deadbeef</option>',
     });
     expect(html).toContain("Bulk Card Wipe");
-    expect(html).toContain("cdn.tailwindcss.com");
+    expect(html).toContain("tailwind.css");
     expect(html).toContain("deadbeef");
   });
 
@@ -140,7 +140,7 @@ describe("refactored page renderers", () => {
       resetUrl: "https://test.local/api/reset",
     });
     expect(html).toContain("BoltCard Activate");
-    expect(html).toContain("cdn.tailwindcss.com");
+    expect(html).toContain("tailwind.css");
     expect(html).toContain("CARD ACTIVATION");
   });
 

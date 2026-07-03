@@ -73,7 +73,7 @@ describe("_mergeHistory", () => {
   it("handles entries with missing counter (sorts as 0)", () => {
     const taps = [{ created_at: 100 }] as TapEntry[];
     const result = _mergeHistory(taps, []);
-    expect(result[0]!.counter).toBeUndefined();
+    expect(result[0]!.counter).toBeNull();
   });
 
   it("limits to 25 entries", () => {

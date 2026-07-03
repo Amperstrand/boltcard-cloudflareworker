@@ -19,10 +19,10 @@ function postRequest(url: string, body: Record<string, unknown>) {
 }
 
 describe("fetchBoltCardKeys", () => {
-  it("rejects non-POST methods", async () => {
+  it("rejects non-POST/GET methods", async () => {
     const env = buildEnv();
     const req = new Request("https://test.local/api/v1/pull-payments/test/boltcards", {
-      method: "GET",
+      method: "DELETE",
     });
     const res = await fetchBoltCardKeys(req, env);
     expect(res.status).toBe(405);
@@ -278,10 +278,10 @@ describe("fetchBoltCardKeys", () => {
     expect(body.reason).toContain("p");
   });
 
-  it("rejects GET request", async () => {
+  it("GET request is now supported (returns 400 for missing params)", async () => {
     const env = buildEnv();
     const req = new Request("https://test.local/api/v1/pull-payments/test/boltcards", { method: "GET" });
     const res = await fetchBoltCardKeys(req, env);
-    expect(res.status).toBe(405);
+    expect(res.status).toBe(400);
   });
 });

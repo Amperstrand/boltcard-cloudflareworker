@@ -55,7 +55,7 @@ describe("GET /login", () => {
     const html = await response.text();
     expect(html).toContain("NFC LOGIN");
     expect(html).toContain("NTAG424");
-    expect(html).toContain("cdn.tailwindcss.com");
+    expect(html).toContain("tailwind.css");
     expect(html).toContain("/static/js/login.js");
   });
 });

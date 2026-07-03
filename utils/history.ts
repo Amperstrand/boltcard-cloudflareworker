@@ -35,7 +35,7 @@ export function _mergeHistory(taps: TapEntry[], transactions: Transaction[]): Hi
 
   const sanitizedTaps: HistoryEntry[] = (taps || []).map((tap) => ({
     counter: tap.counter ?? null,
-    bolt11: tap.bolt11 ? tap.bolt11.slice(0, 8) + "..." : null,
+    bolt11: tap.bolt11 ?? null,
     status: tap.status,
     payment_hash: null,
     amount_msat: tap.amount_msat,
