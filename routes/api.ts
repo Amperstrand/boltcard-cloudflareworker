@@ -14,7 +14,7 @@ export function registerApiRoutes(router: AppRouter): void {
 
   router.get("/api/keys", withOperatorAuth((request, env) => handleGetKeys(request, env)));
   router.post("/api/keys", withOperatorAuth((request, env) => handleGetKeys(request, env)));
-  router.all("/api/v1/pull-payments/:pullPaymentId/boltcards", withOperatorAuth((request, env) => fetchBoltCardKeys(request, env)));
+  router.all("/api/v1/pull-payments/:pullPaymentId/boltcards", (request, env) => fetchBoltCardKeys(request, env));
   router.get("/api/bulk-wipe-keys", withOperatorAuth((request) => handleBulkWipeKeys(request)));
   router.post("/api/bulk-wipe-keys", withOperatorAuth((request) => handleBulkWipeKeys(request)));
 }

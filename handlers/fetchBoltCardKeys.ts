@@ -19,20 +19,30 @@ type DerivedKeys = ReturnType<typeof getDeterministicKeys>;
 const UID_OR_LNURLW_REQUIRED = "Must provide UID for programming, or LNURLW for reset";
 
 export async function fetchBoltCardKeys(request: Request, env: Env): Promise<Response> {
-  if (request.method !== "POST") {
-    return errorResponse("Only POST allowed", 405);
+  const url = new URL(request.url);
+  let uid: string | undefined;
+  let lnurlw: string | undefined;
+
+  if (request.method === "GET") {
+    uid = url.searchParams.get("UID") || url.searchParams.get("uid") || undefined;
+    lnurlw = url.searchParams.get("LNURLW") || undefined;
+  } else if (request.method !== "POST") {
+    return errorResponse("Only GET and POST allowed", 405);
   }
 
   try {
-    const url = new URL(request.url);
     const onExisting: string | null = url.searchParams.get("onExisting");
     const cardType: string = url.searchParams.get("card_type") || "withdraw";
     const lightningAddress: string = url.searchParams.get("lightning_address") || "";
     const minSendable: number = parseInt(url.searchParams.get("min_sendable") || "") || 1000;
     const maxSendable: number = parseInt(url.searchParams.get("max_sendable") || "") || 1000;
-    const result = await parseValidatedBody<{ UID?: string; LNURLW?: string }>(request, fetchBoltCardKeysBodySchema);
-    if (!result.ok) return errorResponse(result.error, 400);
-    const { UID: uid, LNURLW: lnurlw } = result.data;
+
+    if (request.method === "POST") {
+      const result = await parseValidatedBody<{ UID?: string; LNURLW?: string }>(request, fetchBoltCardKeysBodySchema);
+      if (!result.ok) return errorResponse(result.error, 400);
+      uid = result.data.UID;
+      lnurlw = result.data.LNURLW;
+    }
     const baseUrl: string = getRequestOrigin(request);
 
     if (!uid && !lnurlw) {
