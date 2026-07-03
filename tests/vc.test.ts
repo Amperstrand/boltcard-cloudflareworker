@@ -286,7 +286,7 @@ describe("Data Integrity Proof (JCS + Ed25519)", () => {
       ...vc,
       proof: {
         ...vc.proof,
-        proofValue: vc.proof.proofValue.slice(0, -2) + "AA",
+        proofValue: "XX" + vc.proof.proofValue.slice(2),
       },
     };
     const result = await verifyDataIntegrityProof(makeKvEnv(store), tampered as typeof vc);
