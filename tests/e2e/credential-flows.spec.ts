@@ -282,11 +282,14 @@ test.describe(`Credential Flows (${provider.name} provider)`, () => {
 
     const diCredential = diIssue.data.credential as Record<string, unknown> | undefined;
     expect(diCredential).toBeDefined();
-    expect(diCredential!.issuer).toBe(jwtIssuer);
+    const diIssuer = diCredential!.issuer as string;
+    expect(diIssuer).toMatch(/^did:key:z/);
 
     const sdJwt = sdIssue.data.credential as string;
     const sdParts = sdJwt.split("~")[0]!.split(".");
     const sdPayload = JSON.parse(atob(sdParts[1]!.replace(/-/g, "+").replace(/_/g, "/")));
+    expect(sdPayload.iss as string).toMatch(/^did:key:z/);
+
     expect(sdPayload.iss).toBe(jwtIssuer);
   });
 

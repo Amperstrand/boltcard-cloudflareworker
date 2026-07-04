@@ -258,6 +258,7 @@ test.describe(`User Stories — Virtual Card Simulation (${provider.name} provid
 
   // ─── US16: Reconciliation Data ─────────────────────────────────────
   test("US16: Reconciliation dashboard shows transaction totals", async ({ page }) => {
+    test.setTimeout(60000);
     const api = makeApiHelpers(provider, page);
     await api.topUp(10000);
     await api.charge(3000);

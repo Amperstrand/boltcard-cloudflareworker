@@ -6,11 +6,13 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.16.14",
     "@playwright/test": "^1.60.0",
+    "@tailwindcss/cli": "^4.3.2",
     "aes-js": "3.1.2",
     "better-sqlite3": "12.9.0",
     "fast-check": "^4.7.0",
     "husky": "^9.1.7",
     "miniflare": "4.20260521.0",
+    "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3",
     "vitest": "^4.1.5",
     "wrangler": "^4.94.0"
@@ -38,7 +40,7 @@
     "lint": "npm run lint:innerhtml && npm run lint:static-script && npm run lint:build-info",
     "live:smoke": "node scripts/live-smoke-test.mjs",
     "cf-typegen": "wrangler types",
-    "build:css": "./tailwindcss-macos-x64 -i src/input.css -o public/static/css/tailwind.css --minify && node scripts/sync-tailwind-css.mjs",
+    "build:css": "npx @tailwindcss/cli -i src/input.css -o public/static/css/tailwind.css --minify && node scripts/sync-tailwind-css.mjs",
     "test:evidence": "npx playwright test && node scripts/render-test-dashboard.mjs",
     "test:evidence:local": "PLAYWRIGHT_BASE_URL=http://127.0.0.1:8787 npx playwright test && node scripts/render-test-dashboard.mjs",
     "test:publish": "python3 scripts/publish/publish_evidence.py --nsec-file ../hackathon-tooling/.orchestrator-nsec",
