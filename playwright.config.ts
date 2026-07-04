@@ -17,11 +17,13 @@ export default defineConfig({
     "hardware-selfservice.spec.ts",
     "user-stories.spec.ts",
     "credential-flows.spec.ts",
+    "dashboard.spec.ts",
   ],
   fullyParallel: false,
   retries: isLocal ? 1 : 2,
   timeout: 60000,
   expect: { timeout: 10000 },
+  outputDir: "test-results/artifacts",
   reporter: [
     ["list"],
     ["json", { outputFile: "test-results/report.json" }],

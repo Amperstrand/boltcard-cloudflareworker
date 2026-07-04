@@ -153,7 +153,17 @@ def main():
     if dashboard_url:
         all_urls.append(dashboard_url)
 
-    summary = f"Test evidence: {passed} passed, {failed} failed. Dashboard: {dashboard_url or 'upload failed'}"
+    skipped = report.get("stats", {}).get("skipped", 0)
+    total = passed + failed + skipped
+    content_json = json.dumps({
+        "passed": passed,
+        "failed": failed,
+        "skipped": skipped,
+        "total": total,
+        "project": "boltcard",
+        "dashboard_url": dashboard_url or "",
+        "summary": f"{passed} passed, {failed} failed" + (f", {skipped} skipped" if skipped else ""),
+    })
 
     print(f"\nPublishing Nostr kind 30078 summary...", end=" ", flush=True)
     try:
@@ -161,7 +171,7 @@ def main():
             nsec_file=args.nsec_file,
             run_id=f"boltcard-{run_id}",
             file_urls=all_urls,
-            summary=summary,
+            summary=content_json,
             relays=relays,
             project_tag="boltcard",
         )
