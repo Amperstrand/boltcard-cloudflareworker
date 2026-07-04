@@ -381,6 +381,8 @@ This repo is a **single Cloudflare Worker** (no separate backend/frontend server
 
 After `npm ci`, run `node scripts/build_keys.js` if `utils/generatedKeyData.js` is missing or `keys/` changed (also runs via `prebuild` on deploy).
 
+**Native module rebuild**: `better-sqlite3` (used by `tests/cardReplayDO.test.ts`) may fail with "Could not locate the bindings file" after install. Fix: `npm rebuild better-sqlite3`.
+
 ### Lint gotcha
 
 `npm run lint` includes `lint:build-info`, which requires `utils/buildInfo.ts`’s `BUILD_REVISION` to match `git rev-parse --short HEAD`. If it fails, run `node scripts/sync-js-exports.mjs` (do **not** add this to the VM update script).

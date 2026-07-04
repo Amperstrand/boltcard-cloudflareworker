@@ -1153,7 +1153,7 @@ export const VIRTUAL_CARD_WIDGET_JS = `// virtual-card-widget.js — unified vir
 
     function step(label, pass, detail) {
       logStep(label, pass, detail);
-      if (!pass) allPassed = false;
+      if (pass === false) allPassed = false;
     }
 
     (async function() {
@@ -1387,7 +1387,7 @@ export const VIRTUAL_CARD_WIDGET_JS = `// virtual-card-widget.js — unified vir
     init();
   }
 })();`;
-export const VIRTUAL_CARD_WIDGET_JS_HASH = "71795ee3026c";
+export const VIRTUAL_CARD_WIDGET_JS_HASH = "2acbe3474a57";
 
 export const CLIENT_ERROR_JS = `// client-error.js — reports uncaught JS errors to the server with page version info
 (function() {

@@ -13,9 +13,9 @@ export async function operatorLogin(page: Page): Promise<void> {
 }
 
 export async function gotoVirtualCardTab(page: Page): Promise<void> {
-  await page.goto("/debug", { waitUntil: "domcontentloaded" });
-  await page.locator('button[data-tab="virtual"]').click();
-  await expect(page.locator("#panel-virtual")).toBeVisible();
+  await page.goto("/virtual", { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => { try { localStorage.clear(); } catch(e) {} });
+  await page.goto("/virtual", { waitUntil: "domcontentloaded" });
 }
 
 // --- Financial API Helpers ---

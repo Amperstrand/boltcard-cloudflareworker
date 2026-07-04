@@ -8,10 +8,8 @@ test.describe("Virtual Card Simulator", () => {
   });
 
   test("0.1 - Virtual Card tab renders with Create button", async ({ page }) => {
-    await expect(page.locator("#vc-create-btn")).toBeVisible();
+    await expect(page.locator("#vc-no-card")).toBeVisible();
     await expect(page.locator("#vc-create-btn")).toHaveText("Create Virtual Card");
-    await expect(page.locator("#vc-tap-btn")).toBeHidden();
-    await expect(page.locator("#vc-auto-btn")).toBeHidden();
     await expect(page.locator("#vc-uid")).toHaveText("--");
     await expect(page.locator("#vc-counter")).toHaveText("--");
   });

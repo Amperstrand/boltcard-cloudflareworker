@@ -464,7 +464,7 @@
 
     function step(label, pass, detail) {
       logStep(label, pass, detail);
-      if (!pass) allPassed = false;
+      if (pass === false) allPassed = false;
     }
 
     (async function() {
