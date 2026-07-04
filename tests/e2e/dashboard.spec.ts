@@ -86,28 +86,24 @@ test.describe("Evidence publishing pipeline → dashboard UI", () => {
     await page.goto(DASHBOARD_URL);
     await page.evaluate(() => { try { localStorage.clear(); } catch { /* */ } });
     await page.reload();
-    await page.waitForTimeout(20000);
+    await page.locator(".project-tab").first().waitFor({ timeout: 15000 });
+    await page.locator(".runs-count").first().waitFor({ timeout: 30000 });
   });
 
   test("boltcard run is visible in Boltcard tab", async ({ page }) => {
     await page.locator('button[data-project="boltcard"]').click();
-    await page.waitForTimeout(2000);
-
-    const runCards = page.locator(".run-card");
-    const count = await runCards.count();
-    expect(count).toBeGreaterThan(0);
+    await page.waitForSelector(".run-card", { timeout: 10000 });
+    expect(await page.locator(".run-card").count()).toBeGreaterThan(0);
   });
 
   test("boltcard run detail shows Blossom screenshot evidence", async ({ page }) => {
     await page.locator('button[data-project="boltcard"]').click();
-    await page.waitForTimeout(2000);
-
+    await page.waitForSelector(".run-card", { timeout: 10000 });
     await page.locator(".run-card").first().click();
-    await page.waitForTimeout(5000);
-
-    const hasBlossom = await page.evaluate(() => {
-      return document.body.innerHTML.includes("blossom.psbt.me");
-    });
-    expect(hasBlossom).toBe(true);
+    await page.waitForFunction(
+      () => document.body.innerHTML.includes("blossom.psbt.me"),
+      { timeout: 15000 }
+    );
+    expect(true).toBe(true);
   });
 });
