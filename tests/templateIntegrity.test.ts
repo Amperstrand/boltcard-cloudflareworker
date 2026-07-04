@@ -58,7 +58,7 @@ describe("template integrity", () => {
         expect(html).toContain("</head>");
         expect(html).toContain("<body");
         expect(html).toContain("</body>");
-        expect(html).toContain("cdn.tailwindcss.com");
+        expect(html).toContain("/static/css/tailwind.css");
       });
     }
   });
