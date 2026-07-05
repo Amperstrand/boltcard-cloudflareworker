@@ -197,12 +197,12 @@ describe("Cloudflare Worker Tests", () => {
   });
 
   test("should proxy relay with DO-backed proxy config", async () => {
-    const originalFetch = global.fetch;
+    const originalFetch = globalThis.fetch;
     const mockFetch = vi.fn(async () => new Response(JSON.stringify({ status: "OK" }), {
       status: 200,
       headers: { "Content-Type": "application/json" }
     }));
-    global.fetch = mockFetch;
+    globalThis.fetch = mockFetch;
 
     const proxyEnv: Record<string, unknown> = {
       ...env,
@@ -246,7 +246,7 @@ describe("Cloudflare Worker Tests", () => {
       expect(proxiedRequest.headers.get("X-BoltCard-CMAC-Validated")).toBe("true");
       expect(proxiedRequest.headers.get("X-BoltCard-CMAC-Deferred")).toBe("false");
     } finally {
-      global.fetch = originalFetch;
+      globalThis.fetch = originalFetch;
     }
   });
 

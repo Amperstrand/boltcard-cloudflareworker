@@ -263,8 +263,8 @@ describe("E2E: Virtual card — LNURL-pay (POS)", () => {
     const result = await provisionCard(UID, env, "&card_type=pos&lightning_address=test@getalby.com&min_sendable=1000&max_sendable=100000000");
     keys = result.keys;
 
-    originalFetch = global.fetch;
-    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+    originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (url: RequestInfo | URL) => {
       const urlStr = url.toString();
       if (urlStr.includes(".well-known/lnurlp")) {
         return new Response(
@@ -288,7 +288,7 @@ describe("E2E: Virtual card — LNURL-pay (POS)", () => {
   });
 
   afterEach(() => {
-    global.fetch = originalFetch;
+    globalThis.fetch = originalFetch;
   });
 
   test("full POS lifecycle: tap → payRequest → callback → invoice", async () => {

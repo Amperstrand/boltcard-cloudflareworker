@@ -17,6 +17,7 @@ import { handleClientError } from "../handlers/clientErrorHandler.js";
 import { handleCredentialPage, handleCredentialIssue, handleCredentialVerify, handleCredentialIssuer } from "../handlers/credentialHandler.js";
 import { handleClientLog, handleClientLogOptions } from "../handlers/clientLogHandler.js";
 import { handlePairingPage, handlePairNostr, handleUnpairNostr } from "../handlers/nostrPairingHandler.js";
+import { handleVerifyPage } from "../handlers/verifyPageHandler.js";
 
 export function registerPublicRoutes(router: AppRouter): void {
   router.get("/status", (request, env) => handleStatus(request, env));
@@ -43,6 +44,8 @@ export function registerPublicRoutes(router: AppRouter): void {
   router.get("/pair-nostr", (request) => handlePairingPage(request));
   router.post("/api/pair-nostr", (request, env) => handlePairNostr(request, env));
   router.post("/api/unpair-nostr", (request, env) => handleUnpairNostr(request, env));
+
+  router.get("/verify", (request) => handleVerifyPage(request));
 
   router.get("/decode", (request) => handleDecodePage(request));
   router.get("/api/decode", (request) => handleDecodeApi(request));

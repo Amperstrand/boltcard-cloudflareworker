@@ -76,8 +76,8 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
     const env = makeEnv();
     const { pHex, cHex } = virtualTap(POS_UID, 1, K1_HEX, keys.k2);
 
-    const originalFetch = global.fetch;
-    global.fetch = vi.fn(async (url) => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (url) => {
       const urlStr = url.toString();
       if (urlStr.includes(".well-known/lnurlp")) {
         return new Response(JSON.stringify({
@@ -109,7 +109,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
 
       expect(env.CARD_REPLAY.__counters.get(POS_UID)).toBe(1);
     } finally {
-      global.fetch = originalFetch;
+      globalThis.fetch = originalFetch;
     }
   });
 
@@ -117,8 +117,8 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
     const env = makeEnv({ [POS_UID]: 1 });
     const { pHex, cHex } = virtualTap(POS_UID, 1, K1_HEX, keys.k2);
 
-    const originalFetch = global.fetch;
-    global.fetch = vi.fn(async (url) => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (url) => {
       const urlStr = url.toString();
       if (urlStr.includes(".well-known/lnurlp")) {
         return new Response(JSON.stringify({ callback: "https://getalby.com/lnurlp/test/callback", tag: "payRequest", minSendable: 1000, maxSendable: 1000 }), { status: 200, headers: { "Content-Type": "application/json" } });
@@ -135,7 +135,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
       const json = await response.json() as Record<string, unknown>;
       expect(json.pr).toBe("lnbc10n1replay");
     } finally {
-      global.fetch = originalFetch;
+      globalThis.fetch = originalFetch;
     }
   });
 
@@ -143,8 +143,8 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
     const env = makeEnv({ [POS_UID]: 1 });
     const { pHex, cHex } = virtualTap(POS_UID, 2, K1_HEX, keys.k2);
 
-    const originalFetch = global.fetch;
-    global.fetch = vi.fn(async (url) => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (url) => {
       const urlStr = url.toString();
       if (urlStr.includes(".well-known/lnurlp")) {
         return new Response(JSON.stringify({
@@ -170,7 +170,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
       expect(json.pr).toBe("lnbc10n2next");
       expect(env.CARD_REPLAY.__counters.get(POS_UID)).toBe(2);
     } finally {
-      global.fetch = originalFetch;
+      globalThis.fetch = originalFetch;
     }
   });
 
@@ -225,8 +225,8 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
     expect(tap2.status).toBe(200);
     expect(env.CARD_REPLAY.__counters.has(POS_UID)).toBe(false);
 
-    const originalFetch = global.fetch;
-    global.fetch = vi.fn(async (url) => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (url) => {
       const urlStr = url.toString();
       if (urlStr.includes(".well-known/lnurlp")) {
         return new Response(JSON.stringify({
@@ -258,7 +258,7 @@ describe("LNURL-pay smoke test: real crypto pipeline", () => {
       );
       expect(replay.status).toBe(200);
     } finally {
-      global.fetch = originalFetch;
+      globalThis.fetch = originalFetch;
     }
   });
 

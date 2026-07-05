@@ -121,11 +121,11 @@ describe("Virtual Card — Full Lifecycle Scenarios", () => {
 
   describe("POS (LNURL-pay) lifecycle", () => {
     let card: VirtualCard;
-    let originalFetch: typeof global.fetch;
+    let originalFetch: typeof globalThis.fetch;
 
     beforeEach(async () => {
-      originalFetch = global.fetch;
-      global.fetch = vi.fn(async (url: string | URL | Request) => {
+      originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn(async (url: string | URL | Request) => {
         const urlStr = url.toString();
         if (urlStr.includes(".well-known/lnurlp")) {
           return new Response(
@@ -154,7 +154,7 @@ describe("Virtual Card — Full Lifecycle Scenarios", () => {
     });
 
     afterEach(() => {
-      global.fetch = originalFetch;
+      globalThis.fetch = originalFetch;
     });
 
     test("POS tap returns payRequest, callback returns invoice", async () => {

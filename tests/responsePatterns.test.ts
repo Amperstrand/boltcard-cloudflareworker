@@ -615,8 +615,8 @@ describe("response patterns", () => {
   });
 
   test("proxy responses preserve upstream JSON content type and shape through router", async () => {
-    const originalFetch = global.fetch;
-    global.fetch = vi.fn(async () => new Response(JSON.stringify({ status: "OK" }), {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ status: "OK" }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     }));
@@ -658,7 +658,7 @@ describe("response patterns", () => {
       const json = await response.json() as Record<string, unknown>;
       expect(json).toMatchObject({ status: "OK" });
     } finally {
-      global.fetch = originalFetch;
+      globalThis.fetch = originalFetch;
     }
   });
 

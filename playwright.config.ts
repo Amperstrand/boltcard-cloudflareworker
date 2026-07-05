@@ -18,6 +18,7 @@ export default defineConfig({
     "user-stories.spec.ts",
     "credential-flows.spec.ts",
     "dashboard.spec.ts",
+    "nostr-pairing.spec.ts",
   ],
   fullyParallel: false,
   retries: isLocal ? 1 : 2,

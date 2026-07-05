@@ -106,11 +106,11 @@ describe("LNURL-pay POS card flow", () => {
   });
 
   describe("/lnurlp/cb callback returns invoice", () => {
-    let originalFetch: typeof global.fetch;
+    let originalFetch: typeof globalThis.fetch;
 
     beforeEach(() => {
-      originalFetch = global.fetch;
-      global.fetch = vi.fn(async (url) => {
+      originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn(async (url) => {
         const urlStr = typeof url === "string" ? url : url.toString();
 
         if (urlStr.includes(".well-known/lnurlp")) {
@@ -134,7 +134,7 @@ describe("LNURL-pay POS card flow", () => {
     });
 
     afterEach(() => {
-      global.fetch = originalFetch;
+      globalThis.fetch = originalFetch;
     });
 
     test("card without lightning_address AND no pool env → 503", async () => {
@@ -325,7 +325,7 @@ describe("LNURL-pay POS card flow", () => {
         "GET", null, env
       );
 
-      const mockFetch = global.fetch as ReturnType<typeof vi.fn>;
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       const callbackCall = mockFetch.mock.calls.find(
         (call: unknown[]) => (call[0] as Request).toString().includes("amount=1000")
       );
@@ -360,7 +360,7 @@ describe("LNURL-pay POS card flow", () => {
     test("returns 500 on outer catch when resolveLightningAddress throws", async () => {
       const env = makePayEnv();
       const mockFetch = vi.fn().mockRejectedValue(new Error("DNS failure"));
-      global.fetch = mockFetch;
+      globalThis.fetch = mockFetch;
       try {
         const response = await makeRequest(
           `/lnurlp/cb?p=${PAY_COUNTER_1}&c=${PAY_CMAC_1}&amount=1000`,
