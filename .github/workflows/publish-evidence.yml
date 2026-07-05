@@ -41,7 +41,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
 
       - name: Run E2E tests
-        run: npx playwright test credential-flows.spec.ts user-stories.spec.ts --retries=1 --timeout=60000
+        run: npx playwright test --retries=1 --timeout=60000
 
       - name: Render dashboard
         run: node scripts/render-test-dashboard.mjs
