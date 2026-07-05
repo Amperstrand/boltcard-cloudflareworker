@@ -269,7 +269,7 @@ describe("Adversarial integration tests", () => {
   // ── 5. Security: Key Retrieval Auth ─────────────────────────────────────────
 
   describe("security: key retrieval auth", () => {
-    it("rejects unauthenticated key retrieval with 302 redirect", async () => {
+    it("allows public key retrieval (Bolt Card Writer compat)", async () => {
       resetSession();
       const resp = await apiFetch(
         "/api/v1/pull-payments/test/boltcards?onExisting=UpdateVersion",
@@ -279,8 +279,7 @@ describe("Adversarial integration tests", () => {
           body: JSON.stringify({ UID: makeUid() }),
         },
       );
-      expect(resp.status).toBe(302);
-      // Restore session for subsequent tests
+      expect(resp.status).toBe(200);
       await operatorLogin();
     });
 

@@ -37,6 +37,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: node scripts/sync-js-exports.mjs
+      - run: npx playwright install --with-deps chromium
 
       - name: Run E2E tests
         run: npx playwright test credential-flows.spec.ts user-stories.spec.ts --retries=1 --timeout=60000
