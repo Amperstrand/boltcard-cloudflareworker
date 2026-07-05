@@ -31,7 +31,8 @@ jobs:
 
       - name: Install nak
         run: |
-          curl -sL https://github.com/fiatjaf/nak/releases/latest/download/nak-linux-amd64 -o /usr/local/bin/nak
+          TAG=$(curl -s https://api.github.com/repos/fiatjaf/nak/releases/latest | python3 -c "import sys,json; print(json.loads(sys.stdin.read())['tag_name'])")
+          curl -sL "https://github.com/fiatjaf/nak/releases/download/${TAG}/nak-${TAG}-linux-amd64" -o /usr/local/bin/nak
           chmod +x /usr/local/bin/nak
           nak --version || true
 

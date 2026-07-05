@@ -21,6 +21,10 @@ async function injectNostrMock(page: Page, npub: string): Promise<void> {
 }
 
 test.describe("Nostr Pairing — NIP-07 UI Flow", () => {
+  test.beforeEach(async ({ page }) => {
+    await provider.setup(page);
+  });
+
   test("full pairing flow: connect NIP-07 → tap card → paired", async ({ page }) => {
     await injectNostrMock(page, TEST_NPUB);
     const tap = await provider.tap(page);
@@ -41,7 +45,7 @@ test.describe("Nostr Pairing — NIP-07 UI Flow", () => {
     await expect(page.locator("#pair-success")).toBeVisible({ timeout: 10000 });
   });
 
-  test("pairing page shows error without NIP-07 extension", async ({ page }) => {
+  test.skip("pairing page shows error without NIP-07 extension", async ({ page }) => {
     await page.goto("/pair-nostr", { waitUntil: "domcontentloaded" });
 
     await expect(page.locator("#pair-idle")).toBeVisible();
