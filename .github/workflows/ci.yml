@@ -15,11 +15,14 @@ jobs:
         run: git clone https://github.com/Amperstrand/ntag424-crypto.git ../ntag424-crypto
       - name: Build ntag424-crypto
         run: cd ../ntag424-crypto && npm install && npm run build
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - run: node scripts/sync-js-exports.mjs
       - run: npm run typecheck
       - run: npm run lint
@@ -37,11 +40,14 @@ jobs:
         run: git clone https://github.com/Amperstrand/ntag424-crypto.git ../ntag424-crypto
       - name: Build ntag424-crypto
         run: cd ../ntag424-crypto && npm install && npm run build
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - run: node scripts/sync-js-exports.mjs
       - run: node scripts/build_keys.js
       - name: Deploy to staging
@@ -74,11 +80,14 @@ jobs:
         run: git clone https://github.com/Amperstrand/ntag424-crypto.git ../ntag424-crypto
       - name: Build ntag424-crypto
         run: cd ../ntag424-crypto && npm install && npm run build
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - run: node scripts/sync-js-exports.mjs
       - run: npm run typecheck
       - run: npm run lint
