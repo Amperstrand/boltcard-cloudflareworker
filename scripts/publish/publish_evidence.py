@@ -98,6 +98,7 @@ def main():
     print()
 
     blossom_urls = {}
+    file_metadata = []
     for i, screenshot_path in enumerate(screenshot_paths):
         filename = os.path.basename(screenshot_path)
         ct = guess_content_type(screenshot_path)
@@ -107,8 +108,15 @@ def main():
                 screenshot_path, args.nsec_file, args.blossom_server, ct
             )
             url = result.get("url", "")
+            sha = result.get("sha256", "")
             if url:
                 blossom_urls[screenshot_path] = url
+                file_metadata.append({
+                    "url": url,
+                    "path": filename,
+                    "mime": ct,
+                    "sha256": sha,
+                })
                 print(f"OK ({url.split('/')[-1][:12]}...)")
             else:
                 print(f"SKIP (no URL)")
@@ -153,6 +161,14 @@ def main():
     if dashboard_url:
         all_urls.append(dashboard_url)
 
+    if dashboard_url:
+        file_metadata.append({
+            "url": dashboard_url,
+            "path": "dashboard.html",
+            "mime": "text/html",
+            "sha256": "",
+        })
+
     skipped = report.get("stats", {}).get("skipped", 0)
     total = passed + failed + skipped
     content_json = json.dumps({
@@ -163,6 +179,7 @@ def main():
         "project": "boltcard",
         "dashboard_url": dashboard_url or "",
         "summary": f"{passed} passed, {failed} failed" + (f", {skipped} skipped" if skipped else ""),
+        "files": file_metadata,
     })
 
     print(f"\nPublishing Nostr kind 30078 summary...", end=" ", flush=True)
