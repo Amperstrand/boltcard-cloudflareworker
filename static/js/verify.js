@@ -20,7 +20,7 @@
       resultTitle.textContent = "Verifying...";
       resultBadge.textContent = "...";
       resultBadge.className = "text-xs font-bold px-3 py-1 rounded-full bg-gray-700 text-gray-300";
-      resultDetails.innerHTML = "";
+      resultDetails.replaceChildren();
 
       try {
         var resp = await fetch("/api/verify-credential", {
@@ -51,7 +51,7 @@
           if (s.nostrNpub) rows.push(["Nostr", s.nostrNpub]);
           if (s.nostrName) rows.push(["Nostr Name", s.nostrName]);
 
-          resultDetails.innerHTML = "";
+          resultDetails.replaceChildren();
           rows.forEach(function (row) {
             var row_el = document.createElement("div");
             row_el.className = "flex justify-between items-center border-b border-gray-800/50 pb-2";
