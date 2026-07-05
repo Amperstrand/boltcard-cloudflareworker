@@ -45,15 +45,13 @@ test.describe("Nostr Pairing — NIP-07 UI Flow", () => {
     await expect(page.locator("#pair-success")).toBeVisible({ timeout: 10000 });
   });
 
-  test.skip("pairing page shows error without NIP-07 extension", async ({ page }) => {
+  test("pairing page shows error without NIP-07 extension", async ({ page }) => {
     await page.goto("/pair-nostr", { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(1000);
 
-    await expect(page.locator("#pair-idle")).toBeVisible();
-
-    await page.locator("#btn-connect-nostr").click();
-
-    await expect(page.locator("#pair-error")).toBeVisible({ timeout: 5000 });
-    await expect(page.locator("#pair-error-msg")).toContainText(/nostr|NIP-07|extension/i);
+    await expect(page.locator("#nip07-missing")).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("#nip07-available")).toBeHidden();
+    await expect(page.locator("#btn-connect-nostr")).toBeHidden();
   });
 
   test("paired card VC includes Nostr npub via UI flow", async ({ page }) => {
