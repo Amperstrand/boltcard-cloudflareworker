@@ -24,7 +24,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: node scripts/sync-js-exports.mjs
-      - run: npm run typecheck
+      - run: npm run typecheck:src
       - run: npm run lint
       - run: npm test
       - run: npm run test:do
@@ -89,7 +89,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: node scripts/sync-js-exports.mjs
-      - run: npm run typecheck
+      - run: npm run typecheck:src
       - run: npm run lint
       - run: npm test
       - run: npm run test:do
