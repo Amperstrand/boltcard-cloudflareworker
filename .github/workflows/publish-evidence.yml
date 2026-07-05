@@ -1,0 +1,59 @@
+name: Publish Evidence
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    needs: []
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clone ntag424-crypto
+        run: git clone https://github.com/Amperstrand/ntag424-crypto.git ../ntag424-crypto
+      - name: Build ntag424-crypto
+        run: cd ../ntag424-crypto && npm install && npm run build
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install nak
+        run: |
+          curl -sL https://github.com/fiatjaf/nak/releases/latest/download/nak-linux-amd64 -o /usr/local/bin/nak
+          chmod +x /usr/local/bin/nak
+          nak --version || true
+
+      - run: npm ci
+      - run: node scripts/sync-js-exports.mjs
+
+      - name: Run E2E tests
+        run: npx playwright test credential-flows.spec.ts user-stories.spec.ts --retries=1 --timeout=60000
+
+      - name: Render dashboard
+        run: node scripts/render-test-dashboard.mjs
+
+      - name: Publish evidence
+        run: |
+          mkdir -p ~/.config/prta
+          echo "${{ secrets.PUBLISH_NSEC }}" > ~/.config/prta/nsec
+          pip install certifi
+          python3 scripts/publish/publish_evidence.py
+        env:
+          BLOSSOM_SERVER: https://blossom.psbt.me
+          NOSTR_RELAYS: wss://relay.damus.io,wss://nos.lol
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: test-results/dashboard/
+          retention-days: 30

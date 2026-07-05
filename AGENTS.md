@@ -283,7 +283,18 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
   - `financial-flows.spec.ts` — Top-up, POS charge, refund, void, reconciliation (uses provider)
   - `virtual-card.spec.ts` — Virtual card simulator UI, auto-test lifecycle
   - `operator-ui.spec.ts` — Login flow, page rendering, auth protection
+  - `credential-flows.spec.ts` — VC issuance (JWT, Data Integrity, SD-JWT), verification, Nostr pairing
+  - `user-stories.spec.ts` — 25 user stories (US1-US25) covering full card lifecycle
+  - `dashboard.spec.ts` — Evidence pipeline verification: relay queryability, event structure, dashboard UI rendering
 - USB reader bridge: `scripts/pcscd-bridge.py` — reads NTAG424 via pyscard + ndeflib
+
+### Tier 2c.1: Evidence Publishing Pipeline
+- Publish script: `scripts/publish/publish_evidence.py` — uploads screenshots to Blossom, renders dashboard HTML, publishes Nostr kind 30078 event with structured JSON content (`{passed, failed, files: [{url, path, mime, sha256}]}`)
+- **Critical**: Run publish IMMEDIATELY after tests — Playwright cleans `outputDir` between runs, deleting screenshots
+- Blossom server: `https://blossom.psbt.me` (free tier, no Cashu needed under 1MB)
+- Relays: `wss://relay.damus.io`, `wss://nos.lol`
+- CI auto-publish: `.github/workflows/publish-evidence.yml` — runs on every push to main, requires `PUBLISH_NSEC` secret
+- Dashboard: [tests.tollgate.me](https://tests.tollgate.me) — Boltcard tab shows evidence with inline screenshots
 
 ### Tier 3: Smoke Tests
 - Run: `npm run live:smoke` (post-deploy, 5 HTTP requests to live worker)

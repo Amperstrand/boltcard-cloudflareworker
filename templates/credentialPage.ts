@@ -110,13 +110,19 @@ export function renderCredentialPage({ host }: { host: string }): string {
               </div>
 
               <div class="w-full mb-4">
-                <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Issuer (did:key)</p>
-                <p id="issuer-did" class="text-xs font-mono text-purple-400 break-all bg-gray-950/50 p-2 rounded border border-gray-800/50">—</p>
+                <div class="flex items-center justify-between mb-1">
+                  <p class="text-xs text-gray-500 uppercase tracking-wider">Issuer (did:key)</p>
+                  <button id="btn-copy-did" type="button" class="text-xs text-gray-500 hover:text-purple-400 transition-colors" title="Copy did:key">copy</button>
+                </div>
+                <p id="issuer-did" class="text-xs font-mono text-purple-400 break-all bg-gray-950/50 p-2 rounded border border-gray-800/50 select-all cursor-pointer" title="Click to select all">—</p>
               </div>
 
               <div class="w-full mb-4">
-                <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">VC-JWT</p>
-                <pre id="vc-jwt-display" class="text-xs font-mono text-gray-300 break-all whitespace-pre-wrap bg-gray-950/50 p-3 rounded border border-gray-800/50 max-h-48 overflow-y-auto select-all">—</pre>
+                <div class="flex items-center justify-between mb-1">
+                  <p class="text-xs text-gray-500 uppercase tracking-wider">VC-JWT</p>
+                  <button id="btn-copy-jwt-inline" type="button" class="text-xs text-gray-500 hover:text-purple-400 transition-colors" title="Copy VC-JWT">copy</button>
+                </div>
+                <pre id="vc-jwt-display" class="text-xs font-mono text-gray-300 break-all whitespace-pre-wrap bg-gray-950/50 p-3 rounded border border-gray-800/50 max-h-48 overflow-y-auto select-all cursor-pointer" title="Click to select all">—</pre>
               </div>
 
               <div class="flex gap-2">

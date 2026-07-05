@@ -244,18 +244,47 @@
     }
 
     var btnCopy = document.getElementById("btn-copy-jwt");
+    function copyToClipboard(text, btn, originalText) {
+      if (!text) return;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(function () {
+          btn.textContent = "Copied!";
+          setTimeout(function () { btn.textContent = originalText; }, 2000);
+        });
+      }
+    }
     if (btnCopy) {
       btnCopy.addEventListener("click", function () {
-        var jwt = window._vcJwt || "";
-        if (!jwt) return;
-        if (navigator.clipboard) {
-          navigator.clipboard.writeText(jwt).then(function () {
-            btnCopy.textContent = "Copied!";
-            setTimeout(function () { btnCopy.textContent = "Copy Credential"; }, 2000);
-          });
-        }
+        copyToClipboard(window._vcJwt || "", btnCopy, "Copy Credential");
       });
     }
+
+    var btnCopyJwtInline = document.getElementById("btn-copy-jwt-inline");
+    if (btnCopyJwtInline) {
+      btnCopyJwtInline.addEventListener("click", function () {
+        copyToClipboard(window._vcJwt || "", btnCopyJwtInline, "copy");
+      });
+    }
+
+    var btnCopyDid = document.getElementById("btn-copy-did");
+    if (btnCopyDid) {
+      btnCopyDid.addEventListener("click", function () {
+        var did = document.getElementById("issuer-did").textContent || "";
+        copyToClipboard(did, btnCopyDid, "copy");
+      });
+    }
+
+    function makeClickToSelect(el) {
+      if (!el) return;
+      el.addEventListener("click", function () {
+        var range = document.createRange();
+        range.selectNodeContents(el);
+        var sel = window.getSelection();
+        if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+      });
+    }
+    makeClickToSelect(document.getElementById("issuer-did"));
+    makeClickToSelect(document.getElementById("vc-jwt-display"));
 
     var btnToggleAlg = document.getElementById("btn-toggle-alg");
     if (btnToggleAlg) {
