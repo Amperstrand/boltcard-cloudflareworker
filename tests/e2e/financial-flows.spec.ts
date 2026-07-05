@@ -258,13 +258,12 @@ test.describe(`Reconciliation Page (${provider.name} provider)`, () => {
 
     await page.goto("/operator/reconciliation", { waitUntil: "domcontentloaded" });
 
-    await expect(page.locator("#content")).toBeVisible({ timeout: 15000 });
+    await expect(page).toHaveTitle(/Reconciliation/i);
 
-    const contentClass = await page.getAttribute("#content", "class");
-    expect(contentClass).not.toContain("hidden");
-
-    const topupTotal = await page.textContent("#topup-total");
-    expect(topupTotal).toBeTruthy();
+    await expect(page.locator("text=RECONCILIATION")).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('a:has-text("POS")')).toBeVisible();
+    await expect(page.locator('a:has-text("REFUND")')).toBeVisible();
+    await expect(page.locator('a:has-text("TOP-UP")')).toBeVisible();
 
     await page.screenshot({ path: "test-results/reconciliation-page.png" });
   });

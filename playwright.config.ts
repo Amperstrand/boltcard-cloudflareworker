@@ -5,6 +5,7 @@ const isLocal = baseURL.includes("127.0.0.1") || baseURL.includes("localhost");
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  globalSetup: "./tests/e2e/auth.setup.ts",
   testMatch: [
     "operator-ui.spec.ts",
     "virtual-card.spec.ts",
@@ -36,6 +37,7 @@ export default defineConfig({
     screenshot: "on",
     video: "on",
     trace: "retain-on-failure",
+    storageState: "test-results/.auth/operator.json",
   },
   projects: [
     {

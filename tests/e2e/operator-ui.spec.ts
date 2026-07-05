@@ -208,6 +208,8 @@ test.describe("Operator UI", () => {
   });
 
   test.describe("Auth Protection", () => {
+    test.use({ storageState: { cookies: [], origins: [] } });
+
     test("unauthenticated access to /operator/topup redirects to login", async ({ page }) => {
       // Fresh context — no cookies
       await page.goto("/operator/topup", { waitUntil: "domcontentloaded" });
