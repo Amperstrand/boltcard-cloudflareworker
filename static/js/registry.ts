@@ -30,6 +30,7 @@ import {
   HEALTH_JS, HEALTH_JS_HASH,
   CREDENTIAL_JS, CREDENTIAL_JS_HASH,
   NOSTR_PAIRING_JS, NOSTR_PAIRING_JS_HASH,
+  VERIFY_JS, VERIFY_JS_HASH,
 } from "./exports.js";
 import { errorResponse } from "../../utils/responses.js";
 
@@ -70,6 +71,7 @@ const STATIC_JS_FILES: Record<string, StaticFileEntry> = {
   "health.js": { content: HEALTH_JS, hash: HEALTH_JS_HASH },
   "credential.js": { content: CREDENTIAL_JS, hash: CREDENTIAL_JS_HASH },
   "nostr-pairing.js": { content: NOSTR_PAIRING_JS, hash: NOSTR_PAIRING_JS_HASH },
+  "verify.js": { content: VERIFY_JS, hash: VERIFY_JS_HASH },
 };
 
 export function serveStaticJs(file: string | undefined, ifNoneMatch: string | null): Response {

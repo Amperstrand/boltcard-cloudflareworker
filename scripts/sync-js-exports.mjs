@@ -46,6 +46,7 @@ const FILE_ORDER = [
   "health.js",
   "credential.js",
   "nostr-pairing.js",
+  "verify.js",
 ];
 
 function jsName(filename) {
