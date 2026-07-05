@@ -43,7 +43,7 @@ test.describe(`Identity & 2FA (${provider.name} provider)`, () => {
   test("identity page renders with status indicators", async ({ page }) => {
     await page.goto("/identity", { waitUntil: "domcontentloaded" });
 
-    await expect(page.locator("#state-idle")).toBeVisible({ timeout: 15000 });
+    await expect(page.locator("#nfc-status")).toBeVisible({ timeout: 15000 });
   });
 
   // ─── 2FA ───

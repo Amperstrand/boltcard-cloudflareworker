@@ -140,6 +140,8 @@ test.describe(`Hardware Card Lifecycle (${provider.name} provider)`, () => {
 });
 
 test.describe(`Hardware Physical Write/Wipe (${provider.name} provider)`, () => {
+  test.skip(provider.name !== "usb", "Requires physical USB card reader");
+
   let canPhysicallyWipe = false;
 
   test.beforeAll(async () => {
