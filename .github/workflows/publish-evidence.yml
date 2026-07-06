@@ -41,12 +41,16 @@ jobs:
       - run: npx playwright install --with-deps chromium
 
       - name: Run E2E tests
+        continue-on-error: true
+        id: e2e
         run: npx playwright test --retries=1 --timeout=60000
 
       - name: Render dashboard
+        if: always()
         run: node scripts/render-test-dashboard.mjs
 
       - name: Publish evidence
+        if: always()
         run: |
           mkdir -p ~/.config/prta
           echo "${{ secrets.PUBLISH_NSEC }}" > ~/.config/prta/nsec
