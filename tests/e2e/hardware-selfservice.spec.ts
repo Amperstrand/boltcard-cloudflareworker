@@ -172,9 +172,10 @@ test.describe(`Hardware Cardholder Self-Service (${provider.name} provider)`, ()
   test("receipt API returns formatted receipt for a charge", async ({ page }) => {
     const api = makeApiHelpers(provider, page);
     await ensureCardActive(page);
+    await api.topUp(10000);
 
     const charge = await api.charge(500);
-    expect(charge.ok).toBeTruthy();
+    expect(charge.ok, `Charge failed: ${JSON.stringify(charge.data)}`).toBeTruthy();
     const txnId = charge.data.txnId;
 
     const cardInfo = await provider.getCardInfo(page);
