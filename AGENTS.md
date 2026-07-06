@@ -133,6 +133,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 | GET | `/debug` | `handleDebugPage()` | Tabbed debug console (Console, Identify, Wipe, 2FA, Identity, POS, Virtual Card) |
 | GET | `/identity` | `handleIdentityPage()` | Identity/access control demo |
 | GET | `/credential` | `handleCredentialPage()` | Verifiable Credential demo (NFC tap → issue VC-JWT) |
+| GET | `/verify` | `handleVerifyPage()` | Standalone VC verifier (paste JWT/DI/SD-JWT, no NFC needed) |
 | GET | `/card` | `handleCardPage()` | Cardholder dashboard (NFC scan) |
 | GET | `/card/info` | `handleCardInfo()` | Card status API (JSON) — returns unified history, analytics, payment method |
 | GET | `/virtual` | `handleVirtualCardPage()` | Virtual card simulator (create, view keys, simulate taps, auto-test lifecycle) |
@@ -273,6 +274,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 ### Tier 2c: Playwright E2E Tests
 - Run: `npx playwright test` (Playwright, Chromium, live production)
 - Config: `playwright.config.ts` — baseURL: `https://boltcardpoc.psbt.me`
+- **globalSetup**: `tests/e2e/auth.setup.ts` — logs in as operator once via `globalSetup`, saves `storageState` to `test-results/.auth/operator.json`. All tests inherit the operator session — avoids hitting the login rate limit (5 req/15min per IP). Auth protection tests override with `test.use({ storageState: { cookies: [], origins: [] } })`.
 - Provider architecture in `tests/e2e/providers/`:
   - `provider.ts` — `CardProvider` interface: `setup()`, `tap()`, `getCardInfo()`
   - `virtual-provider.ts` — Browser JS hooks (`_vcTap()`/`_vcGetKeys()`) for CI; creates card via `/virtual` page
@@ -286,6 +288,10 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
   - `credential-flows.spec.ts` — VC issuance (JWT, Data Integrity, SD-JWT), verification, Nostr pairing
   - `user-stories.spec.ts` — 25 user stories (US1-US25) covering full card lifecycle
   - `dashboard.spec.ts` — Evidence pipeline verification: relay queryability, event structure, dashboard UI rendering
+  - `nostr-pairing.spec.ts` — NIP-07 UI flow tests with mocked `window.nostr` (4 tests)
+  - `hardware-lifecycle.spec.ts` — Physical burn/wipe tests (skipped in virtual mode)
+  - `identity-2fa.spec.ts` — Identity page, 2FA page, OTP endpoint tests
+  - `nfc-ui.spec.ts` — NFC scanning UI with mock NDEFReader (custom fixtures)
 - USB reader bridge: `scripts/pcscd-bridge.py` — reads NTAG424 via pyscard + ndeflib
 
 ### Tier 2c.1: Evidence Publishing Pipeline
