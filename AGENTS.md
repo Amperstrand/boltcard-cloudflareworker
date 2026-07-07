@@ -10,20 +10,66 @@
 - **DO facade**: `card/doFacade.ts` — shared transport helpers (getCardStub, doPost, doStateTransition, etc.) used by all `card/*.ts` domain modules
 - **Card domain modules**: `card/taps.ts`, `card/balance.ts`, `card/lifecycle.ts`, `card/config.ts`, `card/analytics.ts`, `card/export.ts` — barrel re-exported via `replayProtection.ts` for backward compatibility
 - **Handler factory**: `withCardTap()` from `utils/cardHandler.ts` — eliminates boilerplate (method check, body parse, card validation, try/catch) across financial handlers
-- **Static assets**: Wrangler `[assets]` binding serves JS/PWA files from `public/` directory via Cloudflare CDN; Worker routes kept as test fallback
+- **Static assets**: Compiled Tailwind CSS served from Worker (`static/tailwind-css.ts`); JS served via `static/js/exports.ts` + `registry.ts` with SHA-256 ETags
+- **Cashu integration**: Optional payment method (`payment_method: "cashu"`) that proxies card taps to lnforward for Cashu/Lightning settlement — see [Cashu Payment Method](#cashu-payment-method) section below
 - **DO concurrency**: Each card maps to a unique Durable Object instance (keyed by UID). DOs are **single-threaded** — requests to the same card are processed sequentially. There are NO race conditions within a single card DO. Do not flag "concurrent callback" issues — they cannot happen in production.
 - **Crypto**: `aes-js` for AES-ECB/CMAC, `@noble/secp256k1` + `@scure/base` + `@noble/hashes` for bolt11
 - **Key derivation**: deterministic from UID + ISSUER_KEY via `keygenerator.ts`
 
 ## Payment Methods
 
-| Method | Flow | Notes |
-|--------|------|-------|
-| `fakewallet` | Internal accounting via DO balance | Generates fake bolt11 invoices to random nonexistent nodes |
-| `clnrest` | POST to Core Lightning REST API | Requires rune auth |
-| `proxy` | Relay to downstream LNBits | CMAC optionally deferred |
-| `lnurlpay` | LNURL-pay flow (POS cards) | Lightning address routing |
-| `twofactor` | NFC-based 2FA | OTP generation |
+| Method | Flow | Balance source | Ledger | Real Lightning | Multi-currency |
+|--------|------|---------------|--------|----------------|----------------|
+| `fakewallet` | Internal accounting via DO balance | DO balance | Yes (DO) | No | No |
+| `clnrest` | POST to Core Lightning REST API | CLN node | No (CLN) | Yes | No |
+| `proxy` | Relay to downstream LNBits | Upstream | No | Yes | No |
+| `cashu` | Proxy to lnforward Cashu backend | Cashu mint proofs | No (mint) | Yes (via mint) | Yes (BTC, USD, EUR) |
+| `lnurlpay` | LNURL-pay flow (POS cards) | Lightning provider | No | Yes | No |
+| `twofactor` | NFC-based 2FA | N/A | N/A | N/A | N/A |
+
+### Cashu Payment Method
+
+When `payment_method: "cashu"`, boltcard acts as a stateless NFC frontend. All payment settlement is handled by lnforward (a separate Cloudflare Worker at `lnurl.psbt.me`). boltcard does NOT maintain a DO balance for cashu cards — the Cashu mint IS the ledger.
+
+**Architecture:**
+```
+Card tap → boltcard decrypts CMAC → detects cashu mode
+  → proxies p,c params to lnforward /boltcard endpoint
+  → lnforward validates, queries Cashu proof balance via coco Manager
+  → returns withdrawRequest JSON with callback pointing to lnforward
+  → boltcard passes JSON through to wallet
+  → wallet pays → calls lnforward callback directly
+  → lnforward melts Cashu proofs → Lightning settles
+  → boltcard has zero DO state for this card
+```
+
+**Card config:**
+```json
+{
+  "payment_method": "cashu",
+  "cashu": { "backend_url": "https://testnet.lnurl.psbt.me/boltcard" }
+}
+```
+
+**What works with cashu mode:**
+- Card tap → LNURL-withdraw (proxied to lnforward)
+- Balance check (`/api/balance-check` — queries upstream)
+- CMAC validation (deferred to lnforward)
+
+**What does NOT work with cashu mode:**
+- POS charges (`/operator/pos/charge`) — cashu cards rejected with clear error
+- Top-up (`/operator/topup/apply`) — use Lightning payment to fund Cashu wallet instead
+- Refund (`/operator/refund/apply`) — use lnforward admin API to export Cashu tokens
+- Event mode (reconciliation, void, shift reports) — cashu cards invisible to DO-based reports
+
+**Deployment requirements:**
+1. lnforward must be deployed with `BOLTCARD_K1` and `BOLTCARD_ISSUER_KEY` secrets matching boltcard's `ISSUER_KEY`
+2. Card must be registered on BOTH services (boltcard DO + lnforward D1)
+3. Cashu wallet must be funded (Lightning payment to card's lnforward Lightning Address)
+4. Both services must share the same K1/K2 key derivation (same `ISSUER_KEY`)
+
+**Multi-currency support:**
+Cashu mints can hold BTC (sat), USD, EUR, etc. Configure lnforward routes with the desired mint+unit. The `stablenut.cashu.network` mint supports USD and EUR today.
 
 ## Card Lifecycle States
 
@@ -226,7 +272,9 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 - `parsePositiveInt(raw, max)` from `utils/validation.ts` for positive integer validation with optional max
 - `resolveCardIdentity()` from `utils/cardAuth.ts` — shared decrypt→state→config→CMAC pipeline with `skipCmac`/`requireState`/`forcedVersion`/`context` options
 - `constantTimeEqual()` from `utils/cookies.ts` for timing-safe string comparison (CSRF tokens, PINs)
-- `checkReplayAndRecordTap()` from `handlers/lnurlwHandler.ts` for replay check + tap recording (shared by proxy and fakewallet/clnrest paths)
+- `checkReplayAndRecordTap()` from `handlers/lnurlwHandler.ts` for replay check + tap recording (shared by proxy, cashu, and fakewallet/clnrest paths)
+- `handleProxy()` from `handlers/proxyHandler.ts` for HTTP relay to upstream payment backends (used by both `proxy` and `cashu` payment methods — header filtering, X-BoltCard-* headers, response passthrough)
+- Cashu cards (`payment_method: "cashu"`) are rejected from `withCardTap()` handlers (POS, topup, refund) with a clear error — these operations require DO balance which cashu cards don't have
 - `discoverUnknownCard()` from `handlers/lnurlwHandler.ts` for auto-discovery of unknown cards via CMAC scan across all issuer key candidates
 - `setCardK2()` from `replayProtection.ts` for targeted K2-only update in DO card_config (used during discovery to persist correct K2 without overwriting payment_method)
 - `markPending()` and `discoverCard()` from `replayProtection.ts` for DO row creation during key fetch and first tap
@@ -356,7 +404,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 
 | Task | Priority | Notes |
 |------|----------|-------|
-| Real Lightning integration | High | Currently all fakewallet; wire up `clnrest` or LND for real Bitcoin payments |
+| Real Lightning via Cashu | Done | `payment_method: "cashu"` proxies to lnforward; Cashu mint handles Lightning settlement |
 | Multi-venue / multi-tenant | Medium | Namespace cards per venue, operator-scoped access |
 | Cardholder PWA | Medium | Rich dashboard with push notifications, spending history, QR top-up |
 | GitHub #5: verifiable credentials | Phase 1-3 Done | VC-JWT (ES256 + EdDSA), Data Integrity proofs (JCS + Ed25519), SD-JWT selective disclosure (RFC 9901); centralized issuer model; LNURL VC embedding; Nostr pairing planned |

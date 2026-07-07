@@ -79,8 +79,22 @@ This worker decrypts the card, validates it, and performs the requested action â
 | `fakewallet` | Internal accounting via DO balance | None |
 | `clnrest` | POST to Core Lightning REST API | `host`, `port`, `rune` in card config |
 | `proxy` | Relay to downstream LNBits | `baseurl` in card config |
+| `cashu` | Proxy to [lnforward](https://github.com/Amperstrand/lnforward) Cashu backend | `backend_url` in card config (e.g. `https://testnet.lnurl.psbt.me/boltcard`) |
 | `lnurlpay` | LNURL-pay flow (POS cards) | `lightning_address` in card config |
 | `twofactor` | NFC-based 2FA | OTP generation |
+
+### Cashu (Real Lightning via ecash)
+
+When `payment_method: "cashu"`, card taps are proxied to a [lnforward](https://github.com/Amperstrand/lnforward) instance which settles payments via Cashu mints. No Lightning node required â€” the Cashu mint handles Lightning settlement.
+
+```json
+{
+  "payment_method": "cashu",
+  "cashu": { "backend_url": "https://testnet.lnurl.psbt.me/boltcard" }
+}
+```
+
+The card must also be registered on the lnforward instance (`POST /admin/boltcards`) and the Cashu wallet must be funded (pay a Lightning invoice to the card's Lightning Address).
 
 ## Card Lifecycle
 
