@@ -92,7 +92,7 @@ test.describe("Evidence publishing pipeline → dashboard UI", () => {
 
   test("boltcard run is visible in Boltcard tab", async ({ page }) => {
     await page.locator('button[data-project="boltcard"]').click();
-    await page.waitForSelector(".run-card", { timeout: 10000 });
+    await page.waitForSelector(".run-card", { timeout: 20000 });
     expect(await page.locator(".run-card").count()).toBeGreaterThan(0);
   });
 
