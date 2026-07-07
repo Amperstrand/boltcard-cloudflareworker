@@ -72,6 +72,7 @@ export const PAYMENT_METHOD = {
   PROXY: "proxy",
   LNURLPAY: "lnurlpay",
   TWOFACTOR: "twofactor",
+  CASHU: "cashu",
 } as const;
 
 export type PaymentMethod = (typeof PAYMENT_METHOD)[keyof typeof PAYMENT_METHOD];

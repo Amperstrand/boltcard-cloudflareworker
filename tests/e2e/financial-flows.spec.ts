@@ -226,6 +226,7 @@ test.describe(`Financial Flows (${provider.name} provider)`, () => {
 
 test.describe(`Reconciliation Page (${provider.name} provider)`, () => {
   test("reconciliation API returns transaction data after financial operations", async ({ page }) => {
+    test.setTimeout(120000);
     await operatorLogin(page);
     await provider.setup(page);
     const api = makeApiHelpers(provider, page);

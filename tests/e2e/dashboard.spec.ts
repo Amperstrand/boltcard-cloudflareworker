@@ -8,12 +8,12 @@ test.describe("Evidence publishing pipeline → relay verification", () => {
     const events = await page.evaluate(async (relayUrls) => {
       const results: Array<Record<string, unknown>> = [];
       await Promise.all(relayUrls.map((relayUrl: string) => new Promise<void>((resolve) => {
-        let ws: WebSocket;
+        let ws: any;
         try { ws = new WebSocket(relayUrl); } catch { resolve(); return; }
         const subId = "bc-verify-" + Math.random().toString(36).slice(2, 8);
         const timeout = setTimeout(() => { try { ws.close(); } catch { /* */ } resolve(); }, 10000);
         ws.onopen = () => { ws.send(JSON.stringify(["REQ", subId, { kinds: [30078], "#t": ["boltcard"], limit: 5 }])); };
-        ws.onmessage = (msg) => {
+        ws.onmessage = (msg: MessageEvent) => {
           try {
             const data = JSON.parse(msg.data);
             if (data[0] === "EVENT" && data[1] === subId && data[2]) { results.push(data[2]); }
@@ -40,12 +40,12 @@ test.describe("Evidence publishing pipeline → relay verification", () => {
     const events = await page.evaluate(async (relayUrls) => {
       const results: Array<Record<string, unknown>> = [];
       await Promise.all(relayUrls.map((relayUrl: string) => new Promise<void>((resolve) => {
-        let ws: WebSocket;
+        let ws: any;
         try { ws = new WebSocket(relayUrl); } catch { resolve(); return; }
         const subId = "bc-struct-" + Math.random().toString(36).slice(2, 8);
         const timeout = setTimeout(() => { try { ws.close(); } catch { /* */ } resolve(); }, 10000);
         ws.onopen = () => { ws.send(JSON.stringify(["REQ", subId, { kinds: [30078], "#t": ["boltcard"], limit: 5 }])); };
-        ws.onmessage = (msg) => {
+        ws.onmessage = (msg: MessageEvent) => {
           try {
             const data = JSON.parse(msg.data);
             if (data[0] === "EVENT" && data[1] === subId && data[2]) { results.push(data[2]); }
@@ -71,7 +71,7 @@ test.describe("Evidence publishing pipeline → relay verification", () => {
 
     const fileTags = tags.filter((t) => t[0] === "file").map((t) => t[1]);
     expect(fileTags.length).toBeGreaterThan(0);
-    expect(fileTags.some((url) => url.includes("blossom.psbt.me"))).toBe(true);
+    expect(fileTags.some((url) => url?.includes("blossom.psbt.me"))).toBe(true);
 
     const content = JSON.parse(latest.content || "{}");
     expect(content.passed).toBeGreaterThan(0);

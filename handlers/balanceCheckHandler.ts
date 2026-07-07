@@ -5,6 +5,8 @@ import type { Env, BalanceResult } from "../types/core.js";
 import { getBalance } from "../replayProtection.js";
 import { validateCardTap, type ValidateCardTapResult } from "../utils/validateCardTap.js";
 import { logger } from "../utils/logger.js";
+import { PAYMENT_METHOD } from "../utils/constants.js";
+import { getUidConfig } from "../getUidConfig.js";
 
 export async function handleBalanceCheck(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") return errorResponse("Method not allowed", 405);
@@ -14,6 +16,25 @@ export async function handleBalanceCheck(request: Request, env: Env): Promise<Re
 
   const tap: ValidateCardTapResult = await validateCardTap(request, env, { pHex: pHex || "", cHex: cHex || "", context: "Balance check" });
   if (!tap.ok) return errorResponse(tap.error, tap.status);
+
+  const config = tap.config;
+  if (config.payment_method === PAYMENT_METHOD.CASHU && config.cashu?.backend_url) {
+    try {
+      const upstream = new URL(config.cashu.backend_url);
+      upstream.searchParams.set("p", pHex || "");
+      upstream.searchParams.set("c", cHex || "");
+      const resp = await fetch(upstream.toString(), { method: "GET" });
+      const data = await resp.json() as Record<string, unknown>;
+      if (data.status === "ERROR") {
+        return jsonResponse({ success: false, balance: 0, reason: data.reason || "Cashu backend error" });
+      }
+      const maxWithdrawable = typeof data.maxWithdrawable === "number" ? data.maxWithdrawable : 0;
+      return jsonResponse({ success: true, balance: maxWithdrawable, uidHex: tap.uidHex, source: "cashu" });
+    } catch (error: unknown) {
+      logger.error("Cashu balance check failed", { uidHex: tap.uidHex, error: getErrorMessage(error) });
+      return errorResponse("Failed to reach Cashu backend", 502);
+    }
+  }
 
   try {
     const balanceData: BalanceResult = await getBalance(env, tap.uidHex);

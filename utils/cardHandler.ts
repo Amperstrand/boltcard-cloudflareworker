@@ -7,6 +7,7 @@ import { validateCardTap } from "./validateCardTap.js";
 import { logger, getErrorMessage } from "./logger.js";
 import { recordAuditEvent } from "./auditLog.js";
 import { parsePositiveInt } from "./validation.js";
+import { PAYMENT_METHOD } from "./constants.js";
 
 type ValidatedTap = Extract<ValidateCardTapResult, { ok: true }>;
 
@@ -34,6 +35,10 @@ export async function withCardTap<T>(
   const { p: pHex, c: cHex } = result.data as { p?: string; c?: string };
   const tap = await validateCardTap(request, env, { pHex: pHex || "", cHex: cHex || "", context });
   if (!tap.ok) return errorResponse(tap.error, tap.status);
+
+  if (tap.config.payment_method === PAYMENT_METHOD.CASHU) {
+    return errorResponse("This card uses Cashu settlement. Use the card tap withdraw flow instead of operator-initiated charges.", 400);
+  }
 
   const shiftId = session?.shiftId || "unknown";
 

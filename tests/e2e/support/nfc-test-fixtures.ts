@@ -117,6 +117,8 @@ export async function setupNFCTestCard(
   setupPage: Page,
   provider: CardProvider,
 ): Promise<void> {
+  await setupPage.goto("/", { waitUntil: "domcontentloaded" });
+  await setupPage.evaluate(() => { try { localStorage.clear(); } catch { /* */ } });
   await operatorLogin(setupPage);
   await provider.setup(setupPage);
   const api = makeApiHelpers(provider, setupPage);

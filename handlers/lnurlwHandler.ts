@@ -135,8 +135,9 @@ async function resolveCardVersion(uidHex: string, ctr: string, cHex: string, env
   return { activeVersion: 1 };
 }
 
-function validateCmac(uidHex: string, ctr: string, cHex: string, config: CardConfig, requestUrl?: string): { error?: Response; cmac_validated?: boolean; proxyRelayMode?: boolean } {
+function validateCmac(uidHex: string, ctr: string, cHex: string, config: CardConfig, requestUrl?: string): { error?: Response; cmac_validated?: boolean; proxyRelayMode?: boolean; cashuRelayMode?: boolean } {
   const proxyRelayMode = config.payment_method === PAYMENT_METHOD.PROXY && !!config.proxy?.baseurl;
+  const cashuRelayMode = config.payment_method === PAYMENT_METHOD.CASHU && !!config.cashu?.backend_url;
   const hasK2 = typeof config.K2 === "string" && config.K2.length > 0;
 
   let cmac_validated = false;
@@ -151,9 +152,9 @@ function validateCmac(uidHex: string, ctr: string, cHex: string, config: CardCon
       hexToBytes(config.K2!),
       windowData,
     ));
-  } else if (proxyRelayMode) {
+  } else if (proxyRelayMode || cashuRelayMode) {
     cmac_error = "CMAC validation deferred to downstream backend";
-    logger.info("Proxy relay mode: CMAC deferred", { action: "card_tap", uidHex });
+    logger.info("Relay mode: CMAC deferred", { action: "card_tap", uidHex, method: config.payment_method });
   } else {
     logger.error("K2 missing for payment method requiring local verification", {
       action: "card_tap",
@@ -168,7 +169,7 @@ function validateCmac(uidHex: string, ctr: string, cHex: string, config: CardCon
     return { error: errorResponse(cmac_error || "CMAC validation failed", 403) };
   }
 
-  return { cmac_validated, proxyRelayMode };
+  return { cmac_validated, proxyRelayMode, cashuRelayMode };
 }
 
 async function routeByPaymentMethod(request: Request, env: Env, uidHex: string, pHex: string, cHex: string, ctr: string, counterValue: number, config: CardConfig, cmac_validated: boolean, proxyRelayMode: boolean): Promise<Response> {
@@ -176,6 +177,15 @@ async function routeByPaymentMethod(request: Request, env: Env, uidHex: string, 
     const replay = await checkReplayAndRecordTap(env, uidHex, counterValue, request);
     if (!replay.ok) return replay.response!;
     return handleProxy(request, uidHex, pHex, cHex, config.proxy!.baseurl, {
+      cmacValidated: cmac_validated,
+      validationDeferred: !config.K2,
+    });
+  }
+
+  if (config.payment_method === PAYMENT_METHOD.CASHU && config.cashu?.backend_url) {
+    const replay = await checkReplayAndRecordTap(env, uidHex, counterValue, request);
+    if (!replay.ok) return replay.response!;
+    return handleProxy(request, uidHex, pHex, cHex, config.cashu.backend_url, {
       cmacValidated: cmac_validated,
       validationDeferred: !config.K2,
     });
@@ -284,7 +294,7 @@ export async function handleLnurlw(request: Request, env: Env): Promise<Response
   const cmacResult = validateCmac(uidHex, ctr, cHex, config, request.url);
   if (cmacResult.error) return cmacResult.error;
 
-  return await routeByPaymentMethod(request, env, uidHex, pHex, cHex, ctr, counterValue, config, cmacResult.cmac_validated!, cmacResult.proxyRelayMode!);
+  return await routeByPaymentMethod(request, env, uidHex, pHex, cHex, ctr, counterValue, config, cmacResult.cmac_validated!, cmacResult.proxyRelayMode! || cmacResult.cashuRelayMode!);
 
   } catch (err: unknown) {
     logger.error("Unhandled error in handleLnurlw", { action: "card_tap", error: getErrorMessage(err) });

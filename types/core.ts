@@ -9,6 +9,7 @@ export interface CardConfig {
   payment_method: PaymentMethodValue;
   clnrest?: { host: string; rune: string; protocol?: string; port?: number };
   proxy?: { baseurl: string };
+  cashu?: { backend_url: string };
   lnurlpay?: { lightning_address: string; min_sendable: number; max_sendable: number };
   card_type?: string;
   pull_payment_id?: string;
