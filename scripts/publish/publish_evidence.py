@@ -16,6 +16,7 @@ import json
 import os
 import sys
 import time
+import tempfile
 import mimetypes
 from pathlib import Path
 
@@ -56,6 +57,74 @@ def flatten_screenshot_paths(suites, parent=""):
         if suite.get("suites"):
             paths.extend(flatten_screenshot_paths(suite["suites"], parent))
     return paths
+
+
+def generate_summary_json(report):
+    """Generate summary.json for dashboard test hierarchy grouping.
+
+    The dashboard's buildTestHierarchy() fetches this file and uses it to
+    match file naming patterns like <test-name>-<outcome>.ext to test
+    entries, grouping screenshots/videos by test.
+
+    Field names align with the PRTA dashboard's expectations:
+    - 'outcome' (not 'status') — matches outcomeIcon() switch cases
+    - 'runner' — groups tests under suite headers (defaults to spec file)
+    - 'counts.total' — must be nonzero for the filter bar "All" count
+    """
+    tests = []
+    seen_names = set()
+
+    for suite in (report.get("suites") or []):
+        _collect_test_names(suite, tests, seen_names)
+
+    stats = report.get("stats", {})
+    passed = stats.get("expected", 0)
+    failed = stats.get("unexpected", 0)
+    skipped = stats.get("skipped", 0)
+    total = passed + failed + skipped
+
+    return {
+        "tests": tests,
+        "counts": {
+            "passed": passed,
+            "failed": failed,
+            "skipped": skipped,
+            "total": total,
+        },
+    }
+
+
+def _collect_test_names(suite, tests, seen_names):
+    """Recursively collect test names + outcomes from Playwright suite tree.
+
+    Uses 'outcome' field name (not 'status') to match the PRTA dashboard's
+    outcomeIcon() switch cases: passed, failed, error, skipped.
+    """
+    suite_title = suite.get("title", "") or "ungrouped"
+    for spec in (suite.get("specs") or []):
+        title = spec.get("title", "")
+        if not title or title in seen_names:
+            continue
+        seen_names.add(title)
+        outcome = "passed"
+        duration_ms = None
+        for test in (spec.get("tests") or []):
+            for result in (test.get("results") or []):
+                status = result.get("status", "")
+                dur = result.get("duration", 0)
+                if duration_ms is None:
+                    duration_ms = dur
+                else:
+                    duration_ms += dur
+                if status == "failed":
+                    outcome = "failed"
+                elif status == "timedOut":
+                    outcome = "error"
+                elif status == "skipped" and outcome != "failed":
+                    outcome = "skipped"
+        tests.append({"name": title, "outcome": outcome, "runner": suite_title, "duration_ms": duration_ms})
+    for child in (suite.get("suites") or []):
+        _collect_test_names(child, tests, seen_names)
 
 
 def main():
@@ -168,6 +237,31 @@ def main():
             "mime": "text/html",
             "sha256": "",
         })
+
+    summary_data = generate_summary_json(report)
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, dir=str(RESULTS_DIR)) as tmp:
+        json.dump(summary_data, tmp, indent=2)
+        summary_path = tmp.name
+    try:
+        print(f"\nUploading summary.json...", end=" ", flush=True)
+        result = upload_to_blossom(summary_path, args.nsec_file, args.blossom_server, "application/json")
+        summary_url = result.get("url", "")
+        summary_sha = result.get("sha256", "")
+        if summary_url:
+            file_metadata.append({
+                "url": summary_url,
+                "path": "summary.json",
+                "mime": "application/json",
+                "sha256": summary_sha,
+            })
+            all_urls.append(summary_url)
+            print("OK")
+        else:
+            print("FAIL")
+    except Exception as e:
+        print(f"FAIL ({e})")
+    finally:
+        os.unlink(summary_path)
 
     skipped = report.get("stats", {}).get("skipped", 0)
     total = passed + failed + skipped
