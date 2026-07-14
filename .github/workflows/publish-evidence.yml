@@ -54,11 +54,23 @@ jobs:
         run: |
           mkdir -p ~/.config/prta
           echo "${{ secrets.PUBLISH_NSEC }}" > ~/.config/prta/nsec
+          chmod 600 ~/.config/prta/nsec
+          ACTUAL_NPUB="$(nak key public "$(cat ~/.config/prta/nsec)" 2>/dev/null || echo DERIVE_FAILED)"
+          echo "Publisher npub: $ACTUAL_NPUB"
+          if [ -n "$EXPECTED_NPUB" ] && [ "$ACTUAL_NPUB" != "$EXPECTED_NPUB" ]; then
+            echo "WARNING: npub mismatch — got $ACTUAL_NPUB, expected $EXPECTED_NPUB"
+            if [ "${STRICT_NPUB_CHECK:-0}" = "1" ]; then
+              echo "::error::STRICT_NPUB_CHECK=1 — aborting to prevent silent identity drift"
+              exit 1
+            fi
+          fi
           pip install certifi
           python3 scripts/publish/publish_evidence.py
         env:
           BLOSSOM_SERVER: https://blossom.psbt.me
           NOSTR_RELAYS: wss://relay.damus.io,wss://nos.lol
+          EXPECTED_NPUB: ${{ vars.EXPECTED_NPUB }}
+          STRICT_NPUB_CHECK: ${{ vars.STRICT_NPUB_CHECK }}
 
       - name: Upload report artifact
         if: always()
