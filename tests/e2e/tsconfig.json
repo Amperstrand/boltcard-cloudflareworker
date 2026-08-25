@@ -7,7 +7,7 @@
     "module": "es2022",
     "moduleResolution": "Bundler",
     "types": [
-      "./worker-configuration.d.ts",
+      "../../worker-configuration.d.ts",
       "vitest/globals"
     ],
     "resolveJsonModule": true,
@@ -23,18 +23,12 @@
     "skipLibCheck": true
   },
   "include": [
-    "worker-configuration.d.ts",
-    "**/*.ts",
-    "**/*.js"
+    "../../worker-configuration.d.ts",
+    "../../types/node-globals.d.ts",
+    "../../types/aes-js.d.ts",
+    "**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "coverage",
-    ".wrangler",
-    ".archive",
-    "static",
-    "public",
-    "test-results",
-    "tests/e2e"
+    "node_modules"
   ]
 }

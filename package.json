@@ -32,7 +32,7 @@
     "test:do": "vitest run --config vitest.do.config.js",
     "test:integration": "vitest run --config vitest.integration.config.js",
     "test:all": "npm test && npm run test:do && npm run test:integration",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tests/e2e",
     "typecheck:src": "tsc --noEmit --project tsconfig.build.json",
     "lint:innerhtml": "node scripts/check-innerhtml.js",
     "lint:static-script": "node scripts/check-static-script.js",

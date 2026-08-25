@@ -21,7 +21,7 @@ export function rawHtml(strings: TemplateStringsArray, ...values: unknown[]): st
  */
 export function staticScript(filename: string): SafeHtml {
   const v = encodeURIComponent(getDeployRevision());
-  return safe(rawHtml`<script src="/static/js/${filename}?v=${v}"></script>`);
+  return safe(rawHtml`<script src="/static/js/${filename}?v=${v}" defer></script>`);
 }
 
 export { escapeHtml, SafeHtml, safe, jsString } from "./escapeHtml.js";
