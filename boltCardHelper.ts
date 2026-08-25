@@ -1,5 +1,6 @@
 import { decryptP, verifyCmac, hexToBytes, bytesToHex } from "@ntag424/crypto";
 import { getBoltCardK1 } from "./getUidConfig.js";
+import { getUniquePerCardK1s } from "./utils/keyLookup.js";
 import { logger, getErrorMessage } from "./utils/logger.js";
 import type { Env } from "./types/core.js";
 
@@ -37,6 +38,25 @@ export function extractUIDAndCounter(pHex: string, env: Env): ExtractResult {
     result = decryptP(pHex, k1Keys);
   } catch (error: unknown) {
     return { error: getErrorMessage(error) } as ExtractFailure;
+  }
+
+  // Opt-in percard fallback (ENABLE_PERCARD_FALLBACK=1): when the configured
+  // K1s cannot decode p, retry against the unique percard K1s from
+  // generatedKeyData. Safe by construction: the UID comes from the decrypted
+  // plaintext (not from key identity), and the row's K2 still gates the CMAC.
+  // See docs/percard-fallback.md for the tradeoff analysis.
+  if (!result.success && (env.ENABLE_PERCARD_FALLBACK === "1" || env.ENABLE_PERCARD_FALLBACK === "true")) {
+    const percardK1s = getUniquePerCardK1s().map((entry) => hexToBytes(entry.k1));
+    if (percardK1s.length > 0) {
+      try {
+        result = decryptP(pHex, [...k1Keys, ...percardK1s]);
+        if (result.success) {
+          logger.info("p decoded via percard K1 fallback", { action: "card_tap" });
+        }
+      } catch {
+        // keep the original deterministic-path failure
+      }
+    }
   }
 
   if (!result.success) {

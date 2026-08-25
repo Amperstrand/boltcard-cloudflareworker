@@ -205,6 +205,7 @@ export interface Env {
 
   WORKER_ENV?: string;
   ENVIRONMENT?: string;
+  ENABLE_PERCARD_FALLBACK?: string;
   DEFAULT_PULL_PAYMENT_ID?: string;
   MAX_TOPUP_AMOUNT?: string;
 

@@ -2,6 +2,7 @@
 import { decodeAndValidate } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
+import { getUniquePerCardK1s } from "../utils/keyLookup.js";
 import { virtualTap } from "./testHelpers.js";
 import type { Env } from "../types/core.js";
 
@@ -72,5 +73,49 @@ describe("decodeAndValidate", () => {
     if (result.success) {
       expect(result.ctr).toBe("00002a");
     }
+  });
+});
+
+describe("percard K1 fallback (ENABLE_PERCARD_FALLBACK)", () => {
+  const envOff = { ISSUER_KEY } as unknown as Env;
+  const envOn = { ISSUER_KEY, ENABLE_PERCARD_FALLBACK: "1" } as unknown as Env;
+  const percard = getUniquePerCardK1s()[0];
+  if (!percard) throw new Error("generatedKeyData has no percard entries — fixture drift");
+
+  it("rejects a percard-keyed tap when the flag is unset (current behavior)", () => {
+    const { pHex } = virtualTap(percard.uid, 7, percard.k1, percard.k2);
+    const result = decodeAndValidate(pHex, "0011223344556677", envOff, undefined);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain("Unable to decode UID");
+    }
+  });
+
+  it("decodes a percard-keyed tap to its row UID when the flag is set", () => {
+    const { pHex } = virtualTap(percard.uid, 9, percard.k1, percard.k2);
+    const result = decodeAndValidate(pHex, "0011223344556677", envOn, undefined);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.uidHex).toBe(percard.uid);
+    }
+  });
+
+  it("leaves deterministic decoding unchanged when the flag is set", () => {
+    const keys = getDeterministicKeys(UID, envOn, 1);
+    const { pHex, cHex } = virtualTap(UID, 11, keys.k1, keys.k2);
+    const result = decodeAndValidate(pHex, cHex, envOn, hexToBytes(keys.k2));
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.uidHex).toBe(UID);
+      expect(result.cmac_validated).toBe(true);
+    }
+  });
+
+  it("still rejects a tap under an unknown key even with the flag set", () => {
+    const randomK1 = "0123456789abcdef0123456789abcdef";
+    const randomK2 = "fedcba0987654321fedcba0987654321";
+    const { pHex } = virtualTap(UID, 13, randomK1, randomK2);
+    const result = decodeAndValidate(pHex, "0011223344556677", envOn, undefined);
+    expect(result.success).toBe(false);
   });
 });
