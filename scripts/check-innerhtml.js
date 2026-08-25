@@ -17,6 +17,10 @@ const STATIC_JS_DIR = join(import.meta.dirname, "..", "static", "js");
 // If you intentionally add a new innerHTML, update this map.
 // Files NOT listed here default to baseline 0 (auto-caught).
 const BASELINE = {
+  // Hash-pinned vendored artifact (qrcodejs@1.0.0) — byte-for-byte from the
+  // pinned upstream, innerHTML is its DOM fallback renderer. Do not edit the
+  // file; do not raise this baseline for first-party code.
+  "vendor-qrcodejs.js": 2,
   "bolt11-decode.js": 0,
   "menu-editor.js": 0,
   "card-audit.js": 0,

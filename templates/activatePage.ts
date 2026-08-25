@@ -6,7 +6,7 @@ export function renderActivatePage({ apiUrl, programDeepLink, resetDeepLink, pro
     title: "BoltCard Activate",
     csrf: true,
     bodyClass: "min-h-screen p-4 md:p-8 font-sans antialiased flex flex-col items-center",
-    headScripts: '<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>',
+    headScripts: staticScript("vendor-qrcodejs.js").html,
     styles: [
       'body { background-color: #111827; color: #f3f4f6; }',
       '.qr-container { display: inline-block; padding: 10px; background: white; border-radius: 8px; margin-top: 10px; }',

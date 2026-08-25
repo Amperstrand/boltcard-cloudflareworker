@@ -1,4 +1,4 @@
-import { rawHtml, safe } from "../utils/rawTemplate.js";
+import { rawHtml, safe, staticScript } from "../utils/rawTemplate.js";
 import { getDeployRevision, getJsFingerprint } from "../utils/deployInfo.js";
 
 interface RenderTailwindPageOptions {
@@ -41,17 +41,17 @@ export function renderTailwindPage({
     <meta name="deploy-revision" content="${deployRevision}" />
     <meta name="js-fingerprint" content="${jsFingerprint}" />
     <link rel="stylesheet" href="/static/css/tailwind.css?v=${deployVersion}" />
-    <script src="https://cdn.jsdelivr.net/npm/aes-js@3.1.2/index.js"></script>
     <script src="/static/js/client-error.js?v=${deployVersion}"></script>
-    <script src="/static/js/virtual-card-sim.js?v=${deployVersion}"></script>
-    <script src="/static/js/nfc.js?v=${deployVersion}"></script>
+    ${staticScript("vendor-aes-js.js")}
+    ${staticScript("virtual-card-sim.js")}
+    ${staticScript("nfc.js")}
     ${safe(headScripts)}
     ${styles ? safe(rawHtml`<style>${styles}</style>`) : ""}
     ${csrf ? safe(rawHtml`<script src="/static/js/csrf.js?v=${deployVersion}"></script>`) : ""}
   </head>
   <body class="${bodyClass}">
 ${safe(content)}
-    <script src="/static/js/nfc-gate.js?v=${deployVersion}"></script>
+    ${staticScript("nfc-gate.js")}
   </body>
 </html>`;
 }

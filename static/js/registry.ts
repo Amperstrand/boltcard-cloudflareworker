@@ -1,4 +1,6 @@
 import {
+  VENDOR_AES_JS_JS, VENDOR_AES_JS_JS_HASH,
+  VENDOR_QRCODEJS_JS, VENDOR_QRCODEJS_JS_HASH,
   NFC_JS, NFC_JS_HASH,
   NFC_GATE_JS, NFC_GATE_JS_HASH,
   VIRTUAL_CARD_SIM_JS, VIRTUAL_CARD_SIM_JS_HASH,
@@ -40,6 +42,8 @@ interface StaticFileEntry {
 }
 
 const STATIC_JS_FILES: Record<string, StaticFileEntry> = {
+  "vendor-aes-js.js": { content: VENDOR_AES_JS_JS, hash: VENDOR_AES_JS_JS_HASH },
+  "vendor-qrcodejs.js": { content: VENDOR_QRCODEJS_JS, hash: VENDOR_QRCODEJS_JS_HASH },
   "nfc.js": { content: NFC_JS, hash: NFC_JS_HASH },
   "nfc-gate.js": { content: NFC_GATE_JS, hash: NFC_GATE_JS_HASH },
   "virtual-card-sim.js": { content: VIRTUAL_CARD_SIM_JS, hash: VIRTUAL_CARD_SIM_JS_HASH },
@@ -87,7 +91,7 @@ export function serveStaticJs(file: string | undefined, ifNoneMatch: string | nu
   return new Response(entry.content, {
     headers: {
       "Content-Type": "application/javascript; charset=utf-8",
-      "Cache-Control": "public, max-age=3600",
+      "Cache-Control": "public, max-age=31536000, immutable",
       "ETag": `"${entry.hash}"`,
     },
   });

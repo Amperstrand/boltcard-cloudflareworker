@@ -183,7 +183,7 @@ export function renderDebugConsolePage({ host, baseUrl }: { host: string; baseUr
       </main>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    ${staticScript("vendor-qrcodejs.js")}
     <script src="https://cdn.jsdelivr.net/npm/aes-js@3.1.2/index.js"></script>
   
     ${staticScript("helpers.js")}

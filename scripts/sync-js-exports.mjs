@@ -15,6 +15,8 @@ const EXPORTS_FILE = join(JS_DIR, "exports.ts");
 
 // Order must match registry.ts imports exactly
 const FILE_ORDER = [
+  "vendor-aes-js.js",
+  "vendor-qrcodejs.js",
   "nfc.js",
   "nfc-gate.js",
   "virtual-card-sim.js",

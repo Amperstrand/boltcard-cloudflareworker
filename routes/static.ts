@@ -40,7 +40,7 @@ export function registerStaticRoutes(router: AppRouter): void {
     return new Response(TAILWIND_CSS, {
       headers: {
         "Content-Type": "text/css; charset=utf-8",
-        "Cache-Control": "public, max-age=3600",
+        "Cache-Control": "public, max-age=31536000, immutable",
       },
     });
   });
