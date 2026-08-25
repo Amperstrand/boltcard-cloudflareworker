@@ -1,5 +1,5 @@
 
-import { decodeAndValidate } from "../boltCardHelper.js";
+import { decodeAndValidate, validateCmacWithPercardFallback } from "../boltCardHelper.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { getUniquePerCardK1s } from "../utils/keyLookup.js";
@@ -117,5 +117,29 @@ describe("percard K1 fallback (ENABLE_PERCARD_FALLBACK)", () => {
     const { pHex } = virtualTap(UID, 13, randomK1, randomK2);
     const result = decodeAndValidate(pHex, "0011223344556677", envOn, undefined);
     expect(result.success).toBe(false);
+  });
+});
+
+describe("validateCmacWithPercardFallback (shared pipeline parity)", () => {
+  const envOff = { ISSUER_KEY } as unknown as Env;
+  const envOn = { ISSUER_KEY, ENABLE_PERCARD_FALLBACK: "1" } as unknown as Env;
+  const percard = getUniquePerCardK1s()[0];
+  if (!percard) throw new Error("generatedKeyData has no percard entries — fixture drift");
+  const wrongK2 = "fedcba0987654321fedcba0987654321";
+
+  it("validates a percard tap against a mismatched config K2 when the flag is set", () => {
+    const { pHex, cHex } = virtualTap(percard.uid, 21, percard.k1, percard.k2);
+    const r = validateCmacWithPercardFallback(
+      hexToBytes(percard.uid), hexToBytes("000015"), cHex, hexToBytes(wrongK2), envOn,
+    );
+    expect(r.cmac_validated).toBe(true);
+  });
+
+  it("rejects the same tap when the flag is unset (operator paths stay strict)", () => {
+    const { pHex, cHex } = virtualTap(percard.uid, 22, percard.k1, percard.k2);
+    const r = validateCmacWithPercardFallback(
+      hexToBytes(percard.uid), hexToBytes("000016"), cHex, hexToBytes(wrongK2), envOff,
+    );
+    expect(r.cmac_validated).toBe(false);
   });
 });

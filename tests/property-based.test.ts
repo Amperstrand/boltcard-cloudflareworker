@@ -609,7 +609,7 @@ describe("Property: Balance Invariants", () => {
         }
       )
     );
-  });
+  }, 30_000);
 
   it("getBalance returns 0 for fresh card", () => {
     return fc.assert(

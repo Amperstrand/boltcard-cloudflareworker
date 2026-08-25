@@ -1,4 +1,4 @@
-import { extractUIDAndCounter, validateCmac as verifyCardCmac, buildMacWindowData } from "../boltCardHelper.js";
+import { extractUIDAndCounter, validateCmacWithPercardFallback, buildMacWindowData } from "../boltCardHelper.js";
 import type { ExtractResult } from "../boltCardHelper.js";
 import type { CardStateRow, CardConfig, Env, CounterCheckResult, KeyCandidate } from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
@@ -10,7 +10,6 @@ import { issueVcJwt, buildCredentialProfile } from "../utils/vc.js";
 import { constructPayRequest } from "./lnurlPayHandler.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
-import { getPerCardKeys, percardFallbackEnabled } from "../utils/keyLookup.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { recordTapRead, getCardState, activateCard, checkAndAdvanceCounter, discoverCard, setCardK2, resolveActiveVersion } from "../replayProtection.js";
@@ -147,34 +146,14 @@ function validateCmac(uidHex: string, ctr: string, cHex: string, config: CardCon
   if (requestUrl) windowData = buildMacWindowData(requestUrl, cHex);
 
   if (hasK2) {
-    ({ cmac_validated, cmac_error } = verifyCardCmac(
+    ({ cmac_validated, cmac_error } = validateCmacWithPercardFallback(
       hexToBytes(uidHex),
       hexToBytes(ctr),
       cHex,
       hexToBytes(config.K2!),
+      env,
       windowData,
     ));
-
-    // Authentication parity for percard burns (ENABLE_PERCARD_FALLBACK):
-    // the config K2 here comes from the DO row (usually deterministic-era),
-    // which never matches a percard-burned card. Retry against the percard
-    // row K2 — same public key material as the identification fallback in
-    // extractUIDAndCounter (docs/percard-fallback.md).
-    if (!cmac_validated && percardFallbackEnabled(env)) {
-      const percard = getPerCardKeys(uidHex);
-      if (percard?.k2 && percard.k2.toLowerCase() !== config.K2!.toLowerCase()) {
-        ({ cmac_validated, cmac_error } = verifyCardCmac(
-          hexToBytes(uidHex),
-          hexToBytes(ctr),
-          cHex,
-          hexToBytes(percard.k2),
-          windowData,
-        ));
-        if (cmac_validated) {
-          logger.info("CMAC validated via percard K2 fallback", { action: "card_tap", uidHex });
-        }
-      }
-    }
   } else if (proxyRelayMode || cashuRelayMode) {
     cmac_error = "CMAC validation deferred to downstream backend";
     logger.info("Relay mode: CMAC deferred", { action: "card_tap", uidHex, method: config.payment_method });

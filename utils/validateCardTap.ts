@@ -1,4 +1,4 @@
-import { extractUIDAndCounter, validateCmac, buildMacWindowData } from "../boltCardHelper.js";
+import { extractUIDAndCounter, validateCmac, validateCmacWithPercardFallback, buildMacWindowData } from "../boltCardHelper.js";
 import type { CardStateRow, CardConfig, Env, CounterCheckResult } from "../types/core.js";
 import { getErrorMessage } from "../utils/logger.js";
 import { hexToBytes } from "../cryptoutils.js";
@@ -113,11 +113,12 @@ export async function validateCardTap(request: Request, env: Env, { pHex, cHex, 
   }
 
   if (config.K2) {
-    const { cmac_validated, cmac_error } = validateCmac(
+    const { cmac_validated, cmac_error } = validateCmacWithPercardFallback(
       hexToBytes(uidHex),
       hexToBytes(ctr),
       cHex,
       hexToBytes(config.K2),
+      env,
       buildMacWindowData(request.url, cHex),
     );
     if (!cmac_validated) {

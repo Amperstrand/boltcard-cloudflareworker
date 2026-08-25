@@ -1,6 +1,6 @@
 import { decryptP, verifyCmac, hexToBytes, bytesToHex } from "@ntag424/crypto";
 import { getBoltCardK1 } from "./getUidConfig.js";
-import { getUniquePerCardK1s, percardFallbackEnabled } from "./utils/keyLookup.js";
+import { getUniquePerCardK1s, getPerCardKeys, percardFallbackEnabled } from "./utils/keyLookup.js";
 import { logger, getErrorMessage } from "./utils/logger.js";
 import type { Env } from "./types/core.js";
 
@@ -149,4 +149,34 @@ export function decodeAndValidate(
     cmac_validated: validation.cmac_validated,
     cmac_error: validation.cmac_error
   };
+}
+
+/**
+ * CMAC validation with percard K2 fallback (ENABLE_PERCARD_FALLBACK).
+ * The config K2 comes from the card's DO row (deterministic-era for
+ * previously-deterministic cards) and never matches a percard-burned card;
+ * retry with the percard row K2 — the same public key material as the
+ * identification fallback in extractUIDAndCounter (docs/percard-fallback.md).
+ * Shared by resolveCardIdentity (all card-tap endpoints) and the LNURLW
+ * handler so operator paths (topup/POS/refund) accept percard cards too.
+ */
+export function validateCmacWithPercardFallback(
+  uidBytes: Uint8Array,
+  ctr: Uint8Array,
+  cHex: string,
+  configK2Bytes: Uint8Array,
+  env: Env,
+  windowData?: Uint8Array | null,
+): { cmac_validated: boolean; cmac_error: string | null } {
+  const first = validateCmac(uidBytes, ctr, cHex, configK2Bytes, windowData);
+  if (first.cmac_validated || !percardFallbackEnabled(env)) return first;
+
+  const percard = getPerCardKeys(bytesToHex(uidBytes));
+  if (!percard?.k2) return first;
+
+  const retry = validateCmac(uidBytes, ctr, cHex, hexToBytes(percard.k2), windowData);
+  if (retry.cmac_validated) {
+    logger.info("CMAC validated via percard K2 fallback");
+  }
+  return retry;
 }
