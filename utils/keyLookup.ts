@@ -69,6 +69,10 @@ export function getPerCardKeys(uidHex: string): PerCardEntry | null {
   return PERCARD_MAP.get(uidHex.toLowerCase()) || null;
 }
 
+export function percardFallbackEnabled(env: Env | null | undefined): boolean {
+  return env?.ENABLE_PERCARD_FALLBACK === "1" || env?.ENABLE_PERCARD_FALLBACK === "true";
+}
+
 export function _getPerCardDomains(): string[] {
   return [...new Set(PERCARD_KEYS.map((e) => e.card_name).filter(Boolean))] as string[];
 }

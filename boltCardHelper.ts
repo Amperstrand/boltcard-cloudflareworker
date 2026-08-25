@@ -1,6 +1,6 @@
 import { decryptP, verifyCmac, hexToBytes, bytesToHex } from "@ntag424/crypto";
 import { getBoltCardK1 } from "./getUidConfig.js";
-import { getUniquePerCardK1s } from "./utils/keyLookup.js";
+import { getUniquePerCardK1s, percardFallbackEnabled } from "./utils/keyLookup.js";
 import { logger, getErrorMessage } from "./utils/logger.js";
 import type { Env } from "./types/core.js";
 
@@ -45,7 +45,7 @@ export function extractUIDAndCounter(pHex: string, env: Env): ExtractResult {
   // generatedKeyData. Safe by construction: the UID comes from the decrypted
   // plaintext (not from key identity), and the row's K2 still gates the CMAC.
   // See docs/percard-fallback.md for the tradeoff analysis.
-  if (!result.success && (env.ENABLE_PERCARD_FALLBACK === "1" || env.ENABLE_PERCARD_FALLBACK === "true")) {
+  if (!result.success && percardFallbackEnabled(env)) {
     const percardK1s = getUniquePerCardK1s().map((entry) => hexToBytes(entry.k1));
     if (percardK1s.length > 0) {
       try {

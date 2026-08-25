@@ -17,10 +17,18 @@ row's K2 (checked offline), yet the worker answered 400.
 
 ## The mechanism
 
-`extractUIDAndCounter` (boltCardHelper.ts) first tries the configured K1s
-(env/deterministic — unchanged path). On failure, if the flag is set, it
-retries `decryptP` with those K1s **plus the unique percard K1s** from
-`generatedKeyData` (`getUniquePerCardK1s()`).
+Two layers, both gated on the flag:
+
+1. **Identification** — `extractUIDAndCounter` (boltCardHelper.ts) first
+   tries the configured K1s (env/deterministic — unchanged path). On
+   failure it retries `decryptP` with those K1s **plus the unique percard
+   K1s** from `generatedKeyData` (`getUniquePerCardK1s()`).
+2. **Authentication** — `validateCmac` (lnurlwHandler.ts) validates the
+   CMAC against the config K2 (sourced from the card's DO row, which for
+   previously-deterministic cards holds the deterministic-era K2). On
+   failure it retries against the percard row's K2
+   (`getPerCardKeys(uid)`), skipping the retry when it equals the config
+   K2 (already tried).
 
 Correctness rests on two invariants:
 
@@ -38,7 +46,7 @@ Correctness rests on two invariants:
 | Dimension | Effect |
 |---|---|
 | Latency | Only on the fallback path: unique-K1 count (~10 for the current CSV with batch-shared K1s, ~100 worst case) × one AES-128 block ≈ well under 1 ms of CPU. Successful deterministic taps: zero change. |
-| Security | No secret exposure — percard keys are already git-tracked in `generatedKeyData.js`. No new oracle: an attacker learns only "this p decoded", which the 200/400 response already reveals. Brute-forcing is over our own published keys, not user keys. |
+| Security | No secret exposure — percard keys are already git-tracked in `generatedKeyData.js`. The K2 retry only accepts a CMAC *under that row's own key*; it cannot forge validation for any other key. No new oracle: an attacker learns only "this p decoded", which the 200/400 response already reveals. Brute-forcing is over our own published keys, not user keys. |
 | False positives | A random `p=` matching requires a 16-byte block decrypting to `0xC7` + a plausible UID (≥2⁻²⁴ by structure) and then must still pass the row-K2 CMAC (2⁻⁶⁴) to do anything. Identification-only false positives are discarded at CMAC. |
 | Unknown-UID taps | A percard-K1 card whose UID row was removed still fails at CMAC — same 4xx family as today, slightly later. |
 | Operational | More taps resolve to `percard` provenance rows; discovery logging records the fallback (info level, `p decoded via percard K1 fallback`). |

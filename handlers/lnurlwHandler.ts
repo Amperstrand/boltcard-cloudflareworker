@@ -10,6 +10,7 @@ import { issueVcJwt, buildCredentialProfile } from "../utils/vc.js";
 import { constructPayRequest } from "./lnurlPayHandler.js";
 import { hexToBytes } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
+import { getPerCardKeys, percardFallbackEnabled } from "../utils/keyLookup.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { recordTapRead, getCardState, activateCard, checkAndAdvanceCounter, discoverCard, setCardK2, resolveActiveVersion } from "../replayProtection.js";
@@ -135,16 +136,17 @@ async function resolveCardVersion(uidHex: string, ctr: string, cHex: string, env
   return { activeVersion: 1 };
 }
 
-function validateCmac(uidHex: string, ctr: string, cHex: string, config: CardConfig, requestUrl?: string): { error?: Response; cmac_validated?: boolean; proxyRelayMode?: boolean; cashuRelayMode?: boolean } {
+function validateCmac(uidHex: string, ctr: string, cHex: string, config: CardConfig, env: Env, requestUrl?: string): { error?: Response; cmac_validated?: boolean; proxyRelayMode?: boolean; cashuRelayMode?: boolean } {
   const proxyRelayMode = config.payment_method === PAYMENT_METHOD.PROXY && !!config.proxy?.baseurl;
   const cashuRelayMode = config.payment_method === PAYMENT_METHOD.CASHU && !!config.cashu?.backend_url;
   const hasK2 = typeof config.K2 === "string" && config.K2.length > 0;
 
   let cmac_validated = false;
   let cmac_error: string | null = null;
+  let windowData: Uint8Array | null = null;
+  if (requestUrl) windowData = buildMacWindowData(requestUrl, cHex);
 
   if (hasK2) {
-    const windowData = requestUrl ? buildMacWindowData(requestUrl, cHex) : null;
     ({ cmac_validated, cmac_error } = verifyCardCmac(
       hexToBytes(uidHex),
       hexToBytes(ctr),
@@ -152,6 +154,27 @@ function validateCmac(uidHex: string, ctr: string, cHex: string, config: CardCon
       hexToBytes(config.K2!),
       windowData,
     ));
+
+    // Authentication parity for percard burns (ENABLE_PERCARD_FALLBACK):
+    // the config K2 here comes from the DO row (usually deterministic-era),
+    // which never matches a percard-burned card. Retry against the percard
+    // row K2 — same public key material as the identification fallback in
+    // extractUIDAndCounter (docs/percard-fallback.md).
+    if (!cmac_validated && percardFallbackEnabled(env)) {
+      const percard = getPerCardKeys(uidHex);
+      if (percard?.k2 && percard.k2.toLowerCase() !== config.K2!.toLowerCase()) {
+        ({ cmac_validated, cmac_error } = verifyCardCmac(
+          hexToBytes(uidHex),
+          hexToBytes(ctr),
+          cHex,
+          hexToBytes(percard.k2),
+          windowData,
+        ));
+        if (cmac_validated) {
+          logger.info("CMAC validated via percard K2 fallback", { action: "card_tap", uidHex });
+        }
+      }
+    }
   } else if (proxyRelayMode || cashuRelayMode) {
     cmac_error = "CMAC validation deferred to downstream backend";
     logger.info("Relay mode: CMAC deferred", { action: "card_tap", uidHex, method: config.payment_method });
@@ -291,7 +314,7 @@ export async function handleLnurlw(request: Request, env: Env): Promise<Response
     return errorResponse("UID not found in config", 404);
   }
 
-  const cmacResult = validateCmac(uidHex, ctr, cHex, config, request.url);
+  const cmacResult = validateCmac(uidHex, ctr, cHex, config, env, request.url);
   if (cmacResult.error) return cmacResult.error;
 
   return await routeByPaymentMethod(request, env, uidHex, pHex, cHex, ctr, counterValue, config, cmacResult.cmac_validated!, cmacResult.proxyRelayMode! || cmacResult.cashuRelayMode!);

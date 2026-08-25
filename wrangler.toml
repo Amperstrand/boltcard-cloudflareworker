@@ -17,6 +17,9 @@ CURRENCY_DECIMALS = "0"
 FAKEWALLET_CURRENCY = "EUR"
 FAKEWALLET_IBAN = "GB33BUKB20201555555555"
 FAKEWALLET_ACCOUNT_NAME = "FakeWallet"
+# Route anonymous percard-burned taps via unique percard K1s (see
+# docs/percard-fallback.md for the tradeoff analysis)
+ENABLE_PERCARD_FALLBACK = "1"
 
 routes = [
   "https://boltcardpoc.psbt.me/*"
