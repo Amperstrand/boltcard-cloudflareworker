@@ -1,6 +1,16 @@
 # Percard K1 fallback for anonymous taps — opt-in and tradeoffs
 
-**Status:** implemented, off by default. Enable with `ENABLE_PERCARD_FALLBACK=1`.
+**Status:** implemented, deployed on boltcardpoc.psbt.me. Enable with `ENABLE_PERCARD_FALLBACK=1`.
+
+## Coverage map (as of 7c1acb1)
+
+| Path | Site | Percard handling |
+|---|---|---|
+| Tap / LNURL-withdraw | `lnurlwHandler` → `validateCmacWithPercardFallback` | gated on flag |
+| Top-up / POS / refund / lock | `validateCardTap` → `validateCmacWithPercardFallback` | gated on flag |
+| Shared card-auth pipeline | `resolveCardIdentity` (cardAuth.ts) → same helper | gated on flag |
+| Login + identify-issuer | `matchCardIssuer` (cardMatching.ts) | **always on** (diagnostic-only) |
+| KEYS_DELIVERED version probe | `validateCardTap` | deterministic-only by design (percard cards never enter that state) |
 
 ## The problem
 
