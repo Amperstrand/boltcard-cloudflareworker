@@ -2,6 +2,36 @@
 
 Cards that are stuck, half-wiped, or have unknown keys. Documented for future recovery attempts.
 
+## Card RESOLVED: 04C474FA967380 (2026-08-25)
+
+| Property | Value |
+|----------|-------|
+| UID | `04C474FA967380` |
+| Chip | NTAG424 DNA (vendor=04, type=04, subtype=02) |
+| Former NDEF | `lnurlw://proxy.psbt.me/ln?p=…&c=…` (dead tunnel, error 1033) |
+| Status | **Wiped to factory defaults 2026-08-25** — K0–K4 = zeros, file settings default, NDEF = empty URI record |
+
+### Full key set (recovered, for the record — card is wiped, these are now historical)
+
+| Key | Value | Provenance |
+|-----|-------|------------|
+| K0 | `ed42ca22f6cbdf30cc2296d45182de95` | k.psbt.me CSV row 95 + `temp/app/boltcard_server.log:9099` |
+| K1 | `3db8852a71d11fa0adb6babaf274af89` | same (static family K1 — shared across batch) |
+| K2 | `85b3bedf4e975b78132f0630d2176e93` | same |
+| K3 | `92e3ce4e81c3824610b2f7b0dd7f8740` | `temp/app/boltcard_server.log:9099` full dict (CSV/log grep truncation hides K3/K4!) |
+| K4 | `c8dbf508bd3efd6250cfdb2edda12da5` | same |
+
+Verified on-card before wipe: p/c tap CMAC-verified under K1/K2 (counter 0x4a); all five
+ChangeKey operations returned 9100 (K1/K2/K3/K4 old-value CRC checks passed — cryptographic
+proof the keys were correct). Zero failed authentications → TotFailCtr untouched.
+
+Tooling: `~/boltwipe.py` on ai-legion-small (ESP32-CCID reader, M5Stick pin layout SDA=32/SCL=33).
+Reference cross-check: `bolt-card-programmer/refchangekey.js` (byte-identical APDU generation).
+
+**Lesson:** grep/cut truncation can hide fields — always read the full log line. The 2024-12-15
+`reversible_uuid` keys (`4712…`) were a second provisioning of the same UID that never landed on
+the card; the Dec-8 LNBits set was live.
+
 ## Card 1: 043365FA967380
 
 | Property | Value |
