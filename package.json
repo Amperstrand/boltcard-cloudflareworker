@@ -4,18 +4,18 @@
   "type": "module",
   "private": true,
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.16.14",
-    "@playwright/test": "^1.60.0",
-    "@tailwindcss/cli": "^4.3.2",
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@playwright/test": "^1.62.1",
+    "@tailwindcss/cli": "^4.3.3",
     "aes-js": "3.1.2",
     "better-sqlite3": "12.9.0",
-    "fast-check": "^4.7.0",
+    "fast-check": "^4.9.0",
     "husky": "^9.1.7",
-    "miniflare": "4.20260521.0",
-    "tailwindcss": "^4.3.2",
+    "miniflare": "4.20260730.0",
+    "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.5",
-    "wrangler": "^4.94.0"
+    "vitest": "^4.1.11",
+    "wrangler": "^4.125.0"
   },
   "dependencies": {
     "@noble/ciphers": "^1.2.0",
