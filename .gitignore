@@ -24,5 +24,4 @@ test-results/
 scripts/publish/__pycache__/
 tailwindcss-macos-x64
 phone-evidence/
-pnpm-workspace.yaml
 tailwindcss-macos-x64
