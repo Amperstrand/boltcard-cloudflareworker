@@ -20,6 +20,7 @@ export default defineConfig({
     "credential-flows.spec.ts",
     "dashboard.spec.ts",
     "nostr-pairing.spec.ts",
+    "health-dashboard.spec.ts",
   ],
   fullyParallel: false,
   retries: isLocal ? 1 : 2,

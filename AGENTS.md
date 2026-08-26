@@ -253,6 +253,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 - `withCardTap()` from `utils/cardHandler.ts` — handler factory for card-tap endpoints: handles method check, body parsing, card validation, try/catch; `handleOpFailure()` and `logSuccess()` for consistent error/audit patterns
 - `validateCardTap()` from `utils/validateCardTap.ts` for card-tap validation (used by `withCardTap()` internally)
 - **Cache busting**: `staticScript("file.js")` from `utils/rawTemplate.ts` — all templates use it; enforced by `lint:static-script` CI check
+- **E2E coverage is not optional**: every user-visible feature (new page, new UI section, new endpoint driving UI) ships with Playwright coverage in `tests/e2e/` — auth protection + API shape + UI render parity with the API — and the spec file must be added to `testMatch` in `playwright.config.ts` (it is an allowlist; unlisted specs silently never run)
 - **Static assets**: Wrangler `[assets]` binding serves from `public/` directory (JS, manifest, icons) via Cloudflare CDN with automatic ETags; Worker routes in `routes/static.ts` kept as test-environment fallback
 - `replayProtection.ts` uses generic DO facade helpers (`doCounterPost`, `doRequiredPost`, `doOptionalGet`, `doOptionalPost`, `doSafeGet`, `doOptionalVoidPost`) — avoids repetitive getStub→doPost→parseJSON
 - All NFC pages auto-start scanning on page load; `/operator/pos` auto-starts after amount is entered (debounced 1s)
