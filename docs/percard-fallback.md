@@ -62,6 +62,19 @@ Correctness rests on two invariants:
 | Operational | More taps resolve to `percard` provenance rows; discovery logging records the fallback (info level, `p decoded via percard K1 fallback`). |
 | Blast radius | Off by default; the hot path for deterministic cards is byte-identical (single-decrypt unchanged). |
 
+## Status: retired in production (2026-08-26)
+
+`ENABLE_PERCARD_FALLBACK` removed from wrangler.toml and deployed. Inventory
+that justified it (issue #54): 104 percard CSV cards, 4,125 active indexed
+cards (90-day TTL) — intersection exactly one, `04c474fa967380`, the bench
+card (blank since recovery; stale index deleted). One further CSV UID
+(`04c15ffa967380`) holds an old config row whose K2 is NOT the percard K2 and
+has no index entry (inactive >90 days). Zero percard cards remained active;
+nothing needed a re-burn. Verified live post-deploy: a cryptographically valid
+percard-keyed tap (CSV K1/K2) returns 400 "Unable to decode UID" — the
+pre-fallback behavior. The CSVs stay bundled, so re-enabling is a one-line
+var + deploy if a stray card ever surfaces.
+
 ## When to enable
 
 Venues that still have legacy percard-burned cards in circulation and want
