@@ -1,0 +1,35 @@
+# Dependabot policy (2026-08-26)
+#
+# Runtime deps: security updates on every push (default) — the single
+# runtime alert (valibot) was fixed via PR #39.
+#
+# Dev-scope alerts (undici/postcss/sharp/ws): these live only in
+# devDependencies (wrangler/miniflare tooling chains) and are never
+# bundled into the deployed Worker. The undici fixes (>=7.29.0) are
+# unsatisfiable behind miniflare's pins — the updater errors recording
+# "latest installable 7.24.8 < earliest fixed 7.29.0". Ignored here with
+# that reason until Cloudflare ships compatible versions; re-audit when
+# bumping wrangler/@cloudflare/vitest-pool-workers.
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    allow:
+      - dependency-type: direct
+    ignore:
+      # transitive behind miniflare/wrangler; no satisfiable fixed version
+      - dependency-name: undici
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      dev-minor:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
