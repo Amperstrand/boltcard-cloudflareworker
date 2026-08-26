@@ -660,6 +660,10 @@
         clearVC();
         virtualCard = null;
         clearLog();
+        // Clear stale detail text so a hidden-details reader (and the
+        // '--' placeholder guards) cannot observe the previous card after reset.
+        $('vc-uid').textContent = '--';
+        $('vc-counter').textContent = '--';
         showView('vc-no-card');
         $('vc-delete-confirm').classList.add('hidden');
       });

@@ -2157,6 +2157,10 @@ export const VIRTUAL_CARD_WIDGET_JS = `// virtual-card-widget.js — unified vir
         clearVC();
         virtualCard = null;
         clearLog();
+        // Clear stale detail text so a hidden-details reader (and the
+        // '--' placeholder guards) cannot observe the previous card after reset.
+        $('vc-uid').textContent = '--';
+        $('vc-counter').textContent = '--';
         showView('vc-no-card');
         $('vc-delete-confirm').classList.add('hidden');
       });
@@ -2195,7 +2199,7 @@ export const VIRTUAL_CARD_WIDGET_JS = `// virtual-card-widget.js — unified vir
     init();
   }
 })();`;
-export const VIRTUAL_CARD_WIDGET_JS_HASH = "2acbe3474a57";
+export const VIRTUAL_CARD_WIDGET_JS_HASH = "28ab2f5a3e99";
 
 export const CLIENT_ERROR_JS = `// client-error.js — reports uncaught JS errors to the server with page version info
 (function() {
