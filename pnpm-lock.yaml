@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@noble/ciphers':
-        specifier: ^1.2.0
-        version: 1.3.0
       '@noble/hashes':
         specifier: 2.3.0
         version: 2.3.0
@@ -18,8 +15,8 @@ importers:
         specifier: 3.1.0
         version: 3.1.0
       '@ntag424/crypto':
-        specifier: github:Amperstrand/ntag424-crypto#v1.0.0
-        version: https://codeload.github.com/Amperstrand/ntag424-crypto/tar.gz/b0fa74fd7143a8de9f72a7bc690cf1e7ddeefb4c
+        specifier: github:Amperstrand/ntag424-crypto#v1.4.0
+        version: https://codeload.github.com/Amperstrand/ntag424-crypto/tar.gz/436d9074be9cf02bbb1f44370bc0a76dbe8119cb
       '@scure/base':
         specifier: ^2.3.0
         version: 2.3.0
@@ -33,6 +30,9 @@ importers:
       '@cloudflare/vitest-pool-workers':
         specifier: ^0.22.0
         version: 0.22.0(@vitest/runner@4.1.11)(@vitest/snapshot@4.1.11)(vitest@4.1.11(vite@8.1.0(esbuild@0.28.1)(jiti@2.7.0)))
+      '@noble/ciphers':
+        specifier: ^2.3.0
+        version: 2.3.0
       '@playwright/test':
         specifier: ^1.62.1
         version: 1.62.1
@@ -538,9 +538,9 @@ packages:
       '@emnapi/core': ^1.7.1
       '@emnapi/runtime': ^1.7.1
 
-  '@noble/ciphers@1.3.0':
-    resolution: {integrity: sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw==}
-    engines: {node: ^14.21.3 || >=16}
+  '@noble/ciphers@2.3.0':
+    resolution: {integrity: sha512-Clu/xdfgVTf9o7ngLOURaxePwR0j8sjclKEtVij10/jGulwFsPWCvvRgG/XjUVf8Nei+jLG6uwyXzUTGY1DQrw==}
+    engines: {node: '>= 20.19.0'}
 
   '@noble/hashes@2.3.0':
     resolution: {integrity: sha512-oN+QwyX7VSHotibwubG3kpzbwKrfnyR6OOO+3Nk/53ADL7FmgHHz4TgrbaYKvvOw09u6QTx0oiH1cNCIOuN0CQ==}
@@ -549,9 +549,9 @@ packages:
   '@noble/secp256k1@3.1.0':
     resolution: {integrity: sha512-+F7iS7tUMaNGXcc9X3PjmjvuQnXEuSjCRNzVVA2xAcKXgCaP0dHYz4SFyt4FKNHef7sOP//xihowcySSS7PK9g==}
 
-  '@ntag424/crypto@https://codeload.github.com/Amperstrand/ntag424-crypto/tar.gz/b0fa74fd7143a8de9f72a7bc690cf1e7ddeefb4c':
-    resolution: {gitHosted: true, integrity: sha512-sRa0BM+YaljNdiWtqJo64AG9Mc3QCLSGBmILEYbc1L0CSnmCipXPzbwmHrUxbiCczYuH1rfJtBnhpAtiiPjf1Q==, tarball: https://codeload.github.com/Amperstrand/ntag424-crypto/tar.gz/b0fa74fd7143a8de9f72a7bc690cf1e7ddeefb4c}
-    version: 1.0.0
+  '@ntag424/crypto@https://codeload.github.com/Amperstrand/ntag424-crypto/tar.gz/436d9074be9cf02bbb1f44370bc0a76dbe8119cb':
+    resolution: {gitHosted: true, integrity: sha512-XP2nXpIp8CoFSgP0Ev3nn8+XRRI/sWtl88cn/tRa+p0ral6R+QgsoH21eMDCFPNybH8IjjJqAy9yCud6D3fuEw==, tarball: https://codeload.github.com/Amperstrand/ntag424-crypto/tar.gz/436d9074be9cf02bbb1f44370bc0a76dbe8119cb}
+    version: 1.4.0
 
   '@oxc-project/types@0.139.0':
     resolution: {integrity: sha512-r9gHphtCs+1M7J0pw6Sn/hh/Wpa/iQrOOkrNAlVLF/gHq+/CJmHIWKKUUhdWjcD6CIa8idarspCsASiXCXvFUw==}
@@ -1904,15 +1904,15 @@ snapshots:
       '@tybys/wasm-util': 0.10.3
     optional: true
 
-  '@noble/ciphers@1.3.0': {}
+  '@noble/ciphers@2.3.0': {}
 
   '@noble/hashes@2.3.0': {}
 
   '@noble/secp256k1@3.1.0': {}
 
-  '@ntag424/crypto@https://codeload.github.com/Amperstrand/ntag424-crypto/tar.gz/b0fa74fd7143a8de9f72a7bc690cf1e7ddeefb4c':
+  '@ntag424/crypto@https://codeload.github.com/Amperstrand/ntag424-crypto/tar.gz/436d9074be9cf02bbb1f44370bc0a76dbe8119cb':
     dependencies:
-      '@noble/ciphers': 1.3.0
+      '@noble/ciphers': 2.3.0
       '@scure/base': 2.3.0
 
   '@oxc-project/types@0.139.0': {}

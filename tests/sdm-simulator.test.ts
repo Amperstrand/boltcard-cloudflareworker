@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { ecb } from "@noble/ciphers/aes";
+import { ecb } from "@noble/ciphers/aes.js";
 import {
   hexToBytes,
   bytesToHex,

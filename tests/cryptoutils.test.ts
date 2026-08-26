@@ -31,6 +31,7 @@ function _generateSubkeyGo(input: Uint8Array): Uint8Array {
   return subkey;
 }
 
+import { ecb } from "@noble/ciphers/aes.js";
 import {
   hexToBytes,
   bytesToHex,
@@ -329,7 +330,6 @@ describe("RFC 4493 §4 — AES-CMAC Test Vectors", () => {
   test("RFC 4493 §4 — Subkey Generation: K1 and K2", () => {
     // RFC 4493 §4: L = AES_K(0^128) — raw AES-ECB, NOT CMAC.
     // computeAesCmac(zeros, key) ≠ L because CMAC of a full block XORs with K1.
-    const { ecb } = require("@noble/ciphers/aes.js");
     const L = ecb(rfcKey, { disablePadding: true }).encrypt(new Uint8Array(16));
     const k1 = _generateSubkeyGo(L);
     const k2 = _generateSubkeyGo(k1);
