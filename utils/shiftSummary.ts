@@ -104,25 +104,44 @@ export async function getShiftSummary(env: Env | undefined, shiftId: string): Pr
 
 export async function listShiftSummaries(env: Env | undefined): Promise<ShiftSummary[]> {
   if (!env?.UID_CONFIG) return [];
+  const kv = env.UID_CONFIG;
   try {
-    const indexRaw = await env.UID_CONFIG.get(SHIFTS_INDEX_KEY);
+    const indexRaw = await kv.get(SHIFTS_INDEX_KEY);
     if (!indexRaw) return [];
     const index: ShiftIndexEntry[] = JSON.parse(indexRaw);
     if (!Array.isArray(index) || index.length === 0) return [];
 
+    // Index is append-order (oldest first) and grows with every audited
+    // operator action; the dashboard wants recent shifts. Sort by recency,
+    // then cap — keeps this endpoint O(recent), not O(all history).
+    const MAX_SHIFT_SUMMARIES = 200;
+    const capped = [...index]
+      .sort((a, b) => b.startedAt - a.startedAt)
+      .slice(0, MAX_SHIFT_SUMMARIES);
+
+    // Parallel fetch: the previous sequential per-entry await made the
+    // endpoint O(N × KV latency) — with hundreds of audit-driven shifts it
+    // exceeded client timeouts (reconciliation/data "hang", 2026-08-25).
+    const raws = await Promise.all(
+      capped.map((entry) => kv.get(SHIFT_PREFIX + entry.shiftId)),
+    );
+
     const summaries: ShiftSummary[] = [];
-    for (const entry of index) {
-      const raw = await env.UID_CONFIG.get(SHIFT_PREFIX + entry.shiftId);
-      if (raw) {
-        try {
-          summaries.push(JSON.parse(raw));
-        } catch {
-          // skip malformed entries
-        }
+    for (const raw of raws) {
+      if (!raw) continue;
+      try {
+        summaries.push(JSON.parse(raw));
+      } catch {
+        // skip malformed entries
       }
     }
 
     summaries.sort((a, b) => b.startedAt - a.startedAt);
+    logger.info("Shift summaries loaded", {
+      indexSize: index.length,
+      returned: summaries.length,
+      cappedTo: capped.length,
+    });
     return summaries;
   } catch (e: unknown) {
     logger.warn("Failed to list shift summaries", { error: getErrorMessage(e) });
