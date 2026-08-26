@@ -92,8 +92,7 @@ This means it was either:
 - Or burned with a custom key via direct bolty-cli (not through the standard derivation)
 
 ### Warning
-**Do not attempt more key guesses.** The TotFailCtr is permanent and accumulating.
-Too many failed authentications will permanently lock the card.
+**Do not attempt more key guesses.** While key *guessing* is still pointless and the auth-delay grows during wrong-key retry loops, the 2026-08-26 measured finding (bolty-rs card-safety.md §6) corrects this doc's earlier claim: the failed-auth counter **resets on a successful authentication** — with a known key, recovery after 1–5 consecutive failures is instant (0.08–0.10s, no 91AD). No permanent lockout was observed from auth failures alone. The card above remains unrecoverable only because NO known key exists to reset with — a knowledge problem, not a counter problem.
 
 ### Next Steps for Recovery
 1. **Search Cloudflare logs** for this UID (`043365FA967380`) to find when it was last used and with which issuer key
