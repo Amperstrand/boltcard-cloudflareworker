@@ -66,7 +66,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
   return router.fetch(request, env);
 }
 
-export { CardReplayDO } from "./durableObjects/CardReplayDO.js";
+export { CardReplayStore } from "./durableObjects/CardReplayStore.js";
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {

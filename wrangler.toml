@@ -24,11 +24,22 @@ routes = [
 
 [[durable_objects.bindings]]
 name = "CARD_REPLAY"
-class_name = "CardReplayDO"
+class_name = "CardReplayStore"
 
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["CardReplayDO"]
+# 2026-08-26 factory reset: v2 destroys all CardReplayDO storage (all data was
+# fake/test — issue-era cleanup); v3 brings up the renamed class fresh.
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["CardReplayStore"]
+
+# 2026-08-26 factory reset: destroys all legacy CardReplayDO storage (every
+# card row was fake/test data, keys re-derivable from keys/*.csv).
+[[migrations]]
+tag = "v3"
+deleted_classes = ["CardReplayDO"]
 
 [observability]
 enabled = true
@@ -56,11 +67,21 @@ FAKEWALLET_ACCOUNT_NAME = "FakeWallet"
 
 [[env.staging.durable_objects.bindings]]
 name = "CARD_REPLAY"
-class_name = "CardReplayDO"
+class_name = "CardReplayStore"
 
 [[env.staging.migrations]]
 tag = "v1"
 new_sqlite_classes = ["CardReplayDO"]
+
+[[env.staging.migrations]]
+tag = "v2"
+new_sqlite_classes = ["CardReplayStore"]
+
+# 2026-08-26 factory reset: destroys all legacy CardReplayDO storage (every
+# card row was fake/test data, keys re-derivable from keys/*.csv).
+[[env.staging.migrations]]
+tag = "v3"
+deleted_classes = ["CardReplayDO"]
 
 [env.staging.observability]
 enabled = true

@@ -7,7 +7,7 @@ import { handleAnalytics, handleCheck, handleClaimTap, handleListTaps, handleRec
 import { handleCredit, handleDebit, handleGetBalance, handleListTransactions, handleReset, handleVoid } from "./cardReplay/balanceHandlers.js";
 import { handleExportState, handleImportState } from "./cardReplay/stateExportHandlers.js";
 
-export class CardReplayDO extends DurableObject<Env> {
+export class CardReplayStore extends DurableObject<Env> {
   declare state: DurableObjectState;
   declare env: Env;
   sql: SqlStorage;
