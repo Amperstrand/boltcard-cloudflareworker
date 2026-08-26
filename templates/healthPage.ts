@@ -35,10 +35,12 @@ export function renderHealthPage(): string {
           <div class="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
             <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">KV Store</p>
             <p id="kv-status" class="text-lg font-bold text-gray-400">&mdash;</p>
+            <p id="kv-latency" class="text-xs text-gray-600 mt-1">&mdash;</p>
           </div>
           <div class="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
             <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Durable Object</p>
             <p id="do-status" class="text-lg font-bold text-gray-400">&mdash;</p>
+            <p id="do-latency" class="text-xs text-gray-600 mt-1">&mdash;</p>
           </div>
           <div class="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center">
             <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Version</p>
@@ -104,6 +106,42 @@ export function renderHealthPage(): string {
               <span class="text-sm text-gray-400">Net Cash In</span>
               <span id="fin-net-cash" class="text-base font-bold text-emerald-400">0</span>
             </div>
+          </div>
+        </div>
+
+        <div>
+          <p class="text-sm font-semibold text-gray-400 mb-2">Card Activity <span class="text-xs text-gray-600 font-normal">(index updated)</span></p>
+          <div class="grid grid-cols-3 gap-3">
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 text-center">
+              <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Last 1h</p>
+              <p id="seen-1h" class="text-2xl font-bold text-white">0</p>
+            </div>
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 text-center">
+              <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Last 24h</p>
+              <p id="seen-24h" class="text-2xl font-bold text-white">0</p>
+            </div>
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-3 text-center">
+              <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Last 7d</p>
+              <p id="seen-7d" class="text-2xl font-bold text-white">0</p>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <p class="text-sm font-semibold text-gray-400 mb-2">Top Cards by Balance</p>
+          <div class="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="border-b border-gray-700 text-gray-500">
+                  <th class="px-3 py-2 text-left">Card</th>
+                  <th class="px-3 py-2 text-left">State</th>
+                  <th class="px-3 py-2 text-left">Last Seen</th>
+                  <th class="px-3 py-2 text-right">Balance</th>
+                </tr>
+              </thead>
+              <tbody id="top-balances-tbody"></tbody>
+            </table>
+            <p id="no-top-balances" class="hidden text-gray-600 text-xs text-center py-4">No cards with balance</p>
           </div>
         </div>
 

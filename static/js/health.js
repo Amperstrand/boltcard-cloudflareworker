@@ -12,8 +12,16 @@
   var statusBadge = document.getElementById('status-badge');
   var kvStatus = document.getElementById('kv-status');
   var doStatus = document.getElementById('do-status');
+  var kvLatency = document.getElementById('kv-latency');
+  var doLatency = document.getElementById('do-latency');
   var versionEl = document.getElementById('version');
   var responseTimeEl = document.getElementById('response-time');
+
+  var seen1h = document.getElementById('seen-1h');
+  var seen24h = document.getElementById('seen-24h');
+  var seen7d = document.getElementById('seen-7d');
+  var topBalancesTbody = document.getElementById('top-balances-tbody');
+  var noTopBalances = document.getElementById('no-top-balances');
 
   var cardTotal = document.getElementById('card-total');
   var cardActive = document.getElementById('card-active');
@@ -142,6 +150,50 @@
     versionEl.textContent = data.version || '\u2014';
     if (data.responseTimeMs != null) {
       responseTimeEl.textContent = data.responseTimeMs + ' ms';
+    }
+
+    var lat = data.latency || {};
+    kvLatency.textContent = lat.kvMs != null ? lat.kvMs + ' ms' : '\u2014';
+    doLatency.textContent = lat.doMs != null ? lat.doMs + ' ms' : 'n/a';
+
+    var seen = data.seen || {};
+    seen1h.textContent = formatNum(seen.last1h);
+    seen24h.textContent = formatNum(seen.last24h);
+    seen7d.textContent = formatNum(seen.last7d);
+
+    topBalancesTbody.replaceChildren();
+    var top = data.topBalances || [];
+    if (top.length === 0) {
+      noTopBalances.classList.remove('hidden');
+    } else {
+      noTopBalances.classList.add('hidden');
+      for (var t = 0; t < top.length; t++) {
+        var card = top[t];
+        var row = document.createElement('tr');
+        row.className = 'border-b border-gray-700/50 text-gray-300';
+
+        var tdUid = document.createElement('td');
+        tdUid.className = 'px-3 py-2 font-mono text-gray-400';
+        tdUid.textContent = card.uid ? card.uid.slice(0, 10) : '\u2014';
+
+        var tdState = document.createElement('td');
+        tdState.className = 'px-3 py-2 text-gray-500';
+        tdState.textContent = card.state || '\u2014';
+
+        var tdSeen = document.createElement('td');
+        tdSeen.className = 'px-3 py-2 text-gray-500';
+        tdSeen.textContent = card.updatedAt ? relativeTime(card.updatedAt) : '\u2014';
+
+        var tdBal = document.createElement('td');
+        tdBal.className = 'px-3 py-2 text-right font-bold text-white';
+        tdBal.textContent = formatNum(card.balance);
+
+        row.appendChild(tdUid);
+        row.appendChild(tdState);
+        row.appendChild(tdSeen);
+        row.appendChild(tdBal);
+        topBalancesTbody.appendChild(row);
+      }
     }
 
     var c = data.cards || {};
