@@ -67,6 +67,7 @@ describe("LNURL callback claim ordering (issue #53)", () => {
   it("B: explicit success-path replay — exact duplicate callback is rejected", async () => {
     const uid = makeUid();
     const { k1, k2 } = await provisionCard(uid);
+    expect(k1).toBeTruthy();
     await operatorLogin();
     expect((await topUp(uid, 1_000, k1, k2, 1)).status).toBe(200);
 

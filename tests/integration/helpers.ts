@@ -17,13 +17,17 @@ const OPERATOR_PIN = "1234";
 // ── Unique ID generation ─────────────────────────────────────────────────────
 
 let uidSeq = 0;
+// Per-process nonce: prevents UID collisions between test files when storage
+// isolation or run order differs (a CI-only 409 "card is active" on
+// provisioning was traced to colliding UIDs across a shared time-slice).
+const UID_NONCE = crypto.randomUUID().slice(0, 4);
 
-/** Generate a unique 7-byte UID (14 hex chars) */
+/** Generate a unique 7-byte UID (14 hex chars): 04 + nonce(4) + time(6) + seq(2) */
 export function makeUid(seed?: number): string {
   uidSeq++;
-  const base = (Date.now() % 0xffffffffffff).toString(16).padStart(12, "0");
+  const time = Date.now().toString(16).slice(-6).padStart(6, "0");
   const suffix = (seed ?? uidSeq).toString(16).padStart(2, "0");
-  return `04${base.slice(0, 10)}${suffix}`;
+  return `04${UID_NONCE}${time}${suffix}`;
 }
 
 // ── Key derivation ───────────────────────────────────────────────────────────
