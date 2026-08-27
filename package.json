@@ -23,7 +23,7 @@
     "@noble/secp256k1": "3.1.0",
     "@ntag424/crypto": "github:Amperstrand/ntag424-crypto#v1.4.0",
     "@scure/base": "^2.3.0",
-    "itty-router": "5.0.23",
+    "itty-router": "5.0.24",
     "valibot": "^1.4.2"
   },
   "scripts": {
