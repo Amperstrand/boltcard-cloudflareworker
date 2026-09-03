@@ -15,8 +15,8 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "vitest": "^4.1.11",
-    "wrangler": "^4.125.0",
-    "@noble/ciphers": "^2.3.0"
+    "wrangler": "^4.127.1",
+    "@noble/ciphers": "^2.4.0"
   },
   "dependencies": {
     "@noble/hashes": "2.3.0",
