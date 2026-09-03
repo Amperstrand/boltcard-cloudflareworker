@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@noble/hashes": "2.3.0",
-    "@noble/secp256k1": "3.1.0",
+    "@noble/secp256k1": "3.2.0",
     "@ntag424/crypto": "github:Amperstrand/ntag424-crypto#v1.4.0",
     "@scure/base": "^2.3.0",
     "itty-router": "5.0.23",
