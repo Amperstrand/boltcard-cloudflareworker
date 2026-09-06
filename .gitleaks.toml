@@ -1,0 +1,37 @@
+# Gitleaks allowlist — every entry carries its justification. No blanket suppression.
+#
+# This repo is a boltcard PoC: docs and tests intentionally contain demo key
+# material (test vectors, sample K4/CardKey hex blocks, curl examples).
+# Real credentials live in wrangler secrets, never in these paths.
+
+title = "boltcard-cloudflareworker gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Test fixtures use documented demo keys (0011..EEFF test vectors, sample hex keys) — generated or synthetic, never provisioned to real cards"
+paths = [
+  '''tests/.*''',
+]
+
+[[allowlists]]
+description = "Docs and readme show example key blocks and curl invocations (documented sample values, e.g. K4/CardKey illustration in boltcard-protocol.md)"
+paths = [
+  '''docs/.*\.md''',
+  '''readme\.md''',
+]
+
+[[allowlists]]
+description = "Historical worker PoC sources (index.js, boltCardHelper.js at old commits) carried local-dev demo keys; files no longer exist at tip"
+paths = [
+  '''index\.js''',
+  '''boltCardHelper\.js''',
+]
+
+[[allowlists]]
+description = "False positive: code identifier k1Keys.length trips generic-api-key entropy heuristic"
+regexTarget = "secret"
+regexes = [
+  '''k1Keys\.length''',
+]
