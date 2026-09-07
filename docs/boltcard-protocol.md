@@ -253,7 +253,9 @@ Where:
 
 ### Test Vectors
 
-From the DETERMINISTIC.md spec:
+From the DETERMINISTIC.md spec. Synthetic example: derived from the demo
+issuer key `00000000000000000000000000000001` — not a real card's keyset
+(pin asserted by tests/keygenerator.test.ts, boltcard#59):
 
 ```
 Input:
