@@ -5,7 +5,7 @@
   "private": true,
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.22.0",
-    "@playwright/test": "^1.62.1",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/cli": "^4.3.3",
     "aes-js": "3.1.2",
     "better-sqlite3": "12.9.0",
@@ -15,8 +15,8 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "vitest": "^4.1.11",
-    "wrangler": "^4.125.0",
-    "@noble/ciphers": "^2.3.0"
+    "wrangler": "^4.129.0",
+    "@noble/ciphers": "^2.4.0"
   },
   "dependencies": {
     "@noble/hashes": "2.3.0",
