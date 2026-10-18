@@ -501,3 +501,27 @@ Standard commands: **lint** `npm run lint`, **typecheck** `npm run typecheck`, *
 5. After any deploy that touches logging, check Workers & Pages → Observability and the billing usage page; budget alerts are configured on the account.
 
 Workers deployed from this repo: boltcard-poc, boltcard-poc-staging
+
+## Boltcard line canon (cross-repo)
+
+This worker is the read-path hub of a six-repo line. The canonical line
+doctrine — repo map, SUN read-path architecture, the vectors-as-oracle
+conformance rule, bench touchpoints, and the lane-B1 conformance
+cross-references — lives in
+[ntag424-vectors/AGENTS.md](https://github.com/Amperstrand/ntag424-vectors/blob/main/AGENTS.md).
+Two rules from it bind this repo directly:
+
+- **Vectors are the oracle.** `@ntag424/crypto` (and this repo's
+  key-generation semantics) must pass every canonical `vectors.json`
+  vector its API can express; vendored vector copies ride that repo's
+  drift CI (ntag424-vectors#1).
+- **Provenance beats votes.** If the worker and another implementation
+  disagree, a vector is lifted from a documented source (AN12196, RFC
+  4493, or a hardware-proven capture) and both are fixed to it — never
+  the reverse. The K4/CardKey example-block rule (#59: synthetic bytes
+  only) is the same doctrine applied to docs.
+
+The vertical test rig contract (worker #64, lane evidence bolty-rs#101,
+cross-link #65): local offline `wrangler dev`, software SUN emulator for
+the card leg, tamper leg must produce the 403. Lane B1's conformance
+work is cross-referenced from the canon.
