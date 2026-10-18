@@ -1,0 +1,843 @@
+{
+  "schema_version": 1,
+  "notes": "All hex strings are lowercase. Byte-exact cross-language test vectors for the NTAG424 DNA / boltcard crypto stack. See README.md for the schema and the consumer update flow. 'counter_bytes' is the 3-byte SDMReadCtr exactly as stored in PICCData[8..11] and SV2[13..16] (SV2 copies the PICC bytes verbatim); libraries differ on whether they interpret this field as little- or big-endian, so the vectors pin the BYTES, not an integer. Optional per-vector flag \"negative\": true marks a REJECT vector: the input p/c must be refused by a conforming SDM verification chain (decrypt gate failure or SUN-MAC mismatch); consumers assert rejection instead of comparing intermediates. Vectors whose origin starts with \"cross-impl audit A2\" are reference-executed (two independent implementations run, byte-identical); \"cross-impl audit A3 transcription-derived\" vectors were generated from a line-cited transcription of the Go reference and validated against pre-existing reference vectors.",
+  "vectors": [
+    {
+      "id": "an12196-table1-sv1-session-enc-key",
+      "category": "an12196",
+      "input": {
+        "op": "aes_cmac",
+        "key": "5ace7e50ab65d5d51fd5bf5a16b8205b",
+        "message": "c33c0001008004c767f2066180010000"
+      },
+      "expected": {
+        "cmac": "66da61797e23deca5d8eca13bbadf7a9"
+      },
+      "origin": "NXP AN12196 \u00a73.3 Table 1 (SV1 -> KSesSDMFileReadENC), via Amperstrand/ntag424-crypto test/an12196-vectors.test.ts"
+    },
+    {
+      "id": "an12196-table1-sv2-session-mac-key",
+      "category": "an12196",
+      "input": {
+        "op": "aes_cmac",
+        "key": "5ace7e50ab65d5d51fd5bf5a16b8205b",
+        "message": "3cc30001008004c767f2066180010000"
+      },
+      "expected": {
+        "cmac": "3a3e8110e05311f7a3fcf0d969bf2b48"
+      },
+      "origin": "NXP AN12196 \u00a73.3 Table 1 (SV2 -> KSesSDMFileReadMAC), via Amperstrand/ntag424-crypto test/an12196-vectors.test.ts"
+    },
+    {
+      "id": "an12196-table2-picc-decrypt",
+      "category": "an12196",
+      "input": {
+        "op": "picc_decrypt",
+        "key": "00000000000000000000000000000000",
+        "picc_enc_data": "ef963ff7828658a599f3041510671e88"
+      },
+      "expected": {
+        "decrypted": "c704de5f1eacc0403d0000da5cf60941",
+        "uid": "04de5f1eacc040",
+        "counter_bytes": "3d0000"
+      },
+      "origin": "NXP AN12196 \u00a73.4.2.1 Table 2 (PICCENCData decryption, K_SDMMetaRead = zero key), via Amperstrand/ntag424-crypto test/an12196-vectors.test.ts"
+    },
+    {
+      "id": "an12196-table4-sv2-build",
+      "category": "an12196",
+      "input": {
+        "op": "sv2_build",
+        "uid": "04de5f1eacc040",
+        "counter_bytes": "3d0000"
+      },
+      "expected": {
+        "sv2": "3cc30001008004de5f1eacc0403d0000"
+      },
+      "origin": "NXP AN12196 \u00a73.4.4.2.1 Table 4 (SV2 construction), via Amperstrand/ntag424-crypto test/an12196-vectors.test.ts"
+    },
+    {
+      "id": "an12196-table4-session-key",
+      "category": "an12196",
+      "input": {
+        "op": "aes_cmac",
+        "key": "00000000000000000000000000000000",
+        "message": "3cc30001008004de5f1eacc0403d0000"
+      },
+      "expected": {
+        "cmac": "3fb5f6e3a807a03d5e3570ace393776f"
+      },
+      "origin": "NXP AN12196 \u00a73.4.4.2.1 Table 4 (Ks = CMAC(K_SDMFileRead, SV2)), via Amperstrand/ntag424-crypto test/an12196-vectors.test.ts"
+    },
+    {
+      "id": "an12196-table4-sun-mact",
+      "category": "an12196",
+      "input": {
+        "op": "sun_mac",
+        "key": "00000000000000000000000000000000",
+        "uid": "04de5f1eacc040",
+        "counter_bytes": "3d0000"
+      },
+      "expected": {
+        "cmac_truncated": "94eed9ee65337086"
+      },
+      "origin": "NXP AN12196 \u00a73.4.4.2.1 Table 4 (SUN MACt, odd bytes of CMAC(Ks, empty payload)), via Amperstrand/ntag424-crypto test/an12196-vectors.test.ts"
+    },
+    {
+      "id": "rfc4493-example3-len40",
+      "category": "an12196",
+      "input": {
+        "op": "aes_cmac",
+        "key": "2b7e151628aed2a6abf7158809cf4f3c",
+        "message": "6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e5130c81c46a35ce411"
+      },
+      "expected": {
+        "cmac": "dfa66747de9ae63030ca32611497c827"
+      },
+      "origin": "RFC 4493 \u00a74 Example 3 (AES-CMAC known-answer, len=40), via Amperstrand/ntag424-crypto test/aes-cmac.test.ts"
+    },
+    {
+      "id": "rfc4493-example4-len64",
+      "category": "an12196",
+      "input": {
+        "op": "aes_cmac",
+        "key": "2b7e151628aed2a6abf7158809cf4f3c",
+        "message": "6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e5130c81c46a35ce411e5fbc1191a0a52eff69f2445df4f9b17ad2b417be66c3710"
+      },
+      "expected": {
+        "cmac": "51f0bebf7e3b9d92fc49741779363cfe"
+      },
+      "origin": "RFC 4493 \u00a74 Example 4 (AES-CMAC known-answer, len=64), via Amperstrand/ntag424-crypto test/aes-cmac.test.ts"
+    },
+    {
+      "id": "derivation-bolty-cpp-vector1",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "00000000000000000000000000000000",
+        "uid": "041065fa967380",
+        "version": 1
+      },
+      "expected": {
+        "card_key": "1a3888508f11ba44942bda56b928cc4b",
+        "k0": "24d449c0c1d166827c05b8bb4a5798da",
+        "k1": "dfea2649f9ce19d0556d0c04cef56fa2",
+        "k2": "d41a0289deb7d573b700b135965cd1ea",
+        "k3": "fc5d413a564a0b415e3fd410fd19bc55",
+        "k4": "f4801a4d53d8784090aa44bbd7c89e95",
+        "card_id": "6110dea4c91ed081c43daad898a28548"
+      },
+      "origin": "bolty-rs tests/fixtures/derivation/boltcard_deterministic.toml Vector 1 (behavioral truth extracted from Bolty C++ KeyDerivation.h)"
+    },
+    {
+      "id": "derivation-bolty-cpp-vector2-hw-proven",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "00000000000000000000000000000001",
+        "uid": "0425607a8f6980",
+        "version": 1
+      },
+      "expected": {
+        "card_key": "6a4a300223fd4ef3cea6ce75b5d641f5",
+        "k0": "ba2574fb30759cba205a4fb42b980f62",
+        "k1": "55da174c9608993dc27bb3f30a4a7314",
+        "k2": "2ab74abc1273fb43cae97553a36d4d08",
+        "k3": "f39b252dcc04856181523d6b4fb189c3",
+        "k4": "12b9fcf24a9d14bc93d3d69c07551e2c",
+        "card_id": "fb6d820a31c4dc891b989444a7c3dad4"
+      },
+      "origin": "bolty-rs tests/fixtures/derivation/boltcard_deterministic.toml Vector 2 (hardware-proven recovered card UID, issuer key ...01 / version 1)"
+    },
+    {
+      "id": "derivation-worker-crossrepo",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "00000000000000000000000000000001",
+        "uid": "04a39493cc8680",
+        "version": 1
+      },
+      "expected": {
+        "card_key": "ebff5a4e6da5ee14cbfe720ae06fbed9",
+        "k0": "a29119fcb48e737d1591d3489557e49b",
+        "k1": "55da174c9608993dc27bb3f30a4a7314",
+        "k2": "f4b404be700ab285e333e32348fa3d3b",
+        "k3": "73610ba4afe45b55319691cb9489142f",
+        "k4": "addd03e52964369be7f2967736b7bdb5",
+        "card_id": "e07ce1279d980ecb892a81924b67bf18"
+      },
+      "origin": "bolty-rs tests/fixtures/derivation/boltcard_deterministic.toml Vector 3 (cross-repo validation vs boltcard-cloudflareworker keygenerator.test.ts 'Generate deterministic keys for known UID')"
+    },
+    {
+      "id": "derivation-agents-recovery-v1",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "00000000000000000000000000000001",
+        "uid": "043365fa967380",
+        "version": 1
+      },
+      "expected": {
+        "card_key": "b86751eaa2fc214bd3b746caf7db5e51",
+        "k0": "4057766867304a7610bbf7c31ed93ce1"
+      },
+      "origin": "bolty-rs AGENTS.md 'Card Recovery: UID 043365FA967380' worked example (derived K0 v1 computed from issuer key 0000...0001)"
+    },
+    {
+      "id": "derivation-agents-recovery-v0",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "00000000000000000000000000000001",
+        "uid": "043365fa967380",
+        "version": 0
+      },
+      "expected": {
+        "k0": "68c3abc1d72e8a4f49cf294a9a2813c3"
+      },
+      "origin": "bolty-rs AGENTS.md 'Card Recovery' key-candidate table (Derived K0 v0, same issuer key / UID, version 0)"
+    },
+    {
+      "id": "sdm-valid-picc-counter0",
+      "category": "sdm",
+      "input": {
+        "op": "sdm_full",
+        "k1": "55da174c9608993dc27bb3f30a4a7314",
+        "k2": "2ab74abc1273fb43cae97553a36d4d08",
+        "p": "e61cb056f52d34f9368f079d1814d2cf",
+        "c": "fcc9a22201ea2298"
+      },
+      "expected": {
+        "decrypted_p": "c70425607a8f69800000000000000000",
+        "uid": "0425607a8f6980",
+        "counter_bytes": "000000",
+        "sv2": "3cc3000100800425607a8f6980000000",
+        "derived_mac_key": "85f6155e3414e60874534940a44703a2",
+        "full_cmac": "90fc61c953a2c922e50129eae4221998"
+      },
+      "origin": "bolty-rs tests/fixtures/picc/valid_picc.toml fixture 'Recovered card synthetic SDM vector, read counter 0' (behavioral truth extracted from Bolty C++ PiccData.h)"
+    },
+    {
+      "id": "sdm-valid-picc-counter1",
+      "category": "sdm",
+      "input": {
+        "op": "sdm_full",
+        "k1": "55da174c9608993dc27bb3f30a4a7314",
+        "k2": "2ab74abc1273fb43cae97553a36d4d08",
+        "p": "d798d011fa0bf5bd5ece6f42265b02d5",
+        "c": "b49d12860da69e54"
+      },
+      "expected": {
+        "decrypted_p": "c70425607a8f69800100000000000000",
+        "uid": "0425607a8f6980",
+        "counter_bytes": "010000",
+        "sv2": "3cc3000100800425607a8f6980010000",
+        "derived_mac_key": "e201ced0a166872a8d1746305d979edb",
+        "full_cmac": "dcb46b9d83123f86420d63a69f9ed254"
+      },
+      "origin": "bolty-rs tests/fixtures/picc/valid_picc.toml fixture 'Recovered card synthetic SDM vector, read counter 1' (behavioral truth extracted from Bolty C++ PiccData.h)"
+    },
+    {
+      "id": "sdm-sv2-counter42",
+      "category": "sdm",
+      "input": {
+        "op": "sv2_build",
+        "uid": "041065fa967380",
+        "counter_bytes": "2a0000"
+      },
+      "expected": {
+        "sv2": "3cc300010080041065fa9673802a0000"
+      },
+      "origin": "bolty-rs crates/bolty-core/src/picc.rs tests (picc_valid_vectors: sdm_build_sv2 for UID 041065FA967380, counter 42)"
+    },
+    {
+      "id": "derivation-a2-06",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "00000000000000000000000000000001",
+        "uid": "043365fa967380",
+        "version": 2
+      },
+      "expected": {
+        "card_key": "dddcb9b1bdea1d486c5f83e7fe266d5e",
+        "k0": "5fce5cb7aa80e78595f337ec98a7971c",
+        "k1": "55da174c9608993dc27bb3f30a4a7314",
+        "k2": "e61f6da7054c784caa714d54021a1933",
+        "k3": "baac6636bd40c57f70c1bd46b7146e8e",
+        "k4": "c73eb16eab83599a49def66032c80b39",
+        "card_id": "b0df5d0dedd4f329cd99fe5a83409853"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): recovery UID, v2 edge"
+    },
+    {
+      "id": "derivation-a2-07",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "00000000000000000000000000000001",
+        "uid": "04c474fa967380",
+        "version": 1
+      },
+      "expected": {
+        "card_key": "fd08109a144d89bfade6fa5c68881c0b",
+        "k0": "4712164871b802dbbefa2589cec67ec4",
+        "k1": "55da174c9608993dc27bb3f30a4a7314",
+        "k2": "4b316b8f7fa2c41c65f55327bdbf991d",
+        "k3": "cc94dd2bbf840baf87a89099b7e527f1",
+        "k4": "ca1b75b57e2455840d21489856b04d91",
+        "card_id": "1877127614846063bc2dbfe7717b4abf"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): current lab card UID"
+    },
+    {
+      "id": "derivation-a2-08",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "00000000000000000000000000000001",
+        "uid": "04c474fa967380",
+        "version": 2
+      },
+      "expected": {
+        "card_key": "693046e424b08bca52cbb03210f99747",
+        "k0": "a21c38bf44cbaf68ae013aff0628f805",
+        "k1": "55da174c9608993dc27bb3f30a4a7314",
+        "k2": "84daba913bf85297632e133c24a15e59",
+        "k3": "0140ffd43bded2b17bb3508a858e01ae",
+        "k4": "4b3d04287d0ce69c4431ebef51f45400",
+        "card_id": "1877127614846063bc2dbfe7717b4abf"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): current lab card UID, v2"
+    },
+    {
+      "id": "derivation-a2-09",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "00000000000000000000000000000001",
+        "uid": "04a1b2c3d4e5f6",
+        "version": 0
+      },
+      "expected": {
+        "card_key": "e6a454df98edcbee505cbdd07f0aeb6c",
+        "k0": "eb1f05de7a5027616e4063a2795c89cc",
+        "k1": "55da174c9608993dc27bb3f30a4a7314",
+        "k2": "6d65d9e8612568133bd99c36ea85ff91",
+        "k3": "368deb8153563aa2238963f75becf6a1",
+        "k4": "23d9edf63fff6112789f4d50e533e8f1",
+        "card_id": "46c2ed8d7a55b686de3647fd7d908c22"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): foreign UID, v0 edge"
+    },
+    {
+      "id": "derivation-a2-10",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "00000000000000000000000000000001",
+        "uid": "04a1b2c3d4e5f6",
+        "version": 2
+      },
+      "expected": {
+        "card_key": "dca59d2c40a90d191f99fa7ea3ff7246",
+        "k0": "177ce845d696868b5501ee457278bd89",
+        "k1": "55da174c9608993dc27bb3f30a4a7314",
+        "k2": "59c8c3b9e7bae0c3250a962cce0af58d",
+        "k3": "2b7b2bec29c4f864e0ee3ef1e054ed75",
+        "k4": "f769bbec27fa39fab6f014b0ff46e710",
+        "card_id": "46c2ed8d7a55b686de3647fd7d908c22"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): foreign UID, v2 edge"
+    },
+    {
+      "id": "derivation-a2-11",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "00000000000000000000000000000002",
+        "uid": "0425607a8f6980",
+        "version": 1
+      },
+      "expected": {
+        "card_key": "025cb6c22659047d1cb4f6df992fe932",
+        "k0": "942eb7a7df71da38f846556e9b5add21",
+        "k1": "d4d58b9a862fc1821ce9548e447e1196",
+        "k2": "86a25da502134cc1379384a99c373dd2",
+        "k3": "1e5bf68de58812222739a7cd09444716",
+        "k4": "e4e6885caef6b98b1b11bf856629fbc9",
+        "card_id": "07076675e6cddf196c6d85336393c8e6"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): second issuer key"
+    },
+    {
+      "id": "derivation-a2-12",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "00000000000000000000000000000002",
+        "uid": "04a39493cc8680",
+        "version": 0
+      },
+      "expected": {
+        "card_key": "280cac69663bcb2710c2ee9eab7ac06d",
+        "k0": "2c19a7161262946f6ee99eddc04d30a1",
+        "k1": "d4d58b9a862fc1821ce9548e447e1196",
+        "k2": "16837165d503b87af9b0c545d3968a8b",
+        "k3": "b17b56d04588f594960c080a21517f60",
+        "k4": "55f15bfdde962a2d33e2c82614ad92dc",
+        "card_id": "1f2888cbe16931d2f8566463efa9f58a"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): second issuer key, v0"
+    },
+    {
+      "id": "derivation-a2-13",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "00000000000000000000000000000000",
+        "uid": "04a39493cc8680",
+        "version": 2
+      },
+      "expected": {
+        "card_key": "dc3b1445e9c545e2a82cadc7470a55d4",
+        "k0": "566c0c46f51ef99ab6d52b87b9875447",
+        "k1": "dfea2649f9ce19d0556d0c04cef56fa2",
+        "k2": "9f14fc99f2807fdcb1df020c4e2b5ed4",
+        "k3": "75cf37b38ff2122d3f1e1ddab4759e18",
+        "k4": "b2df2ebfb1900fd1ec505988c782785a",
+        "card_id": "2b5319a512d6d77956c2218df7600eb0"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): zero issuer key, v2"
+    },
+    {
+      "id": "derivation-a2-14",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "2b7e151628aed2a6abf7158809cf4f3c",
+        "uid": "041065fa967380",
+        "version": 1
+      },
+      "expected": {
+        "card_key": "00ae8df40a75183b48ab06970008d73d",
+        "k0": "9e22151265097a05db617c65f0f065cc",
+        "k1": "a2f1cd0b4131867937217ad76fbe2c31",
+        "k2": "44bb51bb749f8019904e6f51755be8e6",
+        "k3": "eff4538d22e33ee58a50dbd4e9735ce4",
+        "k4": "4b436b17811cae5a574cdc13e834729d",
+        "card_id": "387dcde6f936a3969768870ec17f4a25"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): RFC4493 key as issuer"
+    },
+    {
+      "id": "derivation-a2-15",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "2b7e151628aed2a6abf7158809cf4f3c",
+        "uid": "0425607a8f6980",
+        "version": 255
+      },
+      "expected": {
+        "card_key": "cf05f591039264b474b8de6d69a9c62c",
+        "k0": "073bb3f105b6b654853b0cdf669f822e",
+        "k1": "a2f1cd0b4131867937217ad76fbe2c31",
+        "k2": "d8d58bfcb4703ad32427aebce7eff176",
+        "k3": "c5650ace6cbdd464213e606b22603b79",
+        "k4": "18236f9c96a3fd109ee6028c7a5fcbc7",
+        "card_id": "8afdf7f6f68b57b6f10241f497bd09a9"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): RFC4493 key, version 255 u8 edge"
+    },
+    {
+      "id": "derivation-a2-16",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "ffeeddccbbaa99887766554433221100",
+        "uid": "043365fa967380",
+        "version": 1
+      },
+      "expected": {
+        "card_key": "c8af97997445ec86386c528bbd9f788b",
+        "k0": "e1f0b62cef0a6b88a5106e40e05df281",
+        "k1": "641349995875eb56885883b35958ffee",
+        "k2": "7ff84655a82e66850e931b63c5f73a4b",
+        "k3": "7bd0f121ad48c44cf754a08ce64d7026",
+        "k4": "8c26019855b75bc8a02a82cb17038413",
+        "card_id": "440402e7f3ecccab168f0150b6e897d0"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): high-entropy issuer key"
+    },
+    {
+      "id": "derivation-a2-17",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "ffeeddccbbaa99887766554433221100",
+        "uid": "040c60fa967380",
+        "version": 0
+      },
+      "expected": {
+        "card_key": "295398d56d962fda34276fc3451606c8",
+        "k0": "5124f9090197baceb0c5f825e56f0b1a",
+        "k1": "641349995875eb56885883b35958ffee",
+        "k2": "f081a5c74f3fa5e3f668985e27ec3a9d",
+        "k3": "d1cc7bd7b0c4f3629cee9562c0d051a0",
+        "k4": "2f14934ec82ec6b95f541a70c8311ec9",
+        "card_id": "b447965dc03183866d15697be865e8d5"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): high-entropy issuer key, v0"
+    },
+    {
+      "id": "derivation-a2-18",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "ffffffffffffffffffffffffffffffff",
+        "uid": "04c474fa967380",
+        "version": 2
+      },
+      "expected": {
+        "card_key": "9e9e73f4c50113aeab4ff6ff2e7b08ff",
+        "k0": "4fed32c0a90ddc18b0d109613af46b64",
+        "k1": "0651f0c02f2fcf82d3697ede894a99d3",
+        "k2": "bb9299567e2151d2eb62e5fd1369503d",
+        "k3": "021ff0281a000d1ff2c57fd5409b1e98",
+        "k4": "378b2dbf02d5ad5fd9cca06cacf3f681",
+        "card_id": "69d4e27e4dd8f760c51a656f84cc4323"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): all-FF issuer key"
+    },
+    {
+      "id": "derivation-a2-19",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "000000000000000000000000000000ff",
+        "uid": "11223344556677",
+        "version": 1
+      },
+      "expected": {
+        "card_key": "a88fab900572718b9ce9782fe6ed8acb",
+        "k0": "e5ff832c065fddd39f4b3150d18f419f",
+        "k1": "06998ebe3eca87f85828c9965bb9dcab",
+        "k2": "e7bb5925eea88b3d79dfb7b64642e7a9",
+        "k3": "0e5acbad5940b28c1f0ef98fd1f9ff1d",
+        "k4": "43620afea0fc77174c983b80ffc8d35e",
+        "card_id": "19e893047902e7e291cc4b58985b7c94"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): non-04 UID (7 arbitrary bytes)"
+    },
+    {
+      "id": "derivation-a2-20",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "0102030405060708090a0b0c0d0e0f10",
+        "uid": "041065fa967380",
+        "version": 3
+      },
+      "expected": {
+        "card_key": "a86bcd753e5009287c14a5dfca3cc897",
+        "k0": "d33d5bea06bde8eb8650bb9a6235d761",
+        "k1": "aa8acee25e3498f46e3655e5a82b90dd",
+        "k2": "8a178aee3636486a3c65cb7fa28e806c",
+        "k3": "09ca82bc92dfe41d610f844acedac497",
+        "k4": "a1db3fe9c6b9aad7b9bcd29d5647b5f8",
+        "card_id": "73592113fd043f9d090a4b8defaea9b6"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): sequential issuer key, v3"
+    },
+    {
+      "id": "derivation-a2-21",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "00000000000000000000000000000001",
+        "uid": "040c60fa967380",
+        "version": 1
+      },
+      "expected": {
+        "card_key": "f85b3ffef02e29774f8f95639b2f74df",
+        "k0": "cfe68cece6d06949a299051d52737c2f",
+        "k1": "55da174c9608993dc27bb3f30a4a7314",
+        "k2": "f3b6bab898d7cd310a0d198374b6204d",
+        "k3": "1eefad5d2cf1a8c1857c6fbcf6182b4d",
+        "k4": "0780343f11506788ae7ecc63bc68e79a",
+        "card_id": "20a3e5f49a665856bed4b505cf3cd0d0"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): ACR1252 test card UID"
+    },
+    {
+      "id": "derivation-a2-22",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "00000000000000000000000000000002",
+        "uid": "043365fa967380",
+        "version": 2
+      },
+      "expected": {
+        "card_key": "c54efedcdd34352b464f406df671e00c",
+        "k0": "bff9d2f15e307cff13ae884c9ffe38be",
+        "k1": "d4d58b9a862fc1821ce9548e447e1196",
+        "k2": "17db6a1d697658f71b393bcd57228399",
+        "k3": "f25c633a1aa2357a30c760015b2b8d19",
+        "k4": "4c650a0f191ff29d5310bc91eec5d050",
+        "card_id": "a15cc316c156a55c570342c4445a7bd3"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): second issuer, recovery UID, v2"
+    },
+    {
+      "id": "derivation-a2-23",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "deadbeefdeadbeefdeadbeefdeadbeef",
+        "uid": "04a39493cc8680",
+        "version": 255
+      },
+      "expected": {
+        "card_key": "98b22456c1f5044485a5fa4bd6514146",
+        "k0": "386fffa2f17e50acb41680cb48c5ddc6",
+        "k1": "f9eeb5fb3a367df99aa06b835508972e",
+        "k2": "b64035e6cb50897c8278f4b60d07045d",
+        "k3": "9edf0108886694e4d5f82f0d9ddf23ec",
+        "k4": "7031381f57ba70a81b1f8ff9923ce6fb",
+        "card_id": "c576c3a50ffc0113190224fe701e098c"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): deadbeef issuer, version 255"
+    },
+    {
+      "id": "derivation-a2-24",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "00000000000000000000000000000000",
+        "uid": "043365fa967380",
+        "version": 0
+      },
+      "expected": {
+        "card_key": "e134b42163d598f366a6def62dedae74",
+        "k0": "fa379d5839d99dff0c645bcb60f3d553",
+        "k1": "dfea2649f9ce19d0556d0c04cef56fa2",
+        "k2": "b68e537e82c85040571a98caffa19cec",
+        "k3": "193c21470bcf159122d1b330eab7d86e",
+        "k4": "8675fff1862d33d3e9811cb38a9a86fb",
+        "card_id": "c8d5633d35c56e976db90453d42aed68"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): zero issuer + recovery UID + v0"
+    },
+    {
+      "id": "derivation-a2-25",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "00000000000000000000000000000001",
+        "uid": "0425607a8f6980",
+        "version": 16909060
+      },
+      "expected": {
+        "card_key": "4e3cf59f5bb781743eff70a48770a602",
+        "k0": "f36a2f7844b6fdb527536b84265ef5e6",
+        "k1": "55da174c9608993dc27bb3f30a4a7314",
+        "k2": "9c2774afdbbfc0ecbfbcdcb2dce8afd8",
+        "k3": "3fe3038874539e02c6d42ef475a42e73",
+        "k4": "237ddebf938376c247614dc34b945f31",
+        "card_id": "fb6d820a31c4dc891b989444a7c3dad4"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): reference-only: version 0x01020304 (>u8)"
+    },
+    {
+      "id": "derivation-a2-26",
+      "category": "derivation",
+      "input": {
+        "op": "derive_keys",
+        "issuer_key": "00000000000000000000000000000001",
+        "uid": "04a39493cc8680",
+        "version": 305419896
+      },
+      "expected": {
+        "card_key": "6b52d5ff01abf5f213c2451a1942f416",
+        "k0": "7d5352bf3f4de7af1f1ed35f81e6a310",
+        "k1": "55da174c9608993dc27bb3f30a4a7314",
+        "k2": "57dc0588a293db85018f17cf873aba9e",
+        "k3": "6b1715811181e07938c8f020b164c9a0",
+        "k4": "531ff03437a755fd63b70ba388a9c5c2",
+        "card_id": "e07ce1279d980ecb892a81924b67bf18"
+      },
+      "origin": "cross-impl audit A2 reference-executed (bolty-cpp KeyDerivation.h and cloudflare-worker keygenerator.js, byte-identical; bolty-core pub API matches): reference-only: version 0x12345678 (>u8)"
+    },
+    {
+      "id": "sdm-a3-zerokeys-an12196-repro",
+      "category": "sdm",
+      "input": {
+        "op": "sdm_full",
+        "k1": "00000000000000000000000000000000",
+        "k2": "00000000000000000000000000000000",
+        "p": "ef963ff7828658a599f3041510671e88",
+        "c": "94eed9ee65337086"
+      },
+      "expected": {
+        "decrypted_p": "c704de5f1eacc0403d0000da5cf60941",
+        "uid": "04de5f1eacc040",
+        "counter_bytes": "3d0000",
+        "sv2": "3cc30001008004de5f1eacc0403d0000",
+        "derived_mac_key": "3fb5f6e3a807a03d5e3570ace393776f",
+        "full_cmac": "e194c7ee12d9f7ee8a65c8331b704386"
+      },
+      "origin": "cross-impl audit A3 transcription-derived (Go lnurlw/lnurlw_request.go + crypto/crypto.go transcription, validated byte-for-byte against pre-existing reference vectors; bolty picc.rs and Go agree on every intermediate): cross-class consistency target: an12196-table2-picc-decrypt p + an12196-table4-sun-mact c"
+    },
+    {
+      "id": "sdm-a3-counter-max",
+      "category": "sdm",
+      "input": {
+        "op": "sdm_full",
+        "k1": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "k2": "f0e1d2c3b4a5968778695a4b3c2d1e0f",
+        "p": "60fcf1396f08fdca4a261e49b42c5fbb",
+        "c": "9a60324f845d7684"
+      },
+      "expected": {
+        "decrypted_p": "c704a39493cc8680ffffff0000000000",
+        "uid": "04a39493cc8680",
+        "counter_bytes": "ffffff",
+        "sv2": "3cc30001008004a39493cc8680ffffff",
+        "derived_mac_key": "4388b6dc02e8ac69f65f9ebf78938935",
+        "full_cmac": "d09a9a602432624f35844d5d4576a884"
+      },
+      "origin": "cross-impl audit A3 transcription-derived (Go lnurlw/lnurlw_request.go + crypto/crypto.go transcription, validated byte-for-byte against pre-existing reference vectors; bolty picc.rs and Go agree on every intermediate): counter edge 0xffffff"
+    },
+    {
+      "id": "sdm-a3-endian-le-1",
+      "category": "sdm",
+      "input": {
+        "op": "sdm_full",
+        "k1": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "k2": "f0e1d2c3b4a5968778695a4b3c2d1e0f",
+        "p": "ad12752466e17f121a6f56fcdf5bffb0",
+        "c": "a7e44bf982933c3d"
+      },
+      "expected": {
+        "decrypted_p": "c704a39493cc86800100000000000000",
+        "uid": "04a39493cc8680",
+        "counter_bytes": "010000",
+        "sv2": "3cc30001008004a39493cc8680010000",
+        "derived_mac_key": "42da6eec114a39375d61a6c795fba6a4",
+        "full_cmac": "bda7cae4034b2cf9f3824d939d3c953d"
+      },
+      "origin": "cross-impl audit A3 transcription-derived (Go lnurlw/lnurlw_request.go + crypto/crypto.go transcription, validated byte-for-byte against pre-existing reference vectors; bolty picc.rs and Go agree on every intermediate): endianness discriminator A: bytes 010000 -> LE int 1"
+    },
+    {
+      "id": "sdm-a3-endian-le-65536",
+      "category": "sdm",
+      "input": {
+        "op": "sdm_full",
+        "k1": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "k2": "f0e1d2c3b4a5968778695a4b3c2d1e0f",
+        "p": "da78eed24789833a0f1c0a98d8e44337",
+        "c": "abb9b5c0ec0273d7"
+      },
+      "expected": {
+        "decrypted_p": "c704a39493cc86800000010000000000",
+        "uid": "04a39493cc8680",
+        "counter_bytes": "000001",
+        "sv2": "3cc30001008004a39493cc8680000001",
+        "derived_mac_key": "243bc16eff13344a5ab9e4b821f4a8e3",
+        "full_cmac": "1cabb1b9c5b5d1c042ec5c02177356d7"
+      },
+      "origin": "cross-impl audit A3 transcription-derived (Go lnurlw/lnurlw_request.go + crypto/crypto.go transcription, validated byte-for-byte against pre-existing reference vectors; bolty picc.rs and Go agree on every intermediate): endianness discriminator B: bytes 000001 -> LE int 65536 (a BE reader would call this 1)"
+    },
+    {
+      "id": "sdm-a3-nonzero-tail",
+      "category": "sdm",
+      "input": {
+        "op": "sdm_full",
+        "k1": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "k2": "f0e1d2c3b4a5968778695a4b3c2d1e0f",
+        "p": "a7e6a0b7c6c1e7944515d26bab774c43",
+        "c": "9f776c5769910332"
+      },
+      "expected": {
+        "decrypted_p": "c7041065fa9673802a0000da5cf60941",
+        "uid": "041065fa967380",
+        "counter_bytes": "2a0000",
+        "sv2": "3cc300010080041065fa9673802a0000",
+        "derived_mac_key": "803f53ea653cdef828457a0e65f60e4c",
+        "full_cmac": "b59f4877cb6c03573d69de917d03c932"
+      },
+      "origin": "cross-impl audit A3 transcription-derived (Go lnurlw/lnurlw_request.go + crypto/crypto.go transcription, validated byte-for-byte against pre-existing reference vectors; bolty picc.rs and Go agree on every intermediate): PICCData[11..16] nonzero (AN12196 table2 style) \u2014 parsers must ignore"
+    },
+    {
+      "id": "sdm-a3-edge-uid-ff",
+      "category": "sdm",
+      "input": {
+        "op": "sdm_full",
+        "k1": "00000000000000000000000000000000",
+        "k2": "00000000000000000000000000000000",
+        "p": "57f2e52278c8011969a20155a0958d5c",
+        "c": "d21dd976551c746c"
+      },
+      "expected": {
+        "decrypted_p": "c7ffffffffffffff0000000000000000",
+        "uid": "ffffffffffffff",
+        "counter_bytes": "000000",
+        "sv2": "3cc300010080ffffffffffffff000000",
+        "derived_mac_key": "17f432a3d9cb92dc46c3a9be69b34b57",
+        "full_cmac": "32d26e1d37d92a76a655aa1c5e74256c"
+      },
+      "origin": "cross-impl audit A3 transcription-derived (Go lnurlw/lnurlw_request.go + crypto/crypto.go transcription, validated byte-for-byte against pre-existing reference vectors; bolty picc.rs and Go agree on every intermediate): edge uid ff..ff with zero keys"
+    },
+    {
+      "id": "sdm-a3-neg-corrupt-c",
+      "category": "sdm",
+      "negative": true,
+      "input": {
+        "op": "sdm_full",
+        "k1": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "k2": "f0e1d2c3b4a5968778695a4b3c2d1e0f",
+        "p": "60fcf1396f08fdca4a261e49b42c5fbb",
+        "c": "9b60324f845d7684"
+      },
+      "expected": {
+        "decrypted_p": "c704a39493cc8680ffffff0000000000"
+      },
+      "origin": "cross-impl audit A3 transcription-derived (Go lnurlw/lnurlw_request.go + crypto/crypto.go transcription, validated byte-for-byte against pre-existing reference vectors); negative: c= corrupted in its first byte (vs valid 9a60324f845d7684) \u2014 the SDM verification chain MUST reject"
+    },
+    {
+      "id": "sdm-a3-neg-prefix-c6",
+      "category": "sdm",
+      "negative": true,
+      "input": {
+        "op": "sdm_full",
+        "k1": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "k2": "f0e1d2c3b4a5968778695a4b3c2d1e0f",
+        "p": "af539b7388d4f796c70b01ea69d12e2e",
+        "c": "7980fea08da0721e"
+      },
+      "expected": {
+        "decrypted_p": "c604a39493cc86800500000000000000"
+      },
+      "origin": "cross-impl audit A3 transcription-derived (Go lnurlw/lnurlw_request.go + crypto/crypto.go transcription, validated byte-for-byte against pre-existing reference vectors); negative: p decrypts to a 0xC6 PICCDataTag \u2014 the decrypt gate MUST reject"
+    },
+    {
+      "id": "sdm-a3-neg-counter-mismatch",
+      "category": "sdm",
+      "negative": true,
+      "input": {
+        "op": "sdm_full",
+        "k1": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+        "k2": "f0e1d2c3b4a5968778695a4b3c2d1e0f",
+        "p": "da78eed24789833a0f1c0a98d8e44337",
+        "c": "a7e44bf982933c3d"
+      },
+      "expected": {
+        "decrypted_p": "c704a39493cc86800000010000000000"
+      },
+      "origin": "cross-impl audit A3 transcription-derived (Go lnurlw/lnurlw_request.go + crypto/crypto.go transcription, validated byte-for-byte against pre-existing reference vectors); negative: c is the valid SUN MAC for counter_bytes 010000 but the PICCData counter is 000001 \u2014 the MAC verification MUST reject"
+    }
+  ]
+}
