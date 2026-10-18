@@ -4,9 +4,11 @@ import {
   checkPin,
   createSession,
   buildExpiredCookie,
+  buildCsrfCookie,
   COOKIE_NAME,
   MIN_PIN_LENGTH,
 } from "../middleware/operatorAuth.js";
+import { isHttpsRequest } from "../utils/cookies.js";
 import type { Env } from "../types/core.js";
 
 const TEST_SECRET = "test-session-secret-for-jest";
@@ -26,7 +28,7 @@ function makeRequest(cookies: Record<string, string> = {}) {
 }
 
 async function createTestSession(env: Env) {
-  const { cookie } = await createSession(env);
+  const { cookie } = await createSession(env, true);
   const match = cookie.match(/op_session=([^;]+)/);
   return match![1]!;
 }
@@ -66,7 +68,7 @@ describe("checkPin", () => {
 
 describe("createSession", () => {
   it("returns a signed cookie string", async () => {
-    const { cookie, shiftId } = await createSession(makeEnv());
+    const { cookie, shiftId } = await createSession(makeEnv(), true);
     expect(cookie).toContain("op_session=");
     expect(cookie).toContain("HttpOnly");
     expect(cookie).toContain("Secure");
@@ -77,7 +79,7 @@ describe("createSession", () => {
 
   it("uses dev fallback secret when OPERATOR_SESSION_SECRET is not set", async () => {
     const env = makeEnv({ OPERATOR_SESSION_SECRET: "" });
-    const { cookie, shiftId } = await createSession(env);
+    const { cookie, shiftId } = await createSession(env, true);
     expect(cookie).toContain("op_session=");
     expect(typeof shiftId).toBe("string");
   });
@@ -143,10 +145,45 @@ describe("requireOperator", () => {
 
 describe("buildExpiredCookie", () => {
   it("returns a Set-Cookie header that expires the cookie", () => {
-    const cookie = buildExpiredCookie();
+    const cookie = buildExpiredCookie(true);
     expect(cookie).toContain("op_session=");
     expect(cookie).toContain("Max-Age=0");
     expect(cookie).toContain("HttpOnly");
+    expect(cookie).toContain("Secure");
+  });
+});
+
+describe("cookie Secure attribute follows request scheme", () => {
+  it("session cookie includes Secure for https requests", async () => {
+    const { cookie } = await createSession(makeEnv(), true);
+    expect(cookie).toContain("Secure");
+    expect(cookie).toContain("SameSite=Strict");
+    expect(cookie).toContain("HttpOnly");
+  });
+
+  it("session cookie omits Secure for plain-http local dev", async () => {
+    const { cookie } = await createSession(makeEnv(), false);
+    expect(cookie).not.toContain("Secure");
+    expect(cookie).toContain("SameSite=Strict");
+    expect(cookie).toContain("HttpOnly");
+  });
+
+  it("expired cookie omits Secure for plain-http local dev", () => {
+    expect(buildExpiredCookie(false)).not.toContain("Secure");
+    expect(buildExpiredCookie(false)).toContain("Max-Age=0");
+  });
+
+  it("CSRF cookie includes Secure on https and omits it on http", () => {
+    expect(buildCsrfCookie("token-x", true)).toContain("Secure");
+    expect(buildCsrfCookie("token-x", false)).not.toContain("Secure");
+    expect(buildCsrfCookie("token-x", false)).toContain("op_csrf=token-x");
+  });
+
+  it("isHttpsRequest derives the flag from the request URL and fails secure", () => {
+    expect(isHttpsRequest(new Request("https://boltcardpoc.psbt.me/operator"))).toBe(true);
+    expect(isHttpsRequest(new Request("http://127.0.0.1:8787/operator"))).toBe(false);
+    expect(isHttpsRequest(new Request("http://192.168.13.221:8787/operator"))).toBe(false);
+    expect(isHttpsRequest(new Request("https://localhost:8787/operator"))).toBe(true);
   });
 });
 
@@ -184,7 +221,7 @@ describe("production guards", () => {
   });
 
   it("createSession throws in production when OPERATOR_SESSION_SECRET is missing", () => {
-    expect(() => createSession(prodEnv)).toThrow("OPERATOR_SESSION_SECRET must be set in production");
+    expect(() => createSession(prodEnv, true)).toThrow("OPERATOR_SESSION_SECRET must be set in production");
   });
 
   it("__TEST_OPERATOR_SESSION bypass is ignored in production", async () => {

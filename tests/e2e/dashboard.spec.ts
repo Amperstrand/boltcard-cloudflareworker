@@ -2,8 +2,14 @@ import { test, expect } from "@playwright/test";
 
 const DASHBOARD_URL = "https://tests.tollgate.me";
 const RELAYS = ["wss://relay.damus.io", "wss://nos.lol"];
+// These specs verify the PRODUCTION evidence-publishing pipeline via public
+// Nostr relays — external network by design, unaffected by the worker under
+// test. Skip them when the suite runs against a local dev server.
+const baseURL = process.env.PLAYWRIGHT_BASE_URL || "https://boltcardpoc.psbt.me";
+const isLocal = baseURL.includes("127.0.0.1") || baseURL.includes("localhost");
 
 test.describe("Evidence publishing pipeline → relay verification", () => {
+  test.skip(isLocal, "Production-only: queries public Nostr relays for published evidence events");
   test("boltcard kind 30078 event is queryable from Nostr relays", async ({ page }) => {
     const events = await page.evaluate(async (relayUrls) => {
       const results: Array<Record<string, unknown>> = [];

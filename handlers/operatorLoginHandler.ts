@@ -11,6 +11,7 @@ import {
 } from "../middleware/operatorAuth.js";
 import { checkRateLimit } from "../rateLimiter.js";
 import { logger } from "../utils/logger.js";
+import { isHttpsRequest } from "../utils/cookies.js";
 import { LOGIN_RATE_LIMIT_REQUESTS, LOGIN_RATE_LIMIT_WINDOW } from "../utils/constants.js";
 
 export function handleOperatorLoginPage(request: Request): Response {
@@ -52,7 +53,7 @@ export async function handleOperatorLogin(request: Request, env: Env): Promise<R
   const returnUrl: string = (rawReturn.startsWith("/") && !rawReturn.startsWith("//")) ? rawReturn : "/operator/pos";
 
   try {
-    const { cookie, shiftId }: { cookie: string; shiftId: string } = createSession(env);
+    const { cookie, shiftId }: { cookie: string; shiftId: string } = createSession(env, isHttpsRequest(request));
     logger.info("Operator logged in", { shiftId });
 
     const resp: Response = redirect(returnUrl);
@@ -68,6 +69,6 @@ export function handleOperatorLogout(request: Request, env: Env): Response {
   requireOperator(request, env);
   logger.info("Operator logged out");
   const resp: Response = redirect("/operator/login");
-  resp.headers.append("Set-Cookie", buildExpiredCookie());
+  resp.headers.append("Set-Cookie", buildExpiredCookie(isHttpsRequest(request)));
   return resp;
 }
