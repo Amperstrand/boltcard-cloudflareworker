@@ -15,7 +15,7 @@ jobs:
         run: git clone https://github.com/Amperstrand/ntag424-crypto.git ../ntag424-crypto
       - name: Build ntag424-crypto
         run: cd ../ntag424-crypto && npm install && npm run build
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 11
       - uses: actions/setup-node@v4
@@ -40,7 +40,7 @@ jobs:
         run: git clone https://github.com/Amperstrand/ntag424-crypto.git ../ntag424-crypto
       - name: Build ntag424-crypto
         run: cd ../ntag424-crypto && npm install && npm run build
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 11
       - uses: actions/setup-node@v4
@@ -80,7 +80,7 @@ jobs:
         run: git clone https://github.com/Amperstrand/ntag424-crypto.git ../ntag424-crypto
       - name: Build ntag424-crypto
         run: cd ../ntag424-crypto && npm install && npm run build
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 11
       - uses: actions/setup-node@v4

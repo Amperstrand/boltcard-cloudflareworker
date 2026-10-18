@@ -16,7 +16,7 @@ jobs:
       - name: Build ntag424-crypto
         run: cd ../ntag424-crypto && npm install && npm run build
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 9
 
