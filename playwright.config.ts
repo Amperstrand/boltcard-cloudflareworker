@@ -48,6 +48,10 @@ export default defineConfig({
   ],
   ...(isLocal
     ? {
+        // workerd deadlocks under parallel DO load against a single local dev
+        // server ("all goroutines are asleep - deadlock!" → wrangler exit 1).
+        // Serialize local runs; production runs stay parallel.
+        workers: 1,
         webServer: {
           command: "npx wrangler dev --ip 127.0.0.1 --port 8787 --show-interactive-dev-session false",
           url: "http://127.0.0.1:8787/status",
