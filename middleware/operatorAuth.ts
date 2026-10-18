@@ -90,12 +90,12 @@ function getSessionCookie(request: Request): string | null {
   return getCookieValue(request.headers.get("Cookie"), COOKIE_NAME);
 }
 
-function buildSessionCookie(value: string): string {
-  return `${COOKIE_NAME}=${value}; HttpOnly; Secure; SameSite=Strict; Max-Age=${SESSION_MAX_AGE}; Path=/`;
+function buildSessionCookie(value: string, secure: boolean): string {
+  return `${COOKIE_NAME}=${value}; HttpOnly;${secure ? " Secure;" : ""} SameSite=Strict; Max-Age=${SESSION_MAX_AGE}; Path=/`;
 }
 
-function buildExpiredCookie(): string {
-  return `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/`;
+function buildExpiredCookie(secure: boolean): string {
+  return `${COOKIE_NAME}=; HttpOnly;${secure ? " Secure;" : ""} SameSite=Strict; Max-Age=0; Path=/`;
 }
 
 export function requireOperator(request: Request, env: Env): OperatorAuthResult {
@@ -142,7 +142,7 @@ export function checkPin(provided: string | undefined, env: Env): boolean {
   return constantTimeComparePin(provided, expected);
 }
 
-export function createSession(env: Env): { cookie: string; shiftId: string } {
+export function createSession(env: Env, secure: boolean): { cookie: string; shiftId: string } {
   if (env.WORKER_ENV === "production" && !env.OPERATOR_SESSION_SECRET) {
     throw new Error("OPERATOR_SESSION_SECRET must be set in production");
   }
@@ -150,11 +150,11 @@ export function createSession(env: Env): { cookie: string; shiftId: string } {
   const shiftId = crypto.randomUUID();
   const payload = createSessionPayload(shiftId);
   const signed = signSession(payload, secret);
-  return { cookie: buildSessionCookie(signed), shiftId };
+  return { cookie: buildSessionCookie(signed, secure), shiftId };
 }
 
 export { buildExpiredCookie, COOKIE_NAME, MIN_PIN_LENGTH, CSRF_COOKIE_NAME };
 
-export function buildCsrfCookie(token: string): string {
-  return `${CSRF_COOKIE_NAME}=${token}; Secure; SameSite=Strict; Max-Age=${CSRF_MAX_AGE}; Path=/`;
+export function buildCsrfCookie(token: string, secure: boolean): string {
+  return `${CSRF_COOKIE_NAME}=${token};${secure ? " Secure;" : ""} SameSite=Strict; Max-Age=${CSRF_MAX_AGE}; Path=/`;
 }

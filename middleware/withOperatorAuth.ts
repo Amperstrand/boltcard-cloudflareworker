@@ -2,7 +2,7 @@ import type { IRequest, IttyRouterType } from "itty-router";
 import type { Env, SessionPayload } from "../types/core.js";
 import { requireOperator, buildCsrfCookie, CSRF_COOKIE_NAME } from "./operatorAuth.js";
 import { errorResponse } from "../utils/responses.js";
-import { getCookieValue, constantTimeEqual } from "../utils/cookies.js";
+import { getCookieValue, constantTimeEqual, isHttpsRequest } from "../utils/cookies.js";
 
 export type AppRouter = IttyRouterType<IRequest, [env: Env]>;
 
@@ -35,7 +35,7 @@ export function withOperatorAuth(handler: AuthedHandler): (request: IRequest, en
       if (!hasCsrf) {
         const token = crypto.randomUUID();
         const newResponse = new Response(response.body, response);
-        newResponse.headers.append("Set-Cookie", buildCsrfCookie(token));
+        newResponse.headers.append("Set-Cookie", buildCsrfCookie(token, isHttpsRequest(request)));
         return newResponse;
       }
     }

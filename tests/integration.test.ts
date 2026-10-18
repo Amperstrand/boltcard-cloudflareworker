@@ -391,7 +391,7 @@ describe('Rate Limiting', () => {
 describe('CSRF Validation', () => {
   it('rejects POST to operator endpoint with mismatched CSRF token', async () => {
     const env = buildCardTestEnv({ operatorAuth: true, extraEnv: { BOLT_CARD_K1: '55da174c9608993dc27bb3f30a4a7314,0c3b25d92b38ae443229dd59ad34b85d', WORKER_ENV: 'production', OPERATOR_SESSION_SECRET: 'test-prod-secret-12345678' } });
-    const session = createSession(env);
+    const session = createSession(env, true);
     const sessionCookie = session.cookie;
     const req = new Request('https://test.local/api/keys', {
       method: 'POST',
