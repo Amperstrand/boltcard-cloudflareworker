@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: []
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Clone ntag424-crypto
         run: git clone https://github.com/Amperstrand/ntag424-crypto.git ../ntag424-crypto
       - name: Build ntag424-crypto
