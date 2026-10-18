@@ -1,0 +1,4 @@
+Vendored from https://github.com/Amperstrand/ntag424-vectors
+upstream commit: 3c35b1ead9cd560bd7f526c943706c2b2e8d8ebd
+vectors.json sha256: 522cab963c3f7db1ab9249c0d4e207b43abc0b4061323fd5c55755959a4ff65f
+Refresh: overwrite vectors.json from upstream, update this LOCK, run `make vectors-check`.
