@@ -1,1 +1,7 @@
+# CI parity (ci.yml runs scripts/sync-js-exports.mjs before lint/typecheck):
+# regenerate exports.ts/buildInfo.ts so lint:build-info sees a fresh
+# BUILD_REVISION, then stage the regenerated files so commits carry the
+# synced values (same convention as the checked-in sync output on main).
+node scripts/sync-js-exports.mjs
+git add static/js/exports.ts utils/buildInfo.ts
 npm run lint && npm run typecheck
