@@ -18,8 +18,8 @@ importers:
         specifier: github:Amperstrand/ntag424-crypto#v1.4.0
         version: https://codeload.github.com/Amperstrand/ntag424-crypto/tar.gz/436d9074be9cf02bbb1f44370bc0a76dbe8119cb
       '@scure/base':
-        specifier: ^2.3.0
-        version: 2.3.0
+        specifier: ^2.4.0
+        version: 2.4.0
       itty-router:
         specifier: 5.0.24
         version: 5.0.24
@@ -1080,8 +1080,8 @@ packages:
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
 
-  '@scure/base@2.3.0':
-    resolution: {integrity: sha512-NsG6Y03tY6R5BUis4FdVtHVkur0U6FOzskgs9ZXNl78CUc9fkZ78HmENUle1nSOkCasDmbubmWD9qwB7mm4PZA==}
+  '@scure/base@2.4.0':
+    resolution: {integrity: sha512-thZ1TuJwFwBblOhgsjDKvvGirBxNp+wSvY/DR6tJBJOTDhdAAcHJ8Vbr2eFnqaxeca4+t0i9KBf+uHYGWwZORg==}
 
   '@sindresorhus/is@7.2.0':
     resolution: {integrity: sha512-P1Cz1dWaFfR4IR+U13mqqiGsLFf1KbayybWwdd2vfctdV6hDpUkgCY0nKOLLTMSoRd/jJNjtbqzf13K8DCCXQw==}
@@ -2439,7 +2439,7 @@ snapshots:
   '@ntag424/crypto@https://codeload.github.com/Amperstrand/ntag424-crypto/tar.gz/436d9074be9cf02bbb1f44370bc0a76dbe8119cb':
     dependencies:
       '@noble/ciphers': 2.4.0
-      '@scure/base': 2.3.0
+      '@scure/base': 2.4.0
 
   '@oxc-project/types@0.139.0': {}
 
@@ -2570,7 +2570,7 @@ snapshots:
 
   '@rolldown/pluginutils@1.0.1': {}
 
-  '@scure/base@2.3.0': {}
+  '@scure/base@2.4.0': {}
 
   '@sindresorhus/is@7.2.0': {}
 
