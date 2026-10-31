@@ -108,6 +108,17 @@ describe("ntag424-vectors cross-language conformance suite", () => {
           if (!res.success) return;
           expect(bytesToHex(res.uidBytes)).toBe(str(expected, "uid"));
           expect(apiToLe(res.ctr)).toBe(str(expected, "counter_bytes"));
+          // Pin the FULL verification chain (issue #71): sv2, the derived
+          // MAC key (ks), and the untruncated CMAC (cm) are pinned in every
+          // positive record — divergence in untruncated bytes must fail here.
+          const verification = buildVerificationData(
+            res.uidBytes,
+            res.ctr,
+            hexToBytes(str(input, "k2")),
+          );
+          expect(bytesToHex(verification.sv2)).toBe(str(expected, "sv2"));
+          expect(bytesToHex(verification.ks)).toBe(str(expected, "derived_mac_key"));
+          expect(bytesToHex(verification.cm)).toBe(str(expected, "full_cmac"));
           const { cmac_validated } = verifyCmac(
             res.uidBytes,
             res.ctr,
