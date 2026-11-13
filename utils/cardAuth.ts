@@ -44,6 +44,15 @@ export async function resolveCardIdentity(
     return { ok: false, status: 400, error: "Missing card parameters (p and c required)" };
   }
 
+  // Hex gate BEFORE any crypto: a well-formed-length but non-hex c= used to
+  // throw inside verifyCmac's hexToBytes and surface as an "Internal error"
+  // 500 (audit finding #9) — the p= path already answered 400 for the same
+  // input class. Same bucket, no new failure taxonomy.
+  const HEX_RE = /^(?:[0-9a-fA-F]{2})+$/;
+  if (!HEX_RE.test(pHex) || !HEX_RE.test(cHex)) {
+    return { ok: false, status: 400, error: "Invalid card data" };
+  }
+
   const decryption = extractUIDAndCounter(pHex, env);
   if (!decryption.success) {
     return { ok: false, status: 400, error: "Invalid card data" };

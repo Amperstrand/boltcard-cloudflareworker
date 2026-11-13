@@ -170,15 +170,26 @@ export async function handleClaimTap(sql: SqlStorage, request: Request): Promise
     return Response.json({ claimed: false, reason: "Tap already claimed", bolt11: tap.bolt11 }, { status: 409 });
   }
 
+  // Amount-only taps must be exactly-once per counter. A plain UPDATE here
+  // re-claimed the row on EVERY replayed amount-only callback (bolt11 stays
+  // NULL), debiting the balance repeatedly from one sniffed tap — the
+  // 2026-11-13 security audit's finding #12. The conditional UPDATE is a
+  // single atomic SQLite statement inside the serialized DO: exactly one
+  // claimant flips pending->paying; 'completed' rows never re-claim.
   const now = nowSec();
-  sql.exec(
-    `UPDATE taps SET bolt11 = ?, amount_msat = COALESCE(?, amount_msat), status = 'pending', updated_at = ? WHERE counter = ?`,
+  const claimed = sql.exec(
+    `UPDATE taps SET bolt11 = ?, amount_msat = COALESCE(?, amount_msat), status = 'paying', updated_at = ?
+     WHERE counter = ? AND bolt11 IS NULL AND status NOT IN ('paying', 'completed')
+     RETURNING counter`,
     bolt11 || null,
     amountMsat ?? null,
     now,
     counter
-  );
+  ).toArray();
 
+  if (claimed.length === 0) {
+    return Response.json({ claimed: false, reason: "Tap already claimed" }, { status: 409 });
+  }
   return Response.json({ claimed: true });
 }
 
