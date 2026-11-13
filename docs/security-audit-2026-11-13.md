@@ -20,6 +20,17 @@ constant-time comparison.
 
 ## Fixed in this audit (PR same day)
 
+> **LIVE VERIFICATION 2026-11-13 (post-deploy of #83 + #85):** a synthetic
+> deterministic tap (public issuer key, UID 04dead00c0ffee — the designed
+> anonymous path, no funds) against https://boltcardpoc.psbt.me:
+> withdrawRequest **200** → amount-only callback **402** (insufficient
+> balance, tap consumed) → replay **409 "Tap already claimed"**.
+> The first fix (#83) alone still allowed one re-claim after a FAILED
+> attempt (live-probe caught it: 402→402); #85 keyed the guard on
+> `status='read'` so first-callback-wins holds on both success and failure
+> paths. Probe: /tmp/opencode/live-verify-claim.cjs pattern (reproduce with
+> the repo's own @ntag424/crypto + aes-js).
+
 | # | Finding | Fix |
 |---|---|---|
 | 12 | **Amount-only callbacks re-debit per replay**: `claimTap` re-claimed NULL-bolt11 tap rows unconditionally, so one sniffed tap (one counter) could drain a card's balance in repeated debits — contradicting the "double-spend is impossible" posture documented at AGENTS.md:262-269 | Atomic one-shot claim: single-statement `UPDATE … WHERE bolt11 IS NULL AND status NOT IN ('paying','completed')` — exactly one claimant flips pending→paying; SQLite-atomic inside the serialized DO |
