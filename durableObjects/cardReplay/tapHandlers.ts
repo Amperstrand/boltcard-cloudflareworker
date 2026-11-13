@@ -170,16 +170,21 @@ export async function handleClaimTap(sql: SqlStorage, request: Request): Promise
     return Response.json({ claimed: false, reason: "Tap already claimed", bolt11: tap.bolt11 }, { status: 409 });
   }
 
-  // Amount-only taps must be exactly-once per counter. A plain UPDATE here
-  // re-claimed the row on EVERY replayed amount-only callback (bolt11 stays
-  // NULL), debiting the balance repeatedly from one sniffed tap — the
-  // 2026-11-13 security audit's finding #12. The conditional UPDATE is a
-  // single atomic SQLite statement inside the serialized DO: exactly one
-  // claimant flips pending->paying; 'completed' rows never re-claim.
+  // Amount-only taps must be exactly-once per counter — first-callback-wins
+  // on BOTH the success and failure paths (issue #53 doctrine): a replayed
+  // amount-only callback must 409 even when the first attempt failed (e.g.
+  // 402 insufficient balance), because recordTap already wrote a 'pending'
+  // row for it. The 2026-11-13 audit's #12: a plain UPDATE re-claimed the
+  // NULL-bolt11 row on every replay, debiting repeatedly from one sniffed
+  // tap. Guard on status='read' — the ONLY state a legitimate first
+  // callback-after-tap-fetch presents ('read' rows come from the withdraw
+  // REQUEST, which never bumps replay_state; any 'pending'+'paying'+
+  // 'completed' row means a callback was already attempted). Single atomic
+  // SQLite statement inside the serialized DO.
   const now = nowSec();
   const claimed = sql.exec(
     `UPDATE taps SET bolt11 = ?, amount_msat = COALESCE(?, amount_msat), status = 'paying', updated_at = ?
-     WHERE counter = ? AND bolt11 IS NULL AND status NOT IN ('paying', 'completed')
+     WHERE counter = ? AND bolt11 IS NULL AND status = 'read'
      RETURNING counter`,
     bolt11 || null,
     amountMsat ?? null,

@@ -51,6 +51,29 @@ describe("security audit 2026-11-13 regressions", () => {
     }
   });
 
+  it("#12b: a FAILED first amount-only attempt (insufficient balance) also consumes the tap", async () => {
+    const uid = makeUid();
+    const { k1, k2 } = await provisionCard(uid); // zero balance, never topped up
+
+    // Mimic the wallet flow: withdrawRequest read first (status 'read'),
+    // then the callback attempt fails on balance — first-callback-wins on
+    // the failure path too (issue #53 doctrine, amount-only half).
+    const { pHex, cHex } = virtualTap(uid, 9, k1, k2);
+    const req = await apiFetch(`/?p=${pHex}&c=${cHex}`, { headers: { Accept: "application/json" } });
+    expect(req.status).toBe(200);
+
+    const cb = `/boltcards/api/v1/lnurl/cb/${pHex}?k1=${cHex}&amount=1000`;
+    const cb1 = await apiFetch(cb);
+    expect(cb1.status).toBe(402);
+    const j1 = (await cb1.json()) as { reason?: string };
+    expect(String(j1.reason ?? "")).toContain("Insufficient balance");
+
+    const cb2 = await apiFetch(cb);
+    expect(cb2.status).toBe(409);
+    const j2 = (await cb2.json()) as { reason?: string };
+    expect(String(j2.reason ?? "")).toContain("already claimed");
+  });
+
   it("#9: a non-hex c= answers 400, not an internal-error 500", async () => {
     const uid = makeUid();
     const { k1, k2 } = await provisionCard(uid);
