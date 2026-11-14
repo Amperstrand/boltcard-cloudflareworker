@@ -1,5 +1,6 @@
 import type { AppRouter } from "../middleware/withOperatorAuth.js";
 import { withOperatorAuth } from "../middleware/withOperatorAuth.js";
+import { withKeyEndpointAuth } from "../middleware/withKeyEndpointAuth.js";
 import { handleIdentifyCard } from "../handlers/identifyCardHandler.js";
 import { handleIdentifyIssuerKey } from "../handlers/identifyIssuerKeyHandler.js";
 import { handleVirtualCardKeys } from "../handlers/virtualCardHandler.js";
@@ -14,7 +15,7 @@ export function registerApiRoutes(router: AppRouter): void {
 
   router.get("/api/keys", withOperatorAuth((request, env) => handleGetKeys(request, env)));
   router.post("/api/keys", withOperatorAuth((request, env) => handleGetKeys(request, env)));
-  router.all("/api/v1/pull-payments/:pullPaymentId/boltcards", (request, env) => fetchBoltCardKeys(request, env));
+  router.all("/api/v1/pull-payments/:pullPaymentId/boltcards", withKeyEndpointAuth((request, env) => fetchBoltCardKeys(request, env)));
   router.get("/api/bulk-wipe-keys", withOperatorAuth((request) => handleBulkWipeKeys(request)));
   router.post("/api/bulk-wipe-keys", withOperatorAuth((request) => handleBulkWipeKeys(request)));
 }

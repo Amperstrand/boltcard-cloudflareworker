@@ -1,4 +1,5 @@
 import type { AppRouter } from "../middleware/withOperatorAuth.js";
+import { withKeyEndpointAuth } from "../middleware/withKeyEndpointAuth.js";
 import { redirect, errorResponse } from "../utils/responses.js";
 import { handleStatus } from "../handlers/statusHandler.js";
 import { handleLnurlw } from "../handlers/lnurlwHandler.js";
@@ -30,7 +31,7 @@ export function registerPublicRoutes(router: AppRouter): void {
   router.get("/lnurlp/cb", (request, env) => handleLnurlPayCallback(request, env));
   router.get("/api/verify-identity", (request, env) => handleIdentityVerify(request, env));
   router.post("/api/identity/profile", (request, env) => handleIdentityProfileUpdate(request, env));
-  router.get("/api/vc/keys", (request, env) => handleVirtualCardKeys(request, env));
+  router.get("/api/vc/keys", withKeyEndpointAuth((request, env) => handleVirtualCardKeys(request, env)));
   router.post("/api/balance-check", (request, env) => handleBalanceCheck(request, env));
   router.post("/api/client-error", (request, env) => handleClientError(request, env));
 
