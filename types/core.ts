@@ -203,6 +203,11 @@ export interface Env {
   OPERATOR_PIN?: string;
   OPERATOR_SESSION_SECRET?: string;
 
+  // "operator" gates the key-material endpoints behind an operator session
+  // (middleware/withKeyEndpointAuth.ts, audit #20); unset/"open" keeps the
+  // demo/HIL posture.
+  KEY_ENDPOINTS_AUTH?: string;
+
   WORKER_ENV?: string;
   ENVIRONMENT?: string;
   ENABLE_PERCARD_FALLBACK?: string;
