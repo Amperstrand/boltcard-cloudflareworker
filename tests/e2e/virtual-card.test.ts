@@ -136,10 +136,17 @@ describe("E2E: Virtual card — LNURL-withdraw (fakewallet)", () => {
     expect(loginResp.status).toBe(200);
     const loginJson = await loginResp.json() as Record<string, any>;
     expect(loginJson.success).toBe(true);
-    expect(loginJson.tapHistory).toHaveLength(3);
-    expect(loginJson.tapHistory[0].counter).toBe(1);
-    expect(loginJson.tapHistory[0].status).toBe("completed");
-    expect(loginJson.tapHistory[1].status).toBe("payment");
+    expect(loginJson.tapHistory).toHaveLength(5);
+    // Cross-source ordering depends on second boundaries; assert the
+    // multiset of statuses + the tap row itself.
+    const statuses = (loginJson.tapHistory as Array<Record<string, any>>).map((e) => e.status).sort();
+    expect(statuses).toEqual(["activated", "completed", "payment", "provisioned", "topup"]);
+    const tapEntry = (loginJson.tapHistory as Array<Record<string, any>>).find((e) => e.counter === 1);
+    expect(tapEntry!.status).toBe("completed");
+    expect(tapEntry!.bolt11).toContain("lnbc10n1testinvoice");
+    for (const e of [ "provisioned", "activated" ] as const) {
+      expect(loginJson.tapHistory).toContainEqual(expect.objectContaining({ status: e, counter: null }));
+    }
   });
 
   test("stale counter callback is rejected with 409 to prevent double-debit", async () => {
@@ -387,7 +394,7 @@ describe("E2E: Virtual card — login and tap history", () => {
     expect(loginResp.status).toBe(200);
     const json = await loginResp.json() as Record<string, any>;
     expect(json.success).toBe(true);
-    expect(json.tapHistory).toHaveLength(6);
+    expect(json.tapHistory).toHaveLength(7);
 
     expect(json.tapHistory[0].counter).toBe(3);
     expect([3, 2]).toContain(json.tapHistory[2].counter);

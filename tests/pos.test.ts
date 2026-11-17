@@ -89,8 +89,9 @@ describe("POS Amount Parameter Support", () => {
     const listResp = await stub.fetch(new Request("https://internal/list-taps"));
     const listJson = await listResp.json() as any;
 
-    expect(listJson.taps).toHaveLength(1);
+    expect(listJson.taps).toHaveLength(2);
     expect(listJson.taps[0].amount_msat).toBe(5000);
+    expect(listJson.taps[1]).toEqual(expect.objectContaining({ status: "activated", counter: null }));
   });
 
   test("callback handler works when only amount is provided (no pr) - for fakewallet POS", async () => {
@@ -126,9 +127,10 @@ describe("POS Amount Parameter Support", () => {
     const listResp = await stub.fetch(new Request("https://internal/list-taps"));
     const listJson = await listResp.json() as any;
 
-    expect(listJson.taps).toHaveLength(1);
+    expect(listJson.taps).toHaveLength(2);
     expect(listJson.taps[0].amount_msat).toBe(10000);
     expect(listJson.taps[0].bolt11).toBeNull();
+    expect(listJson.taps[1]).toEqual(expect.objectContaining({ status: "activated", counter: null }));
   });
 
   test("callback handler rejects request when both pr and amount are missing", async () => {
@@ -224,8 +226,9 @@ describe("POS Amount Parameter Support", () => {
     const listResp = await stub.fetch(new Request("https://internal/list-taps"));
     const listJson = await listResp.json() as any;
 
-    expect(listJson.taps).toHaveLength(1);
+    expect(listJson.taps).toHaveLength(2);
     expect(listJson.taps[0].amount_msat).toBe(25000);
+    expect(listJson.taps[1]).toEqual(expect.objectContaining({ status: "activated", counter: null }));
   });
 
   test("fakewallet debits correct amount when explicit amount provided", async () => {
