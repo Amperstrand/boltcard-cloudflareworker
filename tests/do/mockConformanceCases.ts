@@ -15,14 +15,18 @@ export interface ContractCase {
   steps: Array<(ctx: unknown[]) => StepReq>;
   /**
    * PLATFORM DIVERGENCE (parked): on these cases the real-DO leg is
-   * unobservable through the workerd DO stub — a malformed JSON body makes
-   * `request.json()` throw a jsg.SyntaxError that escapes
-   * CardReplayStore.fetch's `catch (err instanceof SyntaxError)` and rejects
-   * the stub RPC, so the dispatcher's documented 400 branch never runs in
-   * the test pool. The mock (node pool) executes the dispatcher contract
-   * faithfully; these cases pin the mock to that documented oracle instead
-   * of cross-implementation parity. Revisit if workerd ever makes the JSON
-   * parse error catchable inside the DO (see ops session #27 log).
+   * unobservable through the workerd DO stub. The remaining parked family
+   * is the /import-state SQLITE_MISMATCH bind error (ops#37 wave 3): the
+   * SqlStorage bind failure escapes CardReplayStore.fetch's catch and
+   * rejects the stub RPC before the dispatcher's documented 500 can run.
+   * The mock (node pool) executes the dispatcher contract faithfully;
+   * these cases pin the mock to that documented oracle instead of
+   * cross-implementation parity. The malformed-JSON family formerly parked
+   * here (ops#27) was un-parked by the ops#35 safe-parse decision: DO
+   * handlers now parse bodies via `await request.text()` + JSON.parse
+   * (durableObjects/cardReplay/bodyParse.ts), which keeps the parse
+   * failure inside the DO as a catchable JS SyntaxError, so those cases
+   * assert full mock-vs-real parity.
    */
   platformDivergence?: { expected: Verdict[] };
 }
@@ -406,30 +410,71 @@ export const CONTRACT_CASES: ContractCase[] = [
     ],
   },
 
-  // malformed JSON — PLATFORM DIVERGENCE (parked): real DO stub fetch
-  // rejects with an uncatchable workerd jsg SyntaxError (request.json()
-  // parse failure escapes CardReplayStore.fetch's catch), so its 400
-  // {error:"Invalid JSON body"} branch is unobservable in the test pool.
-  // The mock must keep delivering the dispatcher's documented 400.
+  // malformed JSON — PARITY (ops#35 safe-parse): the DO handlers parse
+  // bodies via text()+JSON.parse (durableObjects/cardReplay/bodyParse.ts),
+  // so the documented 400 {error:"Invalid JSON body"} is observable on the
+  // real-DO leg too. Both legs must agree.
   {
     name: "/check: malformed JSON body rejected 400",
     steps: [() => rawPost("/check", "{not json")],
-    platformDivergence: { expected: [{ status: 400, body: { error: "Invalid JSON body" } }] },
   },
   {
     name: "/record-tap: malformed JSON body rejected 400",
     steps: [() => rawPost("/record-tap", "{not json")],
-    platformDivergence: { expected: [{ status: 400, body: { error: "Invalid JSON body" } }] },
   },
   {
     name: "/claim-tap: malformed JSON body rejected 400",
     steps: [() => rawPost("/claim-tap", "{not json")],
-    platformDivergence: { expected: [{ status: 400, body: { error: "Invalid JSON body" } }] },
   },
   {
     name: "/k1-issue: malformed JSON body rejected 400",
     steps: [() => rawPost("/k1-issue", "{not json")],
-    platformDivergence: { expected: [{ status: 400, body: { error: "Invalid JSON body" } }] },
+  },
+  {
+    // ops#35: the safe-parse wrapper covers EVERY body-parsing DO route;
+    // these pin the remaining routes to the same mock-vs-real parity.
+    name: "/check-readonly: malformed JSON body rejected 400",
+    steps: [() => rawPost("/check-readonly", "{not json")],
+  },
+  {
+    name: "/record-read: malformed JSON body rejected 400",
+    steps: [() => rawPost("/record-read", "{not json")],
+  },
+  {
+    name: "/update-tap-status: malformed JSON body rejected 400",
+    steps: [() => rawPost("/update-tap-status", "{not json")],
+  },
+  {
+    name: "/k1-verify: malformed JSON body rejected 400",
+    steps: [() => rawPost("/k1-verify", "{not json")],
+  },
+  {
+    name: "/credit: malformed JSON body rejected 400",
+    steps: [() => rawPost("/credit", "{not json")],
+  },
+  {
+    name: "/void: malformed JSON body rejected 400",
+    steps: [() => rawPost("/void", "{not json")],
+  },
+  {
+    name: "/set-config: malformed JSON body rejected 400",
+    steps: [() => rawPost("/set-config", "{not json")],
+  },
+  {
+    name: "/set-k2: malformed JSON body rejected 400",
+    steps: [() => rawPost("/set-k2", "{not json")],
+  },
+  {
+    name: "/mark-pending: malformed JSON body rejected 400",
+    steps: [() => rawPost("/mark-pending", "{not json")],
+  },
+  {
+    name: "/discover: malformed JSON body rejected 400",
+    steps: [() => rawPost("/discover", "{not json")],
+  },
+  {
+    name: "/import-state: malformed JSON body rejected 400",
+    steps: [() => rawPost("/import-state", "{not json")],
   },
 
   // unknown route
@@ -1068,18 +1113,16 @@ export const CONTRACT_CASES: ContractCase[] = [
     ],
   },
 
-  // malformed JSON — PLATFORM DIVERGENCE (parked), ops#27 precedent: the real
-  // DO stub rejects at the workerd RPC boundary before the dispatcher's
-  // documented 400 can run; the mock must keep delivering that 400 oracle.
+  // malformed JSON — PARITY (ops#35 safe-parse, ops#36 wave-2 routes): the
+  // DO handlers' text()+JSON.parse wrapper keeps the documented 400
+  // observable on the real-DO leg. Both legs must agree.
   {
     name: "/debit: malformed JSON body rejected 400",
     steps: [() => rawPost("/debit", "{not json")],
-    platformDivergence: { expected: [{ status: 400, body: { error: "Invalid JSON body" } }] },
   },
   {
     name: "/activate: malformed JSON body rejected 400",
     steps: [() => rawPost("/activate", "{not json")],
-    platformDivergence: { expected: [{ status: 400, body: { error: "Invalid JSON body" } }] },
   },
 
   // -------------------------------------------------------------------------

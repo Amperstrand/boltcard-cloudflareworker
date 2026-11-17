@@ -1,5 +1,6 @@
 import type { K1IssuePayload, K1VerifyPayload } from "./types.js";
 import { nowSec } from "./types.js";
+import { invalidJsonBodyResponse, parseJsonBody } from "./bodyParse.js";
 
 // K1_FRESH (audit #13, default OFF — handlers/withdrawHandler.ts +
 // handlers/lnurlHandler.ts gate on the env flag). Go parity:
@@ -19,7 +20,11 @@ function randomK1Hex(): string {
 }
 
 export async function handleK1Issue(sql: SqlStorage, request: Request): Promise<Response> {
-  const { counterValue, maxAgeSec } = await request.json() as K1IssuePayload;
+  const body = await parseJsonBody<K1IssuePayload>(request);
+  if (body === null) {
+    return invalidJsonBodyResponse();
+  }
+  const { counterValue, maxAgeSec } = body;
   if (!Number.isInteger(counterValue) || counterValue < 0) {
     return Response.json({ error: "Invalid counter value" }, { status: 400 });
   }
@@ -43,7 +48,11 @@ export async function handleK1Issue(sql: SqlStorage, request: Request): Promise<
 }
 
 export async function handleK1Verify(sql: SqlStorage, request: Request): Promise<Response> {
-  const { k1, counterValue, ttlSeconds } = await request.json() as K1VerifyPayload;
+  const body = await parseJsonBody<K1VerifyPayload>(request);
+  if (body === null) {
+    return invalidJsonBodyResponse();
+  }
+  const { k1, counterValue, ttlSeconds } = body;
   if (typeof k1 !== "string" || k1.length === 0 || !Number.isInteger(counterValue) || counterValue < 0) {
     return Response.json({ valid: false, reason: "Invalid k1 verify request" }, { status: 400 });
   }

@@ -1,9 +1,14 @@
 import type { CreditPayload, DebitPayload } from "./types.js";
 import { nowSec } from "./types.js";
+import { invalidJsonBodyResponse, parseJsonBody } from "./bodyParse.js";
 import { MAX_BALANCE } from "../../utils/constants.js";
 
 export async function handleDebit(sql: SqlStorage, request: Request): Promise<Response> {
-  const { counter, amount, note } = await request.json() as DebitPayload;
+  const body = await parseJsonBody<DebitPayload>(request);
+  if (body === null) {
+    return invalidJsonBodyResponse();
+  }
+  const { counter, amount, note } = body;
   if (!Number.isInteger(amount) || amount <= 0) {
     return Response.json({ ok: false, reason: "Amount must be a positive integer" }, { status: 400 });
   }
@@ -37,7 +42,11 @@ export async function handleDebit(sql: SqlStorage, request: Request): Promise<Re
 }
 
 export async function handleCredit(sql: SqlStorage, request: Request): Promise<Response> {
-  const { amount, note } = await request.json() as CreditPayload;
+  const body = await parseJsonBody<CreditPayload>(request);
+  if (body === null) {
+    return invalidJsonBodyResponse();
+  }
+  const { amount, note } = body;
   if (!Number.isInteger(amount) || amount <= 0) {
     return Response.json({ ok: false, reason: "Amount must be a positive integer" }, { status: 400 });
   }
@@ -74,7 +83,11 @@ export async function handleCredit(sql: SqlStorage, request: Request): Promise<R
 }
 
 export async function handleVoid(sql: SqlStorage, request: Request): Promise<Response> {
-  const { transactionId } = await request.json() as { transactionId: number };
+  const body = await parseJsonBody<{ transactionId: number }>(request);
+  if (body === null) {
+    return invalidJsonBodyResponse();
+  }
+  const { transactionId } = body;
 
   const rows = sql.exec(
     `SELECT id, amount, balance_after, voided_at, note FROM transactions WHERE id = ?`,
