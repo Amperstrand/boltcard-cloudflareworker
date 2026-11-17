@@ -116,8 +116,7 @@ export const makeReplayNamespace = (
   const toId = (name: string): DurableObjectId => name.toLowerCase() as unknown as DurableObjectId;
   const fromId = (id: DurableObjectId): string => String(id).toLowerCase();
 
-  const makeStub = (idStr: string): DurableObjectStub<undefined> => ({
-    fetch: async (request: Request): Promise<Response> => {
+  const routeRequest = async (idStr: string, request: Request): Promise<Response> => {
       const url = new URL(request.url);
 
       if (request.method === "GET" && url.pathname === "/card-state") {
@@ -364,6 +363,9 @@ export const makeReplayNamespace = (
 
       if (request.method === "POST" && url.pathname === "/check") {
         const { counterValue } = (await request.json()) as { counterValue: number };
+        if (!Number.isInteger(counterValue) || counterValue < 0) {
+          return Response.json({ accepted: false, reason: "Invalid counter value" }, { status: 400 });
+        }
         const lastCounter = counters.has(idStr) ? counters.get(idStr)! : null;
 
         if (lastCounter !== null && counterValue <= lastCounter) {
@@ -383,6 +385,9 @@ export const makeReplayNamespace = (
 
       if (request.method === "POST" && url.pathname === "/check-readonly") {
         const { counterValue } = (await request.json()) as { counterValue: number };
+        if (!Number.isInteger(counterValue) || counterValue < 0) {
+          return Response.json({ accepted: false, reason: "Invalid counter value" }, { status: 400 });
+        }
         const lastCounter = counters.has(idStr) ? counters.get(idStr)! : null;
 
         if (lastCounter !== null && counterValue <= lastCounter) {
@@ -405,11 +410,15 @@ export const makeReplayNamespace = (
           userAgent?: string;
           requestUrl?: string;
         };
-        const tapKey = `${idStr}:${counterValue}`;
+        // Real DO (tapHandlers.handleRecordRead): invalid/absent counter
+        // falls back to Date.now() so the read row is still recorded.
+        const counter: number =
+          Number.isInteger(counterValue) && counterValue >= 0 ? counterValue : Date.now();
+        const tapKey = `${idStr}:${counter}`;
         if (!taps.has(tapKey)) {
           const now = Math.floor(Date.now() / 1000);
           taps.set(tapKey, {
-            counter: counterValue,
+            counter,
             bolt11: null,
             status: "read",
             payment_hash: null,
@@ -431,23 +440,15 @@ export const makeReplayNamespace = (
           userAgent?: string;
           requestUrl?: string;
         };
-        const lastCounter = counters.has(idStr) ? counters.get(idStr)! : null;
-        const tapKey = `${idStr}:${counterValue}`;
-        const existingTap = taps.get(tapKey);
-
-        if (existingTap && existingTap.status === "read" && !existingTap.bolt11) {
-          const now = Math.floor(Date.now() / 1000);
-          counters.set(idStr, counterValue);
-          taps.set(tapKey, {
-            ...existingTap,
-            bolt11: bolt11 || null,
-            amount_msat: amountMsat || null,
-            status: "pending",
-            updated_at: now,
-          });
-          return Response.json({ accepted: true, lastCounter: counterValue, tapRecorded: true });
+        if (!Number.isInteger(counterValue) || counterValue < 0) {
+          return Response.json({ accepted: false, reason: "Invalid counter value" }, { status: 400 });
         }
+        const lastCounter = counters.has(idStr) ? counters.get(idStr)! : null;
 
+        // Real DO (tapHandlers.handleRecordTap): the tap is recorded only
+        // when the counter STRICTLY advances; a step-1-advanced counter
+        // (check at step 1 wrote last_counter == counterValue) is a 409
+        // here and the callback proceeds via /claim-tap's read-row path.
         if (lastCounter !== null && counterValue <= lastCounter) {
           return Response.json(
             {
@@ -461,7 +462,8 @@ export const makeReplayNamespace = (
 
         counters.set(idStr, counterValue);
         const now = Math.floor(Date.now() / 1000);
-        taps.set(tapKey, {
+        // INSERT OR REPLACE: the row (and its created_at) is fresh.
+        taps.set(`${idStr}:${counterValue}`, {
           counter: counterValue,
           bolt11: bolt11 || null,
           status: "pending",
@@ -482,6 +484,9 @@ export const makeReplayNamespace = (
           bolt11?: string;
           amountMsat?: number;
         };
+        if (!Number.isInteger(counter) || counter < 0) {
+          return Response.json({ claimed: false, reason: "Invalid counter" }, { status: 400 });
+        }
         const tapKey = `${idStr}:${counter}`;
         const tap = taps.get(tapKey);
 
@@ -538,7 +543,7 @@ export const makeReplayNamespace = (
           amountMsat?: number;
         };
 
-        if (!counter || !status) {
+        if (counter == null || !status) {
           return Response.json({ error: "Missing counter or status" }, { status: 400 });
         }
 
@@ -814,6 +819,20 @@ export const makeReplayNamespace = (
       }
 
       return new Response("Not found", { status: 404 });
+  };
+
+  const makeStub = (idStr: string): DurableObjectStub<undefined> => ({
+    fetch: async (request: Request): Promise<Response> => {
+      // Mirror the real DO dispatcher (durableObjects/CardReplayStore.ts):
+      // a malformed JSON body is a 400, not an unhandled rejection.
+      try {
+        return await routeRequest(idStr, request);
+      } catch (err: unknown) {
+        if (err instanceof SyntaxError) {
+          return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+        }
+        throw err;
+      }
     },
   }) as DurableObjectStub<undefined>;
 
