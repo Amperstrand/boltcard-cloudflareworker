@@ -216,6 +216,12 @@ export interface Env {
   // way.
   REPLAY_ENFORCE?: string;
 
+  // Comma-separated host allow-list (audit #18). When set, card/LNURL-surface
+  // requests whose Host is not in the list are refused with 400 (Go reference
+  // behavior — middleware/withHostPinning.ts). Unset/empty keeps the current
+  // open posture (bounded by the Cloudflare account host binding).
+  ALLOWED_HOSTS?: string;
+
   WORKER_ENV?: string;
   ENVIRONMENT?: string;
   ENABLE_PERCARD_FALLBACK?: string;
