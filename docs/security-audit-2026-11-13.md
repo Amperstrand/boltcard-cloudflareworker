@@ -38,14 +38,18 @@ constant-time comparison.
 
 ## Owner decisions requested (architecture, not bugs)
 
-| # | Finding | Why it stands |
-|---|---|---|
-| 20 | **Public key-material endpoints**: `/api/v1/pull-payments/:id/boltcards` (no capability check on the id) and `/api/vc/keys?uid=` return K0-K4 / K1+K2 for any UID without proof of possession. UIDs are plaintext in anti-collision (CARD_PRIVACY.md), so anyone who ever read a UID can forge valid p/c pairs offline. Go gates new-card keys behind a one-time code. | Possibly deliberate demo/HIL posture (deterministic keys + anonymous taps); changing it may break boltcard-hce/matrix lanes. Needs an explicit accept-or-gate decision. |
-| 10 | Replay rejection disabled by design at step 1 (validateCardTap.ts logs-and-ignores the verdict; machinery is race-free and correct). SPEC.md:39 "must only accept an increasing counter value". | Documented AGENTS posture for the demo; the per-counter claim (now exactly-once for both paths) contains double-spend, but per-tap analytics/notification surfaces still see replays as fresh. |
-| 19 | Distinguishable failure taxonomy (400/403/404/409 + reason text + per-class timing incl. full version-scan for unknown UIDs) vs Go's uniform ERROR/bad-request — CARD_PRIVACY.md "should not be possible … to identify the card any further". | Better operator UX is a legitimate tradeoff; conscious accept recommended. |
-| 18 | No host pinning: callback origin reflected from request (`url.origin`); Go rejects `req.Host != HOST_DOMAIN`. | Bounded by Cloudflare account host binding. |
-| 13 | k1 carries zero entropy (`k1 = c`) and never expires; Go uses 16 random bytes + timeout. | The known boltcard-POS convention (HIL depends on it); security rests on CMAC + claim. Document-only. |
-| 4 | Multi-K1 candidate selection uses 0xC7 heuristic without per-candidate CMAC on the tap path (admin path does it properly). | Contained: wrong-K1 false positive fails downstream K2 CMAC (UID-bound). |
+Each decision is now (or stays) a single binding flip — the #87
+KEY_ENDPOINTS_AUTH pattern: tested, default-OFF flag in code; the owner
+flips the wrangler binding when the posture decision is made.
+
+| # | Finding | Why it stands | Opt-in flag (default OFF) |
+|---|---|---|---|
+| 20 | **Public key-material endpoints**: `/api/v1/pull-payments/:id/boltcards` (no capability check on the id) and `/api/vc/keys?uid=` return K0-K4 / K1+K2 for any UID without proof of possession. UIDs are plaintext in anti-collision (CARD_PRIVACY.md), so anyone who ever read a UID can forge valid p/c pairs offline. Go gates new-card keys behind a one-time code. | Possibly deliberate demo/HIL posture (deterministic keys + anonymous taps); changing it may break boltcard-hce/matrix lanes. Needs an explicit accept-or-gate decision. | `KEY_ENDPOINTS_AUTH=operator` (#87) |
+| 10 | Replay rejection disabled by design at step 1 (validateCardTap.ts logs-and-ignores the verdict; machinery is race-free and correct). SPEC.md:39 "must only accept an increasing counter value". | Documented AGENTS posture for the demo; the per-counter claim (now exactly-once for both paths) contains double-spend, but per-tap analytics/notification surfaces still see replays as fresh. | `REPLAY_ENFORCE` (wave 2) — 409 at the three log-and-continue sites (step 1, LNURL-pay callback, operator taps); claim machinery unaffected either way |
+| 19 | Distinguishable failure taxonomy (400/403/404/409 + reason text + per-class timing incl. full version-scan for unknown UIDs) vs Go's uniform ERROR/bad-request — CARD_PRIVACY.md "should not be possible … to identify the card any further". | Better operator UX is a legitimate tradeoff; conscious accept recommended. | — (conscious accept; no flag needed) |
+| 18 | No host pinning: callback origin reflected from request (`url.origin`); Go rejects `req.Host != HOST_DOMAIN`. | Bounded by Cloudflare account host binding. | — (bounded; wave 2 candidate) |
+| 13 | k1 carries zero entropy (`k1 = c`) and never expires; Go uses 16 random bytes + timeout. | The known boltcard-POS convention (HIL depends on it); security rests on CMAC + claim. Document-only. | — (documented convention; wave 2 candidate) |
+| 4 | Multi-K1 candidate selection uses 0xC7 heuristic without per-candidate CMAC on the tap path (admin path does it properly). | Contained: wrong-K1 false positive fails downstream K2 CMAC (UID-bound). | — (contained; no flag needed) |
 
 ## Confirmed clean
 

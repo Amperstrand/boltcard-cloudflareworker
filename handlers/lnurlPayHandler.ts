@@ -6,6 +6,7 @@ import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { recordTap, updateTapStatus } from "../replayProtection.js";
 import { resolveLightningAddress } from "../utils/lightningAddress.js";
 import { resolveCardIdentity, type ResolveResult } from "../utils/cardAuth.js";
+import { isFlagOn } from "../utils/envFlags.js";
 
 function getPosAddressPool(env: Env): string[] {
   if (env?.POS_ADDRESS_POOL) {
@@ -94,9 +95,22 @@ export async function handleLnurlPayCallback(request: Request, env: Env): Promis
         requestUrl: request.url,
       });
       if (!tapResult.accepted) {
-        // DESIGN DECISION: Replay enforcement disabled — LNURL-pay callbacks may be
-        // retried by the wallet on network errors. Double-spend is prevented by the
-        // atomic bolt11 claim in the DO (claimTap), not by counter enforcement.
+        // DESIGN DECISION: Replay enforcement disabled by default — LNURL-pay
+        // callbacks may be retried by the wallet on network errors. Double-
+        // spend is prevented by the atomic bolt11 claim in the DO (claimTap),
+        // not by counter enforcement.
+        //
+        // REPLAY_ENFORCE (audit #10, default OFF): reject the replayed
+        // counter with 409 instead (SPEC.md:39 / Go reference behavior).
+        if (isFlagOn(env.REPLAY_ENFORCE)) {
+          logger.warn("LNURL-pay callback replay detected — rejecting (REPLAY_ENFORCE)", {
+            uidHex,
+            counterValue,
+            lastCounter: tapResult.lastCounter,
+            reason: tapResult.reason,
+          });
+          return errorResponse("Counter replay detected — callback rejected (REPLAY_ENFORCE)", 409);
+        }
         logger.warn("LNURL-pay callback replay detected — continuing (replay enforcement disabled by design, see AGENTS.md)", {
           uidHex,
           counterValue,

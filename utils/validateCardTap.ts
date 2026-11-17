@@ -6,6 +6,7 @@ import { getUidConfig } from "../getUidConfig.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { getCardState, activateCard, checkAndAdvanceCounter, recordTapRead, setCardK2 } from "../replayProtection.js";
 import { logger } from "../utils/logger.js";
+import { isFlagOn } from "./envFlags.js";
 import { CARD_STATE } from "./constants.js";
 import { detectCardVersion } from "./versionDetection.js";
 
@@ -134,8 +135,8 @@ export async function validateCardTap(request: Request, env: Env, { pHex, cHex, 
     logger.error(`${context}: replay protection check failed`, { uidHex, counterValue, error: getErrorMessage(error) });
     return { ok: false, status: 503, error: "Replay protection unavailable" };
   }
-  // DESIGN DECISION: Replay enforcement is intentionally disabled for operator
-  // handlers. The same physical NFC tap (same counter) must be usable across
+  // DESIGN DECISION: Replay enforcement is intentionally disabled by default for
+  // operator handlers. The same physical NFC tap (same counter) must be usable across
   // multiple operations — e.g., top-up then POS charge. Operators may also need
   // to retry a tap if a network error occurred mid-operation.
   //
@@ -144,7 +145,15 @@ export async function validateCardTap(request: Request, env: Env, { pHex, cHex, 
   //   via operator session + CSRF token
   // - Balance updates are atomic per-DO (single-threaded)
   // - The replay counter is still advanced and logged for audit
+  //
+  // REPLAY_ENFORCE (audit #10, default OFF): when the flag is on, a rejected
+  // counter is a hard 409 instead of log-and-continue — SPEC.md:39 "must only
+  // accept an increasing counter value" (the Go reference behavior).
   if (!replayResult.accepted) {
+    if (isFlagOn(env.REPLAY_ENFORCE)) {
+      logger.warn(`${context}: replay detected — rejecting (REPLAY_ENFORCE)`, { uidHex, counterValue, reason: replayResult.reason, lastCounter: replayResult.lastCounter });
+      return { ok: false, status: 409, error: "Tap replay detected — counter must increase" };
+    }
     logger.warn(`${context}: replay detected — continuing (replay enforcement disabled by design, see AGENTS.md)`, { uidHex, counterValue, reason: replayResult.reason, lastCounter: replayResult.lastCounter });
   }
 

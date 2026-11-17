@@ -20,6 +20,7 @@ import type { ClassifyResult } from "../utils/keyLookup.js";
 import { CARD_STATE, PAYMENT_METHOD, VERSION_SCAN_RANGE, MISSING_PARAMS_MSG, TAP_RATE_LIMIT_REQUESTS, TAP_RATE_LIMIT_WINDOW } from "../utils/constants.js";
 import { checkRateLimit } from "../rateLimiter.js";
 import { detectCardVersion } from "../utils/versionDetection.js";
+import { isFlagOn } from "../utils/envFlags.js";
 
 async function discoverUnknownCard(uidHex: string, ctr: string, cHex: string, env: Env): Promise<{ version: number; provenance: ClassifyResult } | null> {
   const uidBytes = hexToBytes(uidHex);
@@ -73,10 +74,19 @@ async function discoverUnknownCard(uidHex: string, ctr: string, cHex: string, en
 async function checkReplayAndRecordTap(env: Env, uidHex: string, counterValue: number, request: Request, fireAndForget: boolean = true): Promise<{ ok: boolean; response?: Response }> {
   try {
     const replayResult: CounterCheckResult = await checkAndAdvanceCounter(env, uidHex, counterValue);
-    // DESIGN DECISION: Replay enforcement disabled — LNURL Step 1 must be idempotent.
-    // A wallet may query the LNURL-withdraw response multiple times before sending
-    // the callback. Payment protection is at callback level via atomic bolt11 claim in DO.
+    // DESIGN DECISION: Replay enforcement disabled by default — LNURL Step 1
+    // must be idempotent. A wallet may query the LNURL-withdraw response
+    // multiple times before sending the callback. Payment protection is at
+    // callback level via atomic bolt11 claim in DO.
+    //
+    // REPLAY_ENFORCE (audit #10, default OFF): reject the replayed counter
+    // with 409 instead — SPEC.md:39 "must only accept an increasing counter
+    // value" (the Go reference behavior).
     if (!replayResult.accepted) {
+      if (isFlagOn(env.REPLAY_ENFORCE)) {
+        logger.warn("Counter replay detected — rejecting (REPLAY_ENFORCE)", { action: "card_tap", uidHex, counterValue, reason: replayResult.reason, lastCounter: replayResult.lastCounter });
+        return { ok: false, response: errorResponse("Counter replay detected — tap rejected (REPLAY_ENFORCE)", 409) };
+      }
       logger.warn("Counter replay detected — continuing (replay enforcement disabled by design, see AGENTS.md)", { action: "card_tap", uidHex, counterValue, reason: replayResult.reason, lastCounter: replayResult.lastCounter });
     }
   } catch (error: unknown) {
