@@ -1081,4 +1081,338 @@ export const CONTRACT_CASES: ContractCase[] = [
     steps: [() => rawPost("/activate", "{not json")],
     platformDivergence: { expected: [{ status: 400, body: { error: "Invalid JSON body" } }] },
   },
+
+  // -------------------------------------------------------------------------
+  // wave-3 contract cases (ops#37) — /list-taps + /transactions upper clamps,
+  // /card-state full-row lifecycle chains, get-config reserved-key override
+  // edges (seeded via /import-state — the only path that can plant reserved
+  // keys in config_json), /import-state rowid-alias datatype edges, and
+  // /analytics NULL amount_msat aggregation semantics.
+  // -------------------------------------------------------------------------
+
+  // upper clamps
+  {
+    // 201 read rows + limit=999: the clamp keeps 200 — counters 201..2 in
+    // counter-DESC order (record-read never creates a card_state row, so
+    // no lifecycle pseudo-rows compete for the slice).
+    name: "/list-taps: 201 rows + limit=999 clamps to 200 (oldest dropped)",
+    steps: [
+      ...Array.from({ length: 201 }, (_, i) => () => post("/record-read", { counterValue: i + 1 })),
+      () => get("/list-taps?limit=999"),
+    ],
+  },
+  {
+    name: "/transactions: import 201 txns + limit=999 clamps to 200",
+    steps: [
+      () =>
+        post("/import-state", {
+          version: 1,
+          transactions: Array.from({ length: 201 }, (_, i) => ({
+            id: i + 1,
+            counter: null,
+            amount: 1,
+            balance_after: 1,
+            created_at: 1000 + (i + 1),
+            note: null,
+            voided_at: null,
+          })),
+        }),
+      () => get("/transactions?limit=999"),
+    ],
+  },
+  {
+    // Pins that the clamp is not off-by-one downward: limit exactly 200
+    // over 201 rows still returns 200.
+    name: "/list-taps: 201 rows + limit=200 exact returns 200",
+    steps: [
+      ...Array.from({ length: 201 }, (_, i) => () => post("/record-read", { counterValue: i + 1 })),
+      () => get("/list-taps?limit=200"),
+    ],
+  },
+
+  // /card-state full-row chains
+  {
+    // DO oracle (cardStateHandlers.handleGetCardState): no row → the full
+    // 12-field default object (no singleton column) — pins every field.
+    name: "/card-state: fresh card returns full default row",
+    steps: [() => get("/card-state")],
+  },
+  {
+    // discover's pending→discovered UPDATE touches state / active_version /
+    // provenance trio only — latest_issued_version keeps the pending row's
+    // default 0 (only the fresh-INSERT path seeds liv = version).
+    name: "/card-state: mark-pending → discover full row (trio, liv stays 0)",
+    steps: [
+      () => post("/mark-pending", { key_provenance: "public_issuer", key_fingerprint: "abc123", key_label: "Venue A" }),
+      () => post("/discover", { key_provenance: "env_issuer", key_fingerprint: "def456", key_label: "Venue B", active_version: 2 }),
+      () => get("/card-state"),
+    ],
+  },
+  {
+    // activate's conflict UPDATE leaves keys_delivered_at alone (only the
+    // fresh-INSERT column list NULLs it).
+    name: "/card-state: deliver-keys → activate keeps keys_delivered_at",
+    steps: [
+      () => post("/deliver-keys"),
+      () => post("/activate", { active_version: 1 }),
+      () => get("/card-state"),
+    ],
+  },
+  {
+    // terminate's UPDATE only sets state + terminated_at — active_version
+    // and activated_at survive it; a later activate clears terminated_at.
+    name: "/card-state: terminate keeps active_version, re-activate clears terminated_at",
+    steps: [
+      () => post("/activate", { active_version: 2 }),
+      () => post("/terminate"),
+      () => get("/card-state"),
+      () => post("/activate", { active_version: 3 }),
+      () => get("/card-state"),
+    ],
+  },
+  {
+    // Every field of the card_state row after a full provision → wipe
+    // chain: liv from deliver-keys, trio from mark-pending, all four
+    // lifecycle timestamps except terminated_at set.
+    name: "/card-state: request-wipe full row after provision chain (every field)",
+    steps: [
+      () => post("/mark-pending", { key_provenance: "percard", key_fingerprint: "ff11", key_label: "L" }),
+      () => post("/deliver-keys"),
+      () => post("/activate", { active_version: 1 }),
+      () => post("/request-wipe"),
+      () => get("/card-state"),
+    ],
+  },
+
+  // get-config reserved-key override edges
+  {
+    // set-config's destructure strips the reserved keys before stringifying
+    // rest, so the get-config extras spread can never see (or double-apply)
+    // them.
+    name: "/set-config: reserved keys never leak into extras",
+    steps: [
+      () => post("/set-config", { K2: "aabb", payment_method: "clnrest", pull_payment_id: "pp1", custom: "x" }),
+      () => get("/get-config"),
+    ],
+  },
+  {
+    // /import-state card_config is the only path that can plant reserved
+    // keys inside config_json — the get-config extras spread then overrides
+    // every typed column it names.
+    name: "config: import extras with reserved keys override typed columns",
+    steps: [
+      () =>
+        post("/import-state", {
+          version: 1,
+          card_config: {
+            K2: "col-k2",
+            payment_method: "clnrest",
+            pull_payment_id: "col-pp",
+            config_json: "{\"K2\":\"json-k2\",\"payment_method\":\"proxy\",\"pull_payment_id\":\"json-pp\"}",
+          },
+        }),
+      () => get("/get-config"),
+    ],
+  },
+  {
+    name: "config: import extras without reserved keys keep typed columns",
+    steps: [
+      () =>
+        post("/import-state", {
+          version: 1,
+          card_config: {
+            K2: "col-k2",
+            payment_method: "clnrest",
+            pull_payment_id: "col-pp",
+            config_json: "{\"custom\":1}",
+          },
+        }),
+      () => get("/get-config"),
+    ],
+  },
+  {
+    // The extras spread runs AFTER the truthy-gated typed columns, so a
+    // falsy extras value leaves the key PRESENT with its null value (the
+    // truthy gate is not re-applied to spread keys).
+    name: "config: falsy reserved extras keep key present with null K2",
+    steps: [
+      () =>
+        post("/import-state", {
+          version: 1,
+          card_config: {
+            K2: "col-k2",
+            payment_method: "clnrest",
+            config_json: "{\"K2\":null}",
+          },
+        }),
+      () => get("/get-config"),
+    ],
+  },
+  {
+    // Same spread rule for payment_method: the empty string survives and
+    // get-config does NOT re-default it to fakewallet.
+    name: "config: falsy reserved extras keep payment_method as empty string",
+    steps: [
+      () =>
+        post("/import-state", {
+          version: 1,
+          card_config: {
+            K2: "col-k2",
+            payment_method: "clnrest",
+            config_json: "{\"payment_method\":\"\"}",
+          },
+        }),
+      () => get("/get-config"),
+    ],
+  },
+  {
+    // set-k2 UPDATEs only the typed K2 column — a K2 planted in config_json
+    // extras keeps overriding even the freshly written typed value.
+    name: "config: set-k2 after import with K2-in-extras stays overridden",
+    steps: [
+      () =>
+        post("/import-state", {
+          version: 1,
+          card_config: {
+            K2: "col-k2",
+            payment_method: "clnrest",
+            config_json: "{\"K2\":\"json-k2\"}",
+          },
+        }),
+      () => post("/set-k2", { K2: "new-k2" }),
+      () => get("/get-config"),
+    ],
+  },
+  {
+    // Invalid config_json: get-config warns and drops the extras entirely
+    // (typed columns survive); the raw unparseable string still round-trips
+    // verbatim through export-state (updated_at is masked by the
+    // normalizer on both legs).
+    name: "config: import invalid config_json → get drops extras, export round-trips raw",
+    steps: [
+      () =>
+        post("/import-state", {
+          version: 1,
+          card_config: {
+            K2: "col-k2",
+            payment_method: "clnrest",
+            config_json: "{not json",
+          },
+        }),
+      () => get("/get-config"),
+      () => get("/export-state"),
+    ],
+  },
+
+  // /import-state rowid-alias datatype edges
+  {
+    // counter is INTEGER PRIMARY KEY (a rowid alias): TEXT "abc" is a
+    // datatype mismatch → the dispatcher's documented 500 {error:"Internal
+    // error"}. The mock delivers it; the REAL leg is unobservable through
+    // the workerd stub (the SQLITE_MISMATCH rejects the stub RPC outside
+    // CardReplayStore.fetch's catch — same parked family as the malformed
+    // JSON cases, ops#27; ops#37 wave-3 finding). The pre-insert DELETEs
+    // already ran, so /list-taps afterwards shows the tables emptied (the
+    // earlier /check's replay_state row is gone too).
+    name: "/import-state: non-numeric tap counter → 500 Internal error",
+    steps: [
+      () => post("/check", { counterValue: 5 }),
+      () =>
+        post("/import-state", {
+          version: 1,
+          taps: [
+            { counter: "abc", bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 100, updated_at: 100 },
+          ],
+        }),
+      () => get("/list-taps"),
+    ],
+    platformDivergence: {
+      expected: [
+        { status: 200, body: { accepted: true, lastCounter: 5 } },
+        { status: 500, body: { error: "Internal error" } },
+        { status: 200, body: { taps: [] } },
+      ],
+    },
+  },
+  {
+    // Same rowid-alias mismatch for a fractional REAL bind — same parked
+    // platform divergence (real stub rejects with SQLITE_MISMATCH before
+    // the dispatcher's 500 can run; see the case above).
+    name: "/import-state: float tap counter 5.5 → 500 Internal error",
+    steps: [
+      () => post("/check", { counterValue: 5 }),
+      () =>
+        post("/import-state", {
+          version: 1,
+          taps: [
+            { counter: 5.5, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 100, updated_at: 100 },
+          ],
+        }),
+      () => get("/list-taps"),
+    ],
+    platformDivergence: {
+      expected: [
+        { status: 200, body: { accepted: true, lastCounter: 5 } },
+        { status: 500, body: { error: "Internal error" } },
+        { status: 200, body: { taps: [] } },
+      ],
+    },
+  },
+  {
+    // Column affinity converts a numeric string before the rowid-alias
+    // integer check — the row lands with counter 123.
+    name: "/import-state: numeric-string counter coerced to integer",
+    steps: [
+      () =>
+        post("/import-state", {
+          version: 1,
+          taps: [
+            { counter: "123", bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 100, updated_at: 100 },
+          ],
+        }),
+      () => get("/list-taps"),
+    ],
+  },
+  {
+    // NULL into the rowid alias auto-assigns max(rowid)+1: the seeded 5 is
+    // followed by 6 — counter-DESC shows 6 then 5.
+    name: "/import-state: null counter auto-assigns max rowid + 1",
+    steps: [
+      () =>
+        post("/import-state", {
+          version: 1,
+          taps: [
+            { counter: 5, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 100, updated_at: 100 },
+            { counter: null, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 110, updated_at: 110 },
+          ],
+        }),
+      () => get("/list-taps"),
+    ],
+  },
+
+  // /analytics NULL amount_msat
+  {
+    // SQL SUM ignores NULL amount_msat: the read row (amount NULL)
+    // contributes to totalTaps only; the valued completed row feeds every
+    // msat bucket.
+    name: "/analytics: NULL-amount rows mixed with valued rows — SUM ignores NULLs",
+    steps: [
+      () => post("/record-read", { counterValue: 5 }),
+      () => post("/record-tap", { counterValue: 6, amountMsat: 1000 }),
+      () => post("/update-tap-status", { counter: 6, status: "completed" }),
+      () => get("/analytics"),
+    ],
+  },
+  {
+    // A completed row with NULL amount counts in completedTaps but adds
+    // nothing to completedMsat (SUM treats the NULL as absent).
+    name: "/analytics: completed row with NULL amount counted in taps, not msat",
+    steps: [
+      () => post("/record-tap", { counterValue: 5 }),
+      () => post("/update-tap-status", { counter: 5, status: "completed" }),
+      () => post("/record-tap", { counterValue: 6, amountMsat: 700 }),
+      () => post("/update-tap-status", { counter: 6, status: "completed" }),
+      () => get("/analytics"),
+    ],
+  },
 ];
