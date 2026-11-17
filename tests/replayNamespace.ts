@@ -37,6 +37,11 @@ interface Transaction {
   note: string | null;
 }
 
+interface K1Challenge {
+  counter: number;
+  created_at: number;
+}
+
 export interface ReplayNamespace {
   newUniqueId: (options?: DurableObjectNamespaceNewUniqueIdOptions) => DurableObjectId;
   idFromName: (name: string) => DurableObjectId;
@@ -49,6 +54,7 @@ export interface ReplayNamespace {
   __cardStates: Map<string, CardState>;
   __cardConfigs: Map<string, CardConfig>;
   __transactions: Map<string, Transaction[]>;
+  __k1Challenges: Map<string, Map<string, K1Challenge>>;
   __activate: (uid: string, version?: number) => void;
 }
 
@@ -63,6 +69,16 @@ export const makeReplayNamespace = (
   const cardStates = new Map<string, CardState>();
   const cardConfigs = new Map<string, CardConfig>();
   const transactions = new Map<string, Transaction[]>();
+  const k1Challenges = new Map<string, Map<string, K1Challenge>>();
+
+  const challengesFor = (uid: string): Map<string, K1Challenge> => {
+    let m = k1Challenges.get(uid);
+    if (!m) {
+      m = new Map<string, K1Challenge>();
+      k1Challenges.set(uid, m);
+    }
+    return m;
+  };
 
   const allUids = new Set<string>([
     ...counters.keys(),
@@ -294,8 +310,50 @@ export const makeReplayNamespace = (
         return Response.json({ ok: true });
       }
 
+      if (request.method === "POST" && url.pathname === "/k1-issue") {
+        const { counterValue, maxAgeSec } = (await request.json()) as { counterValue: number; maxAgeSec?: number };
+        if (!Number.isInteger(counterValue) || counterValue < 0) {
+          return Response.json({ error: "Invalid counter value" }, { status: 400 });
+        }
+        const now = Math.floor(Date.now() / 1000);
+        const challenges = challengesFor(idStr);
+        if (Number.isInteger(maxAgeSec) && (maxAgeSec as number) > 0) {
+          for (const [k1, ch] of challenges) {
+            if (ch.created_at < now - (maxAgeSec as number)) challenges.delete(k1);
+          }
+        }
+        const bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        const k1 = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+        challenges.set(k1, { counter: counterValue, created_at: now });
+        return Response.json({ k1 });
+      }
+
+      if (request.method === "POST" && url.pathname === "/k1-verify") {
+        const { k1, counterValue, ttlSeconds } = (await request.json()) as { k1: string; counterValue: number; ttlSeconds?: number };
+        if (typeof k1 !== "string" || k1.length === 0 || !Number.isInteger(counterValue) || counterValue < 0) {
+          return Response.json({ valid: false, reason: "Invalid k1 verify request" }, { status: 400 });
+        }
+        const challenges = challengesFor(idStr);
+        const row = challenges.get(k1);
+        if (!row) {
+          return Response.json({ valid: false, reason: "Unknown or already used k1" });
+        }
+        if (row.counter !== counterValue) {
+          return Response.json({ valid: false, reason: "k1 does not match this card tap" });
+        }
+        const ttl = Number.isInteger(ttlSeconds) && (ttlSeconds as number) > 0 ? (ttlSeconds as number) : 0;
+        const expired = row.created_at + ttl <= Math.floor(Date.now() / 1000);
+        challenges.delete(k1);
+        if (expired) {
+          return Response.json({ valid: false, reason: "k1 challenge expired" });
+        }
+        return Response.json({ valid: true });
+      }
+
       if (request.method === "POST" && url.pathname === "/reset") {
         counters.delete(idStr);
+        k1Challenges.delete(idStr);
         for (const key of [...taps.keys()]) {
           if (key.startsWith(`${idStr}:`)) {
             taps.delete(key);
@@ -771,6 +829,7 @@ export const makeReplayNamespace = (
     __cardStates: cardStates,
     __cardConfigs: cardConfigs,
     __transactions: transactions,
+    __k1Challenges: k1Challenges,
     __activate(uid: string, version: number = 1) {
       cardStates.set(uid.toLowerCase(), {
         state: "active",

@@ -20,7 +20,8 @@ export const constructWithdrawResponse = (
   ctr: string,
   cmac_validated: boolean,
   baseUrl: string,
-  paymentMethod: string = PAYMENT_METHOD.FAKEWALLET
+  paymentMethod: string = PAYMENT_METHOD.FAKEWALLET,
+  k1Hex?: string
 ): WithdrawResponse => {
   if (!cmac_validated) {
     logger.warn("Withdraw response rejected: CMAC validation failed", { uidHex });
@@ -37,12 +38,15 @@ export const constructWithdrawResponse = (
   const minWithdrawable = paymentMethod === PAYMENT_METHOD.FAKEWALLET ? 1 : WITHDRAW_MIN_MSAT;
   const maxWithdrawable = paymentMethod === PAYMENT_METHOD.FAKEWALLET ? WITHDRAW_MAX_MSAT_FAKWALLET : WITHDRAW_MIN_MSAT;
 
-  logger.info("Withdraw response constructed", { uidHex, counterValue });
+  logger.info("Withdraw response constructed", { uidHex, counterValue, k1Fresh: k1Hex !== undefined });
 
   return {
     tag: "withdrawRequest",
     callback: `${host}/boltcards/api/v1/lnurl/cb/${pHex}`,
-    k1: cHex,
+    // K1_FRESH (audit #13): a random server-stored challenge replaces the
+    // k1=c convention when the flag is on (Go parity: 16 random bytes,
+    // single-use, TTL). Default stays k1=c — the boltcard-POS/HIL convention.
+    k1: k1Hex ?? cHex,
     minWithdrawable,
     maxWithdrawable,
     defaultDescription: `Boltcard payment #${counterValue}`,
