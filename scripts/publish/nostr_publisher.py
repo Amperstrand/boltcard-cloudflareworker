@@ -72,7 +72,9 @@ def _nostr_now() -> int:
 
 def _nak_available() -> bool:
     """Check if nak CLI is installed and on PATH."""
-    result = subprocess.run(["which", "nak"], capture_output=True, text=True)
+    result = subprocess.run(
+        ["which", "nak"], capture_output=True, text=True, stdin=subprocess.DEVNULL
+    )
     return result.returncode == 0
 
 
@@ -169,7 +171,13 @@ def _publish_event(
     env = os.environ.copy()
     env["NOSTR_SECRET_KEY"] = nsec_hex
 
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, env=env)
+    # stdin must be closed: nak >= 0.21 reads a partial event from stdin, and
+    # an inherited-but-empty stdin (CI runners) makes it exit 0 without
+    # publishing or printing anything ("rejected by all relays (no detail)").
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=30, env=env,
+        stdin=subprocess.DEVNULL,
+    )
 
     if result.returncode != 0:
         return {

@@ -104,7 +104,13 @@ def sign_blossom_auth_event(
     env = os.environ.copy()
     env["NOSTR_SECRET_KEY"] = nsec_hex
 
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=15, env=env)
+    # stdin must be closed: nak >= 0.21 reads a partial event from stdin, and
+    # an inherited-but-empty stdin (CI runners) makes it exit 0 with no output
+    # (run 44042365574: "Uploaded 0/50", "Could not parse nak output: ").
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=15, env=env,
+        stdin=subprocess.DEVNULL,
+    )
 
     if result.returncode != 0:
         raise RuntimeError(
