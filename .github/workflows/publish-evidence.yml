@@ -5,6 +5,14 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  # Pinned nak release — replaces the unauthenticated api.github.com
+  # /releases/latest lookup that rate-limits and fails the job
+  # (runs 44030708657 on 2026-11-17 and 2026-11-13T20:38 main).
+  # Asset name pattern: nak-<tag>-linux-amd64. Bump deliberately.
+  NAK_VERSION: v0.22.3
+  NAK_SHA256: 2eb9a16f86c865275983459b2c705d22d5dfbcf527026a279449cbf204d164fe
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -30,11 +38,19 @@ jobs:
           python-version: "3.12"
 
       - name: Install nak
+        id: nak
         run: |
-          TAG=$(curl -s https://api.github.com/repos/fiatjaf/nak/releases/latest | python3 -c "import sys,json; print(json.loads(sys.stdin.read())['tag_name'])")
-          curl -sL "https://github.com/fiatjaf/nak/releases/download/${TAG}/nak-${TAG}-linux-amd64" -o /usr/local/bin/nak
-          chmod +x /usr/local/bin/nak
-          nak --version || true
+          url="https://github.com/fiatjaf/nak/releases/download/${NAK_VERSION}/nak-${NAK_VERSION}-linux-amd64"
+          if curl -fsSL --retry 3 --retry-delay 5 "$url" -o /usr/local/bin/nak \
+            && chmod +x /usr/local/bin/nak \
+            && echo "${NAK_SHA256}  /usr/local/bin/nak" | sha256sum -c -; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            nak --version || true
+          else
+            rm -f /usr/local/bin/nak
+            echo "::warning::nak ${NAK_VERSION} unavailable (${url}) — evidence publish will be skipped; tests and dashboard still run"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - run: pnpm install --frozen-lockfile
       - run: node scripts/sync-js-exports.mjs
@@ -50,7 +66,7 @@ jobs:
         run: node scripts/render-test-dashboard.mjs
 
       - name: Publish evidence
-        if: always()
+        if: always() && steps.nak.outputs.available == 'true'
         run: |
           mkdir -p ~/.config/prta
           echo "${{ secrets.PUBLISH_NSEC }}" > ~/.config/prta/nsec
