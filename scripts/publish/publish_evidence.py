@@ -287,7 +287,7 @@ def main():
             project_tag="boltcard",
         )
         if result.get("success"):
-            print(f"OK (event: {result.get('event_id', '?')[:16]}...)")
+            print(f"OK (event: {result.get('event_id', '?')})")
         else:
             print(f"FAIL ({result.get('error', 'unknown')})")
     except Exception as e:
