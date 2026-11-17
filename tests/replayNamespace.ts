@@ -43,6 +43,41 @@ interface K1Challenge {
   created_at: number;
 }
 
+/**
+ * Faithful mirror of the DO's card_config TABLE row (typed columns + raw
+ * config_json string). Route writes (set-config / set-k2 / import-state)
+ * keep this row so get-config / export-state can project EXACTLY like
+ * durableObjects/cardReplay/configHandlers.ts — including the reserved-
+ * key override semantics where config_json extras (K2 / payment_method /
+ * pull_payment_id planted by /import-state) spread OVER the typed columns
+ * with falsy extras values keeping their keys present. The logical
+ * __cardConfigs map stays in sync for external unit-test readers.
+ */
+interface ConfigRow {
+  K2: string | null;
+  payment_method: string;
+  config_json: string | null;
+  pull_payment_id: string | null;
+}
+
+// Real DO (configHandlers.handleGetConfig): typed columns first (K2 /
+// pull_payment_id only when truthy), then config_json extras spread on
+// top — extras keys win, even with falsy values (key stays present).
+const projectConfigRow = (row: ConfigRow): Record<string, unknown> => {
+  let config: Record<string, unknown> = { payment_method: row.payment_method };
+  if (row.K2) config.K2 = row.K2;
+  if (row.pull_payment_id) config.pull_payment_id = row.pull_payment_id;
+  if (row.config_json) {
+    try {
+      const extra = JSON.parse(row.config_json) as Record<string, unknown>;
+      config = { ...config, ...extra };
+    } catch {
+      // Real DO: logger.warn + extras dropped; typed columns survive.
+    }
+  }
+  return config;
+};
+
 export interface ReplayNamespace {
   newUniqueId: (options?: DurableObjectNamespaceNewUniqueIdOptions) => DurableObjectId;
   idFromName: (name: string) => DurableObjectId;
@@ -68,9 +103,23 @@ export const makeReplayNamespace = (
   );
   const taps = new Map<string, TapRecord>();
   const cardStates = new Map<string, CardState>();
-  const cardConfigs = new Map<string, CardConfig>();
   const transactions = new Map<string, Transaction[]>();
   const k1Challenges = new Map<string, Map<string, K1Challenge>>();
+  const configRows = new Map<string, ConfigRow>();
+  // External unit tests seed __cardConfigs directly with LOGICAL configs;
+  // such a write bypasses the route layer, so any route-written row is
+  // dropped (the external value becomes the whole truth). Internal route
+  // writes go through setLogicalConfig to keep row + logical in sync.
+  class LogicalConfigMap extends Map<string, CardConfig> {
+    override set(key: string, value: CardConfig): this {
+      configRows.delete(key);
+      return super.set(key, value);
+    }
+  }
+  const cardConfigs = new LogicalConfigMap();
+  const setLogicalConfig = (uid: string, value: CardConfig): void => {
+    Map.prototype.set.call(cardConfigs, uid, value);
+  };
   // AUTOINCREMENT parity (balanceHandlers): SQLite's sqlite_sequence only
   // ever grows — DELETE + re-INSERT keeps handing out ids beyond any id the
   // table has ever held (import-state DELETEs all rows, then restores
@@ -139,6 +188,14 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "GET" && url.pathname === "/get-config") {
+        // Route-written configs project from the faithful card_config row
+        // (reserved-key extras override typed columns — see ConfigRow).
+        // Externally seeded logical configs (unit tests writing
+        // __cardConfigs directly) keep the legacy projection.
+        const row = configRows.get(idStr);
+        if (row) {
+          return Response.json(projectConfigRow(row));
+        }
         if (!cardConfigs.has(idStr)) {
           return Response.json(null);
         }
@@ -162,17 +219,41 @@ export const makeReplayNamespace = (
 
       if (request.method === "POST" && url.pathname === "/set-config") {
         const config = (await request.json()) as CardConfig;
-        cardConfigs.set(idStr, config);
+        // Real DO (configHandlers.handleSetConfig): reserved keys are
+        // destructured into typed columns and NEVER land in config_json;
+        // the remaining extras are stringified. The whole row is replaced
+        // (upsert), so an unset K2 column becomes NULL.
+        const { K2, payment_method, pull_payment_id, ...rest } = config as unknown as Record<string, unknown>;
+        const row: ConfigRow = {
+          K2: (K2 as string) || null,
+          payment_method: (payment_method as string) || "fakewallet",
+          config_json: Object.keys(rest).length > 0 ? JSON.stringify(rest) : null,
+          pull_payment_id: (pull_payment_id as string) || null,
+        };
+        configRows.set(idStr, row);
+        setLogicalConfig(idStr, projectConfigRow(row) as unknown as CardConfig);
         return Response.json({ ok: true });
       }
 
       if (request.method === "POST" && url.pathname === "/set-k2") {
         const { K2 } = (await request.json()) as { K2: string };
+        // Real DO (configHandlers.handleSetK2): UPDATEs ONLY the K2 column
+        // — config_json (and any reserved-key extras inside it) is
+        // untouched, so extras keep overriding the new typed K2.
+        const row = configRows.get(idStr);
+        if (row) {
+          const updated: ConfigRow = { ...row, K2: K2 || null };
+          configRows.set(idStr, updated);
+          setLogicalConfig(idStr, projectConfigRow(updated) as unknown as CardConfig);
+          return Response.json({ ok: true });
+        }
         const existing = cardConfigs.get(idStr);
         if (existing) {
-          cardConfigs.set(idStr, { ...existing, K2: K2 || null });
+          setLogicalConfig(idStr, { ...existing, K2: K2 || null });
         } else {
-          cardConfigs.set(idStr, { payment_method: "fakewallet", K2: K2 || null });
+          const fresh: ConfigRow = { K2: K2 || null, payment_method: "fakewallet", config_json: null, pull_payment_id: null };
+          configRows.set(idStr, fresh);
+          setLogicalConfig(idStr, projectConfigRow(fresh) as unknown as CardConfig);
         }
         return Response.json({ ok: true });
       }
@@ -902,19 +983,33 @@ export const makeReplayNamespace = (
             note: t.note,
             voided_at: t.voided_at ?? null,
           }));
-        const configRow = config
-          ? (() => {
-              const { K2, payment_method, pull_payment_id, ...rest } = config;
-              return {
-                singleton: 1,
-                K2: K2 || null,
-                payment_method: payment_method || "fakewallet",
-                config_json: Object.keys(rest).length > 0 ? JSON.stringify(rest) : null,
-                pull_payment_id: pull_payment_id || null,
-                updated_at: Math.floor(Date.now() / 1000),
-              };
-            })()
-          : null;
+        // Route-written configs export the RAW card_config row — the real
+        // DO round-trips the stored config_json string verbatim (reserved
+        // keys inside, invalid JSON and all); only externally seeded
+        // logical configs synthesize a row.
+        const rawRow = configRows.get(idStr);
+        const configRow = rawRow
+          ? {
+              singleton: 1,
+              K2: rawRow.K2,
+              payment_method: rawRow.payment_method,
+              config_json: rawRow.config_json,
+              pull_payment_id: rawRow.pull_payment_id,
+              updated_at: Math.floor(Date.now() / 1000),
+            }
+          : config
+            ? (() => {
+                const { K2, payment_method, pull_payment_id, ...rest } = config;
+                return {
+                  singleton: 1,
+                  K2: K2 || null,
+                  payment_method: payment_method || "fakewallet",
+                  config_json: Object.keys(rest).length > 0 ? JSON.stringify(rest) : null,
+                  pull_payment_id: pull_payment_id || null,
+                  updated_at: Math.floor(Date.now() / 1000),
+                };
+              })()
+            : null;
         return Response.json({
           version: 1,
           exported_at: Date.now(),
@@ -944,6 +1039,7 @@ export const makeReplayNamespace = (
         counters.delete(idStr);
         cardStates.delete(idStr);
         cardConfigs.delete(idStr);
+        configRows.delete(idStr);
         for (const key of [...taps.keys()]) {
           if (key.startsWith(`${idStr}:`)) taps.delete(key);
         }
@@ -973,32 +1069,30 @@ export const makeReplayNamespace = (
           });
         }
         if (importedConfig) {
-          // Store the LOGICAL config (config_json extras parsed and spread,
-          // parsed last so extras may override — mirroring the DO's
-          // get-config spread order).
-          let extra: Record<string, unknown> = {};
-          if (typeof importedConfig.config_json === "string" && importedConfig.config_json.length > 0) {
-            try {
-              extra = JSON.parse(importedConfig.config_json) as Record<string, unknown>;
-            } catch {
-              extra = {};
-            }
-          }
-          cardConfigs.set(idStr, {
-            K2: (importedConfig.K2 as string) || null,
-            payment_method: String(importedConfig.payment_method || "fakewallet") as CardConfig["payment_method"],
-            pull_payment_id: (importedConfig.pull_payment_id as string) || undefined,
-            ...extra,
-          } as CardConfig);
+          // Real DO: the card_config row is restored verbatim — typed
+          // columns with their own ?? fallbacks, config_json as the RAW
+          // string. Reserved keys inside config_json are legal here (the
+          // only production path that can plant them) and resurface via
+          // get-config's extras spread overriding the typed columns.
+          const row: ConfigRow = {
+            K2: (importedConfig.K2 as string) ?? null,
+            payment_method: String(importedConfig.payment_method ?? "fakewallet"),
+            config_json: (importedConfig.config_json as string) ?? null,
+            pull_payment_id: (importedConfig.pull_payment_id as string) ?? null,
+          };
+          configRows.set(idStr, row);
+          setLogicalConfig(idStr, projectConfigRow(row) as unknown as CardConfig);
         }
         if (Array.isArray(importedTaps)) {
           for (const t of importedTaps) {
             if (t.created_at == null || t.updated_at == null) return internalError;
             // INTEGER PRIMARY KEY parity: a NULL counter is auto-assigned
             // (max rowid + 1), not a constraint failure; a non-numeric
-            // counter is a datatype mismatch → the dispatcher's 500.
+            // counter is a datatype mismatch → the dispatcher's 500, and
+            // so is a NON-INTEGER numeric (SQLite rowid aliases reject
+            // fractional values with the same datatype-mismatch error).
             let tCounter = Number(t.counter);
-            if (t.counter != null && Number.isNaN(tCounter)) return internalError;
+            if (t.counter != null && (!Number.isInteger(tCounter) || Number.isNaN(tCounter))) return internalError;
             if (t.counter == null) {
               let max = 0;
               for (const key of taps.keys()) {
