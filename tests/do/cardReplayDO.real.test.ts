@@ -495,6 +495,59 @@ describe("CardReplayDO real SQLite", () => {
       );
       expect(counterTaps).toHaveLength(0);
     });
+
+    it("clears outstanding k1 challenges (K1_FRESH)", async () => {
+      const issued = await json(await doPost(stub, "/k1-issue", { counterValue: 3, maxAgeSec: 60 }));
+      expect(issued.k1).toMatch(/^[0-9a-f]{32}$/);
+
+      await doPost(stub, "/reset", {});
+
+      const verdict = await json(await doPost(stub, "/k1-verify", { k1: issued.k1, counterValue: 3, ttlSeconds: 60 }));
+      expect(verdict.valid).toBe(false);
+    });
+  });
+
+  describe("k1 challenges (K1_FRESH, audit #13)", () => {
+    it("issues 32-hex challenges bound to the counter, distinct per issue", async () => {
+      const first = await json(await doPost(stub, "/k1-issue", { counterValue: 7, maxAgeSec: 60 }));
+      const second = await json(await doPost(stub, "/k1-issue", { counterValue: 7, maxAgeSec: 60 }));
+      expect(first.k1).toMatch(/^[0-9a-f]{32}$/);
+      expect(second.k1).toMatch(/^[0-9a-f]{32}$/);
+      expect(first.k1).not.toBe(second.k1);
+    });
+
+    it("verifies once, then the same k1 is unknown (single-use)", async () => {
+      const { k1 } = await json(await doPost(stub, "/k1-issue", { counterValue: 8, maxAgeSec: 60 }));
+      const first = await json(await doPost(stub, "/k1-verify", { k1, counterValue: 8, ttlSeconds: 60 }));
+      expect(first.valid).toBe(true);
+      const second = await json(await doPost(stub, "/k1-verify", { k1, counterValue: 8, ttlSeconds: 60 }));
+      expect(second.valid).toBe(false);
+      expect(second.reason).toContain("Unknown or already used");
+    });
+
+    it("rejects a challenge presented against a different counter without consuming it", async () => {
+      const { k1 } = await json(await doPost(stub, "/k1-issue", { counterValue: 9, maxAgeSec: 60 }));
+      const mismatch = await json(await doPost(stub, "/k1-verify", { k1, counterValue: 10, ttlSeconds: 60 }));
+      expect(mismatch.valid).toBe(false);
+      expect(mismatch.reason).toContain("does not match");
+      // still outstanding for the right counter
+      const ok = await json(await doPost(stub, "/k1-verify", { k1, counterValue: 9, ttlSeconds: 60 }));
+      expect(ok.valid).toBe(true);
+    });
+
+    it("expires a challenge past its TTL window", async () => {
+      const { k1 } = await json(await doPost(stub, "/k1-issue", { counterValue: 11, maxAgeSec: 0 }));
+      const verdict = await json(await doPost(stub, "/k1-verify", { k1, counterValue: 11, ttlSeconds: 0 }));
+      expect(verdict.valid).toBe(false);
+      expect(verdict.reason).toContain("expired");
+    });
+
+    it("rejects malformed verify payloads with 400", async () => {
+      const res = await doPost(stub, "/k1-verify", { k1: "", counterValue: -1, ttlSeconds: 60 });
+      expect(res.status).toBe(400);
+      const issueRes = await doPost(stub, "/k1-issue", { counterValue: -3 });
+      expect(issueRes.status).toBe(400);
+    });
   });
 
   describe("provenance tracking", () => {

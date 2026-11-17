@@ -132,6 +132,17 @@ export interface ClaimTapResult {
   bolt11?: string;
 }
 
+/** K1_FRESH (audit #13): result of issuing a withdraw challenge (DO /k1-issue) */
+export interface K1ChallengeIssueResult {
+  k1: string;
+}
+
+/** K1_FRESH (audit #13): result of verifying one (DO /k1-verify) — single-use on success */
+export interface K1ChallengeVerifyResult {
+  valid: boolean;
+  reason?: string;
+}
+
 export interface AnalyticsResult {
   totalTaps: number;
   totalMsat: number;
@@ -221,6 +232,16 @@ export interface Env {
   // behavior — middleware/withHostPinning.ts). Unset/empty keeps the current
   // open posture (bounded by the Cloudflare account host binding).
   ALLOWED_HOSTS?: string;
+
+  // Truthy ("1"/"true"/"on"/"enforce") switches the fakewallet/clnrest
+  // withdraw flow from the k1=c convention to a random server-stored
+  // challenge with TTL (audit #13, Go parity — card/k1Challenges.ts, DO
+  // routes /k1-issue + /k1-verify). Unset keeps k1=c (the HIL/bench
+  // convention).
+  K1_FRESH?: string;
+
+  // K1_FRESH challenge TTL in seconds (Go default 60, lnurlw_request_timeout_sec).
+  K1_FRESH_TTL_SECONDS?: string;
 
   WORKER_ENV?: string;
   ENVIRONMENT?: string;

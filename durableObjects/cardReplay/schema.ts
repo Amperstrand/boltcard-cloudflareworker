@@ -62,4 +62,16 @@ export function initCardReplaySchema(sql: SqlStorage): void {
     )
   `);
   try { sql.exec(`ALTER TABLE transactions ADD COLUMN voided_at INTEGER`); } catch (_e: unknown) {}
+  // K1_FRESH (audit #13): server-stored withdraw challenges — 16 random
+  // bytes hex per issue, single-use (deleted on verify), TTL-checked by the
+  // caller (Go default 60s). Keyed by k1 so wallet re-queries of step 1
+  // leave earlier outstanding challenges valid (the Go reference keeps one
+  // payment row per Response()).
+  sql.exec(`
+    CREATE TABLE IF NOT EXISTS k1_challenges (
+      k1 TEXT PRIMARY KEY,
+      counter INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    )
+  `);
 }

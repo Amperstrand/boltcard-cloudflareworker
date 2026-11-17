@@ -131,6 +131,7 @@ export function handleGetBalance(sql: SqlStorage): Response {
 
 export function handleReset(sql: SqlStorage): Response {
   sql.exec("DELETE FROM taps");
+  sql.exec("DELETE FROM k1_challenges");
   sql.exec("DELETE FROM replay_state WHERE singleton = 1");
   return Response.json({ reset: true });
 }

@@ -23,7 +23,12 @@ import type {
   MarkPendingResult,
   OpResult,
   VoidResult,
+  K1ChallengeIssueResult,
+  K1ChallengeVerifyResult,
 } from "../../types/core.js";
+import type { K1IssuePayload, K1VerifyPayload } from "./types.js";
+
+export type { K1IssuePayload, K1VerifyPayload };
 
 // ---------------------------------------------------------------------------
 // Request payload types — one per route where the DO expects a body
@@ -159,6 +164,8 @@ export interface ImportResult {
 /** POST /deliver-keys returns CardStateRow plus the version */
 export type DeliverKeysRes = CardStateRow & { version: number };
 
+/** POST /k1-issue, POST /k1-verify (K1_FRESH, audit #13) — payloads live in ./types.js */
+
 // ---------------------------------------------------------------------------
 // Route map — the single source of truth for DO route contracts
 // ---------------------------------------------------------------------------
@@ -166,6 +173,8 @@ export type DeliverKeysRes = CardStateRow & { version: number };
 export interface DoRouteMap {
   "/check":             { method: "POST"; req: CheckReq;         res: CounterCheckResult };
   "/check-readonly":    { method: "POST"; req: CheckReq;         res: CounterCheckResult };
+  "/k1-issue":          { method: "POST"; req: K1IssuePayload;  res: K1ChallengeIssueResult };
+  "/k1-verify":         { method: "POST"; req: K1VerifyPayload; res: K1ChallengeVerifyResult };
   "/record-tap":        { method: "POST"; req: RecordTapReq;     res: TapRecordResult };
   "/record-read":       { method: "POST"; req: RecordReadReq;    res: RecordReadRes };
   "/update-tap-status": { method: "POST"; req: UpdateTapStatusReq; res: UpdateTapStatusRes };

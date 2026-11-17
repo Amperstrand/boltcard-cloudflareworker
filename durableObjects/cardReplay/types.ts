@@ -16,6 +16,21 @@ export interface RecordReadPayload {
   requestUrl: string;
 }
 
+/** POST /k1-issue (K1_FRESH, audit #13) */
+export interface K1IssuePayload {
+  counterValue: number;
+  /** opportunistic cleanup age in seconds; 0/undefined skips cleanup */
+  maxAgeSec?: number;
+}
+
+/** POST /k1-verify (K1_FRESH, audit #13) */
+export interface K1VerifyPayload {
+  k1: string;
+  counterValue: number;
+  /** Go default 60 (lnurlw_request_timeout_sec); challenge older than this is expired */
+  ttlSeconds?: number;
+}
+
 export interface ClaimTapPayload {
   counter: number;
   status: string;

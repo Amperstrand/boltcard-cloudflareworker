@@ -4,10 +4,11 @@ import type { CardConfig, ClaimTapResult, Env, OpResult, TapRecordResult } from 
 import type { ResolveResult } from "../utils/cardAuth.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
 import { CLN_REST_PAY_PATH, PAYMENT_METHOD, UID_VALIDATION_MSG } from "../utils/constants.js";
-import { recordTap, updateTapStatus, debitCard, claimTap } from "../replayProtection.js";
+import { recordTap, updateTapStatus, debitCard, claimTap, verifyK1Challenge, k1FreshTtlSeconds } from "../replayProtection.js";
 import { decodeBolt11Amount } from "../utils/bolt11.js";
 import { resolveCardIdentity } from "../utils/cardAuth.js";
 import { parsePositiveInt } from "../utils/validation.js";
+import { isFlagOn } from "../utils/envFlags.js";
 
 export async function handleLnurlpPayment(request: Request, env: Env): Promise<Response> {
   try {
@@ -17,6 +18,7 @@ export async function handleLnurlpPayment(request: Request, env: Env): Promise<R
     
     let p: string | undefined;
     let c: string | undefined;
+    let k1Challenge: string | undefined;
 
     if (request.method === "POST") {
       return errorResponse("Method Not Allowed", 405);
@@ -39,6 +41,13 @@ export async function handleLnurlpPayment(request: Request, env: Env): Promise<R
         if (!p || !c) {
           return jsonResponse({ status: "ERROR", reason: "Invalid k1 format, missing p or c" }, 400);
         }
+      } else if (isFlagOn(env.K1_FRESH)) {
+        // K1_FRESH (audit #13): k1 is the random challenge issued at step 1
+        // (NOT the card CMAC). Keep c undefined; identity resolves with
+        // skipCmac and the challenge is verified against the card DO below —
+        // possession of the unguessable, single-use, TTL-bound k1 is the
+        // callback authorization (Go parity: lnurlw_callback.go).
+        k1Challenge = k1;
       } else {
         c = k1;
       }
@@ -54,13 +63,34 @@ export async function handleLnurlpPayment(request: Request, env: Env): Promise<R
         return jsonResponse({ status: "ERROR", reason: "Missing pr or amount parameter" }, 400);
       }
 
-      const auth: ResolveResult = await resolveCardIdentity(p, c, env, { context: "lnurl-callback", requestUrl: request.url });
+      const auth: ResolveResult = await resolveCardIdentity(
+        p,
+        k1Challenge !== undefined ? k1Challenge : c,
+        env,
+        { context: "lnurl-callback", skipCmac: k1Challenge !== undefined, requestUrl: request.url }
+      );
       if (!auth.ok) {
         return jsonResponse({ status: "ERROR", reason: auth.error }, auth.status);
       }
 
       const normalizedUidHex: string = auth.uidHex.toLowerCase();
       const counterValue: number = auth.counterValue;
+
+      // K1_FRESH: the challenge must match this exact tap, be unexpired, and
+      // is consumed here (single-use) — before any tap/claim state changes.
+      if (k1Challenge !== undefined) {
+        let verify;
+        try {
+          verify = await verifyK1Challenge(env, normalizedUidHex, k1Challenge, counterValue, k1FreshTtlSeconds(env));
+        } catch (error: unknown) {
+          logger.error("k1 challenge verification failed", { uidHex: normalizedUidHex, counterValue, error: getErrorMessage(error) });
+          return errorResponse("k1 challenge store unavailable", 500);
+        }
+        if (!verify.valid) {
+          logger.warn("k1 challenge rejected", { uidHex: normalizedUidHex, counterValue, reason: verify.reason });
+          return jsonResponse({ status: "ERROR", reason: verify.reason || "Invalid k1" }, 400);
+        }
+      }
 
       const amountMsat: number | null = explicitAmount !== null ? parsePositiveInt(explicitAmount) : decodeBolt11Amount(invoice!);
       if (explicitAmount !== null && !amountMsat) {

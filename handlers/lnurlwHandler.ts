@@ -12,7 +12,7 @@ import { hexToBytes } from "../cryptoutils.js";
 import { getDeterministicKeys } from "../keygenerator.js";
 import { logger } from "../utils/logger.js";
 import { jsonResponse, errorResponse } from "../utils/responses.js";
-import { recordTapRead, getCardState, activateCard, checkAndAdvanceCounter, discoverCard, setCardK2, resolveActiveVersion } from "../replayProtection.js";
+import { recordTapRead, getCardState, activateCard, checkAndAdvanceCounter, discoverCard, setCardK2, resolveActiveVersion, issueK1Challenge, k1FreshTtlSeconds } from "../replayProtection.js";
 import { getRequestOrigin } from "../utils/validation.js";
 import { cmacScanVersions } from "../utils/cmacScan.js";
 import { classifyIssuerKey, getAllIssuerKeyCandidates } from "../utils/keyLookup.js";
@@ -216,7 +216,19 @@ async function routeByPaymentMethod(request: Request, env: Env, uidHex: string, 
     const replay = await checkReplayAndRecordTap(env, uidHex, counterValue, request);
     if (!replay.ok) return replay.response!;
     const baseUrl = getRequestOrigin(request);
-    const responsePayload: WithdrawResponse = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated, baseUrl, config.payment_method);
+    // K1_FRESH (audit #13, default OFF): issue a random server-stored
+    // challenge for this (uid, counter) instead of k1=c — Go parity.
+    let k1Override: string | undefined;
+    if (isFlagOn(env.K1_FRESH)) {
+      try {
+        const challenge = await issueK1Challenge(env, uidHex, counterValue, k1FreshTtlSeconds(env));
+        k1Override = challenge.k1;
+      } catch (error: unknown) {
+        logger.error("k1 challenge issue failed", { action: "card_tap", uidHex, counterValue, error: getErrorMessage(error) });
+        return errorResponse("Internal error", 500);
+      }
+    }
+    const responsePayload: WithdrawResponse = constructWithdrawResponse(uidHex, pHex, cHex, ctr, cmac_validated, baseUrl, config.payment_method, k1Override);
     if (responsePayload.status === "ERROR") return errorResponse(responsePayload.reason, 403);
     try {
       responsePayload.verifiableCredential = await issueVcJwt(env, uidHex, buildCredentialProfile(uidHex));

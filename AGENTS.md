@@ -155,6 +155,8 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 
 The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), not a random challenge. This is a boltcard convention: the callback includes `k1` which the server matches against the original `c` to verify the callback is for the correct card tap. See `constructWithdrawResponse()` in `handlers/withdrawHandler.ts`.
 
+**`K1_FRESH` (audit #13, default OFF)**: env flag switching the fakewallet/clnrest withdraw flow to a random server-stored challenge (Go parity) — 16 random bytes hex, per-card DO (`card/k1Challenges.ts`, DO `/k1-issue` + `/k1-verify`), single-use, TTL `K1_FRESH_TTL_SECONDS` (default 60s, Go `lnurlw_request_timeout_sec`). Under the flag the callback authorizes on possession of the challenge (CMAC skipped at callback, exactly like Go's `Get_payment_k1`); wallet re-queries of step 1 each keep their own outstanding challenge. Unset keeps `k1=c` — the HIL/bench convention.
+
 ## Identity / Access Control Demo
 
 1. User taps card on `/identity` page → Web NFC reads NDEF URL → extracts p and c params

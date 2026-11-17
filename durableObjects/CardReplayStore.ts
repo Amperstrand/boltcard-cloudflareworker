@@ -4,6 +4,7 @@ import { initCardReplaySchema } from "./cardReplay/schema.js";
 import { handleActivate, handleDeliverKeys, handleDiscover, handleGetCardState, handleMarkPending, handleRequestWipe, handleTerminate } from "./cardReplay/cardStateHandlers.js";
 import { handleGetConfig, handleSetConfig, handleSetK2 } from "./cardReplay/configHandlers.js";
 import { handleAnalytics, handleCheck, handleClaimTap, handleListTaps, handleRecordRead, handleRecordTap, handleUpdateTapStatus } from "./cardReplay/tapHandlers.js";
+import { handleK1Issue, handleK1Verify } from "./cardReplay/k1ChallengeHandlers.js";
 import { handleCredit, handleDebit, handleGetBalance, handleListTransactions, handleReset, handleVoid } from "./cardReplay/balanceHandlers.js";
 import { handleExportState, handleImportState } from "./cardReplay/stateExportHandlers.js";
 
@@ -49,6 +50,14 @@ export class CardReplayStore extends DurableObject<Env> {
 
       if (request.method === "POST" && url.pathname === "/claim-tap") {
         return handleClaimTap(this.sql, request);
+      }
+
+      if (request.method === "POST" && url.pathname === "/k1-issue") {
+        return handleK1Issue(this.sql, request);
+      }
+
+      if (request.method === "POST" && url.pathname === "/k1-verify") {
+        return handleK1Verify(this.sql, request);
       }
 
       if (request.method === "GET" && url.pathname === "/analytics") {
