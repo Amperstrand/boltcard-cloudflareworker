@@ -432,6 +432,7 @@ The following exports are prefixed with `_` and only used in tests:
 - **Zero innerHTML policy**: all browser JS uses safe DOM APIs (`textContent`, `createElement`, `replaceChildren`); `esc()` removed; baseline = 0 (enforced by `scripts/check-innerhtml.js`)
 - `/2fa` endpoint supports JSON response mode via `Accept: application/json` header (prevents raw HTML injection in debug console)
 - Proxy handler filters request/response headers via allow-list (`proxyHandler.ts`)
+- **Host pinning (audit #18, default OFF)**: `ALLOWED_HOSTS` comma list env flag — when set, card/LNURL-surface requests (`GET /?p&c`, `/boltcards/api/v1/lnurl/cb*`, `/lnurlp/cb`) whose Host is not listed are refused with 400 (`middleware/withHostPinning.ts`, the Go reference behavior). Unset = current open posture, bounded by the Cloudflare account host binding.
 - CSRF: double-submit cookie pattern with timing-safe comparison
 - All replayProtection callers wrap DO calls in try/catch with appropriate error responses
 

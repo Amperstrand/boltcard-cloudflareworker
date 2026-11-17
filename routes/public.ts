@@ -1,5 +1,6 @@
 import type { AppRouter } from "../middleware/withOperatorAuth.js";
 import { withKeyEndpointAuth } from "../middleware/withKeyEndpointAuth.js";
+import { withHostPinning } from "../middleware/withHostPinning.js";
 import { redirect, errorResponse } from "../utils/responses.js";
 import { handleStatus } from "../handlers/statusHandler.js";
 import { handleLnurlw } from "../handlers/lnurlwHandler.js";
@@ -23,12 +24,12 @@ import { handleVerifyPage } from "../handlers/verifyPageHandler.js";
 export function registerPublicRoutes(router: AppRouter): void {
   router.get("/status", (request, env) => handleStatus(request, env));
   router.get("/api/fake-invoice", (request, env) => handleFakeInvoice(request, env));
-  router.all("/boltcards/api/v1/lnurl/cb*", (request, env) => handleLnurlpPayment(request, env));
+  router.all("/boltcards/api/v1/lnurl/cb*", withHostPinning((request, env) => handleLnurlpPayment(request, env)));
   router.get("/2fa", (request, env) => handleTwoFactor(request, env));
   router.get("/login", (request) => handleLoginPage(request));
   router.post("/login", (request, env) => handleLoginVerify(request, env));
   router.get("/pos", () => redirect("/operator/pos"));
-  router.get("/lnurlp/cb", (request, env) => handleLnurlPayCallback(request, env));
+  router.get("/lnurlp/cb", withHostPinning((request, env) => handleLnurlPayCallback(request, env)));
   router.get("/api/verify-identity", (request, env) => handleIdentityVerify(request, env));
   router.post("/api/identity/profile", (request, env) => handleIdentityProfileUpdate(request, env));
   router.get("/api/vc/keys", withKeyEndpointAuth((request, env) => handleVirtualCardKeys(request, env)));
@@ -88,7 +89,9 @@ if('NDEFReader' in window&&navigator.permissions){navigator.permissions.query({n
       if (accept.includes("text/html")) {
         return handleIdentityPage(request);
       }
-      return handleLnurlw(request, env);
+      // Card-tap branch: host pinning applies here (audit #18) — the same
+      // endpoint Go pins before building the withdraw response.
+      return withHostPinning((req, pinnedEnv) => handleLnurlw(req, pinnedEnv))(request, env);
     }
     if (hasP || hasC) {
       return errorResponse("Missing card parameters — both p and c are required", 400);
