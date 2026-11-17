@@ -450,10 +450,22 @@ export const makeReplayNamespace = (
           );
         }
 
+        // Mirror the real DO's #85 first-callback-wins guard
+        // (durableObjects/cardReplay/tapHandlers.ts): only a 'read' row (the
+        // withdraw REQUEST, never a callback attempt) may be claimed. Any
+        // 'pending'/'paying'/'completed'/'failed' row means a callback was
+        // already attempted — replay must 409 even amount-only (bolt11 NULL).
+        if (tap.status !== "read") {
+          return Response.json(
+            { claimed: false, reason: "Tap already claimed" },
+            { status: 409 }
+          );
+        }
+
         const now = Math.floor(Date.now() / 1000);
         tap.bolt11 = bolt11 || null;
         tap.amount_msat = amountMsat ?? tap.amount_msat;
-        tap.status = "pending";
+        tap.status = "paying";
         tap.updated_at = now;
         taps.set(tapKey, tap);
 

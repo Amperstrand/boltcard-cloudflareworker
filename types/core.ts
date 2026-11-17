@@ -208,6 +208,14 @@ export interface Env {
   // demo/HIL posture.
   KEY_ENDPOINTS_AUTH?: string;
 
+  // Truthy ("1"/"true"/"on"/"enforce") makes the three replay-check sites
+  // reject counter replays with 409 instead of log-and-continue (audit #10;
+  // see utils/validateCardTap.ts, handlers/lnurlwHandler.ts,
+  // handlers/lnurlPayHandler.ts). Unset keeps the documented idempotent
+  // posture (AGENTS.md) — the bolt11 claim machinery guards payments either
+  // way.
+  REPLAY_ENFORCE?: string;
+
   WORKER_ENV?: string;
   ENVIRONMENT?: string;
   ENABLE_PERCARD_FALLBACK?: string;

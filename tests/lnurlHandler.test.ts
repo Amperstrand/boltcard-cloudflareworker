@@ -328,8 +328,17 @@ describe("handleLnurlpPayment", () => {
     const counter = 11;
     const { pHex, cHex } = virtualTap(UID, counter, keys.k1, keys.k2);
 
+    // Step 1 in production (GET /) advances the counter via /check and
+    // writes a 'read' row via /record-read — it never calls /record-tap.
+    // (The pre-#85 shape of this test used /record-tap, which the real DO's
+    // first-callback-wins guard now rejects as an attempted callback.)
     const stub = env.CARD_REPLAY.get(env.CARD_REPLAY.idFromName(UID));
-    await stub.fetch(new Request("https://card-replay.internal/record-tap", {
+    await stub.fetch(new Request("https://card-replay.internal/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ counterValue: counter }),
+    }));
+    await stub.fetch(new Request("https://card-replay.internal/record-read", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ counterValue: counter }),
