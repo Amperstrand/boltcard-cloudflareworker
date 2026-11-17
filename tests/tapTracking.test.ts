@@ -412,11 +412,14 @@ describe("Tap tracking — login response", () => {
     expect(loginResp.status).toBe(200);
     const loginJson = await loginResp.json() as Record<string, any>;
     expect(loginJson.success).toBe(true);
-    expect(loginJson.tapHistory).toHaveLength(2);
+    expect(loginJson.tapHistory).toHaveLength(3);
     expect(loginJson.tapHistory[0].counter).toBe(15);
     expect(loginJson.tapHistory[0].bolt11).toBe("lnbc10n1testinvoice");
     expect(loginJson.tapHistory[0].status).toBe("completed");
     expect(loginJson.tapHistory[1].status).toBe("payment");
+    // The DO's /list-taps merges card-lifecycle pseudo-rows (makeEnv seeds
+    // an activated card) — the 'activated' event rides at the end.
+    expect(loginJson.tapHistory[2]).toEqual(expect.objectContaining({ status: "activated", counter: null }));
   });
 
   test("POST /login tapHistory is empty when no taps recorded", async () => {

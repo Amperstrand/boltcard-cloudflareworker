@@ -112,10 +112,14 @@ describe("getUnifiedHistory", () => {
     expect(result[0]!.counter).toBe(2);
   });
 
-  it("returns empty when DO has no data", async () => {
+  it("returns lifecycle event when DO has only an activated card_state", async () => {
     const env = buildCardTestEnv({ uid: "04a39493cc8680", issuerKey: "00000000000000000000000000000001" });
     const result = await getUnifiedHistory(env, "04a39493cc8680");
-    expect(result).toEqual([]);
+    // The DO's /list-taps merges card-lifecycle pseudo-rows; an activated
+    // card surfaces its 'activated' event even with zero real taps.
+    expect(result).toEqual([
+      expect.objectContaining({ status: "activated", counter: null }),
+    ]);
   });
 
   it("handles listTaps throwing", async () => {
@@ -143,7 +147,11 @@ describe("getUnifiedHistory", () => {
       },
     } as unknown as DurableObjectStub);
     const result = await getUnifiedHistory(env, "04a39493cc8680");
-    expect(result).toEqual([]);
+    // transactions source fails -> no topup/payment rows; the activated
+    // lifecycle event still flows from /list-taps.
+    expect(result).toEqual([
+      expect.objectContaining({ status: "activated", counter: null }),
+    ]);
   });
 
   it("handles listTaps returning no taps property", async () => {
@@ -171,6 +179,8 @@ describe("getUnifiedHistory", () => {
       },
     } as unknown as DurableObjectStub);
     const result = await getUnifiedHistory(env, "04a39493cc8680");
-    expect(result).toEqual([]);
+    expect(result).toEqual([
+      expect.objectContaining({ status: "activated", counter: null }),
+    ]);
   });
 });

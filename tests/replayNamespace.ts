@@ -35,6 +35,7 @@ interface Transaction {
   balance_after: number;
   created_at: number;
   note: string | null;
+  voided_at?: number | null;
 }
 
 interface K1Challenge {
@@ -70,6 +71,17 @@ export const makeReplayNamespace = (
   const cardConfigs = new Map<string, CardConfig>();
   const transactions = new Map<string, Transaction[]>();
   const k1Challenges = new Map<string, Map<string, K1Challenge>>();
+  // AUTOINCREMENT parity (balanceHandlers): SQLite's sqlite_sequence only
+  // ever grows — DELETE + re-INSERT keeps handing out ids beyond any id the
+  // table has ever held (import-state DELETEs all rows, then restores
+  // explicit ids). Track the high-water mark per uid.
+  const txnSeq = new Map<string, number>();
+
+  const nextTxnId = (uid: string): number => {
+    const seq = Math.max(txnSeq.get(uid) ?? 0, ...(transactions.get(uid) ?? []).map((t) => t.id));
+    txnSeq.set(uid, seq + 1);
+    return seq + 1;
+  };
 
   const challengesFor = (uid: string): Map<string, K1Challenge> => {
     let m = k1Challenges.get(uid);
@@ -130,7 +142,22 @@ export const makeReplayNamespace = (
         if (!cardConfigs.has(idStr)) {
           return Response.json(null);
         }
-        return Response.json(cardConfigs.get(idStr));
+        // Real DO (configHandlers.handleGetConfig): no row → null; a row is
+        // projected as {payment_method (defaulted 'fakewallet')} + K2 only
+        // when truthy + pull_payment_id only when truthy + config_json
+        // extras spread on top. The mock stores the logical config; project
+        // it the same way (falsy K2/pull_payment_id must NOT appear).
+        const stored = cardConfigs.get(idStr) as unknown as Record<string, unknown>;
+        const projected: Record<string, unknown> = {
+          payment_method: stored.payment_method || "fakewallet",
+        };
+        if (stored.K2) projected.K2 = stored.K2;
+        if (stored.pull_payment_id) projected.pull_payment_id = stored.pull_payment_id;
+        for (const [key, value] of Object.entries(stored)) {
+          if (key === "K2" || key === "payment_method" || key === "pull_payment_id") continue;
+          projected[key] = value;
+        }
+        return Response.json(projected);
       }
 
       if (request.method === "POST" && url.pathname === "/set-config") {
@@ -160,10 +187,20 @@ export const makeReplayNamespace = (
         const limit = Number.isFinite(requestedLimit)
           ? Math.max(1, Math.min(requestedLimit, 200))
           : 50;
+        // Real DO: SELECT * (7 columns incl. voided_at) ORDER BY id DESC.
         const txs = (transactions.get(idStr) || [])
           .slice()
           .sort((a, b) => b.id - a.id)
-          .slice(0, limit);
+          .slice(0, limit)
+          .map((t) => ({
+            id: t.id,
+            counter: t.counter,
+            amount: t.amount,
+            balance_after: t.balance_after,
+            created_at: t.created_at,
+            note: t.note,
+            voided_at: t.voided_at ?? null,
+          }));
         return Response.json({ transactions: txs });
       }
 
@@ -194,16 +231,28 @@ export const makeReplayNamespace = (
 
         const existing = transactions.get(idStr) || [];
         const transaction: Transaction = {
-          id: existing.length + 1,
+          id: nextTxnId(idStr),
           counter: Number.isInteger(counter) ? counter : null,
           amount: -amount,
           balance_after: newBalance,
           created_at: now,
           note: note || null,
+          voided_at: null,
         };
         transactions.set(idStr, [...existing, transaction]);
 
-        return Response.json({ ok: true, balance: newBalance, transaction });
+        // Real DO (balanceHandlers.handleDebit): the response carries only
+        // the RETURNING columns — id, amount, balance_after, created_at.
+        return Response.json({
+          ok: true,
+          balance: newBalance,
+          transaction: {
+            id: transaction.id,
+            amount: transaction.amount,
+            balance_after: transaction.balance_after,
+            created_at: transaction.created_at,
+          },
+        });
       }
 
       if (request.method === "POST" && url.pathname === "/credit") {
@@ -232,16 +281,83 @@ export const makeReplayNamespace = (
 
         const existing = transactions.get(idStr) || [];
         const transaction: Transaction = {
-          id: existing.length + 1,
+          id: nextTxnId(idStr),
           counter: null,
           amount,
           balance_after: newBalance,
           created_at: now,
           note: note || null,
+          voided_at: null,
         };
         transactions.set(idStr, [...existing, transaction]);
 
-        return Response.json({ ok: true, balance: newBalance, transaction });
+        // Real DO (balanceHandlers.handleCredit): RETURNING columns only.
+        return Response.json({
+          ok: true,
+          balance: newBalance,
+          transaction: {
+            id: transaction.id,
+            amount: transaction.amount,
+            balance_after: transaction.balance_after,
+            created_at: transaction.created_at,
+          },
+        });
+      }
+
+      if (request.method === "POST" && url.pathname === "/void") {
+        // Real DO (balanceHandlers.handleVoid): unknown id → 404; already
+        // voided → 400; non-debit → 400; else mark voided_at, credit the
+        // amount back, insert the compensating txn (note `void:<id>`).
+        const { transactionId } = (await request.json()) as { transactionId: number };
+        const existing = transactions.get(idStr) || [];
+        const txn = existing.find((t) => t.id === transactionId);
+
+        if (!txn) {
+          return Response.json({ ok: false, reason: "Transaction not found" }, { status: 404 });
+        }
+        if (txn.voided_at != null) {
+          return Response.json({ ok: false, reason: "Transaction already voided" }, { status: 400 });
+        }
+        if (txn.amount >= 0) {
+          return Response.json({ ok: false, reason: "Can only void charges (debits)" }, { status: 400 });
+        }
+
+        const voidAmount = Math.abs(txn.amount);
+        const current = cardStates.get(idStr) || getDefaultState();
+        const currentBalance = current.balance ?? 0;
+        const newBalance = currentBalance + voidAmount;
+        const now = Math.floor(Date.now() / 1000);
+
+        txn.voided_at = now;
+        cardStates.set(idStr, { ...current, balance: newBalance });
+
+        const newTransaction: Transaction = {
+          id: nextTxnId(idStr),
+          counter: null,
+          amount: voidAmount,
+          balance_after: newBalance,
+          created_at: now,
+          note: `void:${transactionId}`,
+          voided_at: null,
+        };
+        transactions.set(idStr, [...existing, newTransaction]);
+
+        return Response.json({
+          ok: true,
+          balance: newBalance,
+          voidedTransaction: {
+            id: txn.id,
+            amount: txn.amount,
+            balance_after: txn.balance_after,
+            note: txn.note,
+          },
+          newTransaction: {
+            id: newTransaction.id,
+            amount: newTransaction.amount,
+            balance_after: newTransaction.balance_after,
+            created_at: newTransaction.created_at,
+          },
+        });
       }
 
       if (request.method === "POST" && url.pathname === "/deliver-keys") {
@@ -255,8 +371,12 @@ export const makeReplayNamespace = (
           active_version: null,
           activated_at: null,
           terminated_at: null,
-          wipe_keys_fetched_at: current.wipe_keys_fetched_at ?? null,
+          // Real DO (cardStateHandlers.handleDeliverKeys): the conflict
+          // UPDATE clears wipe_keys_fetched_at, and first_seen_at is
+          // COALESCE(existing, now) — set on the fresh insert path.
+          wipe_keys_fetched_at: null,
           balance: current.balance ?? 0,
+          first_seen_at: current.first_seen_at ?? now,
         };
         cardStates.set(idStr, newState);
         return Response.json({ ...newState, version: newState.latest_issued_version });
@@ -264,14 +384,23 @@ export const makeReplayNamespace = (
 
       if (request.method === "POST" && url.pathname === "/activate") {
         const { active_version } = (await request.json()) as { active_version: number };
+        // Real DO (cardStateHandlers.handleActivate): integer >= 1 or 400.
+        if (!Number.isInteger(active_version) || (active_version as number) < 1) {
+          return Response.json({ error: "Invalid active_version" }, { status: 400 });
+        }
         const current = cardStates.get(idStr) || getDefaultState();
         const now = Math.floor(Date.now() / 1000);
         const newState: CardState = {
           ...current,
           state: "active",
+          // Real DO: fresh INSERT seeds latest_issued_version = active_version;
+          // the conflict UPDATE leaves latest_issued_version (and
+          // keys_delivered_at / wipe_keys_fetched_at) untouched and only
+          // clears terminated_at.
+          latest_issued_version: cardStates.has(idStr) ? current.latest_issued_version : active_version,
           active_version,
           activated_at: now,
-          wipe_keys_fetched_at: null,
+          terminated_at: null,
           balance: current.balance ?? 0,
         };
         cardStates.set(idStr, newState);
@@ -298,15 +427,21 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "POST" && url.pathname === "/request-wipe") {
-        const current = cardStates.get(idStr) || getDefaultState();
+        // Real DO (cardStateHandlers.handleRequestWipe): UPDATE ... RETURNING
+        // the full card_state row; no row → 404 {state:"new"}.
+        const current = cardStates.get(idStr);
+        if (!current) {
+          return Response.json({ state: "new" }, { status: 404 });
+        }
         const now = Math.floor(Date.now() / 1000);
-        cardStates.set(idStr, {
+        const newState: CardState = {
           ...current,
           state: "wipe_requested",
           wipe_keys_fetched_at: now,
           balance: current.balance ?? 0,
-        });
-        return Response.json({ ok: true });
+        };
+        cardStates.set(idStr, newState);
+        return Response.json(newState);
       }
 
       if (request.method === "POST" && url.pathname === "/k1-issue") {
@@ -570,6 +705,11 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "GET" && url.pathname === "/analytics") {
+        // Real DO (tapHandlers.handleAnalytics): one SQL aggregate.
+        // COALESCE wraps only the *Msat sums (→ 0 on empty); the *Taps
+        // counts are bare SUM(CASE...) → SQL NULL on an empty table, and
+        // 'read'/'paying'/'expired' rows count in NO status bucket (only
+        // totalTaps/totalMsat).
         let totalMsat = 0,
           completedMsat = 0,
           failedMsat = 0,
@@ -589,7 +729,7 @@ export const makeReplayNamespace = (
             } else if (tap.status === "failed") {
               failedTaps++;
               failedMsat += amt;
-            } else {
+            } else if (tap.status === "pending") {
               pendingTaps++;
               pendingMsat += amt;
             }
@@ -601,28 +741,54 @@ export const makeReplayNamespace = (
           failedMsat,
           pendingMsat,
           totalTaps,
-          completedTaps,
-          failedTaps,
-          pendingTaps,
+          completedTaps: totalTaps === 0 ? null : completedTaps,
+          failedTaps: totalTaps === 0 ? null : failedTaps,
+          pendingTaps: totalTaps === 0 ? null : pendingTaps,
         });
       }
 
       if (request.method === "GET" && url.pathname === "/list-taps") {
-        const limit = parseInt(url.searchParams.get("limit") || "50", 10);
-        const tapList: TapRecord[] = [];
-        let count = 0;
+        // Real DO (tapHandlers.handleListTaps): limit parsed with a
+        // non-finite fallback of 50 then clamped to [1,200]; tap rows are
+        // fetched ORDER BY counter DESC LIMIT ?; card-lifecycle pseudo-rows
+        // (provisioned/activated/terminated/wipe_requested, sourced from
+        // card_state timestamps) are merged in; the merged list is sorted
+        // created_at DESC with counter DESC tie-break, then sliced to
+        // limit.
+        let rawLimit = parseInt(url.searchParams.get("limit") || "50", 10);
+        if (!Number.isFinite(rawLimit)) rawLimit = 50;
+        const limit = Math.max(1, Math.min(rawLimit, 200));
 
-        for (const [key, tap] of taps) {
-          if (key.startsWith(`${idStr}:`)) {
-            tapList.push(tap);
-            count++;
-            if (count >= limit) break;
+        const tapRows = Array.from(taps.entries())
+          .filter(([key]) => key.startsWith(`${idStr}:`))
+          .map(([, t]) => t)
+          .sort((a, b) => b.counter - a.counter)
+          .slice(0, limit);
+
+        const cardState = cardStates.get(idStr);
+        const events: Record<string, unknown>[] = [];
+        if (cardState) {
+          if (cardState.keys_delivered_at) {
+            events.push({ counter: null, bolt11: null, status: "provisioned", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: cardState.keys_delivered_at, updated_at: cardState.keys_delivered_at, version: cardState.latest_issued_version });
+          }
+          if (cardState.activated_at) {
+            events.push({ counter: null, bolt11: null, status: "activated", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: cardState.activated_at, updated_at: cardState.activated_at, version: cardState.active_version });
+          }
+          if (cardState.terminated_at) {
+            events.push({ counter: null, bolt11: null, status: "terminated", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: cardState.terminated_at, updated_at: cardState.terminated_at, version: null });
+          }
+          if (cardState.wipe_keys_fetched_at) {
+            events.push({ counter: null, bolt11: null, status: "wipe_requested", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: cardState.wipe_keys_fetched_at, updated_at: cardState.wipe_keys_fetched_at, version: cardState.active_version });
           }
         }
 
-        tapList.sort((a, b) => b.counter - a.counter);
+        const merged = [...tapRows, ...events].sort((a, b) => {
+          const timeDiff = ((b.created_at as number) || 0) - ((a.created_at as number) || 0);
+          if (timeDiff !== 0) return timeDiff;
+          return ((b.counter as number) || 0) - ((a.counter as number) || 0);
+        });
 
-        return Response.json({ taps: tapList });
+        return Response.json({ taps: merged.slice(0, limit) });
       }
 
       if (request.method === "POST" && url.pathname === "/mark-pending") {
@@ -702,9 +868,14 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "GET" && url.pathname === "/export-state") {
+        // Real DO (stateExportHandlers.handleExportState): table rows or
+        // null when the (singleton) row is absent; taps scan in rowid
+        // order (= counter ASC, counter IS the rowid alias) and
+        // transactions in id ASC; card_config is the raw table row with
+        // config_json as a STRING.
         const state = cardStates.get(idStr);
-        const config = cardConfigs.get(idStr);
-        const counter = counters.get(idStr) ?? 0;
+        const config = cardConfigs.get(idStr) as unknown as Record<string, unknown> | undefined;
+        const counter = counters.get(idStr);
         const cardTaps = Array.from(taps.entries())
           .filter(([key]) => key.startsWith(`${idStr}:`))
           .map(([, t]) => ({
@@ -717,22 +888,39 @@ export const makeReplayNamespace = (
             request_url: t.request_url,
             created_at: t.created_at,
             updated_at: t.updated_at,
+          }))
+          .sort((a, b) => a.counter - b.counter);
+        const cardTxns = (transactions.get(idStr) || [])
+          .slice()
+          .sort((a, b) => a.id - b.id)
+          .map((t) => ({
+            id: t.id,
+            counter: t.counter,
+            amount: t.amount,
+            balance_after: t.balance_after,
+            created_at: t.created_at,
+            note: t.note,
+            voided_at: t.voided_at ?? null,
           }));
-        const cardTxns = (transactions.get(idStr) || []).map((t) => ({
-          id: t.id,
-          counter: t.counter,
-          amount: t.amount,
-          balance_after: t.balance_after,
-          created_at: t.created_at,
-          note: t.note,
-          voided_at: (t as unknown as Record<string, unknown>).voided_at ?? null,
-        }));
+        const configRow = config
+          ? (() => {
+              const { K2, payment_method, pull_payment_id, ...rest } = config;
+              return {
+                singleton: 1,
+                K2: K2 || null,
+                payment_method: payment_method || "fakewallet",
+                config_json: Object.keys(rest).length > 0 ? JSON.stringify(rest) : null,
+                pull_payment_id: pull_payment_id || null,
+                updated_at: Math.floor(Date.now() / 1000),
+              };
+            })()
+          : null;
         return Response.json({
           version: 1,
           exported_at: Date.now(),
-          replay_state: { singleton: 1, last_counter: counter },
+          replay_state: counter !== undefined ? { singleton: 1, last_counter: counter } : null,
           card_state: state ? { singleton: 1, ...state } : null,
-          card_config: config ? { singleton: 1, ...config, updated_at: null } : null,
+          card_config: configRow,
           taps: cardTaps,
           transactions: cardTxns,
         });
@@ -749,12 +937,28 @@ export const makeReplayNamespace = (
         const importedTaps = body.taps as Array<Record<string, unknown>> | undefined;
         const importedTxns = body.transactions as Array<Record<string, unknown>> | undefined;
 
+        // Real DO: DELETEs every table FIRST (a failed import still leaves
+        // the tables cleared), then re-inserts; a NOT NULL violation on any
+        // insert surfaces as the dispatcher's 500 {error:"Internal error"}.
+        const internalError = Response.json({ error: "Internal error" }, { status: 500 });
+        counters.delete(idStr);
+        cardStates.delete(idStr);
+        cardConfigs.delete(idStr);
+        for (const key of [...taps.keys()]) {
+          if (key.startsWith(`${idStr}:`)) taps.delete(key);
+        }
+        transactions.set(idStr, []);
+
         if (importedReplay) {
+          if (importedReplay.last_counter == null) return internalError;
           counters.set(idStr, Number(importedReplay.last_counter) || 0);
         }
         if (importedState) {
+          if (importedState.state == null || importedState.latest_issued_version == null || importedState.balance == null) {
+            return internalError;
+          }
           cardStates.set(idStr, {
-            state: String(importedState.state || "active"),
+            state: String(importedState.state),
             latest_issued_version: Number(importedState.latest_issued_version) || 0,
             active_version: importedState.active_version != null ? Number(importedState.active_version) : null,
             activated_at: importedState.activated_at != null ? Number(importedState.activated_at) : null,
@@ -768,18 +972,40 @@ export const makeReplayNamespace = (
             first_seen_at: importedState.first_seen_at != null ? Number(importedState.first_seen_at) : null,
           });
         }
-          if (importedConfig) {
-            cardConfigs.set(idStr, {
-              K2: (importedConfig.K2 as string) || null,
-              payment_method: String(importedConfig.payment_method || "fakewallet") as CardConfig["payment_method"],
-              config_json: (importedConfig.config_json as string) || undefined,
-              pull_payment_id: (importedConfig.pull_payment_id as string) || undefined,
-            });
+        if (importedConfig) {
+          // Store the LOGICAL config (config_json extras parsed and spread,
+          // parsed last so extras may override — mirroring the DO's
+          // get-config spread order).
+          let extra: Record<string, unknown> = {};
+          if (typeof importedConfig.config_json === "string" && importedConfig.config_json.length > 0) {
+            try {
+              extra = JSON.parse(importedConfig.config_json) as Record<string, unknown>;
+            } catch {
+              extra = {};
+            }
           }
-        taps.clear();
+          cardConfigs.set(idStr, {
+            K2: (importedConfig.K2 as string) || null,
+            payment_method: String(importedConfig.payment_method || "fakewallet") as CardConfig["payment_method"],
+            pull_payment_id: (importedConfig.pull_payment_id as string) || undefined,
+            ...extra,
+          } as CardConfig);
+        }
         if (Array.isArray(importedTaps)) {
           for (const t of importedTaps) {
-            const tCounter = Number(t.counter);
+            if (t.created_at == null || t.updated_at == null) return internalError;
+            // INTEGER PRIMARY KEY parity: a NULL counter is auto-assigned
+            // (max rowid + 1), not a constraint failure; a non-numeric
+            // counter is a datatype mismatch → the dispatcher's 500.
+            let tCounter = Number(t.counter);
+            if (t.counter != null && Number.isNaN(tCounter)) return internalError;
+            if (t.counter == null) {
+              let max = 0;
+              for (const key of taps.keys()) {
+                if (key.startsWith(`${idStr}:`)) max = Math.max(max, Number(key.slice(idStr.length + 1)) || 0);
+              }
+              tCounter = max + 1;
+            }
             taps.set(`${idStr}:${tCounter}`, {
               counter: tCounter,
               bolt11: (t.bolt11 as string) || null,
@@ -793,17 +1019,23 @@ export const makeReplayNamespace = (
             });
           }
         }
-        transactions.set(idStr, []);
         if (Array.isArray(importedTxns)) {
-          const txns: Transaction[] = importedTxns.map((t, i) => ({
-            id: Number(t.id) || i + 1,
+          for (const t of importedTxns) {
+            if (t.amount == null || t.balance_after == null || t.created_at == null) return internalError;
+          }
+          const txns: Transaction[] = importedTxns.map((t) => ({
+            id: Number(t.id) || 0,
             counter: t.counter != null ? Number(t.counter) : null,
             amount: Number(t.amount) || 0,
             balance_after: Number(t.balance_after) || 0,
             created_at: Number(t.created_at) || 0,
             note: (t.note as string) || null,
+            voided_at: t.voided_at != null ? Number(t.voided_at) : null,
           }));
           transactions.set(idStr, txns);
+          // AUTOINCREMENT parity: sqlite_sequence only grows.
+          const maxId = txns.reduce((m, t) => Math.max(m, t.id), 0);
+          txnSeq.set(idStr, Math.max(txnSeq.get(idStr) ?? 0, maxId));
         }
 
         return Response.json({

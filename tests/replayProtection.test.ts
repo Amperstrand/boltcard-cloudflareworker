@@ -115,15 +115,20 @@ describe("replayProtection", () => {
     it("returns empty array when no taps", async () => {
       const env = makeEnv();
       const result = await listTaps(env, UID);
-      expect(result.taps).toEqual([]);
+      // initialCards seeds an activated card_state → the DO-merged
+      // lifecycle 'activated' pseudo-row is part of the contract.
+      expect(result.taps).toEqual([
+        expect.objectContaining({ status: "activated", counter: null }),
+      ]);
     });
 
     it("returns recorded taps", async () => {
       const env = makeEnv();
       await recordTap(env, UID, 3, { bolt11: "lnbc10n1test" });
       const result = await listTaps(env, UID);
-      expect(result.taps).toHaveLength(1);
+      expect(result.taps).toHaveLength(2);
       expect(result.taps[0]!.counter).toBe(3);
+      expect(result.taps[1]).toEqual(expect.objectContaining({ status: "activated", counter: null }));
     });
 
     it("returns empty when CARD_REPLAY missing", async () => {
