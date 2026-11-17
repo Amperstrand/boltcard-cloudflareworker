@@ -2,6 +2,7 @@ import { logger, getErrorMessage } from "../../utils/logger.js";
 import type { CardConfig } from "../../types/core.js";
 import type { SetK2Payload } from "./types.js";
 import { nowSec } from "./types.js";
+import { invalidJsonBodyResponse, parseJsonBody } from "./bodyParse.js";
 
 export function handleGetConfig(sql: SqlStorage): Response {
   const rows = sql.exec(
@@ -26,7 +27,10 @@ export function handleGetConfig(sql: SqlStorage): Response {
 }
 
 export async function handleSetConfig(sql: SqlStorage, request: Request): Promise<Response> {
-  const config = await request.json() as CardConfig;
+  const config = await parseJsonBody<CardConfig>(request);
+  if (config === null) {
+    return invalidJsonBodyResponse();
+  }
   const { K2, payment_method, pull_payment_id, ...rest } = config;
   const method: string = payment_method || "fakewallet";
   const k2: string | null = K2 || null;
@@ -50,7 +54,11 @@ export async function handleSetConfig(sql: SqlStorage, request: Request): Promis
 }
 
 export async function handleSetK2(sql: SqlStorage, request: Request): Promise<Response> {
-  const { K2 } = await request.json() as SetK2Payload;
+  const body = await parseJsonBody<SetK2Payload>(request);
+  if (body === null) {
+    return invalidJsonBodyResponse();
+  }
+  const { K2 } = body;
   const k2: string | null = K2 || null;
   const now = nowSec();
   const existing = sql.exec(

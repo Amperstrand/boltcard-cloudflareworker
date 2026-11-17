@@ -1,10 +1,15 @@
 import type { CheckCounterPayload, ClaimTapNoBolt11Payload, ClaimTapPayload, DoCardStateRow, RecordReadPayload, RecordTapPayload } from "./types.js";
 import { nowSec } from "./types.js";
+import { invalidJsonBodyResponse, parseJsonBody } from "./bodyParse.js";
 
 const VALID_TAP_STATUSES = ["read", "pending", "paying", "completed", "failed", "expired"];
 
 export async function handleCheck(sql: SqlStorage, request: Request, readOnly: boolean): Promise<Response> {
-  const { counterValue } = await request.json() as CheckCounterPayload;
+  const body = await parseJsonBody<CheckCounterPayload>(request);
+  if (body === null) {
+    return invalidJsonBodyResponse();
+  }
+  const { counterValue } = body;
   if (!Number.isInteger(counterValue) || counterValue < 0) {
     return Response.json({ accepted: false, reason: "Invalid counter value" }, { status: 400 });
   }
@@ -52,7 +57,11 @@ export async function handleCheck(sql: SqlStorage, request: Request, readOnly: b
 }
 
 export async function handleRecordTap(sql: SqlStorage, request: Request): Promise<Response> {
-  const { counterValue, bolt11, amountMsat, userAgent, requestUrl } = await request.json() as RecordTapPayload;
+  const body = await parseJsonBody<RecordTapPayload>(request);
+  if (body === null) {
+    return invalidJsonBodyResponse();
+  }
+  const { counterValue, bolt11, amountMsat, userAgent, requestUrl } = body;
   if (!Number.isInteger(counterValue) || counterValue < 0) {
     return Response.json({ accepted: false, reason: "Invalid counter value" }, { status: 400 });
   }
@@ -98,7 +107,11 @@ export async function handleRecordTap(sql: SqlStorage, request: Request): Promis
 }
 
 export async function handleRecordRead(sql: SqlStorage, request: Request): Promise<Response> {
-  const { counterValue, userAgent, requestUrl } = await request.json() as RecordReadPayload;
+  const body = await parseJsonBody<RecordReadPayload>(request);
+  if (body === null) {
+    return invalidJsonBodyResponse();
+  }
+  const { counterValue, userAgent, requestUrl } = body;
   const counter: number = (Number.isInteger(counterValue) && counterValue >= 0)
     ? counterValue
     : Date.now();
@@ -118,7 +131,11 @@ export async function handleRecordRead(sql: SqlStorage, request: Request): Promi
 }
 
 export async function handleUpdateTapStatus(sql: SqlStorage, request: Request): Promise<Response> {
-  const { counter, status, bolt11, amountMsat } = await request.json() as ClaimTapPayload;
+  const body = await parseJsonBody<ClaimTapPayload>(request);
+  if (body === null) {
+    return invalidJsonBodyResponse();
+  }
+  const { counter, status, bolt11, amountMsat } = body;
   if (counter == null || !status) {
     return Response.json({ error: "Missing counter or status" }, { status: 400 });
   }
@@ -141,7 +158,11 @@ export async function handleUpdateTapStatus(sql: SqlStorage, request: Request): 
 }
 
 export async function handleClaimTap(sql: SqlStorage, request: Request): Promise<Response> {
-  const { counter, bolt11, amountMsat } = await request.json() as ClaimTapNoBolt11Payload;
+  const body = await parseJsonBody<ClaimTapNoBolt11Payload>(request);
+  if (body === null) {
+    return invalidJsonBodyResponse();
+  }
+  const { counter, bolt11, amountMsat } = body;
   if (!Number.isInteger(counter) || counter < 0) {
     return Response.json({ claimed: false, reason: "Invalid counter" }, { status: 400 });
   }

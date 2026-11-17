@@ -1,4 +1,5 @@
 import type { CardExportData, ImportResult } from "./routes.js";
+import { invalidJsonBodyResponse, parseJsonBody } from "./bodyParse.js";
 
 export function handleExportState(sql: SqlStorage): Response {
   const replayStateRows = sql.exec("SELECT * FROM replay_state WHERE singleton = 1").toArray();
@@ -21,7 +22,10 @@ export function handleExportState(sql: SqlStorage): Response {
 }
 
 export async function handleImportState(sql: SqlStorage, request: Request): Promise<Response> {
-  const body = await request.json() as CardExportData;
+  const body = await parseJsonBody<CardExportData>(request);
+  if (body === null) {
+    return invalidJsonBodyResponse();
+  }
 
   if (body.version !== 1) {
     return Response.json({ error: "Unsupported export version" }, { status: 400 });

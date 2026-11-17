@@ -1,6 +1,7 @@
 import { CARD_STATE_COLS } from "./schema.js";
 import type { DeliverKeysPayload, DiscoverPayload, DoCardStateRow, SetProvenancePayload } from "./types.js";
 import { nowSec } from "./types.js";
+import { invalidJsonBodyResponse, parseJsonBody } from "./bodyParse.js";
 
 export function handleGetCardState(sql: SqlStorage): Response {
   const rows = sql.exec(
@@ -58,7 +59,11 @@ export function handleDeliverKeys(sql: SqlStorage): Response {
 }
 
 export async function handleActivate(sql: SqlStorage, request: Request): Promise<Response> {
-  const { active_version } = await request.json() as DeliverKeysPayload;
+  const body = await parseJsonBody<DeliverKeysPayload>(request);
+  if (body === null) {
+    return invalidJsonBodyResponse();
+  }
+  const { active_version } = body;
   if (!Number.isInteger(active_version) || active_version < 1) {
     return Response.json({ error: "Invalid active_version" }, { status: 400 });
   }
@@ -123,7 +128,11 @@ export function handleTerminate(sql: SqlStorage): Response {
 }
 
 export async function handleMarkPending(sql: SqlStorage, request: Request): Promise<Response> {
-  const { key_provenance, key_fingerprint, key_label } = await request.json() as SetProvenancePayload;
+  const body = await parseJsonBody<SetProvenancePayload>(request);
+  if (body === null) {
+    return invalidJsonBodyResponse();
+  }
+  const { key_provenance, key_fingerprint, key_label } = body;
   const now = nowSec();
   const existing = sql.exec(
     `SELECT state FROM card_state WHERE singleton = 1`
@@ -155,7 +164,11 @@ export async function handleMarkPending(sql: SqlStorage, request: Request): Prom
 }
 
 export async function handleDiscover(sql: SqlStorage, request: Request): Promise<Response> {
-  const { key_provenance, key_fingerprint, key_label, active_version } = await request.json() as DiscoverPayload;
+  const body = await parseJsonBody<DiscoverPayload>(request);
+  if (body === null) {
+    return invalidJsonBodyResponse();
+  }
+  const { key_provenance, key_fingerprint, key_label, active_version } = body;
   const now = nowSec();
   const version: number = active_version || 1;
 
