@@ -1,7 +1,8 @@
 import type { CardConfig } from "../types/core.js";
 import { MAX_BALANCE } from "../utils/constants.js";
 import { invalidJsonBodyResponse, parseJsonBody } from "../durableObjects/cardReplay/bodyParse.js";
-import { reservedKeysInConfigJson } from "../durableObjects/cardReplay/stateExportHandlers.js";
+import { reservedKeysInConfigJson, validateImportRowidBinds } from "../durableObjects/cardReplay/stateExportHandlers.js";
+import type { CardExportData } from "../durableObjects/cardReplay/routes.js";
 
 interface CardState {
   state: string;
@@ -1101,39 +1102,13 @@ export const makeReplayNamespace = (
         const importedTaps = body.taps as Array<Record<string, unknown>> | undefined;
         const importedTxns = body.transactions as Array<Record<string, unknown>> | undefined;
 
-        // ops#42 pre-validate parity: the real handler validates rowid-alias
-        // binds (taps.counter, transactions.id/.counter) BEFORE the DELETE
-        // phase — non-integer / non-coercible values get a dispatcher-
-        // controlled 400 and existing rows survive. Mirror the exact
-        // predicate and messages (stateExportHandlers.isRowidAliasCompatible).
-        const rowidCompatible = (v: unknown): boolean => {
-          if (v === null) return true;
-          if (typeof v === "number") return Number.isInteger(v);
-          if (typeof v === "string") {
-            if (v.trim() === "") return false;
-            // hex/octal/binary literals parse under Number() but stay
-            // TEXT to SQLite affinity (rowid-alias mismatch) — reject.
-            if (/^[+-]?0[xXoObB]/.test(v.trim())) return false;
-            return Number.isInteger(Number(v));
-          }
-          return false;
-        };
-        if (Array.isArray(importedTaps)) {
-          for (let i = 0; i < importedTaps.length; i++) {
-            if (!rowidCompatible(importedTaps[i]?.counter)) {
-              return Response.json({ error: `Invalid import body: taps[${i}].counter must be an integer or null` }, { status: 400 });
-            }
-          }
-        }
-        if (Array.isArray(importedTxns)) {
-          for (let i = 0; i < importedTxns.length; i++) {
-            if (!rowidCompatible(importedTxns[i]?.id)) {
-              return Response.json({ error: `Invalid import body: transactions[${i}].id must be an integer or null` }, { status: 400 });
-            }
-            if (!rowidCompatible(importedTxns[i]?.counter)) {
-              return Response.json({ error: `Invalid import body: transactions[${i}].counter must be an integer or null` }, { status: 400 });
-            }
-          }
+        // ops#42 pre-validate parity, ops#67 dedupe: the real handler's
+        // own validator runs here (same predicate, messages, and
+        // rowid-then-reserved ordering as handleImportState) — parity by
+        // construction, imported instead of hand-synced.
+        const rowidError = validateImportRowidBinds(body as unknown as CardExportData);
+        if (rowidError !== null) {
+          return rowidError;
         }
 
         // Real DO (ops#43): reserved keys planted inside config_json are
