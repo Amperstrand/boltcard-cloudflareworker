@@ -288,6 +288,7 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 - `markPending()` and `discoverCard()` from `replayProtection.ts` for DO row creation during key fetch and first tap
 - DO `handleDiscover` upgrades `pending`, `new`, and `legacy` states to `discovered`; `new`/`legacy` with no DO row take the INSERT path instead
 - DO `/set-k2` endpoint for targeted K2-only update (preserves existing `payment_method` and `config_json`); called via `setCardK2()` during card discovery
+- DO `/import-state` rejects `card_config.config_json` whose parsed object contains reserved keys (`K2`, `payment_method`, `pull_payment_id`) with `400 {error, reserved_keys}` BEFORE its table DELETEs — state untouched on refuse; unparseable config_json still imports verbatim (ops#43: import was the only path that could plant reserved keys where the get-config extras spread would override the typed columns, falsy included, unrecoverable via set-k2)
 - `indexCard()`, `deindexCard()`, `getIndexedCard()`, `listIndexedCards()`, `repairCardIndex()` from `utils/cardIndex.ts` for KV-backed card registry (prefix `card_idx:`, TTL 7 days)
 - `replayProtection.ts` calls `await indexCard()` on all 6 state transitions: `markPending`, `discoverCard`, `deliverKeys`, `activateCard`, `terminateCard`, `requestWipe`
 - `recordAuditEvent()` from `utils/auditLog.ts` for persistent operator action log (prefix `audit_log:`, TTL 90 days). Called from topup, refund, POS charge, void, batch operations. Also updates shift summaries via `updateShiftSummary()`.

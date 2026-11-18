@@ -1,5 +1,6 @@
 import type { CardConfig } from "../types/core.js";
 import { MAX_BALANCE } from "../utils/constants.js";
+import { reservedKeysInConfigJson } from "../durableObjects/cardReplay/stateExportHandlers.js";
 
 interface CardState {
   state: string;
@@ -47,11 +48,12 @@ interface K1Challenge {
  * Faithful mirror of the DO's card_config TABLE row (typed columns + raw
  * config_json string). Route writes (set-config / set-k2 / import-state)
  * keep this row so get-config / export-state can project EXACTLY like
- * durableObjects/cardReplay/configHandlers.ts — including the reserved-
- * key override semantics where config_json extras (K2 / payment_method /
- * pull_payment_id planted by /import-state) spread OVER the typed columns
- * with falsy extras values keeping their keys present. The logical
- * __cardConfigs map stays in sync for external unit-test readers.
+ * durableObjects/cardReplay/configHandlers.ts. Reserved keys (K2 /
+ * payment_method / pull_payment_id) can no longer be planted in
+ * config_json: set-config strips them via destructure, and import-state
+ * rejects them with a 400 (ops#43) — so the extras spread can only carry
+ * caller-owned keys over the typed columns. The logical __cardConfigs map
+ * stays in sync for external unit-test readers.
  */
 interface ConfigRow {
   K2: string | null;
@@ -1067,6 +1069,23 @@ export const makeReplayNamespace = (
           }
         }
 
+        // Real DO (ops#43): reserved keys planted inside config_json are
+        // rejected with a 400 BEFORE any table DELETE — a refused import
+        // leaves existing state untouched. Unparseable config_json passes
+        // the guard and is restored verbatim.
+        if (importedConfig) {
+          const reserved = reservedKeysInConfigJson(importedConfig.config_json);
+          if (reserved.length > 0) {
+            return Response.json(
+              {
+                error: "Reserved keys in card_config.config_json are not importable",
+                reserved_keys: reserved,
+              },
+              { status: 400 }
+            );
+          }
+        }
+
         // Real DO: DELETEs every table FIRST (a failed import still leaves
         // the tables cleared), then re-inserts; a NOT NULL violation on any
         // insert surfaces as the dispatcher's 500 {error:"Internal error"}.
@@ -1106,9 +1125,9 @@ export const makeReplayNamespace = (
         if (importedConfig) {
           // Real DO: the card_config row is restored verbatim — typed
           // columns with their own ?? fallbacks, config_json as the RAW
-          // string. Reserved keys inside config_json are legal here (the
-          // only production path that can plant them) and resurface via
-          // get-config's extras spread overriding the typed columns.
+          // string. Reserved keys inside config_json never reach this
+          // point (rejected above, ops#43); non-reserved extras resurface
+          // via get-config's extras spread over the typed columns.
           const row: ConfigRow = {
             K2: (importedConfig.K2 as string) ?? null,
             payment_method: String(importedConfig.payment_method ?? "fakewallet"),

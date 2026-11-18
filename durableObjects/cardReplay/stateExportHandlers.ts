@@ -65,6 +65,37 @@ function validateImportRowidBinds(body: CardExportData): Response | null {
   return null;
 }
 
+/**
+ * card_config columns get-config projects from their TYPED values (and
+ * set-config strips from extras via its destructure). ops#43: they may not
+ * be planted inside config_json by /import-state either.
+ */
+export const RESERVED_CONFIG_KEYS = ["K2", "payment_method", "pull_payment_id"] as const;
+
+/**
+ * Reserved keys present as OWN PROPERTIES of a PARSED config_json object.
+ *
+ * - Unparseable or non-object config_json returns [] — the raw string stays
+ *   importable verbatim (pinned: export-state round-trips it raw, ops#37
+ *   wave 3; get-config just warns and drops the extras).
+ * - hasOwnProperty is load-bearing: falsy values count as planted
+ *   ({"K2":null} / {"payment_method":""} were exactly the pernicious
+ *   override cases — the get-config spread kept the key with its falsy
+ *   value instead of the typed column or the fakewallet default).
+ */
+export function reservedKeysInConfigJson(configJson: unknown): string[] {
+  if (typeof configJson !== "string") return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(configJson);
+  } catch {
+    return [];
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return [];
+  const obj = parsed as Record<string, unknown>;
+  return RESERVED_CONFIG_KEYS.filter((key) => Object.prototype.hasOwnProperty.call(obj, key));
+}
+
 export function handleExportState(sql: SqlStorage): Response {
   const replayStateRows = sql.exec("SELECT * FROM replay_state WHERE singleton = 1").toArray();
   const cardStateRows = sql.exec("SELECT * FROM card_state WHERE singleton = 1").toArray();
@@ -98,6 +129,25 @@ export async function handleImportState(sql: SqlStorage, request: Request): Prom
   const rowidError = validateImportRowidBinds(body);
   if (rowidError !== null) {
     return rowidError;
+  }
+
+  // ops#43 (owner disposition: validate/strip). /import-state was the ONLY
+  // path that could plant reserved keys inside config_json (set-config's
+  // destructure strips them); once planted, the get-config extras spread
+  // overrode the typed columns with ANY value (falsy included) and set-k2
+  // could not recover. Reject with a 400-class contract error BEFORE the
+  // DELETEs below so a refused import leaves existing state untouched.
+  if (body.card_config) {
+    const reserved = reservedKeysInConfigJson(body.card_config.config_json);
+    if (reserved.length > 0) {
+      return Response.json(
+        {
+          error: "Reserved keys in card_config.config_json are not importable",
+          reserved_keys: reserved,
+        },
+        { status: 400 }
+      );
+    }
   }
 
   sql.exec("DELETE FROM taps");
