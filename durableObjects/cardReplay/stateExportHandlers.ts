@@ -23,6 +23,13 @@ function isRowidAliasCompatible(value: unknown): boolean {
   if (typeof value === "number") return Number.isInteger(value);
   if (typeof value === "string") {
     if (value.trim() === "") return false;
+    // Number() also parses hex/octal/binary literals ("0x10" → 16),
+    // which SQLite affinity does NOT convert — they stay TEXT and hit
+    // the rowid-alias mismatch. Exclude them so the accepted strings
+    // are exactly the losslessly-coercible decimal forms (verified
+    // against the real stub: " 123 "→123, "1e2"→100, "+7"→7,
+    // "5.0"→5 all agree; "0x10" is the divergent class).
+    if (/^[+-]?0[xXoObB]/.test(value.trim())) return false;
     return Number.isInteger(Number(value));
   }
   return false;

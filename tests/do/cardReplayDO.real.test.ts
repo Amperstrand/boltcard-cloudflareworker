@@ -617,6 +617,13 @@ describe("CardReplayDO real SQLite", () => {
       expect(data.error).toBe("Invalid import body: taps[0].counter must be an integer or null");
     });
 
+    it("rejects a hex-literal tap counter with a 400 (Number()/affinity divergence closed)", async () => {
+      const res = await doPost(stub, "/import-state", badTapBody("0x10"));
+      expect(res.status).toBe(400);
+      const data = await json(res);
+      expect(data.error).toBe("Invalid import body: taps[0].counter must be an integer or null");
+    });
+
     it("keeps existing rows intact when the import is rejected", async () => {
       await doPost(stub, "/record-read", { counterValue: 5 });
       const res = await doPost(stub, "/import-state", badTapBody("abc"));

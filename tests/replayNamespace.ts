@@ -1042,6 +1042,9 @@ export const makeReplayNamespace = (
           if (typeof v === "number") return Number.isInteger(v);
           if (typeof v === "string") {
             if (v.trim() === "") return false;
+            // hex/octal/binary literals parse under Number() but stay
+            // TEXT to SQLite affinity (rowid-alias mismatch) — reject.
+            if (/^[+-]?0[xXoObB]/.test(v.trim())) return false;
             return Number.isInteger(Number(v));
           }
           return false;
