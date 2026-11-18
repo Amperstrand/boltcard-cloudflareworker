@@ -1390,6 +1390,27 @@ export const CONTRACT_CASES: ContractCase[] = [
     ],
   },
   {
+    // Hex literals are the one numeric-looking class where Number()
+    // and SQLite affinity disagree: JS parses "0x10" as 16, SQLite
+    // keeps it TEXT → the escaped rowid-alias mismatch (verified
+    // against the real stub in the ops#42 session). The shared
+    // predicate rejects them, so both legs answer the controlled 400.
+    // (Decimal-integer forms all agree: " 123 "→123, "1e2"→100,
+    // "+7"→7, "5.0"→5 coerce identically on both legs.)
+    name: "/import-state: hex-literal tap counter → 400 (Number/affinity divergence closed)",
+    steps: [
+      () => post("/record-read", { counterValue: 5 }),
+      () =>
+        post("/import-state", {
+          version: 1,
+          taps: [
+            { counter: "0x10", bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 100, updated_at: 100 },
+          ],
+        }),
+      () => get("/list-taps"),
+    ],
+  },
+  {
     // Column affinity converts a numeric string before the rowid-alias
     // integer check — the row lands with counter 123.
     name: "/import-state: numeric-string counter coerced to integer",
