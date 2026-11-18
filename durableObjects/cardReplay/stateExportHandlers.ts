@@ -18,7 +18,7 @@ import { invalidJsonBodyResponse, parseJsonBody } from "./bodyParse.js";
  * losslessly to an integer ("123" → 123, the pinned coercion contract).
  * Everything else — "abc", 5.5, booleans, objects — is a contract error.
  */
-function isRowidAliasCompatible(value: unknown): boolean {
+export function isRowidAliasCompatible(value: unknown): boolean {
   if (value === null) return true;
   if (typeof value === "number") return Number.isInteger(value);
   if (typeof value === "string") {
@@ -35,7 +35,7 @@ function isRowidAliasCompatible(value: unknown): boolean {
   return false;
 }
 
-function validateImportRowidBinds(body: CardExportData): Response | null {
+export function validateImportRowidBinds(body: CardExportData): Response | null {
   if (Array.isArray(body.taps)) {
     for (let i = 0; i < body.taps.length; i++) {
       if (!isRowidAliasCompatible(body.taps[i]?.counter)) {
