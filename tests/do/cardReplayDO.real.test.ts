@@ -481,6 +481,73 @@ describe("CardReplayDO real SQLite", () => {
     });
   });
 
+  describe("import-state reserved-key guard (ops#43)", () => {
+    it("rejects config_json planting all three reserved keys with 400 + reserved_keys list", async () => {
+      const res = await doPost(stub, "/import-state", {
+        version: 1,
+        card_config: {
+          K2: "col-k2",
+          payment_method: "clnrest",
+          pull_payment_id: "col-pp",
+          config_json: JSON.stringify({ K2: "json-k2", payment_method: "proxy", pull_payment_id: "json-pp" }),
+        },
+      });
+      expect(res.status).toBe(400);
+      const data = await json(res);
+      expect(data.error).toContain("Reserved keys");
+      expect(data.reserved_keys).toEqual(["K2", "payment_method", "pull_payment_id"]);
+    });
+
+    it("rejects falsy reserved extras: K2 null and payment_method empty string", async () => {
+      const k2res = await doPost(stub, "/import-state", {
+        version: 1,
+        card_config: { K2: "col-k2", payment_method: "clnrest", config_json: JSON.stringify({ K2: null }) },
+      });
+      expect(k2res.status).toBe(400);
+      expect((await json(k2res)).reserved_keys).toEqual(["K2"]);
+
+      const pmres = await doPost(stub, "/import-state", {
+        version: 1,
+        card_config: { K2: "col-k2", payment_method: "clnrest", config_json: JSON.stringify({ payment_method: "" }) },
+      });
+      expect(pmres.status).toBe(400);
+      expect((await json(pmres)).reserved_keys).toEqual(["payment_method"]);
+    });
+
+    it("validates BEFORE the DELETEs: refused import leaves existing config untouched", async () => {
+      await doPost(stub, "/set-config", { K2: "live-k2", payment_method: "clnrest", custom: "x" });
+      const res = await doPost(stub, "/import-state", {
+        version: 1,
+        card_config: { K2: "col-k2", payment_method: "proxy", config_json: JSON.stringify({ K2: "json-k2" }) },
+      });
+      expect(res.status).toBe(400);
+      const data = await json(await doGet(stub, "/get-config"));
+      expect(data.K2).toBe("live-k2");
+      expect(data.payment_method).toBe("clnrest");
+      expect(data.custom).toBe("x");
+    });
+
+    it("still imports non-reserved extras and unparseable config_json verbatim", async () => {
+      const ok = await doPost(stub, "/import-state", {
+        version: 1,
+        card_config: { K2: "col-k2", payment_method: "clnrest", config_json: JSON.stringify({ custom: 1 }) },
+      });
+      expect(ok.status).toBe(200);
+      const data = await json(await doGet(stub, "/get-config"));
+      expect(data.K2).toBe("col-k2");
+      expect(data.payment_method).toBe("clnrest");
+      expect(data.custom).toBe(1);
+
+      const raw = await doPost(stub, "/import-state", {
+        version: 1,
+        card_config: { K2: "col-k2", payment_method: "clnrest", config_json: "{not json" },
+      });
+      expect(raw.status).toBe(200);
+      const exported = await json(await doGet(stub, "/export-state"));
+      expect(exported.card_config.config_json).toBe("{not json");
+    });
+  });
+
   describe("reset", () => {
     it("clears counters and taps", async () => {
       await doPost(stub, "/record-tap", { counterValue: 10, bolt11: "lnbc1" });

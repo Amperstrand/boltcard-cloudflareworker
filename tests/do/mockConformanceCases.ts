@@ -1128,10 +1128,11 @@ export const CONTRACT_CASES: ContractCase[] = [
 
   // -------------------------------------------------------------------------
   // wave-3 contract cases (ops#37) — /list-taps + /transactions upper clamps,
-  // /card-state full-row lifecycle chains, get-config reserved-key override
-  // edges (seeded via /import-state — the only path that can plant reserved
-  // keys in config_json), /import-state rowid-alias datatype edges, and
-  // /analytics NULL amount_msat aggregation semantics.
+  // /card-state full-row lifecycle chains, get-config reserved-key edges
+  // (re-oracled by ops#43: /import-state formerly the only path that could
+  // plant reserved keys in config_json, now rejects them 400 pre-DELETE),
+  // /import-state rowid-alias datatype edges, and /analytics NULL
+  // amount_msat aggregation semantics.
   // -------------------------------------------------------------------------
 
   // upper clamps
@@ -1228,7 +1229,10 @@ export const CONTRACT_CASES: ContractCase[] = [
     ],
   },
 
-  // get-config reserved-key override edges
+  // get-config reserved-key guard edges (ops#43, owner disposition
+  // validate/strip: /import-state — formerly the only path that could
+  // plant reserved keys in config_json — now rejects them with a 400
+  // BEFORE its DELETEs, so a refused import leaves state untouched)
   {
     // set-config's destructure strips the reserved keys before stringifying
     // rest, so the get-config extras spread can never see (or double-apply)
@@ -1240,10 +1244,10 @@ export const CONTRACT_CASES: ContractCase[] = [
     ],
   },
   {
-    // /import-state card_config is the only path that can plant reserved
-    // keys inside config_json — the get-config extras spread then overrides
-    // every typed column it names.
-    name: "config: import extras with reserved keys override typed columns",
+    // ops#43: config_json planting all three reserved keys is rejected
+    // 400 (reserved_keys lists them) before any table DELETE — on a fresh
+    // DO the refused import leaves no card_config row (get-config null).
+    name: "config: import rejects reserved keys in config_json (400, state untouched)",
     steps: [
       () =>
         post("/import-state", {
@@ -1275,10 +1279,10 @@ export const CONTRACT_CASES: ContractCase[] = [
     ],
   },
   {
-    // The extras spread runs AFTER the truthy-gated typed columns, so a
-    // falsy extras value leaves the key PRESENT with its null value (the
-    // truthy gate is not re-applied to spread keys).
-    name: "config: falsy reserved extras keep key present with null K2",
+    // The guard counts OWN properties: a null-valued reserved key is still
+    // planted (the falsy value is what made the old override pernicious —
+    // the get-config spread kept the key present with null).
+    name: "config: import rejects falsy reserved extra (K2 null)",
     steps: [
       () =>
         post("/import-state", {
@@ -1293,9 +1297,10 @@ export const CONTRACT_CASES: ContractCase[] = [
     ],
   },
   {
-    // Same spread rule for payment_method: the empty string survives and
-    // get-config does NOT re-default it to fakewallet.
-    name: "config: falsy reserved extras keep payment_method as empty string",
+    // Same hasOwnProperty rule for payment_method: the empty string is
+    // rejected instead of surviving the spread as "" in place of the
+    // typed column / fakewallet default.
+    name: "config: import rejects falsy reserved extra (payment_method empty string)",
     steps: [
       () =>
         post("/import-state", {
@@ -1310,9 +1315,11 @@ export const CONTRACT_CASES: ContractCase[] = [
     ],
   },
   {
-    // set-k2 UPDATEs only the typed K2 column — a K2 planted in config_json
-    // extras keeps overriding even the freshly written typed value.
-    name: "config: set-k2 after import with K2-in-extras stays overridden",
+    // With the planting path closed, set-k2's typed-K2 UPDATE/INSERT is
+    // the whole truth: the rejected import created no row, so set-k2
+    // INSERTs with the fakewallet default and get-config projects the
+    // typed K2 — no extras override possible.
+    name: "config: set-k2 after rejected import lands typed K2 un-overridden",
     steps: [
       () =>
         post("/import-state", {
@@ -1328,10 +1335,11 @@ export const CONTRACT_CASES: ContractCase[] = [
     ],
   },
   {
-    // Invalid config_json: get-config warns and drops the extras entirely
-    // (typed columns survive); the raw unparseable string still round-trips
-    // verbatim through export-state (updated_at is masked by the
-    // normalizer on both legs).
+    // Invalid config_json: the ops#43 guard only inspects PARSEABLE
+    // objects, so the raw unparseable string still imports verbatim;
+    // get-config warns and drops the extras entirely (typed columns
+    // survive); export-state round-trips the raw string (updated_at is
+    // masked by the normalizer on both legs).
     name: "config: import invalid config_json → get drops extras, export round-trips raw",
     steps: [
       () =>
