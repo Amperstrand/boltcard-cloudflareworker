@@ -1,7 +1,8 @@
 import type { CardConfig } from "../types/core.js";
 import { MAX_BALANCE } from "../utils/constants.js";
 import { invalidJsonBodyResponse, parseJsonBody } from "../durableObjects/cardReplay/bodyParse.js";
-import { reservedKeysInConfigJson } from "../durableObjects/cardReplay/stateExportHandlers.js";
+import { reservedKeysInConfigJson, validateImportRequiredFields, validateImportRowidBinds } from "../durableObjects/cardReplay/stateExportHandlers.js";
+import type { CardExportData } from "../durableObjects/cardReplay/routes.js";
 
 interface CardState {
   state: string;
@@ -1101,72 +1102,28 @@ export const makeReplayNamespace = (
         const importedTaps = body.taps as Array<Record<string, unknown>> | undefined;
         const importedTxns = body.transactions as Array<Record<string, unknown>> | undefined;
 
-        // ops#42 pre-validate parity: the real handler validates rowid-alias
-        // binds (taps.counter, transactions.id/.counter) BEFORE the DELETE
-        // phase — non-integer / non-coercible values get a dispatcher-
-        // controlled 400 and existing rows survive. Mirror the exact
-        // predicate and messages (stateExportHandlers.isRowidAliasCompatible).
-        const rowidCompatible = (v: unknown): boolean => {
-          if (v === null) return true;
-          if (typeof v === "number") return Number.isInteger(v);
-          if (typeof v === "string") {
-            if (v.trim() === "") return false;
-            // hex/octal/binary literals parse under Number() but stay
-            // TEXT to SQLite affinity (rowid-alias mismatch) — reject.
-            if (/^[+-]?0[xXoObB]/.test(v.trim())) return false;
-            return Number.isInteger(Number(v));
-          }
-          return false;
-        };
-        if (Array.isArray(importedTaps)) {
-          for (let i = 0; i < importedTaps.length; i++) {
-            if (!rowidCompatible(importedTaps[i]?.counter)) {
-              return Response.json({ error: `Invalid import body: taps[${i}].counter must be an integer or null` }, { status: 400 });
-            }
-          }
-        }
-        if (Array.isArray(importedTxns)) {
-          for (let i = 0; i < importedTxns.length; i++) {
-            if (!rowidCompatible(importedTxns[i]?.id)) {
-              return Response.json({ error: `Invalid import body: transactions[${i}].id must be an integer or null` }, { status: 400 });
-            }
-            if (!rowidCompatible(importedTxns[i]?.counter)) {
-              return Response.json({ error: `Invalid import body: transactions[${i}].counter must be an integer or null` }, { status: 400 });
-            }
-          }
+        // ops#42 pre-validate parity, ops#67 dedupe: the real handler's
+        // own validator runs here (same predicate, messages, and
+        // rowid-then-reserved ordering as handleImportState) — parity by
+        // construction, imported instead of hand-synced.
+        const rowidError = validateImportRowidBinds(body as unknown as CardExportData);
+        if (rowidError !== null) {
+          return rowidError;
         }
 
-        // ops#65 pre-validate parity: the real handler validates the
-        // NOT NULL columns whose binds receive body values verbatim
-        // (replay_state.last_counter; card_state.state/.latest_issued_
-        // version — balance is defaulted ?? 0 by the handler and is NOT
-        // validated; taps[].created_at/.updated_at; transactions[].
-        // amount/.balance_after/.created_at) BEFORE the DELETE phase.
-        // Verified on the real stub: the NOT NULL violation is another
-        // escaped jsg class (SQLITE_CONSTRAINT_NOTNULL rejects the stub
-        // RPC outside the dispatcher's catch), so the pre-DELETE 400 is
-        // the only dispatcher-controlled surface. Mirror the messages.
-        const requiredField = (field: string): Response =>
-          Response.json({ error: `Invalid import body: ${field} must not be null` }, { status: 400 });
-        if (importedReplay && importedReplay.last_counter == null) {
-          return requiredField("replay_state.last_counter");
-        }
-        if (importedState) {
-          if (importedState.state == null) return requiredField("card_state.state");
-          if (importedState.latest_issued_version == null) return requiredField("card_state.latest_issued_version");
-        }
-        if (Array.isArray(importedTaps)) {
-          for (let i = 0; i < importedTaps.length; i++) {
-            if (importedTaps[i]?.created_at == null) return requiredField(`taps[${i}].created_at`);
-            if (importedTaps[i]?.updated_at == null) return requiredField(`taps[${i}].updated_at`);
-          }
-        }
-        if (Array.isArray(importedTxns)) {
-          for (let i = 0; i < importedTxns.length; i++) {
-            if (importedTxns[i]?.amount == null) return requiredField(`transactions[${i}].amount`);
-            if (importedTxns[i]?.balance_after == null) return requiredField(`transactions[${i}].balance_after`);
-            if (importedTxns[i]?.created_at == null) return requiredField(`transactions[${i}].created_at`);
-          }
+        // ops#65 pre-validate parity, ops#67 dedupe pattern: the real
+        // handler's own required-field validator runs here (same fields
+        // and messages as handleImportState — replay_state.last_counter;
+        // card_state.state/.latest_issued_version, balance is defaulted
+        // ?? 0 and NOT validated; taps[].created_at/.updated_at;
+        // transactions[].amount/.balance_after/.created_at). Verified on
+        // the real stub: the NOT NULL violation is another escaped jsg
+        // class (SQLITE_CONSTRAINT_NOTNULL rejects the stub RPC outside
+        // the dispatcher's catch), so this pre-DELETE 400 is the only
+        // dispatcher-controlled surface.
+        const requiredFieldError = validateImportRequiredFields(body as unknown as CardExportData);
+        if (requiredFieldError !== null) {
+          return requiredFieldError;
         }
 
         // Real DO (ops#43): reserved keys planted inside config_json are
