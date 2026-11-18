@@ -1,6 +1,7 @@
 import type { CardConfig } from "../types/core.js";
 import { MAX_BALANCE } from "../utils/constants.js";
 import { invalidJsonBodyResponse, parseJsonBody } from "../durableObjects/cardReplay/bodyParse.js";
+import { reservedKeysInConfigJson } from "../durableObjects/cardReplay/stateExportHandlers.js";
 
 interface CardState {
   state: string;
@@ -48,11 +49,12 @@ interface K1Challenge {
  * Faithful mirror of the DO's card_config TABLE row (typed columns + raw
  * config_json string). Route writes (set-config / set-k2 / import-state)
  * keep this row so get-config / export-state can project EXACTLY like
- * durableObjects/cardReplay/configHandlers.ts — including the reserved-
- * key override semantics where config_json extras (K2 / payment_method /
- * pull_payment_id planted by /import-state) spread OVER the typed columns
- * with falsy extras values keeping their keys present. The logical
- * __cardConfigs map stays in sync for external unit-test readers.
+ * durableObjects/cardReplay/configHandlers.ts. Reserved keys (K2 /
+ * payment_method / pull_payment_id) can no longer be planted in
+ * config_json: set-config strips them via destructure, and import-state
+ * rejects them with a 400 (ops#43) — so the extras spread can only carry
+ * caller-owned keys over the typed columns. The logical __cardConfigs map
+ * stays in sync for external unit-test readers.
  */
 interface ConfigRow {
   K2: string | null;
@@ -1099,6 +1101,58 @@ export const makeReplayNamespace = (
         const importedTaps = body.taps as Array<Record<string, unknown>> | undefined;
         const importedTxns = body.transactions as Array<Record<string, unknown>> | undefined;
 
+        // ops#42 pre-validate parity: the real handler validates rowid-alias
+        // binds (taps.counter, transactions.id/.counter) BEFORE the DELETE
+        // phase — non-integer / non-coercible values get a dispatcher-
+        // controlled 400 and existing rows survive. Mirror the exact
+        // predicate and messages (stateExportHandlers.isRowidAliasCompatible).
+        const rowidCompatible = (v: unknown): boolean => {
+          if (v === null) return true;
+          if (typeof v === "number") return Number.isInteger(v);
+          if (typeof v === "string") {
+            if (v.trim() === "") return false;
+            // hex/octal/binary literals parse under Number() but stay
+            // TEXT to SQLite affinity (rowid-alias mismatch) — reject.
+            if (/^[+-]?0[xXoObB]/.test(v.trim())) return false;
+            return Number.isInteger(Number(v));
+          }
+          return false;
+        };
+        if (Array.isArray(importedTaps)) {
+          for (let i = 0; i < importedTaps.length; i++) {
+            if (!rowidCompatible(importedTaps[i]?.counter)) {
+              return Response.json({ error: `Invalid import body: taps[${i}].counter must be an integer or null` }, { status: 400 });
+            }
+          }
+        }
+        if (Array.isArray(importedTxns)) {
+          for (let i = 0; i < importedTxns.length; i++) {
+            if (!rowidCompatible(importedTxns[i]?.id)) {
+              return Response.json({ error: `Invalid import body: transactions[${i}].id must be an integer or null` }, { status: 400 });
+            }
+            if (!rowidCompatible(importedTxns[i]?.counter)) {
+              return Response.json({ error: `Invalid import body: transactions[${i}].counter must be an integer or null` }, { status: 400 });
+            }
+          }
+        }
+
+        // Real DO (ops#43): reserved keys planted inside config_json are
+        // rejected with a 400 BEFORE any table DELETE — a refused import
+        // leaves existing state untouched. Unparseable config_json passes
+        // the guard and is restored verbatim.
+        if (importedConfig) {
+          const reserved = reservedKeysInConfigJson(importedConfig.config_json);
+          if (reserved.length > 0) {
+            return Response.json(
+              {
+                error: "Reserved keys in card_config.config_json are not importable",
+                reserved_keys: reserved,
+              },
+              { status: 400 }
+            );
+          }
+        }
+
         // Real DO: DELETEs every table FIRST (a failed import still leaves
         // the tables cleared), then re-inserts; a NOT NULL violation on any
         // insert surfaces as the dispatcher's 500 {error:"Internal error"}.
@@ -1138,9 +1192,9 @@ export const makeReplayNamespace = (
         if (importedConfig) {
           // Real DO: the card_config row is restored verbatim — typed
           // columns with their own ?? fallbacks, config_json as the RAW
-          // string. Reserved keys inside config_json are legal here (the
-          // only production path that can plant them) and resurface via
-          // get-config's extras spread overriding the typed columns.
+          // string. Reserved keys inside config_json never reach this
+          // point (rejected above, ops#43); non-reserved extras resurface
+          // via get-config's extras spread over the typed columns.
           const row: ConfigRow = {
             K2: (importedConfig.K2 as string) ?? null,
             payment_method: String(importedConfig.payment_method ?? "fakewallet"),
@@ -1154,12 +1208,10 @@ export const makeReplayNamespace = (
           for (const t of importedTaps) {
             if (t.created_at == null || t.updated_at == null) return internalError;
             // INTEGER PRIMARY KEY parity: a NULL counter is auto-assigned
-            // (max rowid + 1), not a constraint failure; a non-numeric
-            // counter is a datatype mismatch → the dispatcher's 500, and
-            // so is a NON-INTEGER numeric (SQLite rowid aliases reject
-            // fractional values with the same datatype-mismatch error).
+            // (max rowid + 1), not a constraint failure. Non-integer binds
+            // never reach here — the pre-DELETE validation above rejects
+            // them with the dispatcher's 400 (ops#42).
             let tCounter = Number(t.counter);
-            if (t.counter != null && (!Number.isInteger(tCounter) || Number.isNaN(tCounter))) return internalError;
             if (t.counter == null) {
               let max = 0;
               for (const key of taps.keys()) {

@@ -1,6 +1,101 @@
 import type { CardExportData, ImportResult } from "./routes.js";
 import { invalidJsonBodyResponse, parseJsonBody } from "./bodyParse.js";
 
+/**
+ * Rowid-alias bind gate (ops#42 pre-validate decision).
+ *
+ * `taps.counter` and `transactions.id` are INTEGER PRIMARY KEY (rowid
+ * aliases); `transactions.counter` is an INTEGER column of the same
+ * shape. Binding a non-integer there makes SqlStorage throw
+ * `datatype mismatch: SQLITE_MISMATCH` — and in a real workerd DO that
+ * jsg error ESCAPES CardReplayStore.fetch's catch and rejects the stub
+ * RPC (ops#37 wave 3 parked family). Validating before the DELETE phase
+ * keeps the failure inside the dispatcher as a 400 it controls, and
+ * leaves existing rows intact instead of half-emptying the tables.
+ *
+ * Accepted shapes mirror SQLite column affinity for the rowid alias:
+ * null (auto-assign), a JS integer, or a numeric string that coerces
+ * losslessly to an integer ("123" → 123, the pinned coercion contract).
+ * Everything else — "abc", 5.5, booleans, objects — is a contract error.
+ */
+function isRowidAliasCompatible(value: unknown): boolean {
+  if (value === null) return true;
+  if (typeof value === "number") return Number.isInteger(value);
+  if (typeof value === "string") {
+    if (value.trim() === "") return false;
+    // Number() also parses hex/octal/binary literals ("0x10" → 16),
+    // which SQLite affinity does NOT convert — they stay TEXT and hit
+    // the rowid-alias mismatch. Exclude them so the accepted strings
+    // are exactly the losslessly-coercible decimal forms (verified
+    // against the real stub: " 123 "→123, "1e2"→100, "+7"→7,
+    // "5.0"→5 all agree; "0x10" is the divergent class).
+    if (/^[+-]?0[xXoObB]/.test(value.trim())) return false;
+    return Number.isInteger(Number(value));
+  }
+  return false;
+}
+
+function validateImportRowidBinds(body: CardExportData): Response | null {
+  if (Array.isArray(body.taps)) {
+    for (let i = 0; i < body.taps.length; i++) {
+      if (!isRowidAliasCompatible(body.taps[i]?.counter)) {
+        return Response.json(
+          { error: `Invalid import body: taps[${i}].counter must be an integer or null` },
+          { status: 400 }
+        );
+      }
+    }
+  }
+  if (Array.isArray(body.transactions)) {
+    for (let i = 0; i < body.transactions.length; i++) {
+      if (!isRowidAliasCompatible(body.transactions[i]?.id)) {
+        return Response.json(
+          { error: `Invalid import body: transactions[${i}].id must be an integer or null` },
+          { status: 400 }
+        );
+      }
+      if (!isRowidAliasCompatible(body.transactions[i]?.counter)) {
+        return Response.json(
+          { error: `Invalid import body: transactions[${i}].counter must be an integer or null` },
+          { status: 400 }
+        );
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * card_config columns get-config projects from their TYPED values (and
+ * set-config strips from extras via its destructure). ops#43: they may not
+ * be planted inside config_json by /import-state either.
+ */
+export const RESERVED_CONFIG_KEYS = ["K2", "payment_method", "pull_payment_id"] as const;
+
+/**
+ * Reserved keys present as OWN PROPERTIES of a PARSED config_json object.
+ *
+ * - Unparseable or non-object config_json returns [] — the raw string stays
+ *   importable verbatim (pinned: export-state round-trips it raw, ops#37
+ *   wave 3; get-config just warns and drops the extras).
+ * - hasOwnProperty is load-bearing: falsy values count as planted
+ *   ({"K2":null} / {"payment_method":""} were exactly the pernicious
+ *   override cases — the get-config spread kept the key with its falsy
+ *   value instead of the typed column or the fakewallet default).
+ */
+export function reservedKeysInConfigJson(configJson: unknown): string[] {
+  if (typeof configJson !== "string") return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(configJson);
+  } catch {
+    return [];
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return [];
+  const obj = parsed as Record<string, unknown>;
+  return RESERVED_CONFIG_KEYS.filter((key) => Object.prototype.hasOwnProperty.call(obj, key));
+}
+
 export function handleExportState(sql: SqlStorage): Response {
   const replayStateRows = sql.exec("SELECT * FROM replay_state WHERE singleton = 1").toArray();
   const cardStateRows = sql.exec("SELECT * FROM card_state WHERE singleton = 1").toArray();
@@ -29,6 +124,30 @@ export async function handleImportState(sql: SqlStorage, request: Request): Prom
 
   if (body.version !== 1) {
     return Response.json({ error: "Unsupported export version" }, { status: 400 });
+  }
+
+  const rowidError = validateImportRowidBinds(body);
+  if (rowidError !== null) {
+    return rowidError;
+  }
+
+  // ops#43 (owner disposition: validate/strip). /import-state was the ONLY
+  // path that could plant reserved keys inside config_json (set-config's
+  // destructure strips them); once planted, the get-config extras spread
+  // overrode the typed columns with ANY value (falsy included) and set-k2
+  // could not recover. Reject with a 400-class contract error BEFORE the
+  // DELETEs below so a refused import leaves existing state untouched.
+  if (body.card_config) {
+    const reserved = reservedKeysInConfigJson(body.card_config.config_json);
+    if (reserved.length > 0) {
+      return Response.json(
+        {
+          error: "Reserved keys in card_config.config_json are not importable",
+          reserved_keys: reserved,
+        },
+        { status: 400 }
+      );
+    }
   }
 
   sql.exec("DELETE FROM taps");

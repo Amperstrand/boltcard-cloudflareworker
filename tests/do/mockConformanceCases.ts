@@ -15,18 +15,19 @@ export interface ContractCase {
   steps: Array<(ctx: unknown[]) => StepReq>;
   /**
    * PLATFORM DIVERGENCE (parked): on these cases the real-DO leg is
-   * unobservable through the workerd DO stub. The remaining parked family
-   * is the /import-state SQLITE_MISMATCH bind error (ops#37 wave 3): the
-   * SqlStorage bind failure escapes CardReplayStore.fetch's catch and
-   * rejects the stub RPC before the dispatcher's documented 500 can run.
-   * The mock (node pool) executes the dispatcher contract faithfully;
-   * these cases pin the mock to that documented oracle instead of
-   * cross-implementation parity. The malformed-JSON family formerly parked
-   * here (ops#27) was un-parked by the ops#35 safe-parse decision: DO
-   * handlers now parse bodies via `await request.text()` + JSON.parse
-   * (durableObjects/cardReplay/bodyParse.ts), which keeps the parse
-   * failure inside the DO as a catchable JS SyntaxError, so those cases
-   * assert full mock-vs-real parity.
+   * unobservable through the workerd DO stub. NO cases are currently
+   * parked. The two historical families, both since un-parked:
+   * - The malformed-JSON family (ops#27) was un-parked by the ops#35
+   *   safe-parse decision: DO handlers parse bodies via
+   *   `await request.text()` + JSON.parse
+   *   (durableObjects/cardReplay/bodyParse.ts), keeping the parse
+   *   failure inside the DO as a catchable JS SyntaxError.
+   * - The /import-state SQLITE_MISMATCH family (ops#37 wave 3) was
+   *   un-parked by the ops#42 pre-validate decision:
+   *   stateExportHandlers validates rowid-alias binds (taps.counter,
+   *   transactions.id/.counter) before the DELETE phase and answers
+   *   with a dispatcher-controlled 400, so the SqlStorage bind error
+   *   never fires on this route.
    */
   platformDivergence?: { expected: Verdict[] };
 }
@@ -1127,10 +1128,11 @@ export const CONTRACT_CASES: ContractCase[] = [
 
   // -------------------------------------------------------------------------
   // wave-3 contract cases (ops#37) — /list-taps + /transactions upper clamps,
-  // /card-state full-row lifecycle chains, get-config reserved-key override
-  // edges (seeded via /import-state — the only path that can plant reserved
-  // keys in config_json), /import-state rowid-alias datatype edges, and
-  // /analytics NULL amount_msat aggregation semantics.
+  // /card-state full-row lifecycle chains, get-config reserved-key edges
+  // (re-oracled by ops#43: /import-state formerly the only path that could
+  // plant reserved keys in config_json, now rejects them 400 pre-DELETE),
+  // /import-state rowid-alias datatype edges, and /analytics NULL
+  // amount_msat aggregation semantics.
   // -------------------------------------------------------------------------
 
   // upper clamps
@@ -1227,7 +1229,10 @@ export const CONTRACT_CASES: ContractCase[] = [
     ],
   },
 
-  // get-config reserved-key override edges
+  // get-config reserved-key guard edges (ops#43, owner disposition
+  // validate/strip: /import-state — formerly the only path that could
+  // plant reserved keys in config_json — now rejects them with a 400
+  // BEFORE its DELETEs, so a refused import leaves state untouched)
   {
     // set-config's destructure strips the reserved keys before stringifying
     // rest, so the get-config extras spread can never see (or double-apply)
@@ -1239,10 +1244,10 @@ export const CONTRACT_CASES: ContractCase[] = [
     ],
   },
   {
-    // /import-state card_config is the only path that can plant reserved
-    // keys inside config_json — the get-config extras spread then overrides
-    // every typed column it names.
-    name: "config: import extras with reserved keys override typed columns",
+    // ops#43: config_json planting all three reserved keys is rejected
+    // 400 (reserved_keys lists them) before any table DELETE — on a fresh
+    // DO the refused import leaves no card_config row (get-config null).
+    name: "config: import rejects reserved keys in config_json (400, state untouched)",
     steps: [
       () =>
         post("/import-state", {
@@ -1274,10 +1279,10 @@ export const CONTRACT_CASES: ContractCase[] = [
     ],
   },
   {
-    // The extras spread runs AFTER the truthy-gated typed columns, so a
-    // falsy extras value leaves the key PRESENT with its null value (the
-    // truthy gate is not re-applied to spread keys).
-    name: "config: falsy reserved extras keep key present with null K2",
+    // The guard counts OWN properties: a null-valued reserved key is still
+    // planted (the falsy value is what made the old override pernicious —
+    // the get-config spread kept the key present with null).
+    name: "config: import rejects falsy reserved extra (K2 null)",
     steps: [
       () =>
         post("/import-state", {
@@ -1292,9 +1297,10 @@ export const CONTRACT_CASES: ContractCase[] = [
     ],
   },
   {
-    // Same spread rule for payment_method: the empty string survives and
-    // get-config does NOT re-default it to fakewallet.
-    name: "config: falsy reserved extras keep payment_method as empty string",
+    // Same hasOwnProperty rule for payment_method: the empty string is
+    // rejected instead of surviving the spread as "" in place of the
+    // typed column / fakewallet default.
+    name: "config: import rejects falsy reserved extra (payment_method empty string)",
     steps: [
       () =>
         post("/import-state", {
@@ -1309,9 +1315,11 @@ export const CONTRACT_CASES: ContractCase[] = [
     ],
   },
   {
-    // set-k2 UPDATEs only the typed K2 column — a K2 planted in config_json
-    // extras keeps overriding even the freshly written typed value.
-    name: "config: set-k2 after import with K2-in-extras stays overridden",
+    // With the planting path closed, set-k2's typed-K2 UPDATE/INSERT is
+    // the whole truth: the rejected import created no row, so set-k2
+    // INSERTs with the fakewallet default and get-config projects the
+    // typed K2 — no extras override possible.
+    name: "config: set-k2 after rejected import lands typed K2 un-overridden",
     steps: [
       () =>
         post("/import-state", {
@@ -1327,10 +1335,11 @@ export const CONTRACT_CASES: ContractCase[] = [
     ],
   },
   {
-    // Invalid config_json: get-config warns and drops the extras entirely
-    // (typed columns survive); the raw unparseable string still round-trips
-    // verbatim through export-state (updated_at is masked by the
-    // normalizer on both legs).
+    // Invalid config_json: the ops#43 guard only inspects PARSEABLE
+    // objects, so the raw unparseable string still imports verbatim;
+    // get-config warns and drops the extras entirely (typed columns
+    // survive); export-state round-trips the raw string (updated_at is
+    // masked by the normalizer on both legs).
     name: "config: import invalid config_json → get drops extras, export round-trips raw",
     steps: [
       () =>
@@ -1349,17 +1358,18 @@ export const CONTRACT_CASES: ContractCase[] = [
 
   // /import-state rowid-alias datatype edges
   {
-    // counter is INTEGER PRIMARY KEY (a rowid alias): TEXT "abc" is a
-    // datatype mismatch → the dispatcher's documented 500 {error:"Internal
-    // error"}. The mock delivers it; the REAL leg is unobservable through
-    // the workerd stub (the SQLITE_MISMATCH rejects the stub RPC outside
-    // CardReplayStore.fetch's catch — same parked family as the malformed
-    // JSON cases, ops#27; ops#37 wave-3 finding). The pre-insert DELETEs
-    // already ran, so /list-taps afterwards shows the tables emptied (the
-    // earlier /check's replay_state row is gone too).
-    name: "/import-state: non-numeric tap counter → 500 Internal error",
+    // counter is INTEGER PRIMARY KEY (a rowid alias): a non-numeric
+    // bind is a datatype mismatch the real workerd stub surfaces as an
+    // UNCATCHABLE jsg error (ops#37 wave 3 parked family). Per the
+    // ops#42 pre-validate decision the handler validates rowid-alias
+    // binds BEFORE the DELETE phase and answers with a
+    // dispatcher-controlled 400 — observable on both legs, so this
+    // case asserts full cross-implementation parity again. The seeded
+    // tap row must SURVIVE the rejected import (the old 500 oracle
+    // emptied the tables; the 400 runs before any DELETE).
+    name: "/import-state: non-numeric tap counter → 400, existing rows survive",
     steps: [
-      () => post("/check", { counterValue: 5 }),
+      () => post("/record-read", { counterValue: 5 }),
       () =>
         post("/import-state", {
           version: 1,
@@ -1369,21 +1379,14 @@ export const CONTRACT_CASES: ContractCase[] = [
         }),
       () => get("/list-taps"),
     ],
-    platformDivergence: {
-      expected: [
-        { status: 200, body: { accepted: true, lastCounter: 5 } },
-        { status: 500, body: { error: "Internal error" } },
-        { status: 200, body: { taps: [] } },
-      ],
-    },
   },
   {
-    // Same rowid-alias mismatch for a fractional REAL bind — same parked
-    // platform divergence (real stub rejects with SQLITE_MISMATCH before
-    // the dispatcher's 500 can run; see the case above).
-    name: "/import-state: float tap counter 5.5 → 500 Internal error",
+    // Same rowid-alias mismatch for a fractional REAL bind, now a
+    // controlled 400 on both legs (ops#42 pre-validate; see the case
+    // above for the mechanism and the survival oracle).
+    name: "/import-state: float tap counter 5.5 → 400, existing rows survive",
     steps: [
-      () => post("/check", { counterValue: 5 }),
+      () => post("/record-read", { counterValue: 5 }),
       () =>
         post("/import-state", {
           version: 1,
@@ -1393,13 +1396,27 @@ export const CONTRACT_CASES: ContractCase[] = [
         }),
       () => get("/list-taps"),
     ],
-    platformDivergence: {
-      expected: [
-        { status: 200, body: { accepted: true, lastCounter: 5 } },
-        { status: 500, body: { error: "Internal error" } },
-        { status: 200, body: { taps: [] } },
-      ],
-    },
+  },
+  {
+    // Hex literals are the one numeric-looking class where Number()
+    // and SQLite affinity disagree: JS parses "0x10" as 16, SQLite
+    // keeps it TEXT → the escaped rowid-alias mismatch (verified
+    // against the real stub in the ops#42 session). The shared
+    // predicate rejects them, so both legs answer the controlled 400.
+    // (Decimal-integer forms all agree: " 123 "→123, "1e2"→100,
+    // "+7"→7, "5.0"→5 coerce identically on both legs.)
+    name: "/import-state: hex-literal tap counter → 400 (Number/affinity divergence closed)",
+    steps: [
+      () => post("/record-read", { counterValue: 5 }),
+      () =>
+        post("/import-state", {
+          version: 1,
+          taps: [
+            { counter: "0x10", bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 100, updated_at: 100 },
+          ],
+        }),
+      () => get("/list-taps"),
+    ],
   },
   {
     // Column affinity converts a numeric string before the rowid-alias
