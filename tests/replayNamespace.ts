@@ -1032,6 +1032,38 @@ export const makeReplayNamespace = (
         const importedTaps = body.taps as Array<Record<string, unknown>> | undefined;
         const importedTxns = body.transactions as Array<Record<string, unknown>> | undefined;
 
+        // ops#42 pre-validate parity: the real handler validates rowid-alias
+        // binds (taps.counter, transactions.id/.counter) BEFORE the DELETE
+        // phase — non-integer / non-coercible values get a dispatcher-
+        // controlled 400 and existing rows survive. Mirror the exact
+        // predicate and messages (stateExportHandlers.isRowidAliasCompatible).
+        const rowidCompatible = (v: unknown): boolean => {
+          if (v === null) return true;
+          if (typeof v === "number") return Number.isInteger(v);
+          if (typeof v === "string") {
+            if (v.trim() === "") return false;
+            return Number.isInteger(Number(v));
+          }
+          return false;
+        };
+        if (Array.isArray(importedTaps)) {
+          for (let i = 0; i < importedTaps.length; i++) {
+            if (!rowidCompatible(importedTaps[i]?.counter)) {
+              return Response.json({ error: `Invalid import body: taps[${i}].counter must be an integer or null` }, { status: 400 });
+            }
+          }
+        }
+        if (Array.isArray(importedTxns)) {
+          for (let i = 0; i < importedTxns.length; i++) {
+            if (!rowidCompatible(importedTxns[i]?.id)) {
+              return Response.json({ error: `Invalid import body: transactions[${i}].id must be an integer or null` }, { status: 400 });
+            }
+            if (!rowidCompatible(importedTxns[i]?.counter)) {
+              return Response.json({ error: `Invalid import body: transactions[${i}].counter must be an integer or null` }, { status: 400 });
+            }
+          }
+        }
+
         // Real DO: DELETEs every table FIRST (a failed import still leaves
         // the tables cleared), then re-inserts; a NOT NULL violation on any
         // insert surfaces as the dispatcher's 500 {error:"Internal error"}.
@@ -1087,12 +1119,10 @@ export const makeReplayNamespace = (
           for (const t of importedTaps) {
             if (t.created_at == null || t.updated_at == null) return internalError;
             // INTEGER PRIMARY KEY parity: a NULL counter is auto-assigned
-            // (max rowid + 1), not a constraint failure; a non-numeric
-            // counter is a datatype mismatch → the dispatcher's 500, and
-            // so is a NON-INTEGER numeric (SQLite rowid aliases reject
-            // fractional values with the same datatype-mismatch error).
+            // (max rowid + 1), not a constraint failure. Non-integer binds
+            // never reach here — the pre-DELETE validation above rejects
+            // them with the dispatcher's 400 (ops#42).
             let tCounter = Number(t.counter);
-            if (t.counter != null && (!Number.isInteger(tCounter) || Number.isNaN(tCounter))) return internalError;
             if (t.counter == null) {
               let max = 0;
               for (const key of taps.keys()) {
