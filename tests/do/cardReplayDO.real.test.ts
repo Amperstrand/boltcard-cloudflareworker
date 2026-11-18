@@ -589,4 +589,78 @@ describe("CardReplayDO real SQLite", () => {
       expect(res.status).toBe(404);
     });
   });
+
+  // ops#42 pre-validate decision: rowid-alias binds on /import-state are
+  // validated before the DELETE phase, so the SQLITE_MISMATCH jsg error
+  // (which escapes the dispatcher catch and rejects the stub RPC — the
+  // ops#37 wave 3 parked family) never fires; the dispatcher answers with
+  // a 400 it controls and existing rows survive.
+  describe("import-state rowid-alias validation", () => {
+    const badTapBody = (counter: unknown) => ({
+      version: 1,
+      taps: [
+        { counter, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 100, updated_at: 100 },
+      ],
+    });
+
+    it('rejects a non-numeric tap counter with a 400 before any DELETE', async () => {
+      const res = await doPost(stub, "/import-state", badTapBody("abc"));
+      expect(res.status).toBe(400);
+      const data = await json(res);
+      expect(data.error).toBe("Invalid import body: taps[0].counter must be an integer or null");
+    });
+
+    it("rejects a float tap counter with a 400 before any DELETE", async () => {
+      const res = await doPost(stub, "/import-state", badTapBody(5.5));
+      expect(res.status).toBe(400);
+      const data = await json(res);
+      expect(data.error).toBe("Invalid import body: taps[0].counter must be an integer or null");
+    });
+
+    it("keeps existing rows intact when the import is rejected", async () => {
+      await doPost(stub, "/record-read", { counterValue: 5 });
+      const res = await doPost(stub, "/import-state", badTapBody("abc"));
+      expect(res.status).toBe(400);
+      const list = await json(await doGet(stub, "/list-taps"));
+      expect(list.taps).toHaveLength(1);
+      expect(list.taps[0].counter).toBe(5);
+    });
+
+    it("rejects a non-integer transaction id with a 400", async () => {
+      const res = await doPost(stub, "/import-state", {
+        version: 1,
+        transactions: [
+          { id: "abc", counter: 1, amount: 10, balance_after: 90, created_at: 100, note: null, voided_at: null },
+        ],
+      });
+      expect(res.status).toBe(400);
+      const data = await json(res);
+      expect(data.error).toBe("Invalid import body: transactions[0].id must be an integer or null");
+    });
+
+    it("rejects a non-integer transaction counter with a 400", async () => {
+      const res = await doPost(stub, "/import-state", {
+        version: 1,
+        transactions: [
+          { id: 1, counter: 4.5, amount: 10, balance_after: 90, created_at: 100, note: null, voided_at: null },
+        ],
+      });
+      expect(res.status).toBe(400);
+      const data = await json(res);
+      expect(data.error).toBe("Invalid import body: transactions[0].counter must be an integer or null");
+    });
+
+    it("still accepts null (auto-assign) and numeric-string counters", async () => {
+      const res = await doPost(stub, "/import-state", {
+        version: 1,
+        taps: [
+          { counter: "123", bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 100, updated_at: 100 },
+          { counter: null, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 110, updated_at: 110 },
+        ],
+      });
+      expect(res.status).toBe(200);
+      const list = await json(await doGet(stub, "/list-taps"));
+      expect(list.taps.map((t: { counter: number }) => t.counter).sort((a: number, b: number) => b - a)).toEqual([124, 123]);
+    });
+  });
 });

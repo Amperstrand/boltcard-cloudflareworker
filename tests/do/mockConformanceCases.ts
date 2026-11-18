@@ -15,18 +15,19 @@ export interface ContractCase {
   steps: Array<(ctx: unknown[]) => StepReq>;
   /**
    * PLATFORM DIVERGENCE (parked): on these cases the real-DO leg is
-   * unobservable through the workerd DO stub. The remaining parked family
-   * is the /import-state SQLITE_MISMATCH bind error (ops#37 wave 3): the
-   * SqlStorage bind failure escapes CardReplayStore.fetch's catch and
-   * rejects the stub RPC before the dispatcher's documented 500 can run.
-   * The mock (node pool) executes the dispatcher contract faithfully;
-   * these cases pin the mock to that documented oracle instead of
-   * cross-implementation parity. The malformed-JSON family formerly parked
-   * here (ops#27) was un-parked by the ops#35 safe-parse decision: DO
-   * handlers now parse bodies via `await request.text()` + JSON.parse
-   * (durableObjects/cardReplay/bodyParse.ts), which keeps the parse
-   * failure inside the DO as a catchable JS SyntaxError, so those cases
-   * assert full mock-vs-real parity.
+   * unobservable through the workerd DO stub. NO cases are currently
+   * parked. The two historical families, both since un-parked:
+   * - The malformed-JSON family (ops#27) was un-parked by the ops#35
+   *   safe-parse decision: DO handlers parse bodies via
+   *   `await request.text()` + JSON.parse
+   *   (durableObjects/cardReplay/bodyParse.ts), keeping the parse
+   *   failure inside the DO as a catchable JS SyntaxError.
+   * - The /import-state SQLITE_MISMATCH family (ops#37 wave 3) was
+   *   un-parked by the ops#42 pre-validate decision:
+   *   stateExportHandlers validates rowid-alias binds (taps.counter,
+   *   transactions.id/.counter) before the DELETE phase and answers
+   *   with a dispatcher-controlled 400, so the SqlStorage bind error
+   *   never fires on this route.
    */
   platformDivergence?: { expected: Verdict[] };
 }
@@ -1349,17 +1350,18 @@ export const CONTRACT_CASES: ContractCase[] = [
 
   // /import-state rowid-alias datatype edges
   {
-    // counter is INTEGER PRIMARY KEY (a rowid alias): TEXT "abc" is a
-    // datatype mismatch → the dispatcher's documented 500 {error:"Internal
-    // error"}. The mock delivers it; the REAL leg is unobservable through
-    // the workerd stub (the SQLITE_MISMATCH rejects the stub RPC outside
-    // CardReplayStore.fetch's catch — same parked family as the malformed
-    // JSON cases, ops#27; ops#37 wave-3 finding). The pre-insert DELETEs
-    // already ran, so /list-taps afterwards shows the tables emptied (the
-    // earlier /check's replay_state row is gone too).
-    name: "/import-state: non-numeric tap counter → 500 Internal error",
+    // counter is INTEGER PRIMARY KEY (a rowid alias): a non-numeric
+    // bind is a datatype mismatch the real workerd stub surfaces as an
+    // UNCATCHABLE jsg error (ops#37 wave 3 parked family). Per the
+    // ops#42 pre-validate decision the handler validates rowid-alias
+    // binds BEFORE the DELETE phase and answers with a
+    // dispatcher-controlled 400 — observable on both legs, so this
+    // case asserts full cross-implementation parity again. The seeded
+    // tap row must SURVIVE the rejected import (the old 500 oracle
+    // emptied the tables; the 400 runs before any DELETE).
+    name: "/import-state: non-numeric tap counter → 400, existing rows survive",
     steps: [
-      () => post("/check", { counterValue: 5 }),
+      () => post("/record-read", { counterValue: 5 }),
       () =>
         post("/import-state", {
           version: 1,
@@ -1369,21 +1371,14 @@ export const CONTRACT_CASES: ContractCase[] = [
         }),
       () => get("/list-taps"),
     ],
-    platformDivergence: {
-      expected: [
-        { status: 200, body: { accepted: true, lastCounter: 5 } },
-        { status: 500, body: { error: "Internal error" } },
-        { status: 200, body: { taps: [] } },
-      ],
-    },
   },
   {
-    // Same rowid-alias mismatch for a fractional REAL bind — same parked
-    // platform divergence (real stub rejects with SQLITE_MISMATCH before
-    // the dispatcher's 500 can run; see the case above).
-    name: "/import-state: float tap counter 5.5 → 500 Internal error",
+    // Same rowid-alias mismatch for a fractional REAL bind, now a
+    // controlled 400 on both legs (ops#42 pre-validate; see the case
+    // above for the mechanism and the survival oracle).
+    name: "/import-state: float tap counter 5.5 → 400, existing rows survive",
     steps: [
-      () => post("/check", { counterValue: 5 }),
+      () => post("/record-read", { counterValue: 5 }),
       () =>
         post("/import-state", {
           version: 1,
@@ -1393,13 +1388,6 @@ export const CONTRACT_CASES: ContractCase[] = [
         }),
       () => get("/list-taps"),
     ],
-    platformDivergence: {
-      expected: [
-        { status: 200, body: { accepted: true, lastCounter: 5 } },
-        { status: 500, body: { error: "Internal error" } },
-        { status: 200, body: { taps: [] } },
-      ],
-    },
   },
   {
     // Column affinity converts a numeric string before the rowid-alias
