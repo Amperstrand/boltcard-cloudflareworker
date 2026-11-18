@@ -64,15 +64,6 @@ CURRENCY_DECIMALS = "0"
 FAKEWALLET_CURRENCY = "EUR"
 FAKEWALLET_IBAN = "GB33BUKB20201555555555"
 FAKEWALLET_ACCOUNT_NAME = "FakeWallet"
-# Session K (ops#26) live-verification window — owner consent 2026-11-18
-# (issue 26 comment): armed for the staged probes, removed at window end.
-# Documented default-OFF flags (audit #10 / #18 / #13):
-REPLAY_ENFORCE = "1"
-ALLOWED_HOSTS = "boltcard-staging.psbt.me"
-K1_FRESH = "1"
-# Short TTL so the "expired challenge refused" probe is bounded (audit #13
-# knob; default 60s). Removed together with the flags above.
-K1_FRESH_TTL_SECONDS = "3"
 
 [[env.staging.durable_objects.bindings]]
 name = "CARD_REPLAY"
