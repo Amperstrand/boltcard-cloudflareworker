@@ -66,6 +66,65 @@ export function validateImportRowidBinds(body: CardExportData): Response | null 
 }
 
 /**
+ * Required-field gate (ops#65 pre-validate decision).
+ *
+ * The NOT NULL columns whose binds receive body values verbatim are
+ * validated before the DELETE phase. Verified against the real workerd
+ * stub (ops#65 session): a NOT NULL violation here surfaces as
+ * `jsg.Error: NOT NULL constraint failed ... SQLITE_CONSTRAINT_NOTNULL`
+ * that ESCAPES CardReplayStore.fetch's catch and rejects the stub RPC —
+ * the same escaped class as the SQLITE_MISMATCH family (ops#37/ops#42),
+ * NOT a dispatcher-observable 500. Pre-validation gives both legs a
+ * controlled 400 and keeps existing rows intact.
+ *
+ * NOT validated: card_state.balance (the handler defaults it `?? 0`,
+ * so a null never reaches a bind — pinned: real leg 200, balance 0) and
+ * columns with handler defaults or nullable binds (taps.status,
+ * card_config.*). Type shape beyond null-ness is deliberately not
+ * checked — SQLite affinity governs non-null binds as before.
+ */
+export function validateImportRequiredFields(body: CardExportData): Response | null {
+  const bad = (field: string): Response =>
+    Response.json({ error: `Invalid import body: ${field} must not be null` }, { status: 400 });
+
+  if (body.replay_state && body.replay_state.last_counter == null) {
+    return bad("replay_state.last_counter");
+  }
+  if (body.card_state) {
+    if (body.card_state.state == null) {
+      return bad("card_state.state");
+    }
+    if (body.card_state.latest_issued_version == null) {
+      return bad("card_state.latest_issued_version");
+    }
+  }
+  if (Array.isArray(body.taps)) {
+    for (let i = 0; i < body.taps.length; i++) {
+      if (body.taps[i]?.created_at == null) {
+        return bad(`taps[${i}].created_at`);
+      }
+      if (body.taps[i]?.updated_at == null) {
+        return bad(`taps[${i}].updated_at`);
+      }
+    }
+  }
+  if (Array.isArray(body.transactions)) {
+    for (let i = 0; i < body.transactions.length; i++) {
+      if (body.transactions[i]?.amount == null) {
+        return bad(`transactions[${i}].amount`);
+      }
+      if (body.transactions[i]?.balance_after == null) {
+        return bad(`transactions[${i}].balance_after`);
+      }
+      if (body.transactions[i]?.created_at == null) {
+        return bad(`transactions[${i}].created_at`);
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * card_config columns get-config projects from their TYPED values (and
  * set-config strips from extras via its destructure). ops#43: they may not
  * be planted inside config_json by /import-state either.
@@ -129,6 +188,11 @@ export async function handleImportState(sql: SqlStorage, request: Request): Prom
   const rowidError = validateImportRowidBinds(body);
   if (rowidError !== null) {
     return rowidError;
+  }
+
+  const requiredFieldError = validateImportRequiredFields(body);
+  if (requiredFieldError !== null) {
+    return requiredFieldError;
   }
 
   // ops#43 (owner disposition: validate/strip). /import-state was the ONLY

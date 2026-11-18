@@ -1418,6 +1418,67 @@ export const CONTRACT_CASES: ContractCase[] = [
       () => get("/list-taps"),
     ],
   },
+
+  // /import-state NOT NULL required-field edges (ops#65 pre-validate).
+  // Verified on the real stub: a NOT NULL violation here is another
+  // ESCAPED jsg class (`SQLITE_CONSTRAINT_NOTNULL` rejects the stub RPC
+  // outside the dispatcher's catch), same observable as the SQLITE_MISMATCH
+  // family — so the pre-DELETE 400 is the only dispatcher-controlled
+  // surface, and every case carries the rows-survive oracle.
+  {
+    // A tap missing created_at (bound verbatim into a NOT NULL column)
+    // is rejected before the DELETE phase; the seeded tap survives.
+    name: "/import-state: tap missing created_at → 400, existing rows survive",
+    steps: [
+      () => post("/record-read", { counterValue: 5 }),
+      () =>
+        post("/import-state", {
+          version: 1,
+          taps: [
+            { counter: 9, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, updated_at: 100 },
+          ],
+        }),
+      () => get("/list-taps"),
+    ],
+  },
+  {
+    // Same family for transactions[].amount; the seeded /credit txn
+    // (id 1) survives the refused import.
+    name: "/import-state: transaction missing amount → 400, existing rows survive",
+    steps: [
+      () => post("/credit", { amount: 10, note: "seed" }),
+      () =>
+        post("/import-state", {
+          version: 1,
+          transactions: [
+            { id: 7, counter: null, balance_after: 5, created_at: 100, note: null, voided_at: null },
+          ],
+        }),
+      () => get("/transactions"),
+    ],
+  },
+  {
+    // replay_state.last_counter is the only NOT NULL bind on that table;
+    // the seeded counter survives (check-readonly still reports 5).
+    name: "/import-state: null replay_state.last_counter → 400, seeded counter survives",
+    steps: [
+      () => post("/check", { counterValue: 5 }),
+      () => post("/import-state", { version: 1, replay_state: { singleton: 1, last_counter: null } }),
+      () => post("/check-readonly", { counterValue: 6 }),
+    ],
+  },
+  {
+    // card_state.state / .latest_issued_version are bound verbatim
+    // (NOT NULL); .balance is NOT in this family — the handler defaults
+    // it ?? 0, so a null balance is a valid 200 (pinned in the real-stub
+    // suite). The seeded pending row survives the refused import.
+    name: "/import-state: null card_state.state → 400, seeded card state survives",
+    steps: [
+      () => post("/mark-pending", { key_provenance: null, key_fingerprint: null, key_label: null }),
+      () => post("/import-state", { version: 1, card_state: { singleton: 1, state: null, latest_issued_version: 0, balance: 0 } }),
+      () => get("/card-state"),
+    ],
+  },
   {
     // Column affinity converts a numeric string before the rowid-alias
     // integer check — the row lands with counter 123.

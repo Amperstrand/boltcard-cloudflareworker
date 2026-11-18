@@ -737,4 +737,88 @@ describe("CardReplayDO real SQLite", () => {
       expect(list.taps.map((t: { counter: number }) => t.counter).sort((a: number, b: number) => b - a)).toEqual([124, 123]);
     });
   });
+
+  // ops#65 pre-validate decision: NOT NULL required fields on
+  // /import-state are validated before the DELETE phase. Verified this
+  // session: the NOT NULL violation is another ESCAPED jsg class
+  // (`NOT NULL constraint failed ... SQLITE_CONSTRAINT_NOTNULL` rejects
+  // the stub RPC outside the dispatcher's catch), same observable as the
+  // SQLITE_MISMATCH family — the 400 is the only dispatcher-controlled
+  // surface, and refused imports leave existing rows intact.
+  describe("import-state NOT NULL validation", () => {
+    it("rejects a tap missing created_at with a 400 before any DELETE", async () => {
+      const res = await doPost(stub, "/import-state", {
+        version: 1,
+        taps: [
+          { counter: 9, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, updated_at: 100 },
+        ],
+      });
+      expect(res.status).toBe(400);
+      const data = await json(res);
+      expect(data.error).toBe("Invalid import body: taps[0].created_at must not be null");
+    });
+
+    it("keeps the seeded tap when the import is refused", async () => {
+      await doPost(stub, "/record-read", { counterValue: 5 });
+      const res = await doPost(stub, "/import-state", {
+        version: 1,
+        taps: [
+          { counter: 9, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, updated_at: 100 },
+        ],
+      });
+      expect(res.status).toBe(400);
+      const list = await json(await doGet(stub, "/list-taps"));
+      expect(list.taps).toHaveLength(1);
+      expect(list.taps[0].counter).toBe(5);
+    });
+
+    it("rejects a transaction missing amount with a 400", async () => {
+      const res = await doPost(stub, "/import-state", {
+        version: 1,
+        transactions: [
+          { id: 7, counter: null, balance_after: 5, created_at: 100, note: null, voided_at: null },
+        ],
+      });
+      expect(res.status).toBe(400);
+      const data = await json(res);
+      expect(data.error).toBe("Invalid import body: transactions[0].amount must not be null");
+    });
+
+    it("rejects a null replay_state.last_counter with a 400", async () => {
+      const res = await doPost(stub, "/import-state", { version: 1, replay_state: { singleton: 1, last_counter: null } });
+      expect(res.status).toBe(400);
+      const data = await json(res);
+      expect(data.error).toBe("Invalid import body: replay_state.last_counter must not be null");
+    });
+
+    it("rejects a null card_state.state with a 400", async () => {
+      const res = await doPost(stub, "/import-state", { version: 1, card_state: { singleton: 1, state: null, latest_issued_version: 0, balance: 0 } });
+      expect(res.status).toBe(400);
+      const data = await json(res);
+      expect(data.error).toBe("Invalid import body: card_state.state must not be null");
+    });
+
+    it("accepts a null card_state.balance — the handler defaults it to 0 (mock divergence fixed)", async () => {
+      const res = await doPost(stub, "/import-state", { version: 1, card_state: { singleton: 1, state: "active", latest_issued_version: 1, balance: null } });
+      expect(res.status).toBe(200);
+      const data = await json(res);
+      expect(data.restored).toBe(true);
+      const cs = await json(await doGet(stub, "/card-state"));
+      expect(cs.balance).toBe(0);
+    });
+
+    it("auto-assigns a null transaction id from the AUTOINCREMENT high-water mark", async () => {
+      await doPost(stub, "/credit", { amount: 10, note: "seed" });
+      const res = await doPost(stub, "/import-state", {
+        version: 1,
+        transactions: [
+          { id: null, counter: null, amount: 5, balance_after: 5, created_at: 100, note: null, voided_at: null },
+        ],
+      });
+      expect(res.status).toBe(200);
+      const txns = await json(await doGet(stub, "/transactions"));
+      expect(txns.transactions).toHaveLength(1);
+      expect(txns.transactions[0].id).toBe(2);
+    });
+  });
 });
