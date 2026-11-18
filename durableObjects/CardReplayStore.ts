@@ -140,9 +140,6 @@ export class CardReplayStore extends DurableObject<Env> {
         return handleImportState(this.sql, request);
       }
     } catch (err: unknown) {
-      if (err instanceof SyntaxError) {
-        return Response.json({ error: "Invalid JSON body" }, { status: 400 });
-      }
       logger.error("Unhandled DO error", { path: url.pathname, error: getErrorMessage(err) });
       return Response.json({ error: "Internal error" }, { status: 500 });
     }
