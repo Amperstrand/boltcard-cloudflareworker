@@ -1136,6 +1136,39 @@ export const makeReplayNamespace = (
           }
         }
 
+        // ops#65 pre-validate parity: the real handler validates the
+        // NOT NULL columns whose binds receive body values verbatim
+        // (replay_state.last_counter; card_state.state/.latest_issued_
+        // version — balance is defaulted ?? 0 by the handler and is NOT
+        // validated; taps[].created_at/.updated_at; transactions[].
+        // amount/.balance_after/.created_at) BEFORE the DELETE phase.
+        // Verified on the real stub: the NOT NULL violation is another
+        // escaped jsg class (SQLITE_CONSTRAINT_NOTNULL rejects the stub
+        // RPC outside the dispatcher's catch), so the pre-DELETE 400 is
+        // the only dispatcher-controlled surface. Mirror the messages.
+        const requiredField = (field: string): Response =>
+          Response.json({ error: `Invalid import body: ${field} must not be null` }, { status: 400 });
+        if (importedReplay && importedReplay.last_counter == null) {
+          return requiredField("replay_state.last_counter");
+        }
+        if (importedState) {
+          if (importedState.state == null) return requiredField("card_state.state");
+          if (importedState.latest_issued_version == null) return requiredField("card_state.latest_issued_version");
+        }
+        if (Array.isArray(importedTaps)) {
+          for (let i = 0; i < importedTaps.length; i++) {
+            if (importedTaps[i]?.created_at == null) return requiredField(`taps[${i}].created_at`);
+            if (importedTaps[i]?.updated_at == null) return requiredField(`taps[${i}].updated_at`);
+          }
+        }
+        if (Array.isArray(importedTxns)) {
+          for (let i = 0; i < importedTxns.length; i++) {
+            if (importedTxns[i]?.amount == null) return requiredField(`transactions[${i}].amount`);
+            if (importedTxns[i]?.balance_after == null) return requiredField(`transactions[${i}].balance_after`);
+            if (importedTxns[i]?.created_at == null) return requiredField(`transactions[${i}].created_at`);
+          }
+        }
+
         // Real DO (ops#43): reserved keys planted inside config_json are
         // rejected with a 400 BEFORE any table DELETE — a refused import
         // leaves existing state untouched. Unparseable config_json passes
@@ -1153,10 +1186,10 @@ export const makeReplayNamespace = (
           }
         }
 
-        // Real DO: DELETEs every table FIRST (a failed import still leaves
-        // the tables cleared), then re-inserts; a NOT NULL violation on any
-        // insert surfaces as the dispatcher's 500 {error:"Internal error"}.
-        const internalError = Response.json({ error: "Internal error" }, { status: 500 });
+        // Real DO: DELETEs every table FIRST (restores run in insert
+        // order below). All NOT NULL and rowid-alias failure classes are
+        // rejected pre-DELETE above (ops#42/ops#65), so no internal-error
+        // path remains on this route.
         counters.delete(idStr);
         cardStates.delete(idStr);
         cardConfigs.delete(idStr);
@@ -1167,13 +1200,9 @@ export const makeReplayNamespace = (
         transactions.set(idStr, []);
 
         if (importedReplay) {
-          if (importedReplay.last_counter == null) return internalError;
           counters.set(idStr, Number(importedReplay.last_counter) || 0);
         }
         if (importedState) {
-          if (importedState.state == null || importedState.latest_issued_version == null || importedState.balance == null) {
-            return internalError;
-          }
           cardStates.set(idStr, {
             state: String(importedState.state),
             latest_issued_version: Number(importedState.latest_issued_version) || 0,
@@ -1206,11 +1235,11 @@ export const makeReplayNamespace = (
         }
         if (Array.isArray(importedTaps)) {
           for (const t of importedTaps) {
-            if (t.created_at == null || t.updated_at == null) return internalError;
             // INTEGER PRIMARY KEY parity: a NULL counter is auto-assigned
             // (max rowid + 1), not a constraint failure. Non-integer binds
-            // never reach here — the pre-DELETE validation above rejects
-            // them with the dispatcher's 400 (ops#42).
+            // and null required fields never reach here — the pre-DELETE
+            // validation above rejects them with the dispatcher's 400
+            // (ops#42/ops#65).
             let tCounter = Number(t.counter);
             if (t.counter == null) {
               let max = 0;
@@ -1233,22 +1262,27 @@ export const makeReplayNamespace = (
           }
         }
         if (Array.isArray(importedTxns)) {
-          for (const t of importedTxns) {
-            if (t.amount == null || t.balance_after == null || t.created_at == null) return internalError;
-          }
-          const txns: Transaction[] = importedTxns.map((t) => ({
-            id: Number(t.id) || 0,
-            counter: t.counter != null ? Number(t.counter) : null,
-            amount: Number(t.amount) || 0,
-            balance_after: Number(t.balance_after) || 0,
-            created_at: Number(t.created_at) || 0,
-            note: (t.note as string) || null,
-            voided_at: t.voided_at != null ? Number(t.voided_at) : null,
-          }));
+          // AUTOINCREMENT parity (ops#65): the table was DELETEd above but
+          // sqlite_sequence keeps its high-water mark; a NULL id binds to
+          // max(high-water, ids seen so far in this batch) + 1, exactly as
+          // SQLite assigns rowids insert-by-insert (verified on the real
+          // stub: seeded credit id 1 → imported null id lands on 2).
+          let runningMax = txnSeq.get(idStr) ?? 0;
+          const txns: Transaction[] = importedTxns.map((t) => {
+            const id = t.id != null ? Number(t.id) : runningMax + 1;
+            runningMax = Math.max(runningMax, id);
+            return {
+              id,
+              counter: t.counter != null ? Number(t.counter) : null,
+              amount: Number(t.amount) || 0,
+              balance_after: Number(t.balance_after) || 0,
+              created_at: Number(t.created_at) || 0,
+              note: (t.note as string) || null,
+              voided_at: t.voided_at != null ? Number(t.voided_at) : null,
+            };
+          });
           transactions.set(idStr, txns);
-          // AUTOINCREMENT parity: sqlite_sequence only grows.
-          const maxId = txns.reduce((m, t) => Math.max(m, t.id), 0);
-          txnSeq.set(idStr, Math.max(txnSeq.get(idStr) ?? 0, maxId));
+          txnSeq.set(idStr, runningMax);
         }
 
         return Response.json({
