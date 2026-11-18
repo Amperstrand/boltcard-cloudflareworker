@@ -1,5 +1,6 @@
 import type { CardConfig } from "../types/core.js";
 import { MAX_BALANCE } from "../utils/constants.js";
+import { invalidJsonBodyResponse, parseJsonBody } from "../durableObjects/cardReplay/bodyParse.js";
 
 interface CardState {
   state: string;
@@ -218,7 +219,10 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "POST" && url.pathname === "/set-config") {
-        const config = (await request.json()) as CardConfig;
+        const config = await parseJsonBody<CardConfig>(request);
+        if (config === null) {
+          return invalidJsonBodyResponse();
+        }
         // Real DO (configHandlers.handleSetConfig): reserved keys are
         // destructured into typed columns and NEVER land in config_json;
         // the remaining extras are stringified. The whole row is replaced
@@ -236,7 +240,11 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "POST" && url.pathname === "/set-k2") {
-        const { K2 } = (await request.json()) as { K2: string };
+        const body = await parseJsonBody<{ K2: string }>(request);
+        if (body === null) {
+          return invalidJsonBodyResponse();
+        }
+        const { K2 } = body;
         // Real DO (configHandlers.handleSetK2): UPDATEs ONLY the K2 column
         // — config_json (and any reserved-key extras inside it) is
         // untouched, so extras keep overriding the new typed K2.
@@ -286,11 +294,15 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "POST" && url.pathname === "/debit") {
-        const { counter, amount, note } = (await request.json()) as {
+        const body = await parseJsonBody<{
           counter: number;
           amount: number;
           note: string;
-        };
+        }>(request);
+        if (body === null) {
+          return invalidJsonBodyResponse();
+        }
+        const { counter, amount, note } = body;
         if (!Number.isInteger(amount) || amount <= 0) {
           return Response.json(
             { ok: false, reason: "Amount must be a positive integer" },
@@ -337,10 +349,14 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "POST" && url.pathname === "/credit") {
-        const { amount, note } = (await request.json()) as {
+        const body = await parseJsonBody<{
           amount: number;
           note: string;
-        };
+        }>(request);
+        if (body === null) {
+          return invalidJsonBodyResponse();
+        }
+        const { amount, note } = body;
         if (!Number.isInteger(amount) || amount <= 0) {
           return Response.json(
             { ok: false, reason: "Amount must be a positive integer" },
@@ -389,7 +405,11 @@ export const makeReplayNamespace = (
         // Real DO (balanceHandlers.handleVoid): unknown id → 404; already
         // voided → 400; non-debit → 400; else mark voided_at, credit the
         // amount back, insert the compensating txn (note `void:<id>`).
-        const { transactionId } = (await request.json()) as { transactionId: number };
+        const body = await parseJsonBody<{ transactionId: number }>(request);
+        if (body === null) {
+          return invalidJsonBodyResponse();
+        }
+        const { transactionId } = body;
         const existing = transactions.get(idStr) || [];
         const txn = existing.find((t) => t.id === transactionId);
 
@@ -464,7 +484,11 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "POST" && url.pathname === "/activate") {
-        const { active_version } = (await request.json()) as { active_version: number };
+        const body = await parseJsonBody<{ active_version: number }>(request);
+        if (body === null) {
+          return invalidJsonBodyResponse();
+        }
+        const { active_version } = body;
         // Real DO (cardStateHandlers.handleActivate): integer >= 1 or 400.
         if (!Number.isInteger(active_version) || (active_version as number) < 1) {
           return Response.json({ error: "Invalid active_version" }, { status: 400 });
@@ -526,7 +550,11 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "POST" && url.pathname === "/k1-issue") {
-        const { counterValue, maxAgeSec } = (await request.json()) as { counterValue: number; maxAgeSec?: number };
+        const body = await parseJsonBody<{ counterValue: number; maxAgeSec?: number }>(request);
+        if (body === null) {
+          return invalidJsonBodyResponse();
+        }
+        const { counterValue, maxAgeSec } = body;
         if (!Number.isInteger(counterValue) || counterValue < 0) {
           return Response.json({ error: "Invalid counter value" }, { status: 400 });
         }
@@ -545,7 +573,11 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "POST" && url.pathname === "/k1-verify") {
-        const { k1, counterValue, ttlSeconds } = (await request.json()) as { k1: string; counterValue: number; ttlSeconds?: number };
+        const body = await parseJsonBody<{ k1: string; counterValue: number; ttlSeconds?: number }>(request);
+        if (body === null) {
+          return invalidJsonBodyResponse();
+        }
+        const { k1, counterValue, ttlSeconds } = body;
         if (typeof k1 !== "string" || k1.length === 0 || !Number.isInteger(counterValue) || counterValue < 0) {
           return Response.json({ valid: false, reason: "Invalid k1 verify request" }, { status: 400 });
         }
@@ -578,7 +610,11 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "POST" && url.pathname === "/check") {
-        const { counterValue } = (await request.json()) as { counterValue: number };
+        const body = await parseJsonBody<{ counterValue: number }>(request);
+        if (body === null) {
+          return invalidJsonBodyResponse();
+        }
+        const { counterValue } = body;
         if (!Number.isInteger(counterValue) || counterValue < 0) {
           return Response.json({ accepted: false, reason: "Invalid counter value" }, { status: 400 });
         }
@@ -600,7 +636,11 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "POST" && url.pathname === "/check-readonly") {
-        const { counterValue } = (await request.json()) as { counterValue: number };
+        const body = await parseJsonBody<{ counterValue: number }>(request);
+        if (body === null) {
+          return invalidJsonBodyResponse();
+        }
+        const { counterValue } = body;
         if (!Number.isInteger(counterValue) || counterValue < 0) {
           return Response.json({ accepted: false, reason: "Invalid counter value" }, { status: 400 });
         }
@@ -621,11 +661,15 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "POST" && url.pathname === "/record-read") {
-        const { counterValue, userAgent, requestUrl } = (await request.json()) as {
+        const body = await parseJsonBody<{
           counterValue: number;
           userAgent?: string;
           requestUrl?: string;
-        };
+        }>(request);
+        if (body === null) {
+          return invalidJsonBodyResponse();
+        }
+        const { counterValue, userAgent, requestUrl } = body;
         // Real DO (tapHandlers.handleRecordRead): invalid/absent counter
         // falls back to Date.now() so the read row is still recorded.
         const counter: number =
@@ -649,13 +693,17 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "POST" && url.pathname === "/record-tap") {
-        const { counterValue, bolt11, amountMsat, userAgent, requestUrl } = (await request.json()) as {
+        const body = await parseJsonBody<{
           counterValue: number;
           bolt11?: string;
           amountMsat?: number;
           userAgent?: string;
           requestUrl?: string;
-        };
+        }>(request);
+        if (body === null) {
+          return invalidJsonBodyResponse();
+        }
+        const { counterValue, bolt11, amountMsat, userAgent, requestUrl } = body;
         if (!Number.isInteger(counterValue) || counterValue < 0) {
           return Response.json({ accepted: false, reason: "Invalid counter value" }, { status: 400 });
         }
@@ -695,11 +743,15 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "POST" && url.pathname === "/claim-tap") {
-        const { counter, bolt11, amountMsat } = (await request.json()) as {
+        const body = await parseJsonBody<{
           counter: number;
           bolt11?: string;
           amountMsat?: number;
-        };
+        }>(request);
+        if (body === null) {
+          return invalidJsonBodyResponse();
+        }
+        const { counter, bolt11, amountMsat } = body;
         if (!Number.isInteger(counter) || counter < 0) {
           return Response.json({ claimed: false, reason: "Invalid counter" }, { status: 400 });
         }
@@ -752,12 +804,16 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "POST" && url.pathname === "/update-tap-status") {
-        const { counter, status, bolt11, amountMsat } = (await request.json()) as {
+        const body = await parseJsonBody<{
           counter: number;
           status: string;
           bolt11?: string;
           amountMsat?: number;
-        };
+        }>(request);
+        if (body === null) {
+          return invalidJsonBodyResponse();
+        }
+        const { counter, status, bolt11, amountMsat } = body;
 
         if (counter == null || !status) {
           return Response.json({ error: "Missing counter or status" }, { status: 400 });
@@ -873,11 +929,15 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "POST" && url.pathname === "/mark-pending") {
-        const { key_provenance, key_fingerprint, key_label } = (await request.json()) as {
+        const body = await parseJsonBody<{
           key_provenance?: string;
           key_fingerprint?: string;
           key_label?: string;
-        };
+        }>(request);
+        if (body === null) {
+          return invalidJsonBodyResponse();
+        }
+        const { key_provenance, key_fingerprint, key_label } = body;
         if (cardStates.has(idStr)) {
           return Response.json({
             state: cardStates.get(idStr)!.state,
@@ -903,12 +963,16 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "POST" && url.pathname === "/discover") {
-        const { key_provenance, key_fingerprint, key_label, active_version } = (await request.json()) as {
+        const body = await parseJsonBody<{
           key_provenance?: string;
           key_fingerprint?: string;
           key_label?: string;
           active_version?: number;
-        };
+        }>(request);
+        if (body === null) {
+          return invalidJsonBodyResponse();
+        }
+        const { key_provenance, key_fingerprint, key_label, active_version } = body;
         const version = active_version || 1;
         const now = Math.floor(Date.now() / 1000);
 
@@ -1022,7 +1086,10 @@ export const makeReplayNamespace = (
       }
 
       if (request.method === "POST" && url.pathname === "/import-state") {
-        const body = await request.json() as Record<string, unknown>;
+        const body = await parseJsonBody<Record<string, unknown>>(request);
+        if (body === null) {
+          return invalidJsonBodyResponse();
+        }
         if (body.version !== 1) {
           return Response.json({ error: "Unsupported export version" }, { status: 400 });
         }
@@ -1149,15 +1216,16 @@ export const makeReplayNamespace = (
 
   const makeStub = (idStr: string): DurableObjectStub<undefined> => ({
     fetch: async (request: Request): Promise<Response> => {
-      // Mirror the real DO dispatcher (durableObjects/CardReplayStore.ts):
-      // a malformed JSON body is a 400, not an unhandled rejection.
+      // Mirror the real DO dispatcher (durableObjects/CardReplayStore.ts,
+      // ops#57 remove disposition): every body-parsing route now uses
+      // parseJsonBody() (ops#35 safe-parse), so no SyntaxError can escape
+      // a handler and the dispatcher's catch maps any unhandled error to
+      // the documented 500. The former SyntaxError→400 mirror branch was
+      // removed with the real one — handlers own the 400 directly.
       try {
         return await routeRequest(idStr, request);
-      } catch (err: unknown) {
-        if (err instanceof SyntaxError) {
-          return Response.json({ error: "Invalid JSON body" }, { status: 400 });
-        }
-        throw err;
+      } catch {
+        return Response.json({ error: "Internal error" }, { status: 500 });
       }
     },
   }) as DurableObjectStub<undefined>;

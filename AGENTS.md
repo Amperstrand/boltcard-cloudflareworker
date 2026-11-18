@@ -133,7 +133,7 @@ Every card DO row tracks `key_provenance` indicating where its keys came from:
 
 ### @cloudflare/vitest-pool-workers
 - Miniflare's `sql.exec()` does NOT reliably return `rowsAffected` — use `RETURNING` clause instead
-- In a real workerd DO, `request.json()` on a malformed body throws a jsg.SyntaxError that ESCAPES every try/catch inside the DO and rejects the stub RPC — the dispatcher's 400 branch is unobservable there (ops#27 parked family). DO route handlers therefore parse bodies with `parseJsonBody()` from `durableObjects/cardReplay/bodyParse.ts` (`await request.text()` + `JSON.parse`, ops#35 safe-parse decision), which keeps the failure a catchable JS SyntaxError and returns the documented `400 {error:"Invalid JSON body"}`
+- In a real workerd DO, `request.json()` on a malformed body throws a jsg.SyntaxError that ESCAPES every try/catch inside the DO and rejects the stub RPC — the dispatcher-level SyntaxError→400 catch was therefore unobservable there (ops#27 parked family) and has been removed entirely (ops#57 disposition: remove; all body-parsing handlers own the 400 directly). DO route handlers parse bodies with `parseJsonBody()` from `durableObjects/cardReplay/bodyParse.ts` (`await request.text()` + `JSON.parse`, ops#35 safe-parse decision), which keeps the failure a catchable JS SyntaxError and returns the documented `400 {error:"Invalid JSON body"}`
 - DO integration tests use unique DO IDs per test (auto-incrementing counter) — no state leakage
 - Tests run in `vitest.do.config.js` with `cloudflareTest` plugin — NOT in the main vitest config
 
