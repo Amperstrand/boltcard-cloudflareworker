@@ -155,6 +155,76 @@ export function reservedKeysInConfigJson(configJson: unknown): string[] {
   return RESERVED_CONFIG_KEYS.filter((key) => Object.prototype.hasOwnProperty.call(obj, key));
 }
 
+/**
+ * Duplicate-rowid bind gate (ops#71 pre-validate decision).
+ *
+ * A repeated effective rowid key makes the second INSERT fail with
+ * `jsg.Error: UNIQUE constraint failed ... SQLITE_CONSTRAINT_PRIMARYKEY`
+ * — verified to ESCAPE the dispatcher catch and reject the stub RPC with
+ * the import PARTIALLY applied (first row landed, tables re-DELETEd).
+ * Pre-DELETE detection turns that into a controlled 400.
+ *
+ * taps: the table is cleared before the inserts, so the effective rowids
+ * are fully body-deterministic — the pass SIMULATES the assignment:
+ * explicit counters use their coerced integer key (the rowid pass has
+ * already validated the shape; "123" and 123 are the same rowid), nulls
+ * auto-assign running-max + 1 exactly as SQLite does insert-by-insert.
+ * This also catches null/explicit cross-collisions ([null, 1] on the
+ * cleared table: the null lands rowid 1, the later explicit 1 collides).
+ *
+ * transactions: AUTOINCREMENT ids are NOT simulated — a null id assigns
+ * from the persisted sqlite_sequence high-water mark, which a body-only
+ * pass cannot see; only explicit-vs-explicit duplicates are rejected.
+ * A null id colliding with a later explicit id equal to seq+1 remains
+ * SQLite's to report (documented known edge, no body can express it
+ * portably).
+ */
+export function validateImportDuplicateRowids(body: CardExportData): Response | null {
+  if (Array.isArray(body.taps)) {
+    const seen = new Map<number, number>();
+    // Largest rowid inserted so far; null = none yet (SQLite auto-assigns
+    // largest+1, treating an empty table's largest as 0 — negative
+    // explicit counters therefore pull the next auto-assign DOWN, e.g.
+    // [-5, null] lands the null on -4, exactly like the real table).
+    let largest: number | null = null;
+    for (let i = 0; i < body.taps.length; i++) {
+      const counter = body.taps[i]?.counter;
+      const key: number = counter == null ? (largest ?? 0) + 1 : Number(counter);
+      const first = seen.get(key);
+      if (first !== undefined) {
+        // The qualifier describes the FIRST occurrence — it may be the
+        // auto-assigned row even when the duplicating row is explicit.
+        const origin = body.taps[first]?.counter == null
+          ? `auto-assigned taps[${first}].counter (null)`
+          : `taps[${first}].counter`;
+        return Response.json(
+          { error: `Invalid import body: taps[${i}].counter duplicates ${origin}` },
+          { status: 400 }
+        );
+      }
+      seen.set(key, i);
+      largest = largest == null ? key : Math.max(largest, key);
+    }
+  }
+  if (Array.isArray(body.transactions)) {
+    const seen = new Map<number, number>();
+    for (let i = 0; i < body.transactions.length; i++) {
+      const id = body.transactions[i]?.id;
+      if (id == null) continue;
+      const key = Number(id);
+      const first = seen.get(key);
+      if (first !== undefined) {
+        return Response.json(
+          { error: `Invalid import body: transactions[${i}].id duplicates transactions[${first}].id` },
+          { status: 400 }
+        );
+      }
+      seen.set(key, i);
+    }
+  }
+  return null;
+}
+
 export function handleExportState(sql: SqlStorage): Response {
   const replayStateRows = sql.exec("SELECT * FROM replay_state WHERE singleton = 1").toArray();
   const cardStateRows = sql.exec("SELECT * FROM card_state WHERE singleton = 1").toArray();
@@ -193,6 +263,11 @@ export async function handleImportState(sql: SqlStorage, request: Request): Prom
   const requiredFieldError = validateImportRequiredFields(body);
   if (requiredFieldError !== null) {
     return requiredFieldError;
+  }
+
+  const duplicateRowidError = validateImportDuplicateRowids(body);
+  if (duplicateRowidError !== null) {
+    return duplicateRowidError;
   }
 
   // ops#43 (owner disposition: validate/strip). /import-state was the ONLY
