@@ -51,6 +51,38 @@ flips the wrangler binding when the posture decision is made.
 | 13 | k1 carries zero entropy (`k1 = c`) and never expires; Go uses 16 random bytes + timeout. | The known boltcard-POS convention (HIL depends on it); security rests on CMAC + claim. Document-only. | `K1_FRESH` (wave 2) — random server-stored challenge (per-card DO), single-use, TTL (Go default 60s, `K1_FRESH_TTL_SECONDS`) |
 | 4 | Multi-K1 candidate selection uses 0xC7 heuristic without per-candidate CMAC on the tap path (admin path does it properly). | Contained: wrong-K1 false positive fails downstream K2 CMAC (UID-bound). | — (contained; no flag needed) |
 
+> **LIVE VERIFICATION 2026-11-18 (wave-2 flags armed on staging, ops#26):**
+> owner consent 2026-11-18 (amperstrand-ops#26); staging vars
+> `REPLAY_ENFORCE=1`, `ALLOWED_HOSTS=boltcard-staging.psbt.me`,
+> `K1_FRESH=1`, `K1_FRESH_TTL_SECONDS=3` deployed via #100 (08c019d,
+> deploy-staging + /status health green), removed at window end by the
+> revert riding the record PR. Probes: deterministic anonymous-path taps
+> (UID 04dead00c0ffee, public dev-01 issuer key), reproducible via
+> `scripts/live-flag-verify.mjs` (the #86 live-verify-claim.cjs lineage,
+> reproduced in-repo). All six charter probes matched documented
+> behavior — zero divergences:
+>
+> | Probe | Documented | Observed on staging (07:45:15–07:45:23Z) |
+> |---|---|---|
+> | Step-1 replay (audit #10) | 409 | fresh ctr → 200; same tap → **409 "Counter replay detected — tap rejected (REPLAY_ENFORCE)"** |
+> | k1 entropy (audit #13) | 16 random bytes, ≠ c | k1=`c3355b64…` (32-hex) vs c=`125f90ec4ead1086` (16-hex) |
+> | Fresh-k1 round-trip pays | 200 OK | topup 100000 → step-1 → immediate callback → **200 "Payment processed", balance 99000**, 335 ms < 3 s TTL |
+> | Consumed-k1 replay | refused | **400 "Unknown or already used k1"** |
+> | TTL expiry | refused | waited 6 s > 3 s TTL → **400 "k1 challenge expired"** |
+> | Host mismatch (audit #18) | 400 | `https://boltcard-staging.psbt.me:8443/?p&c` → **400 "Host not allowed"** (url.host `host:port` ∉ list); pinned surface covers `/boltcards/api/v1/lnurl/cb*`; `/status:8443` → 200 (pinning scoped to the card/LNURL surface, as documented) |
+>
+> Production (boltcardpoc.psbt.me, all flags OFF) re-probed unchanged
+> same window: fresh tap 200 **k1===c**, same-tap replay **200**
+> (idempotent), port-variant `:8443` served 200 with the callback
+> reflecting the non-canonical origin — the open posture #18 describes.
+> Host-matrix notes (both windows, curl wire-level): a foreign
+> `Host: evil.example` is rejected **403 at the Cloudflare edge** (no
+> route — audit #18's "bounded by the account host binding" observed
+> live; the middleware is defense-in-depth for hosts the edge would
+> still route, e.g. the port variant); a sibling-zone `Host:` override
+> is routed by the edge to that host's worker (observed: staging-SNI +
+> prod-Host served by production, callback reflecting the prod host).
+
 ## Confirmed clean
 
 - No card-controlled URL injection: p/c are hex-validated query/path values;
