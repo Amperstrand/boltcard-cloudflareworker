@@ -521,14 +521,15 @@ Two rules from it bind this repo directly:
 - **Vectors are the oracle.** `@ntag424/crypto` (and this repo's
   key-generation semantics) must pass every canonical `vectors.json`
   vector its API can express; vendored vector copies ride that repo's
-  drift CI (ntag424-vectors#1).
+  drift CI ([Amperstrand/ntag424-vectors#1](https://github.com/Amperstrand/ntag424-vectors/issues/1)).
 - **Provenance beats votes.** If the worker and another implementation
   disagree, a vector is lifted from a documented source (AN12196, RFC
   4493, or a hardware-proven capture) and both are fixed to it — never
   the reverse. The K4/CardKey example-block rule (#59: synthetic bytes
   only) is the same doctrine applied to docs.
 
-The vertical test rig contract (worker #64, lane evidence bolty-rs#101,
+The vertical test rig contract (worker #64, lane evidence
+[Amperstrand/bolty-rs#101](https://github.com/Amperstrand/bolty-rs/issues/101),
 cross-link #65): local offline `wrangler dev`, software SUN emulator for
 the card leg, tamper leg must produce the 403. Lane B1's conformance
 work is cross-referenced from the canon.
