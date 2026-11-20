@@ -1056,14 +1056,16 @@ export const makeReplayNamespace = (
   const makeStub = (idStr: string): DurableObjectStub<undefined> => ({
     fetch: async (request: Request): Promise<Response> => {
       // Mirror the real DO dispatcher (durableObjects/CardReplayStore.ts):
-      // a malformed JSON body is a 400, not an unhandled rejection.
+      // `return await` so the catch guards async rejections too — a
+      // malformed JSON body is a 400, any other handler throw is a
+      // sanitized 500, never an escaped rejection.
       try {
         return await routeRequest(idStr, request);
       } catch (err: unknown) {
         if (err instanceof SyntaxError) {
           return Response.json({ error: "Invalid JSON body" }, { status: 400 });
         }
-        throw err;
+        return Response.json({ error: "Internal error" }, { status: 500 });
       }
     },
   }) as DurableObjectStub<undefined>;

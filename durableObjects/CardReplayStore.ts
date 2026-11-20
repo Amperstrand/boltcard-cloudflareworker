@@ -29,115 +29,115 @@ export class CardReplayStore extends DurableObject<Env> {
 
     try {
       if (request.method === "POST" && url.pathname === "/check") {
-        return handleCheck(this.sql, request, false);
+        return await handleCheck(this.sql, request, false);
       }
 
       if (request.method === "POST" && url.pathname === "/check-readonly") {
-        return handleCheck(this.sql, request, true);
+        return await handleCheck(this.sql, request, true);
       }
 
       if (request.method === "POST" && url.pathname === "/record-tap") {
-        return handleRecordTap(this.sql, request);
+        return await handleRecordTap(this.sql, request);
       }
 
       if (request.method === "POST" && url.pathname === "/record-read") {
-        return handleRecordRead(this.sql, request);
+        return await handleRecordRead(this.sql, request);
       }
 
       if (request.method === "POST" && url.pathname === "/update-tap-status") {
-        return handleUpdateTapStatus(this.sql, request);
+        return await handleUpdateTapStatus(this.sql, request);
       }
 
       if (request.method === "POST" && url.pathname === "/claim-tap") {
-        return handleClaimTap(this.sql, request);
+        return await handleClaimTap(this.sql, request);
       }
 
       if (request.method === "POST" && url.pathname === "/k1-issue") {
-        return handleK1Issue(this.sql, request);
+        return await handleK1Issue(this.sql, request);
       }
 
       if (request.method === "POST" && url.pathname === "/k1-verify") {
-        return handleK1Verify(this.sql, request);
+        return await handleK1Verify(this.sql, request);
       }
 
       if (request.method === "GET" && url.pathname === "/analytics") {
-        return handleAnalytics(this.sql);
+        return await handleAnalytics(this.sql);
       }
 
       if (request.method === "GET" && url.pathname === "/list-taps") {
-        return handleListTaps(this.sql, url);
+        return await handleListTaps(this.sql, url);
       }
 
       if (request.method === "GET" && url.pathname === "/card-state") {
-        return handleGetCardState(this.sql);
+        return await handleGetCardState(this.sql);
       }
 
       if (request.method === "POST" && url.pathname === "/deliver-keys") {
-        return handleDeliverKeys(this.sql);
+        return await handleDeliverKeys(this.sql);
       }
 
       if (request.method === "POST" && url.pathname === "/activate") {
-        return handleActivate(this.sql, request);
+        return await handleActivate(this.sql, request);
       }
 
       if (request.method === "POST" && url.pathname === "/terminate") {
-        return handleTerminate(this.sql);
+        return await handleTerminate(this.sql);
       }
 
       if (request.method === "POST" && url.pathname === "/request-wipe") {
-        return handleRequestWipe(this.sql);
+        return await handleRequestWipe(this.sql);
       }
 
       if (request.method === "GET" && url.pathname === "/get-config") {
-        return handleGetConfig(this.sql);
+        return await handleGetConfig(this.sql);
       }
 
       if (request.method === "POST" && url.pathname === "/set-config") {
-        return handleSetConfig(this.sql, request);
+        return await handleSetConfig(this.sql, request);
       }
 
       if (request.method === "POST" && url.pathname === "/debit") {
-        return handleDebit(this.sql, request);
+        return await handleDebit(this.sql, request);
       }
 
       if (request.method === "POST" && url.pathname === "/credit") {
-        return handleCredit(this.sql, request);
+        return await handleCredit(this.sql, request);
       }
 
       if (request.method === "POST" && url.pathname === "/void") {
-        return handleVoid(this.sql, request);
+        return await handleVoid(this.sql, request);
       }
 
       if (request.method === "GET" && url.pathname === "/balance") {
-        return handleGetBalance(this.sql);
+        return await handleGetBalance(this.sql);
       }
 
       if (request.method === "GET" && url.pathname === "/transactions") {
-        return handleListTransactions(this.sql, url);
+        return await handleListTransactions(this.sql, url);
       }
 
       if (request.method === "POST" && url.pathname === "/reset") {
-        return handleReset(this.sql);
+        return await handleReset(this.sql);
       }
 
       if (request.method === "POST" && url.pathname === "/mark-pending") {
-        return handleMarkPending(this.sql, request);
+        return await handleMarkPending(this.sql, request);
       }
 
       if (request.method === "POST" && url.pathname === "/discover") {
-        return handleDiscover(this.sql, request);
+        return await handleDiscover(this.sql, request);
       }
 
       if (request.method === "POST" && url.pathname === "/set-k2") {
-        return handleSetK2(this.sql, request);
+        return await handleSetK2(this.sql, request);
       }
 
       if (request.method === "GET" && url.pathname === "/export-state") {
-        return handleExportState(this.sql);
+        return await handleExportState(this.sql);
       }
 
       if (request.method === "POST" && url.pathname === "/import-state") {
-        return handleImportState(this.sql, request);
+        return await handleImportState(this.sql, request);
       }
     } catch (err: unknown) {
       if (err instanceof SyntaxError) {

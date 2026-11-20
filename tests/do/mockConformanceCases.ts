@@ -14,15 +14,15 @@ export interface ContractCase {
   name: string;
   steps: Array<(ctx: unknown[]) => StepReq>;
   /**
-   * PLATFORM DIVERGENCE (parked): on these cases the real-DO leg is
-   * unobservable through the workerd DO stub — a malformed JSON body makes
-   * `request.json()` throw a jsg.SyntaxError that escapes
-   * CardReplayStore.fetch's `catch (err instanceof SyntaxError)` and rejects
-   * the stub RPC, so the dispatcher's documented 400 branch never runs in
-   * the test pool. The mock (node pool) executes the dispatcher contract
-   * faithfully; these cases pin the mock to that documented oracle instead
-   * of cross-implementation parity. Revisit if workerd ever makes the JSON
-   * parse error catchable inside the DO (see ops session #27 log).
+   * PLATFORM DIVERGENCE (historical, currently unused): for cases whose
+   * real-DO leg is unobservable through the workerd DO stub. Last used for
+   * malformed-JSON bodies (ops#27): the real dispatcher's route dispatches
+   * were `return handler(...)` without `await`, so its
+   * `catch (err instanceof SyntaxError)` never fired for async rejections
+   * and the stub RPC rejected instead of answering the documented 400.
+   * That was misdiagnosed as an uncatchable workerd jsg error; the fix
+   * (`return await`, both here and mirrored in the mock) unparked those
+   * cases as true parity. See the wave-2 research log.
    */
   platformDivergence?: { expected: Verdict[] };
 }
@@ -406,30 +406,25 @@ export const CONTRACT_CASES: ContractCase[] = [
     ],
   },
 
-  // malformed JSON — PLATFORM DIVERGENCE (parked): real DO stub fetch
-  // rejects with an uncatchable workerd jsg SyntaxError (request.json()
-  // parse failure escapes CardReplayStore.fetch's catch), so its 400
-  // {error:"Invalid JSON body"} branch is unobservable in the test pool.
-  // The mock must keep delivering the dispatcher's documented 400.
+  // malformed JSON — true parity since the dispatcher `return await` fix:
+  // the catch now guards async rejections, so `request.json()` parse
+  // failures reach the documented 400 branch on the real DO exactly like
+  // the mock. (Previously parked as platformDivergence; see research log.)
   {
     name: "/check: malformed JSON body rejected 400",
     steps: [() => rawPost("/check", "{not json")],
-    platformDivergence: { expected: [{ status: 400, body: { error: "Invalid JSON body" } }] },
   },
   {
     name: "/record-tap: malformed JSON body rejected 400",
     steps: [() => rawPost("/record-tap", "{not json")],
-    platformDivergence: { expected: [{ status: 400, body: { error: "Invalid JSON body" } }] },
   },
   {
     name: "/claim-tap: malformed JSON body rejected 400",
     steps: [() => rawPost("/claim-tap", "{not json")],
-    platformDivergence: { expected: [{ status: 400, body: { error: "Invalid JSON body" } }] },
   },
   {
     name: "/k1-issue: malformed JSON body rejected 400",
     steps: [() => rawPost("/k1-issue", "{not json")],
-    platformDivergence: { expected: [{ status: 400, body: { error: "Invalid JSON body" } }] },
   },
 
   // unknown route
@@ -1068,17 +1063,34 @@ export const CONTRACT_CASES: ContractCase[] = [
     ],
   },
 
-  // malformed JSON — PLATFORM DIVERGENCE (parked), ops#27 precedent: the real
-  // DO stub rejects at the workerd RPC boundary before the dispatcher's
-  // documented 400 can run; the mock must keep delivering that 400 oracle.
+  // malformed JSON — true parity since the dispatcher `return await` fix
+  // (same unpark as the wave-1 block above), plus the throw-path cases the
+  // fix makes assertable: non-SyntaxError handler throws land in the
+  // sanitized generic 500 branch on BOTH legs.
   {
     name: "/debit: malformed JSON body rejected 400",
     steps: [() => rawPost("/debit", "{not json")],
-    platformDivergence: { expected: [{ status: 400, body: { error: "Invalid JSON body" } }] },
   },
   {
     name: "/activate: malformed JSON body rejected 400",
     steps: [() => rawPost("/activate", "{not json")],
-    platformDivergence: { expected: [{ status: 400, body: { error: "Invalid JSON body" } }] },
+  },
+  {
+    name: "/check: empty body rejected 400 as invalid JSON",
+    steps: [() => rawPost("/check", "")],
+  },
+  {
+    // json() parses "null" fine; destructuring null inside the handler is
+    // a TypeError → the generic branch → sanitized 500 on both legs.
+    name: "/check: JSON null body lands in the generic 500 branch",
+    steps: [() => rawPost("/check", "null")],
+  },
+  {
+    // Async SQLite throw: a tap row missing its NOT NULL created_at
+    // rejects the INSERT — with the await fix this surfaces as the
+    // documented {error:"Internal error"} 500 instead of a raw RPC
+    // rejection carrying the constraint text.
+    name: "/import-state: NOT NULL violation → sanitized 500 Internal error",
+    steps: [() => post("/import-state", { version: 1, taps: [{ counter: 5, status: "read" }] })],
   },
 ];
