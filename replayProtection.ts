@@ -3,5 +3,5 @@ export { debitCard, creditCard, voidTransaction, getBalance, safeGetBalance, lis
 export { resolveActiveVersion, resolveLatestVersion, markPending, discoverCard, deliverKeys, activateCard, terminateCard, requestWipe } from "./card/lifecycle.js";
 export { getCardState, getCardConfig, setCardConfig, setCardK2 } from "./card/config.js";
 export { getAnalytics } from "./card/analytics.js";
-export { exportCardState, importCardState } from "./card/export.js";
+export { exportCardState, importCardState, ImportContractError } from "./card/export.js";
 export { issueK1Challenge, verifyK1Challenge, k1FreshTtlSeconds } from "./card/k1Challenges.js";

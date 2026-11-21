@@ -3,7 +3,7 @@ import { getErrorMessage } from "../utils/logger.js";
 import { logger } from "../utils/logger.js";
 import type { Env, SessionPayload } from "../types/core.js";
 import { requireOperator, type OperatorAuthResult } from "../middleware/operatorAuth.js";
-import { exportCardState, importCardState } from "../replayProtection.js";
+import { exportCardState, importCardState, ImportContractError } from "../replayProtection.js";
 import { recordAuditEvent } from "../utils/auditLog.js";
 import type { CardExportData } from "../durableObjects/cardReplay/routes.js";
 
@@ -69,6 +69,15 @@ export async function handleCardRestore(request: Request, env: Env, session?: Se
     });
     return jsonResponse(result);
   } catch (err: unknown) {
+    if (err instanceof ImportContractError) {
+      // ops#66: DO /import-state contract rejections (reserved-keys guard,
+      // rowid-bind gate) map through as 4xx with the DO's payload — the
+      // message becomes the API error string, extra payload keys
+      // (reserved_keys) ride along, and the log keeps the full detail.
+      const { error: _doError, ...extra } = err.payload;
+      logger.warn("Card restore rejected by DO contract", { uid, status: err.status, payload: err.payload });
+      return errorResponse(err.message, err.status, extra);
+    }
     logger.error("Card restore failed", { uid, error: getErrorMessage(err) });
     return errorResponse("Failed to restore card state", 500);
   }
