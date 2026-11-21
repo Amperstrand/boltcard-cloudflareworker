@@ -1,7 +1,7 @@
 import type { CardConfig } from "../types/core.js";
 import { MAX_BALANCE } from "../utils/constants.js";
 import { invalidJsonBodyResponse, parseJsonBody } from "../durableObjects/cardReplay/bodyParse.js";
-import { reservedKeysInConfigJson, validateImportRequiredFields, validateImportRowidBinds } from "../durableObjects/cardReplay/stateExportHandlers.js";
+import { reservedKeysInConfigJson, validateImportDuplicateRowids, validateImportRequiredFields, validateImportRowidBinds } from "../durableObjects/cardReplay/stateExportHandlers.js";
 import type { CardExportData } from "../durableObjects/cardReplay/routes.js";
 
 interface CardState {
@@ -1126,6 +1126,20 @@ export const makeReplayNamespace = (
           return requiredFieldError;
         }
 
+        // ops#71 pre-validate parity, ops#67 dedupe pattern: duplicate
+        // effective rowid keys (incl. coercion-equal forms and the
+        // body-deterministic taps auto-assign simulation) are rejected
+        // with the dispatcher's 400 before any DELETE — the real stub's
+        // UNIQUE violation escapes the catch with the import partially
+        // applied, and this mock previously 200'd with silent
+        // last-write-wins. transactions: explicit-vs-explicit only
+        // (AUTOINCREMENT nulls assign from the persisted sequence
+        // high-water, invisible to a body-only pass).
+        const duplicateRowidError = validateImportDuplicateRowids(body as unknown as CardExportData);
+        if (duplicateRowidError !== null) {
+          return duplicateRowidError;
+        }
+
         // Real DO (ops#43): reserved keys planted inside config_json are
         // rejected with a 400 BEFORE any table DELETE — a refused import
         // leaves existing state untouched. Unparseable config_json passes
@@ -1193,17 +1207,23 @@ export const makeReplayNamespace = (
         if (Array.isArray(importedTaps)) {
           for (const t of importedTaps) {
             // INTEGER PRIMARY KEY parity: a NULL counter is auto-assigned
-            // (max rowid + 1), not a constraint failure. Non-integer binds
-            // and null required fields never reach here — the pre-DELETE
-            // validation above rejects them with the dispatcher's 400
-            // (ops#42/ops#65).
+            // as largest-rowid-so-far + 1 (SQLite semantics — a negative
+            // explicit counter pulls the next auto-assign DOWN, e.g.
+            // [-5, null] lands the null on -4; an empty table counts
+            // from 0). Non-integer binds, null required fields, and
+            // duplicate effective rowids never reach here — the
+            // pre-DELETE validators above reject them with the
+            // dispatcher's 400 (ops#42/ops#65/ops#71).
             let tCounter = Number(t.counter);
             if (t.counter == null) {
-              let max = 0;
+              let largest: number | null = null;
               for (const key of taps.keys()) {
-                if (key.startsWith(`${idStr}:`)) max = Math.max(max, Number(key.slice(idStr.length + 1)) || 0);
+                if (key.startsWith(`${idStr}:`)) {
+                  const k = Number(key.slice(idStr.length + 1));
+                  if (Number.isFinite(k)) largest = largest == null ? k : Math.max(largest, k);
+                }
               }
-              tCounter = max + 1;
+              tCounter = (largest ?? 0) + 1;
             }
             taps.set(`${idStr}:${tCounter}`, {
               counter: tCounter,

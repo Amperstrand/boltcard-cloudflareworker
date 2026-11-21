@@ -1479,6 +1479,93 @@ export const CONTRACT_CASES: ContractCase[] = [
       () => get("/card-state"),
     ],
   },
+
+  // /import-state duplicate-rowid binds (ops#71 pre-validate). Verified
+  // on the real stub: a repeated effective rowid key fails the second
+  // INSERT with an ESCAPED `SQLITE_CONSTRAINT_PRIMARYKEY` and the import
+  // lands PARTIALLY applied; the mock used to 200 with silent
+  // last-write-wins. Every case carries the rows-survive oracle.
+  {
+    name: "/import-state: duplicate tap counters → 400, existing rows survive",
+    steps: [
+      () => post("/record-read", { counterValue: 5 }),
+      () =>
+        post("/import-state", {
+          version: 1,
+          taps: [
+            { counter: 5, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 100, updated_at: 100 },
+            { counter: 5, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 110, updated_at: 110 },
+          ],
+        }),
+      () => get("/list-taps"),
+    ],
+  },
+  {
+    // "123" and 123 coerce to the SAME rowid — the duplicate pass
+    // compares coerced integer keys, not raw values.
+    name: "/import-state: coercion-equal counters (\"123\" and 123) → 400",
+    steps: [
+      () =>
+        post("/import-state", {
+          version: 1,
+          taps: [
+            { counter: "123", bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 100, updated_at: 100 },
+            { counter: 123, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 110, updated_at: 110 },
+          ],
+        }),
+      () => get("/list-taps"),
+    ],
+  },
+  {
+    // The taps table is cleared before the inserts, so auto-assignment
+    // is body-deterministic: [null, 1] lands the null on rowid 1 and the
+    // later explicit 1 collides — caught pre-DELETE.
+    name: "/import-state: null counter colliding with later explicit 1 → 400",
+    steps: [
+      () =>
+        post("/import-state", {
+          version: 1,
+          taps: [
+            { counter: null, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 100, updated_at: 100 },
+            { counter: 1, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 110, updated_at: 110 },
+          ],
+        }),
+      () => get("/list-taps"),
+    ],
+  },
+  {
+    name: "/import-state: duplicate transaction ids → 400, seeded txn survives",
+    steps: [
+      () => post("/credit", { amount: 10, note: "seed" }),
+      () =>
+        post("/import-state", {
+          version: 1,
+          transactions: [
+            { id: 7, counter: null, amount: 5, balance_after: 5, created_at: 100, note: null, voided_at: null },
+            { id: 7, counter: null, amount: 6, balance_after: 6, created_at: 110, note: null, voided_at: null },
+          ],
+        }),
+      () => get("/transactions"),
+    ],
+  },
+  {
+    // No-false-positive guard: mixed batches that do NOT collide must
+    // keep importing. SQLite auto-assigns largest-so-far + 1 per insert:
+    // -5 first pulls the null down to -4 (not 1), then 9 lands plainly.
+    name: "/import-state: mixed non-colliding counters (negative, null, explicit) import cleanly",
+    steps: [
+      () =>
+        post("/import-state", {
+          version: 1,
+          taps: [
+            { counter: -5, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 100, updated_at: 100 },
+            { counter: null, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 110, updated_at: 110 },
+            { counter: 9, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 120, updated_at: 120 },
+          ],
+        }),
+      () => get("/list-taps"),
+    ],
+  },
   {
     // Column affinity converts a numeric string before the rowid-alias
     // integer check — the row lands with counter 123.
