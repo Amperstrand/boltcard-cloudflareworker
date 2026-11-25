@@ -3,6 +3,10 @@
 //
 //   node scripts/live-flag-verify.mjs https://boltcardpoc.psbt.me            # default-off record
 //   node scripts/live-flag-verify.mjs https://boltcard-staging.psbt.me      # armed-posture probes (needs flags set)
+//   node scripts/live-flag-verify.mjs https://boltcardpoc.psbt.me --expect default-off
+//        # K3 posture-watch mode: the default-off column becomes HARD
+//        # assertions (k1===c, replay 200, :8443 200, /status 200) —
+//        # exit 1 with the observed-vs-expected table on divergence.
 //
 // Deterministic taps on the designed anonymous path (UID 04dead00c0ffee,
 // public dev-01 issuer key), node:crypto AES + the repo's own
@@ -13,9 +17,14 @@
 import { createCipheriv } from "node:crypto";
 import { deriveKeysFromHex } from "@ntag424/crypto";
 
-const BASE = process.argv[2];
-if (!BASE) {
-  console.error("usage: node scripts/live-flag-verify.mjs <base-url>");
+const ARGS = process.argv.slice(2);
+const BASE = ARGS.find((a) => !a.startsWith("--"));
+const EXPECT = ARGS.includes("--expect") ? ARGS[ARGS.indexOf("--expect") + 1] : null;
+// Only the default-off column is assertable today (ops#26 live-proved it);
+// an armed-staging assert would fight ops#26's session-scoped arming.
+const STRICT = EXPECT === "default-off";
+if (!BASE || (EXPECT && !STRICT)) {
+  console.error("usage: node scripts/live-flag-verify.mjs <base-url> [--expect default-off]");
   process.exit(2);
 }
 const UID = "04dead00c0ffee";
@@ -134,7 +143,7 @@ async function step1(t) {
 }
 
 async function main() {
-  log(`flag-posture verification against ${BASE}`);
+  log(`flag-posture verification against ${BASE}${STRICT ? " (expect: default-off)" : ""}`);
   const st = await fetch(`${BASE}/status`);
   record("/status health", 200, st.status);
 
@@ -142,16 +151,20 @@ async function main() {
   const s1 = await step1(tap());
   record("step-1 fresh tap", 200, s1.http);
   const k1 = s1.body?.k1 ?? "";
-  record("k1 shape", "see detail", `len=${k1.length} eqC=${k1 === s1.t.cHex}`, `k1=${k1} c=${s1.t.cHex}`);
+  if (STRICT) {
+    record("k1 === c (default-off)", true, k1 === s1.t.cHex, `k1=${k1} c=${s1.t.cHex}`);
+  } else {
+    record("k1 shape", "see detail", `len=${k1.length} eqC=${k1 === s1.t.cHex}`, `k1=${k1} c=${s1.t.cHex}`);
+  }
 
   // 2. same-tap replay (idempotent default vs 409 under REPLAY_ENFORCE)
   const s2 = await fetch(`${BASE}/?p=${s1.t.pHex}&c=${s1.t.cHex}`).then((r) => r.status);
-  record("step-1 replay", "default-off: 200 / armed: 409", s2);
+  record("step-1 replay", STRICT ? 200 : "default-off: 200 / armed: 409", s2);
 
   // 3. host pinning: port variant reaches the worker with url.host host:port
   const t3 = tap();
   const r8443 = await fetch(`${BASE}:8443/?p=${t3.pHex}&c=${t3.cHex}`).then((r) => r.status).catch((e) => String(e));
-  record("url.host port-variant (:8443)", "default-off: 200 / armed: 400", r8443);
+  record("url.host port-variant (:8443)", STRICT ? 200 : "default-off: 200 / armed: 400", r8443);
 
   // 4. host pinning scope: /status is not on the pinned surface
   const rStat = await fetch(`${BASE}:8443/status`).then((r) => r.status).catch((e) => String(e));
@@ -159,8 +172,15 @@ async function main() {
 
   console.log(`\n${"-".repeat(60)}`);
   const hard = results.filter((r) => r.pass !== null);
-  const failed = hard.filter((r) => !r.pass).length;
-  console.log(`${hard.length - failed}/${hard.length} hard assertions met; ${results.length - hard.length} posture observations above.`);
+  const failed = hard.filter((r) => !r.pass);
+  console.log(`${hard.length - failed.length}/${hard.length} hard assertions met; ${results.length - hard.length} posture observations above.`);
+  if (failed.length) {
+    console.error(`\nPOSTURE DIVERGENCE — ${failed.length} assertion(s) failed (observed vs expected):`);
+    for (const r of failed) {
+      console.error(`  ${r.name}: expected ${r.expect}, observed ${r.observed}${r.detail ? " — " + r.detail : ""}`);
+    }
+    process.exitCode = 1;
+  }
   console.log(JSON.stringify(results, null, 2));
 }
 
