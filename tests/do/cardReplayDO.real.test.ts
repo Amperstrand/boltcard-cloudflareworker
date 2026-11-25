@@ -821,4 +821,94 @@ describe("CardReplayDO real SQLite", () => {
       expect(txns.transactions[0].id).toBe(2);
     });
   });
+
+  // ops#71 pre-validate decision: duplicate effective rowid keys on
+  // /import-state are rejected before the DELETE phase. Verified on the
+  // real stub (ops#65 session probe): the second INSERT fails with an
+  // ESCAPED `UNIQUE constraint failed ... SQLITE_CONSTRAINT_PRIMARYKEY`
+  // and the import lands PARTIALLY applied; the mock used to return a
+  // bogus 200 with silent last-write-wins.
+  describe("import-state duplicate-rowid validation", () => {
+    it("rejects duplicate tap counters with a 400 before any DELETE", async () => {
+      const res = await doPost(stub, "/import-state", {
+        version: 1,
+        taps: [
+          { counter: 5, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 100, updated_at: 100 },
+          { counter: 5, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 110, updated_at: 110 },
+        ],
+      });
+      expect(res.status).toBe(400);
+      const data = await json(res);
+      expect(data.error).toBe("Invalid import body: taps[1].counter duplicates taps[0].counter");
+    });
+
+    it('rejects coercion-equal counters ("123" and 123) with a 400', async () => {
+      const res = await doPost(stub, "/import-state", {
+        version: 1,
+        taps: [
+          { counter: "123", bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 100, updated_at: 100 },
+          { counter: 123, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 110, updated_at: 110 },
+        ],
+      });
+      expect(res.status).toBe(400);
+      const data = await json(res);
+      expect(data.error).toBe("Invalid import body: taps[1].counter duplicates taps[0].counter");
+    });
+
+    it("rejects a null counter colliding with a later explicit 1 (auto-assign simulation)", async () => {
+      const res = await doPost(stub, "/import-state", {
+        version: 1,
+        taps: [
+          { counter: null, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 100, updated_at: 100 },
+          { counter: 1, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 110, updated_at: 110 },
+        ],
+      });
+      expect(res.status).toBe(400);
+      const data = await json(res);
+      expect(data.error).toBe("Invalid import body: taps[1].counter duplicates auto-assigned taps[0].counter (null)");
+    });
+
+    it("rejects duplicate transaction ids with a 400", async () => {
+      const res = await doPost(stub, "/import-state", {
+        version: 1,
+        transactions: [
+          { id: 7, counter: null, amount: 5, balance_after: 5, created_at: 100, note: null, voided_at: null },
+          { id: 7, counter: null, amount: 6, balance_after: 6, created_at: 110, note: null, voided_at: null },
+        ],
+      });
+      expect(res.status).toBe(400);
+      const data = await json(res);
+      expect(data.error).toBe("Invalid import body: transactions[1].id duplicates transactions[0].id");
+    });
+
+    it("keeps existing rows intact when the import is refused", async () => {
+      await doPost(stub, "/record-read", { counterValue: 5 });
+      const res = await doPost(stub, "/import-state", {
+        version: 1,
+        taps: [
+          { counter: 5, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 100, updated_at: 100 },
+          { counter: 5, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 110, updated_at: 110 },
+        ],
+      });
+      expect(res.status).toBe(400);
+      const list = await json(await doGet(stub, "/list-taps"));
+      expect(list.taps).toHaveLength(1);
+      expect(list.taps[0].counter).toBe(5);
+    });
+
+    it("imports non-colliding mixed batches (negative, null, explicit) without false positives", async () => {
+      const res = await doPost(stub, "/import-state", {
+        version: 1,
+        taps: [
+          { counter: -5, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 100, updated_at: 100 },
+          { counter: null, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 110, updated_at: 110 },
+          { counter: 9, bolt11: null, status: "read", payment_hash: null, amount_msat: null, user_agent: null, request_url: null, created_at: 120, updated_at: 120 },
+        ],
+      });
+      expect(res.status).toBe(200);
+      const list = await json(await doGet(stub, "/list-taps"));
+      // SQLite auto-assigns largest-so-far + 1: -5 pulls the null to -4.
+      expect(list.taps.map((t: { counter: number }) => t.counter).sort((a: number, b: number) => b - a)).toEqual([9, -4, -5]);
+    });
+  });
 });
