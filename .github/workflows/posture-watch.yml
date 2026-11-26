@@ -1,0 +1,39 @@
+name: posture-watch
+
+# K3 (Amperstrand/amperstrand-ops#70): daily assert of the default-OFF
+# production posture — the ops#26 live-proven invariants (fresh tap 200
+# with k1 === c, same-tap replay 200 idempotent, :8443 port-variant 200,
+# /status 200). Green runs are silent (no artifacts, no issues — the
+# fleet's status_board reads the run conclusion); divergence FAILS RED
+# with the observed-vs-expected table in the run log, which surfaces on
+# the owner's daily board. Alert shape decision: a red scheduled run,
+# not a gh-issue per failure — the board is the owner's single watch
+# surface and a failing check cannot be missed-by-subscription.
+#
+# Deliberately the ONE workflow allowed to go red by design (LESSONS
+# 2026-11-15/17): everything else in this repo stays hermetic/green-path.
+# Prod-only: staging posture is session-scoped by design (ops#26
+# arms/disarms it) and is NOT asserted here.
+
+on:
+  schedule:
+    # 05:37 UTC daily — off the top-of-hour cron pileup (the fleet's
+    # destagger discipline; nothing else in the org runs at :37).
+    - cron: "37 5 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  posture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Assert default-off posture (production)
+        run: node scripts/live-flag-verify.mjs https://boltcardpoc.psbt.me --expect default-off

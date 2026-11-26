@@ -359,6 +359,11 @@ The LNURL-withdraw response sets `k1` to the card's CMAC value (`c` parameter), 
 - CI auto-publish: `.github/workflows/publish-evidence.yml` — runs on every push to main, requires `PUBLISH_NSEC` secret
 - Dashboard: [tests.tollgate.me](https://tests.tollgate.me) — Boltcard tab shows evidence with inline screenshots
 
+### Scheduled posture watch (K3, ops#70)
+- `.github/workflows/posture-watch.yml` — daily 05:37 UTC + `workflow_dispatch`: runs `scripts/live-flag-verify.mjs https://boltcardpoc.psbt.me --expect default-off` (fresh tap 200 with k1===c, replay 200, :8443 200, /status 200 — the ops#26 live-proven invariants)
+- **This is the ONE workflow allowed to go red by design**: divergence fails the run with the observed-vs-expected table; green runs are silent (the owner's fleet board reads the conclusion). Production only — staging posture is session-scoped (ops#26) and never asserted.
+- Manual: `node scripts/live-flag-verify.mjs <base>` records posture without asserting; `--expect default-off` hardens it.
+
 ### Tier 3: Smoke Tests
 - Run: `npm run live:smoke` (post-deploy, 5 HTTP requests to live worker)
 - Minimal health check — verifies deploy is alive + cache busting on script tags
